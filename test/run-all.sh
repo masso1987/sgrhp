@@ -17,6 +17,13 @@ for t in test/test_m1.sh test/test_m2.sh test/test_m3.sh test/test_m3b.sh test/t
   printf "%-22s %s\n" "$(basename $t)" "$out"
 done
 kill $SRV 2>/dev/null
+
+# PostgreSQL adapter checks (stubbed driver, no database required)
+out=$(node test/test_pg_adapter.js 2>/dev/null | tail -1)
+p=$(echo "$out" | grep -o '[0-9]* passed' | grep -o '[0-9]*')
+f=$(echo "$out" | grep -o '[0-9]* failed' | grep -o '[0-9]*')
+total_pass=$((total_pass + ${p:-0})); total_fail=$((total_fail + ${f:-0}))
+printf "%-22s %s\n" "test_pg_adapter.js" "$out"
 echo "-----------------------------------------"
 echo "TOTAL: $total_pass passed, $total_fail failed"
 [ "$total_fail" -eq 0 ]

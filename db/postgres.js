@@ -41,6 +41,8 @@ async function init() {
   await pool.query("SELECT 1");
   await pool.query(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
   // Mirror table: one row per document of each collection, keyed by id.
+  // NB: multi-statement SQL cannot carry bind parameters — keep DDL and the
+  // parameterised INSERT in separate queries.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS store (
       tenant_id  TEXT NOT NULL,
@@ -49,10 +51,11 @@ async function init() {
       doc        JSONB NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (tenant_id, collection, id)
-    );
-    CREATE INDEX IF NOT EXISTS store_lookup ON store (tenant_id, collection);
-    INSERT INTO tenants (id, name) VALUES ($1, 'Cible RH Emploi S.A.')
-      ON CONFLICT (id) DO NOTHING;`, [TENANT]);
+    )`);
+  await pool.query("CREATE INDEX IF NOT EXISTS store_lookup ON store (tenant_id, collection)");
+  await pool.query(
+    "INSERT INTO tenants (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING",
+    [TENANT, "Cible RH Emploi S.A."]);
   return true;
 }
 
@@ -95,9 +98,9 @@ async function save(db) {
           [TENANT, key, ids.map(String)]);
     }
     await client.query(
-      `INSERT INTO store (tenant_id, collection, id, doc, updated_at) VALUES ($1,'_meta','seq',$2, now())
+      `INSERT INTO store (tenant_id, collection, id, doc, updated_at) VALUES ($1,$2,$3,$4, now())
        ON CONFLICT (tenant_id, collection, id) DO UPDATE SET doc = EXCLUDED.doc, updated_at = now()`,
-      [TENANT, { seq: db.seq }]);
+      [TENANT, "_meta", "seq", { seq: db.seq }]);
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
