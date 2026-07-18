@@ -24,6 +24,13 @@ p=$(echo "$out" | grep -o '[0-9]* passed' | grep -o '[0-9]*')
 f=$(echo "$out" | grep -o '[0-9]* failed' | grep -o '[0-9]*')
 total_pass=$((total_pass + ${p:-0})); total_fail=$((total_fail + ${f:-0}))
 printf "%-22s %s\n" "test_pg_adapter.js" "$out"
+
+# Interface language checks (FR/EN)
+out=$(node test/test_i18n.js 2>/dev/null | tail -1)
+p=$(echo "$out" | grep -o '[0-9]* passed' | grep -o '[0-9]*')
+f=$(echo "$out" | grep -o '[0-9]* failed' | grep -o '[0-9]*')
+total_pass=$((total_pass + ${p:-0})); total_fail=$((total_fail + ${f:-0}))
+printf "%-22s %s\n" "test_i18n.js" "$out"
 echo "-----------------------------------------"
 echo "TOTAL: $total_pass passed, $total_fail failed"
 [ "$total_fail" -eq 0 ]

@@ -62,7 +62,9 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
 
 <div id="app" class="hidden">
 <div class="topbar"><div class="logo">◆ SGRHP<span class="b">Cible RH Emploi S.A.</span></div>
-  <div style="font-size:13px"><span id="bell" style="cursor:pointer;margin-right:10px" onclick="showNotifs()">🔔</span><span id="who"></span> &nbsp;<button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
+  <div style="font-size:13px"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
+      style="margin:0 10px 0 0;padding:4px 8px;border-radius:6px;border:none;font-size:12px;cursor:pointer">
+      <option value="fr">FR</option><option value="en">EN</option></select><span id="bell" style="cursor:pointer;margin-right:10px" onclick="showNotifs()">🔔</span><span id="who"></span> &nbsp;<button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
 <div class="layout">
   <div class="sidebar" id="nav"></div>
   <div class="main" id="view"></div>
@@ -70,6 +72,321 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
 </div>
 
 <script>
+
+/* ================= Internationalisation (FR / EN) =================
+ * French is the source language in the markup. When English is selected, a
+ * translation pass rewrites known strings after every render — dynamic data
+ * (names, numbers, dates) is never touched because only exact dictionary
+ * matches are replaced.
+ */
+const I18N = {
+"▦ Tableau de bord": "▦ Dashboard",
+"👥 Employés": "👥 Employees",
+"✓ File de validation": "✓ Validation queue",
+"📋 Fiches de poste": "📋 Job descriptions",
+"💰 Grille salariale": "💰 Salary grid",
+"📈 Carrière & Perf.": "📈 Career & Perf.",
+"📊 Rapports & KPIs": "📊 Reports & KPIs",
+"🖨 Documents générés": "🖨 Generated documents",
+"📄 Modèles": "📄 Templates",
+"🛠 Référentiels": "🛠 Referentials",
+"⚙ Config. portefeuilles": "⚙ Portfolio config",
+"🔐 Utilisateurs": "🔐 Users",
+"🕘 Journal d'audit": "🕘 Audit log",
+"Mot de passe": "Password",
+"Se connecter": "Sign in",
+"Déconnexion": "Sign out",
+"Comptes de démonstration (mot de passe <b>demo123</b>) :": "Demo accounts (password <b>demo123</b>):",
+"Session expirée — reconnectez-vous.": "Session expired — please sign in again.",
+"Tableau de bord RH": "HR dashboard",
+"Dossiers du personnel": "Employee files",
+"Nouveau dossier employé": "New employee file",
+"Configuration des portefeuilles": "Portfolio configuration",
+"Utilisateurs & rôles": "Users & roles",
+"Journal d'audit": "Audit log",
+"Modèles de documents": "Document templates",
+"Référentiels — paramètres de génération": "Referentials — generation settings",
+"Fiches de poste": "Job descriptions",
+"Grilles salariales — par convention collective": "Salary grids — per collective agreement",
+"Carrière & performance": "Career & performance",
+"Rapports & indicateurs": "Reports & indicators",
+"Documents générés": "Generated documents",
+"Notifications": "Notifications",
+"Employés": "Employees",
+"En attente de MA validation": "Awaiting MY validation",
+"Mes documents rejetés à corriger": "My rejected documents to correct",
+"Dépassements SLA (>48h)": "SLA breaches (>48h)",
+"Alertes 36h": "36h warnings",
+"⏱ CHRONOMÈTRES EN COURS — SLA 48h": "⏱ ACTIVE TIMERS — 48h SLA",
+"🪪 CNI EXPIRANT SOUS 60 JOURS": "🪪 ID CARDS EXPIRING WITHIN 60 DAYS",
+"📋 CDD SE TERMINANT SOUS 30 JOURS": "📋 FIXED-TERM CONTRACTS ENDING WITHIN 30 DAYS",
+"👥 EFFECTIFS PAR PORTEFEUILLE": "👥 HEADCOUNT BY PORTFOLIO",
+"Aucun document en validation.": "No documents in validation.",
+"Nom": "Name",
+"Prénom": "First name",
+"Portefeuille": "Portfolio",
+"Contrat": "Contract",
+"Embauché": "Hired",
+"Embauché le": "Hired on",
+"Pièces requises": "Required documents",
+"Statut": "Status",
+"Rôle": "Role",
+"Horodatage": "Timestamp",
+"Utilisateur": "User",
+"Objet": "Object",
+"Détail": "Detail",
+"Document": "Document",
+"Chronomètre": "Timer",
+"Catégorie": "Category",
+"Initiateur": "Initiator",
+"Étape": "Stage",
+"Assigné": "Assigned",
+"Décision": "Decision",
+"Motif": "Reason",
+"Modèle": "Template",
+"Champs détectés": "Detected fields",
+"Déposé le": "Uploaded",
+"Type": "Type",
+"Évaluateur": "Evaluator",
+"Employé": "Employee",
+"Ouvrir": "Open",
+"Annuler": "Cancel",
+"Créer": "Create",
+"Ajouter": "Add",
+"Enregistrer": "Save",
+"Filtrer": "Filter",
+"Voir": "View",
+"Déposer": "Upload",
+"Retour": "Back",
+"Retour à la liste": "Back to list",
+"Validé": "Approved",
+"Rejeté": "Rejected",
+"En attente": "Pending",
+"Actif": "Active",
+"Désactivé": "Disabled",
+"Aucun.": "None.",
+"Aucun défini.": "None defined.",
+"Aucun pour le moment.": "None yet.",
+"Tous les utilisateurs": "All users",
+"Toutes les actions": "All actions",
+"obligatoire": "required",
+"auto": "auto",
+"Déposée ✓": "Uploaded ✓",
+"Manquante": "Missing",
+"OBLIGATOIRE": "MANDATORY",
+"Brouillon": "Draft",
+"Généré ✓": "Generated ✓",
+"En attente CD": "Awaiting CD",
+"En attente RJ": "Awaiting RJ",
+"+ Nouveau dossier": "+ New file",
+"Date d'embauche": "Hire date",
+"Type de contrat": "Contract type",
+"Date de naissance": "Date of birth",
+"Lieu de naissance": "Place of birth",
+"Situation matrimoniale": "Marital status",
+"Numéro CNI": "ID card number",
+"Validité CNI": "ID card validity",
+"Numéro CNPS": "Social security number",
+"Téléphone": "Phone",
+"Mode de paiement": "Payment method",
+"Personne à contacter en cas d'urgence": "Emergency contact",
+"Contact d'urgence": "Emergency contact",
+"Créer le dossier": "Create file",
+"Catégorie (grille de la convention)": "Category (agreement grid)",
+"Échelon": "Step",
+"— sélectionner —": "— select —",
+"Nom complet": "Full name",
+"Éléments de salaire": "Salary elements",
+"cochez puis saisissez les montants (gérés par l'administrateur)": "tick then enter amounts (managed by the administrator)",
+"Date de fin de contrat": "Contract end date",
+"obligatoire pour les contrats à durée déterminée": "required for fixed-term contracts",
+"Convention collective": "Collective agreement",
+"issue du portefeuille sélectionné": "from the selected portfolio",
+"vos portefeuilles rattachés": "your linked portfolios",
+"Né(e) le": "Born on",
+"INFORMATIONS PERSONNELLES & CONTRAT": "PERSONAL DETAILS & CONTRACT",
+"durée indéterminée": "open-ended",
+"fin le": "ends",
+"⬇ Télécharger le dossier (PDF)": "⬇ Download employee file (PDF)",
+"Soumettre pour validation": "Submit for validation",
+"(pièces incomplètes)": "(documents incomplete)",
+"CIRCUIT DE VALIDATION — cycle": "VALIDATION WORKFLOW — cycle",
+"Pièces obligatoires héritées du portefeuille": "Required documents inherited from portfolio",
+"La CNI est obligatoire pour tous les portefeuilles.": "The ID card is mandatory for every portfolio.",
+"1ère validation (Chef de département)": "1st validation (Department head)",
+"Validation juridique finale": "Final legal validation",
+"✓ Valider": "✓ Approve",
+"✕ Rejeter": "✕ Reject",
+"Consulter le dossier": "Review file",
+"Aucun document en attente de votre validation.": "Nothing awaiting your validation.",
+"resoumission n°": "resubmission #",
+"Lecture seule. Chaque impression ou téléchargement est journalisé (qui, quand, quel document).": "Read-only. Every print or download is logged (who, when, which document).",
+"⬇ Télécharger": "⬇ Download",
+"🖨 Imprimer": "🖨 Print",
+"Aucun document généré pour le moment.": "No generated documents yet.",
+"Tout marquer comme lu": "Mark all as read",
+"Aucune notification": "No notifications",
+"DOCUMENTS GÉNÉRÉS DEPUIS UN MODÈLE": "DOCUMENTS GENERATED FROM A TEMPLATE",
+"+ Générer un document depuis un modèle": "+ Generate a document from a template",
+"Corriger & resoumettre": "Correct & resubmit",
+"Resoumettre (nouveau cycle)": "Resubmit (new cycle)",
+"Générer un document": "Generate a document",
+"Créer & soumettre pour validation": "Create & submit for validation",
+"Les champs verts sont <b>renseignés automatiquement depuis le dossier</b> (modifiables).": "Green fields are <b>auto-filled from the employee file</b> (editable).",
+"Les champs orange sont <b>des informations obligatoires introuvables</b> — merci de les compléter.": "Amber fields are <b>required information that could not be found</b> — please complete them.",
+"valeurs issues de :": "values from:",
+"Créer un portefeuille": "Create portfolio",
+"+ Créer": "+ Create",
+"Convention collective rattachée": "Linked collective agreement",
+"Rattacher": "Link",
+"Enregistrer la configuration": "Save configuration",
+"Portefeuilles rattachés (GPF)": "Linked portfolios (GPF)",
+"🔗 Gérer": "🔗 Manage",
+"rattaché(s)": "linked",
+"Rattacher des portefeuilles —": "Link portfolios —",
+"Ajouter un utilisateur": "Add user",
+"Nouveau référentiel": "New referential",
+"non lié": "not linked",
+"Déposer un modèle": "Upload template",
+"Déposer & analyser": "Upload & scan",
+"💵 Éléments de salaire (utilisés à la création d'un employé)": "💵 Salary elements (used when creating an employee)",
+"📃 Types de contrat (paramétrables, versionnés)": "📃 Contract types (configurable, versioned)",
+"Oui (date de fin requise)": "Yes (end date required)",
+"Non": "No",
+"durée déterminée": "fixed term",
+"🪄 Studio de modèles — transformer un document Word en modèle": "🪄 Template Studio — turn a Word document into a template",
+"1. Déposer & lire": "1. Upload & read",
+"2. Convertir en modèle": "2. Convert to template",
+"+ Ajouter un remplacement": "+ Add replacement",
+"Déposer & extraire": "Upload & extract",
+"Enregistrer les corrections": "Save corrections",
+"sections détectées": "sections detected",
+"Aucune fiche pour le moment.": "No job descriptions yet.",
+"+ Ajouter une convention": "+ Add agreement",
+"Enregistrer la grille": "Save grid",
+"Salaire de base (F CFA)": "Base salary (F CFA)",
+"Synthèse & rapprochement": "Overview & matching",
+"Plan de carrière": "Career plan",
+"Points & entretiens": "Check-ins & interviews",
+"Succession": "Succession",
+"🔮 Rapprochement prédictif — suggestions de mobilité interne": "🔮 Predictive matching — internal mobility suggestions",
+"🗝 Postes clés": "🗝 Key positions",
+"Postes souhaités (séparés par des virgules)": "Preferred positions (comma separated)",
+"Lieux souhaités": "Preferred locations",
+"Disponibilité": "Availability",
+"Matrice de potentiel (1–9)": "Potential matrix (1–9)",
+"Parcours de carrière": "Career path",
+"Formations (séparées par des virgules)": "Training programs (comma separated)",
+"Enregistrer le plan de carrière": "Save career plan",
+"+ Créer un OKR": "+ Create OKR",
+"Mettre à jour l'avancement": "Update progress",
+"Aucun OKR pour le moment.": "No OKR yet.",
+"Nouvelle campagne 360°": "New 360° campaign",
+"+ Lancer la campagne": "+ Launch campaign",
+"Saisir les notes": "Enter scores",
+"Transmis": "Submitted",
+"🔄 Points réguliers": "🔄 Regular check-ins",
+"+ Enregistrer": "+ Log",
+"📝 Entretiens dématérialisés (signature électronique)": "📝 Digital interviews (e-signature)",
+"Signer (responsable)": "Sign as manager",
+"Signer (employé)": "Sign as employee",
+"Signé & archivé ✓": "Signed & archived ✓",
+"En attente de signatures": "Awaiting signatures",
+"Nouveau poste clé": "New key position",
+"+ Successeur": "+ Successor",
+"Prêt maintenant": "Ready now",
+"Prêt sous 1–2 ans": "Ready in 1–2 years",
+"À développer": "To develop",
+"Aucun successeur identifié.": "No successors identified.",
+"criticité": "criticality",
+"Échec de l'export": "Export failed",
+"Aucune anomalie 🎉": "No anomalies 🎉",
+"Effectif total": "Total headcount",
+"Masse salariale (FCFA/mois)": "Payroll (FCFA/month)",
+"Score de conformité": "Compliance score",
+"Anomalies critiques": "Critical anomalies",
+"Anomalies moyennes": "Medium anomalies",
+"Anomalies mineures": "Minor anomalies",
+"Gravité": "Severity",
+"Anomalie": "Anomaly",
+"Indicateurs calculés à partir du journal d'audit et des étapes de workflow (§4.3).": "Indicators computed from the audit log and workflow steps (§4.3).",
+"Soumis / Décidés": "Submitted / Decided",
+"Taux de rejet": "Rejection rate",
+"Resoumissions": "Resubmissions",
+"Délai moyen": "Average delay",
+"Dépassements": "Breaches",
+"Motif récurrent": "Recurring reason",
+"Cycle": "Cycle",
+"Heures": "Hours",
+"Actions": "Actions",
+"Soumis — transmis au chef de département. Chronomètre de 48h démarré.": "Submitted — sent to the department head. 48h timer started.",
+"Validation finale enregistrée — document officiel généré automatiquement.": "Final validation recorded — official document generated automatically.",
+"Validé — transmis au responsable juridique (RJ), chronomètre de 48h démarré.": "Approved — sent to the legal officer (RJ), 48h timer started.",
+"Motif de rejet (OBLIGATOIRE — journalisé et transmis à l'initiateur) :": "Rejection reason (MANDATORY — logged and sent to the initiator):",
+"Document créé et soumis — chronomètre de validation CD de 48h démarré.": "Document created and submitted — 48h department-head timer started.",
+"Portefeuilles rattachés — modification journalisée.": "Portfolios linked — change recorded in the audit log.",
+"Convention rattachée — modification journalisée.": "Agreement linked — change recorded in the audit log.",
+"Enregistré — modification journalisée.": "Saved — change recorded in the audit log.",
+"Grille enregistrée — modification journalisée.": "Grid saved — change recorded in the audit log.",
+"Plan de carrière enregistré.": "Career plan saved.",
+"Enregistré.": "Saved.",
+"Décision enregistrée + avenant salarial créé automatiquement (en attente de validation CD).": "Decision recorded + salary amendment created automatically (awaiting department-head validation).",
+"Avenant soumis — chronomètre de 48h démarré. Il sera appliqué au contrat après validation du RJ.": "Amendment submitted — 48h timer started. It will apply to the contract after legal validation.",
+"Demande soumise pour validation.": "Request submitted for validation.",
+"Aucun modèle déposé (Administration > Modèles).": "No templates uploaded (Administration > Templates).",
+"Commentaire (facultatif)": "Comment (optional)",
+"Serveur injoignable — vérifiez votre connexion": "Server unreachable — check your connection",
+"Trop de requêtes — patientez quelques secondes": "Too many requests — please wait a few seconds",
+"Session expirée": "Session expired",
+"Identifiants invalides": "Invalid credentials",
+"Code 2FA requis": "2FA code required",
+"Code 2FA invalide": "Invalid 2FA code",
+"Jeton manquant": "Missing token",
+"Session expirée, reconnectez-vous": "Session expired, please sign in again"
+};
+let LANG = localStorage.getItem("sgrhp_lang") || "fr";
+
+function t(s) {
+  if (LANG === "fr" || s == null) return s;
+  const k = String(s).trim();
+  return I18N[k] !== undefined ? I18N[k] : s;
+}
+function setLang(l) {
+  LANG = l; localStorage.setItem("sgrhp_lang", l);
+  document.documentElement.lang = l;
+  location.reload();
+}
+/** Translate a rendered subtree: text nodes, placeholders, titles and options. */
+function translateTree(root) {
+  if (LANG === "fr" || !root) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const n of nodes) {
+    const raw = n.nodeValue;
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const hit = I18N[trimmed];
+    if (hit !== undefined) n.nodeValue = raw.replace(trimmed, hit);
+  }
+  for (const el of root.querySelectorAll("[placeholder],[title]")) {
+    const p = el.getAttribute("placeholder");
+    if (p && I18N[p.trim()] !== undefined) el.setAttribute("placeholder", I18N[p.trim()]);
+    const ti = el.getAttribute("title");
+    if (ti && I18N[ti.trim()] !== undefined) el.setAttribute("title", I18N[ti.trim()]);
+  }
+}
+/* Re-translate whatever the app renders next. */
+function watchI18n() {
+  if (LANG === "fr") return;
+  translateTree(document.body);
+  new MutationObserver(muts => {
+    for (const m of muts)
+      for (const node of m.addedNodes)
+        if (node.nodeType === 1) translateTree(node);
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 let TOKEN = sessionStorage.getItem("t"), ME = JSON.parse(sessionStorage.getItem("me") || "null");
 
 const api = async (path, opts = {}) => {
@@ -132,6 +449,8 @@ const NAV = [
 ];
 async function boot() {
   login.classList.add("hidden"); app.classList.remove("hidden");
+  document.getElementById("langSel").value = LANG;
+  watchI18n();
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${ME.fullName} — ${ME.role}`;
   const items = NAV.filter(n => n.roles.includes(ME.role));
@@ -321,7 +640,7 @@ async function portfolios() {
 }
 async function pfCnvSave(id) {
   try { await api(`/portfolios/${id}/convention`, { method: "PUT", body: JSON.stringify({ conventionId: pfCnv.value }) });
-    alert("Convention rattachée — modification journalisée."); portfolios(); } catch (e) { alert(e.message); }
+    alert(t("Convention rattachée — modification journalisée.")); portfolios(); } catch (e) { alert(e.message); }
 }
 async function pfCreate() {
   try {
@@ -332,7 +651,7 @@ async function pfCreate() {
 async function pfSave(id) {
   const codes = [...view.querySelectorAll("input[data-code]")].filter(c => c.checked || c.disabled).map(c => c.dataset.code);
   try { await api(`/portfolios/${id}/requirements`, { method: "PUT", body: JSON.stringify({ required: codes }) });
-    alert("Enregistré — modification journalisée."); }
+    alert(t("Enregistré — modification journalisée.")); }
   catch (e) { pErr.textContent = e.message; pErr.classList.remove("hidden"); }
 }
 
@@ -399,6 +718,10 @@ async function auditView() {
     </table></div>`;
 }
 
+/* login screen is translated too */
+document.documentElement.lang = LANG;
+if (LANG === "en") translateTree(document.getElementById("login"));
+
 /* preload portfolios for names */
 if (TOKEN) {
   api("/portfolios")
@@ -455,7 +778,7 @@ async function wfApprove(id) {
   catch (e) { alert(e.message); }
 }
 async function wfReject(id) {
-  const reason = prompt("Motif de rejet (OBLIGATOIRE — journalisé et transmis à l'initiateur) :");
+  const reason = prompt(t("Motif de rejet (OBLIGATOIRE — journalisé et transmis à l'initiateur) :"));
   if (reason === null) return;
   try { await api(`/documents/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) }); queueView(); }
   catch (e) { alert(e.message); }
@@ -532,7 +855,7 @@ async function empDetail(id) {
 }
 async function empSubmit(id) {
   try { await api(`/employees/${id}/submit`, { method: "POST" });
-    alert("Soumis — transmis au chef de département. Chronomètre de 48h démarré."); empDetail(id); }
+    alert(t("Soumis — transmis au chef de département. Chronomètre de 48h démarré.")); empDetail(id); }
   catch (e) { alert(e.message); }
 }
 refreshBell();
@@ -607,7 +930,7 @@ async function genForm(employeeId, docId = null, presetTplId = null, presetData 
   const tpls = await api("/templates");
   const refs = await api("/referentials");
   const refByTag = {}; refs.forEach(r => { if (r.tag) refByTag[r.tag] = r; });
-  if (!tpls.length) return alert("Aucun modèle déposé (Administration > Modèles).");
+  if (!tpls.length) return alert(t("Aucun modèle déposé (Administration > Modèles)."));
   const tplId = presetTplId || tpls[0].id;
   const { resolved, missing } = await api(`/templates/${tplId}/resolve/${employeeId}`);
   const data = { ...resolved, ...(presetData || {}) };
@@ -638,7 +961,7 @@ async function genSubmit(employeeId, templateId, docId) {
   try {
     if (docId) await api(`/documents/${docId}/resubmit`, { method: "POST", body: JSON.stringify({ values }) });
     else await api("/documents/from-template", { method: "POST", body: JSON.stringify({ templateId, employeeId, values }) });
-    alert("Document créé et soumis — chronomètre de validation CD de 48h démarré.");
+    alert(t("Document créé et soumis — chronomètre de validation CD de 48h démarré."));
     empDetail(employeeId);
   } catch (e) { gErr.textContent = e.message; gErr.classList.remove("hidden"); }
 }
@@ -703,7 +1026,7 @@ async function refDel(key, val) {
   const refs = await api("/referentials");
   const r = refs.find(x => x.key === key);
   const values = r.values.filter(v => v !== val);
-  if (!values.length) return alert("A referential must keep at least one value.");
+  if (!values.length) return alert(t("A referential must keep at least one value."));
   await api(`/referentials/${key}`, { method: "PUT", body: JSON.stringify({ values }) });
   settingsView();
 }
@@ -804,7 +1127,7 @@ async function amCreate(id) {
   try {
     await api(`/hr/${id}/amendments`, { method: "POST", body: JSON.stringify({
       avenantType: amType.value, changes: { [amField.value]: amValue.value }, effectiveDate: amDate.value, reason: amReason.value }) });
-    alert("Avenant soumis — chronomètre de 48h démarré. Il sera appliqué au contrat après validation du RJ.");
+    alert(t("Avenant soumis — chronomètre de 48h démarré. Il sera appliqué au contrat après validation du RJ."));
     empDetail(id);
   } catch (e) { alert(e.message); }
 }
@@ -818,14 +1141,14 @@ async function decCreate(id) {
       if (decSalEl.value && decSalAmt.value) fd.append("salaryChanges", JSON.stringify({ [decSalEl.value]: Number(decSalAmt.value) }));
     }
     const r = await api(`/hr/${id}/decisions`, { method: "POST", body: fd });
-    if (r.amendmentId) alert("Décision enregistrée + avenant salarial créé automatiquement (en attente de validation CD).");
+    if (r.amendmentId) alert(t("Décision enregistrée + avenant salarial créé automatiquement (en attente de validation CD)."));
     empDetail(id);
   } catch (e) { alert(e.message); }
 }
 async function lvCreate(id) {
   try { await api(`/hr/${id}/leave`, { method: "POST", body: JSON.stringify({
       leaveType: lvType.value, startDate: lvStart.value, endDate: lvEnd.value, reason: lvReason.value }) });
-    alert("Demande soumise pour validation."); empDetail(id); }
+    alert(t("Demande soumise pour validation.")); empDetail(id); }
   catch (e) { alert(e.message); }
 }
 /* chain into employee detail */
@@ -836,7 +1159,7 @@ empDetail = async function(id) { await _empDetailM3(id); await hrSection(id); };
 /* ================= M4+: export, fiches, grid ================= */
 async function empExport(id, name) {
   const r = await fetch(`/api/employees/${id}/export`, { headers: { Authorization: "Bearer " + TOKEN } });
-  if (!r.ok) return alert("Échec de l'export");
+  if (!r.ok) return alert(t("Échec de l'export"));
   const blob = await r.blob(); const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = `Dossier_${name}.pdf`; a.click();
 }
@@ -880,7 +1203,7 @@ async function fpSave(id) {
   const body = {};
   view.querySelectorAll(`textarea[data-fp="${id}"]`).forEach(t => body[t.dataset.k] = t.value);
   await api(`/fiches/${id}`, { method: "PUT", body: JSON.stringify(body) });
-  alert("Enregistré.");
+  alert(t("Enregistré."));
 }
 async function fpDl(id, name) {
   const r = await fetch(`/api/fiches/${id}/download`, { headers: { Authorization: "Bearer " + TOKEN } });
@@ -912,7 +1235,7 @@ async function gridSave() {
   const grid = [...view.querySelectorAll("input[data-cat]")].map(i => ({ category: i.dataset.cat, baseSalary: i.value }));
   try { await api(`/config/conventions/${window._cnvSel || (await api("/config/conventions"))[0].id}/grid`,
       { method: "PUT", body: JSON.stringify({ grid }) });
-    alert("Grille enregistrée — modification journalisée."); gridView(); }
+    alert(t("Grille enregistrée — modification journalisée.")); gridView(); }
   catch (e) { grErr.textContent = e.message; grErr.classList.remove("hidden"); }
 }
 async function cnvAdd() {
@@ -1098,7 +1421,7 @@ async function cpSave() {
     preferredPositions: split(cpPos.value), preferredLocations: split(cpLoc.value),
     availability: cpAv.value, potential: cpPot.value ? Number(cpPot.value) : undefined,
     careerPathId: cpPath.value || undefined, trainings: split(cpTr.value) }) });
-    alert("Plan de carrière saved."); careerTab("plan"); } catch (e) { alert(e.message); }
+    alert(t("Plan de carrière saved.")); careerTab("plan"); } catch (e) { alert(e.message); }
 }
 async function okCreate() {
   try { await api(`/career/okr/${CAR_EMP}`, { method: "POST", body: JSON.stringify({
@@ -1122,7 +1445,7 @@ async function evSubmit(id, idx, n) {
   const raw = prompt(`Notes de 1 à 5 pour les ${n} critères, séparées par ; (ex. 4;3;5)`);
   if (raw === null) return;
   const scores = raw.split(";").map(s => Number(s.trim()));
-  const comment = prompt("Commentaire (facultatif)") || "";
+  const comment = prompt(t("Commentaire (facultatif)")) || "";
   try { await api(`/career/eval360/${id}/submit`, { method: "POST", body: JSON.stringify({ evaluatorIndex: idx, scores, comment }) });
     careerTab("e360"); } catch (e) { alert(e.message); }
 }
@@ -1233,7 +1556,7 @@ async function reportsView() {
 }
 async function repExport(fmt) {
   const r = await fetch(`/api/reports/${REP_KEY}/export?format=${fmt}`, { headers: { Authorization: "Bearer " + TOKEN } });
-  if (!r.ok) return alert("Échec de l'export");
+  if (!r.ok) return alert(t("Échec de l'export"));
   const blob = await r.blob(); const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = `${REP_KEY}.${fmt}`; a.click();
 }
