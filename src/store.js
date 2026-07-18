@@ -14,11 +14,37 @@ if (fs.existsSync(FILE)) db = JSON.parse(fs.readFileSync(FILE, "utf8"));
 for (const k of ["users","portfolios","docTypes","employees","files","documents","notifications","audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid","fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360","checkins","interviews","successionPlans"])
   if (!db[k]) db[k] = [];
 
+/* Storage backend: PostgreSQL when DATABASE_URL is set, JSON file otherwise (dev). */
+const USE_PG = !!process.env.DATABASE_URL;
+let pg = null, saveQueue = Promise.resolve();
+
 function save() {
+  if (USE_PG) {
+    // serialise writes; failures are logged and surfaced by the health endpoint
+    saveQueue = saveQueue.then(() => pg.save(db)).catch(e => {
+      console.error("[store] PostgreSQL write failed:", e.message);
+      module.exports.lastError = e.message;
+    });
+    return saveQueue;
+  }
   const tmp = FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 1));
   fs.renameSync(tmp, FILE);
 }
+
+/** Called once at boot when using PostgreSQL. */
+async function initStorage() {
+  if (!USE_PG) return { backend: "json", file: FILE };
+  pg = require("../db/postgres");
+  await pg.init();
+  const n = await pg.load(db);
+  for (const k of ["users","portfolios","docTypes","employees","files","documents","notifications",
+    "audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid",
+    "fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360",
+    "checkins","interviews","successionPlans"]) if (!db[k]) db[k] = [];
+  if (!db.seq) db.seq = 1;
+  return { backend: "postgres", rows: n };
+}
 const id = (p) => `${p}_${(db.seq++).toString(36)}${Date.now().toString(36).slice(-4)}`;
 
-module.exports = { db, save, id };
+module.exports = { db, save, id, initStorage, USE_PG, lastError: null };

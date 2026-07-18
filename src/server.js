@@ -1,18 +1,46 @@
 const express = require("express");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const path = require("path");
 const { login, authenticate } = require("./auth");
 const { seed } = require("./seed");
 
-seed();
-require("./seed").ensureReferentials();
-require("./templateEngine").syncSeedTemplates();
+const { initStorage } = require("./store");
 const app = express();
-app.use(express.json());
+app.disable("x-powered-by");
+app.use(helmet({ contentSecurityPolicy: false }));   // CSP tuned per deployment
+app.use(express.json({ limit: "1mb" }));
+
+// Brute-force protection on authentication (§8.2)
+const LOGIN_MAX = process.env.LOGIN_LIMIT === undefined ? 20 : Number(process.env.LOGIN_LIMIT);
+const loginLimiter = LOGIN_MAX > 0
+  ? rateLimit({ windowMs: 15 * 60 * 1000, max: LOGIN_MAX, standardHeaders: true, legacyHeaders: false,
+      message: { error: "Trop de tentatives de connexion — réessayez dans quelques minutes" } })
+  : (req, res, next) => next();
+// RATE_LIMIT_PER_MIN=0 disables throttling (used by the automated test suite)
+const RPM = process.env.RATE_LIMIT_PER_MIN === undefined ? 300 : Number(process.env.RATE_LIMIT_PER_MIN);
+const apiLimiter = RPM > 0
+  ? rateLimit({ windowMs: 60 * 1000, max: RPM, standardHeaders: true, legacyHeaders: false,
+      message: { error: "Trop de requêtes — patientez un instant" } })
+  : (req, res, next) => next();
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-app.post("/api/login", login);
+app.post("/api/login", loginLimiter, login);
+app.post("/api/2fa/setup", loginLimiter, require("./auth").totpSetup);
+app.post("/api/2fa/confirm", loginLimiter, require("./auth").totpConfirm);
+
+// Health endpoint for load balancers / uptime monitoring
+app.get("/health", (req, res) => {
+  const store = require("./store");
+  res.json({ status: store.lastError ? "degraded" : "ok",
+    storage: store.USE_PG ? "postgres" : "json",
+    error: store.lastError || undefined, uptime: Math.round(process.uptime()) });
+});
+
+app.use("/api", apiLimiter);
 app.use("/api", authenticate);
 app.get("/api/me", require("./auth").me);
+app.post("/api/me/password", require("./auth").changePassword);
 app.use("/api/employees", require("./routes/employees"));
 app.use("/api/portfolios", require("./routes/portfolios"));
 app.use("/api/audit", require("./routes/audit"));
@@ -38,4 +66,12 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`SGRHP M1 running on http://localhost:${PORT}`));
+
+(async () => {
+  const info = await initStorage();
+  seed();
+  require("./seed").ensureReferentials();
+  require("./templateEngine").syncSeedTemplates();
+  app.listen(PORT, () =>
+    console.log(`SGRHP running on http://localhost:${PORT} — storage: ${info.backend}`));
+})().catch(e => { console.error("Startup failed:", e.message); process.exit(1); });

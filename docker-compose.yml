@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sgrhp
+      POSTGRES_USER: sgrhp
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sgrhp"]
+      interval: 10s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://sgrhp:${DB_PASSWORD}@db:5432/sgrhp
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      NODE_ENV: production
+      ENFORCE_2FA: "true"
+      TENANT_ID: ${TENANT_ID:-t1}
+      AZURE_STORAGE_ACCOUNT: ${AZURE_STORAGE_ACCOUNT:-}
+    ports:
+      - "${APP_PORT:-4000}:4000"
+    volumes:
+      - uploads:/app/uploads      # replace with Azure Blob in cloud deployments
+      - ./templates:/app/templates
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:

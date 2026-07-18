@@ -58,6 +58,13 @@ Sign in (password `demo123`): gpf@ / cd@ / rj@ / ui@ / admin@ cible-rh.ci
 - SLA report per document and stage
 - Every report exportable to PDF and Excel (exports audited)
 
-## Next
-M3: template-based document generation — upload a Word template per document type with
-{{placeholders}}; auto-filled from the employee file + a form for missing info.
+## M7 (Production hardening)
+- PostgreSQL storage adapter + full relational schema (db/schema.sql), migration script
+- 2FA TOTP (QR enrolment) enforced for administrators, password policy, account lockout,
+  login rate limiting, helmet security headers, /health endpoint
+- Interface entirely in French
+- Docker + docker-compose (app + PostgreSQL), GitHub Actions CI running 159 checks
+- Backup/restore scripts, DEPLOYMENT.md (including Azure guidance)
+
+## Reste à faire
+Voir DEPLOYMENT.md § « Reste à faire avant la mise en production ».

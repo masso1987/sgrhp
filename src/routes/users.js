@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
-const { hash } = require("../auth");
+const { hash, passwordPolicy } = require("../auth");
 
 router.get("/", allow("ADM"), (req, res) =>
   res.json(db.users.map(({ password, ...u }) => u)));
@@ -12,6 +12,8 @@ router.post("/", allow("ADM"), (req, res) => {
   if (!email || !fullName || !["GPF","CD","RJ","UI","ADM"].includes(role) || !password)
     return res.status(400).json({ error: "email, fullName, valid role and password required" });
   if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Email exists" });
+  const pwErr = passwordPolicy(password);
+  if (pwErr) return res.status(400).json({ error: pwErr });
   const u = { id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true };
   db.users.push(u); save();
   audit(req.user, "CREATED", "User", u.id, { email, role });
