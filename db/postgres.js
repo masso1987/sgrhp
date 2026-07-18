@@ -38,8 +38,22 @@ async function init() {
     ssl: process.env.PGSSL === "require" ? { rejectUnauthorized: false } : undefined,
     max: Number(process.env.PGPOOL_MAX || 10),
   });
-  await pool.query("SELECT 1");
-  await pool.query(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
+
+  // The database may still be accepting connections when the app boots.
+  const attempts = Number(process.env.DB_CONNECT_RETRIES || 10);
+  for (let i = 1; i <= attempts; i++) {
+    try { await pool.query("SELECT 1"); break; }
+    catch (e) {
+      if (i === attempts) throw new Error(`Cannot reach PostgreSQL after ${attempts} attempts: ${e.message}`);
+      console.log(`[store] PostgreSQL not ready (${e.code || e.message}), retry ${i}/${attempts}…`);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  // Schema is idempotent; run statement by statement so a single failure is identifiable.
+  const sql = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
+  try { await pool.query(sql); }
+  catch (e) { throw new Error(`schema.sql failed: ${e.message}`); }
   // Mirror table: one row per document of each collection, keyed by id.
   // NB: multi-statement SQL cannot carry bind parameters — keep DDL and the
   // parameterised INSERT in separate queries.

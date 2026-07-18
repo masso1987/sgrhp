@@ -74,4 +74,13 @@ const PORT = process.env.PORT || 4000;
   require("./templateEngine").syncSeedTemplates();
   app.listen(PORT, () =>
     console.log(`SGRHP running on http://localhost:${PORT} — storage: ${info.backend}`));
-})().catch(e => { console.error("Startup failed:", e.message); process.exit(1); });
+})().catch(e => {
+  console.error("\n=== SGRHP startup failed ===");
+  console.error("Reason :", e.message);
+  console.error("Storage:", process.env.DATABASE_URL ? "postgres" : "json file");
+  if (e.code) console.error("Code   :", e.code);
+  console.error(e.stack);
+  console.error("Check DATABASE_URL / JWT_SECRET in .env, then: docker compose up -d --build");
+  console.error("============================\n");
+  process.exit(1);
+});
