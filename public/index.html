@@ -405,7 +405,32 @@ const I18N = {
 "Configuration de la double authentification": "Two-factor authentication setup",
 "Scannez ce QR code avec Google Authenticator, Microsoft Authenticator ou FreeOTP,\n      puis saisissez le code affiché.": "Scan this QR code with Google Authenticator, Microsoft Authenticator or FreeOTP, then enter the code shown.",
 "Clé manuelle :": "Manual key:",
-"2FA activée — saisissez maintenant le code affiché par votre application.": "2FA enabled — now enter the code shown by your app."
+"2FA activée — saisissez maintenant le code affiché par votre application.": "2FA enabled — now enter the code shown by your app.",
+"⇅ Import / Export": "⇅ Import / Export",
+"Import / Export des données": "Data import / export",
+"⬆ Exporter le personnel": "⬆ Export staff",
+"Tous les champs, dans un classeur multi-feuilles ou en PDF.": "All fields, as a multi-sheet workbook or PDF.",
+"Réservé aux valideurs et à l'administrateur": "Restricted to validators and the administrator",
+"⬇ Importer depuis Excel": "⬇ Import from Excel",
+"Déposez un fichier Excel/CSV, associez les colonnes, vérifiez, puis importez.": "Upload an Excel/CSV file, map the columns, review, then import.",
+"⬇ Modèle d'import": "⬇ Import template",
+"1. Analyser le fichier": "1. Analyze file",
+"Réservé aux gestionnaires et à l'administrateur": "Restricted to managers and the administrator",
+"2. Associer les colonnes": "2. Map columns",
+"lignes détectées": "rows detected",
+"Associez chaque champ SGRHP à une colonne de votre fichier. Les obligatoires sont marqués.": "Map each SGRHP field to a column in your file. Required fields are marked.",
+"— ignorer —": "— ignore —",
+"3. Vérifier les données": "3. Check data",
+"Vérification": "Validation",
+"valides": "valid",
+"en erreur": "in error",
+"Ligne": "Row",
+"Erreurs": "Errors",
+"Les lignes en erreur seront ignorées à l'import.": "Rows in error will be skipped on import.",
+"Toutes les lignes sont valides ✓": "All rows are valid ✓",
+"Import terminé :": "Import complete:",
+"importé(s),": "imported,",
+"ignoré(s).": "skipped."
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -538,6 +563,7 @@ function logout() { sessionStorage.clear(); TOKEN = null; ME = null; location.hr
 const NAV = [
   { k: "dash", label: "▦ Tableau de bord", roles: ["GPF","CD","RJ","UI","ADM"] },
   { k: "employees", label: "👥 Employés", roles: ["GPF","CD","RJ","ADM"] },
+  { k: "dataio", label: "⇅ Import / Export", roles: ["GPF","CD","RJ","ADM"] },
   { k: "queue", label: "✓ File de validation", roles: ["CD","RJ"] },
   { k: "fiches", label: "📋 Fiches de poste", roles: ["GPF","CD","RJ","ADM"] },
   { k: "grid", label: "💰 Grille salariale", roles: ["GPF","CD","ADM"] },
@@ -564,7 +590,7 @@ async function boot() {
 }
 function go(k) {
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1785,6 +1811,96 @@ async function changePw() {
   try { await api("/me/password", { method: "POST", body: JSON.stringify({ current: acCur.value, next: acNew.value }) });
     alert(t("Mot de passe modifié.")); accountView(); }
   catch (e) { acErr.textContent = e.message; acErr.classList.remove("hidden"); }
+}
+
+
+/* ================= Import / Export ================= */
+let IMP = null; // { token, columns, fields, mapping }
+async function dataioView() {
+  const canImport = ["GPF","ADM"].includes(ME.role);
+  const canExport = ["CD","RJ","ADM"].includes(ME.role);
+  view.innerHTML = `<h1>Import / Export des données</h1>
+  <div class="grid2">
+    <div class="panel"><b>⬆ Exporter le personnel</b>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0">Tous les champs, dans un classeur multi-feuilles ou en PDF.</p>
+      ${canExport ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn p sm" onclick="expData('xlsx')">⬇ Excel (.xlsx)</button>
+        <button class="btn ghost sm" onclick="expData('csv')">⬇ CSV</button>
+        <button class="btn ghost sm" onclick="expData('pdf')">⬇ PDF</button></div>`
+        : '<span class="tag amber">Réservé aux valideurs et à l\'administrateur</span>'}</div>
+
+    <div class="panel"><b>⬇ Importer depuis Excel</b>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0">Déposez un fichier Excel/CSV, associez les colonnes, vérifiez, puis importez.</p>
+      ${canImport ? `<button class="btn ghost sm" onclick="dlTemplate()">⬇ Modèle d'import</button>
+      <form style="display:flex;gap:8px;align-items:center;margin-top:8px" onsubmit="return impAnalyze(event)">
+        <input type="file" accept=".xlsx,.xls,.csv" required style="margin:0;max-width:250px">
+        <button class="btn p sm">1. Analyser le fichier</button></form>`
+        : '<span class="tag amber">Réservé aux gestionnaires et à l\'administrateur</span>'}
+      <div class="err hidden" id="impErr"></div></div>
+  </div>
+  <div id="impZone"></div>`;
+}
+async function expData(fmt) {
+  const r = await fetch(`/api/data/export?format=${fmt}`, { headers: { Authorization: "Bearer " + TOKEN } });
+  if (!r.ok) return alert(t("Échec de l'export"));
+  const blob = await r.blob(); const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `employes.${fmt}`; a.click();
+}
+async function dlTemplate() {
+  const r = await fetch("/api/data/import/template", { headers: { Authorization: "Bearer " + TOKEN } });
+  const blob = await r.blob(); const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "modele_import_employes.xlsx"; a.click();
+}
+async function impAnalyze(ev) {
+  ev.preventDefault();
+  const fd = new FormData(); fd.append("file", ev.target.querySelector("input[type=file]").files[0]);
+  try {
+    IMP = await api("/data/import/analyze", { method: "POST", body: fd });
+    IMP.mapping = { ...IMP.suggestedMapping };
+    renderMapping();
+  } catch (e) { impErr.textContent = e.message; impErr.classList.remove("hidden"); }
+  return false;
+}
+function renderMapping() {
+  const opts = ['<option value="">— ignorer —</option>'].concat(
+    IMP.columns.map(c => `<option value="${c}">${c}</option>`)).join("");
+  document.getElementById("impZone").innerHTML = `
+    <div class="panel"><b>2. Associer les colonnes</b> <span class="tag gray">${IMP.rowCount} lignes détectées</span>
+    <p style="font-size:12px;color:var(--muted)">Associez chaque champ SGRHP à une colonne de votre fichier. Les obligatoires sont marqués.</p>
+    <div class="grid2" style="margin-top:8px">
+    ${IMP.fields.map(f => `<div style="display:flex;gap:8px;align-items:center">
+      <label style="flex:1;margin:0">${f.label}${f.required ? ' <span class="tag red">*</span>' : ''}</label>
+      <select data-field="${f.key}" style="max-width:220px;margin:0" onchange="IMP.mapping['${f.key}']=this.value">
+        ${opts.replace(`value="${IMP.mapping[f.key]||''}"`, `value="${IMP.mapping[f.key]||''}" selected`)}</select></div>`).join("")}
+    </div>
+    <div class="err hidden" id="mapErr"></div>
+    <button class="btn p" style="margin-top:10px" onclick="impValidate()">3. Vérifier les données</button></div>
+    <div id="impResult"></div>`;
+  // ensure selects reflect current mapping
+  document.querySelectorAll('select[data-field]').forEach(s => { s.value = IMP.mapping[s.dataset.field] || ""; });
+}
+async function impValidate() {
+  try {
+    const r = await api("/data/import/validate", { method: "POST", body: JSON.stringify({ token: IMP.token, mapping: IMP.mapping }) });
+    const bad = r.results.filter(x => x.errors.length);
+    document.getElementById("impResult").innerHTML = `<div class="panel">
+      <b>Vérification</b>
+      <div style="margin:8px 0">
+        <span class="tag green">${r.valid} valides</span>
+        <span class="tag ${r.invalid ? "red" : "gray"}">${r.invalid} en erreur</span></div>
+      ${bad.length ? `<table><tr><th>Ligne</th><th>Employé</th><th>Erreurs</th></tr>
+        ${bad.slice(0,50).map(x => `<tr><td>${x.line}</td><td>${x.name}</td>
+          <td style="color:var(--red);font-size:12px">${x.errors.join(" · ")}</td></tr>`).join("")}</table>
+        <p style="font-size:12px;color:var(--muted)">Les lignes en erreur seront ignorées à l'import.</p>` : '<p style="color:var(--green)">Toutes les lignes sont valides ✓</p>'}
+      ${r.valid ? `<button class="btn p" onclick="impCommit()">4. Importer ${r.valid} employé(s)</button>` : ''}</div>`;
+  } catch (e) { mapErr.textContent = e.message; mapErr.classList.remove("hidden"); }
+}
+async function impCommit() {
+  try {
+    const r = await api("/data/import/commit", { method: "POST", body: JSON.stringify({ token: IMP.token, mapping: IMP.mapping }) });
+    alert(t("Import terminé :") + ` ${r.imported} ` + t("importé(s),") + ` ${r.skipped} ` + t("ignoré(s)."));
+    IMP = null; go("employees");
+  } catch (e) { alert(e.message); }
 }
 
 </script>
