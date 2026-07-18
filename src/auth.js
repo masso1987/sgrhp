@@ -15,10 +15,22 @@ const SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
 const TOKEN_TTL = process.env.TOKEN_TTL || "8h";
 const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
-// 2FA is enforced for administrators in production; opt-in in development so the
-// demo accounts stay usable. Set ENFORCE_2FA=true to enforce it anywhere.
-const ENFORCE_2FA = process.env.ENFORCE_2FA === "true" || process.env.NODE_ENV === "production";
-const TWOFA_REQUIRED_ROLES = ENFORCE_2FA ? ["ADM"] : [];
+// The 2FA policy is managed from Settings; the environment provides the default.
+function policy() {
+  const s = (db.settings && db.settings.security) || {};
+  return {
+    require2faForAdmins: s.require2faForAdmins !== undefined ? s.require2faForAdmins
+      : (process.env.ENFORCE_2FA === "true" || process.env.NODE_ENV === "production"),
+    require2faForAll: !!s.require2faForAll,
+    sessionHours: s.sessionHours || Number(String(TOKEN_TTL).replace("h", "")) || 8,
+    maxFailed: s.maxFailedLogins || MAX_FAILED,
+    lockMinutes: s.lockoutMinutes || LOCK_MINUTES,
+  };
+}
+function twoFaRequiredFor(user) {
+  const p = policy();
+  return user.totpEnabled || p.require2faForAll || (p.require2faForAdmins && user.role === "ADM");
+}
 
 if (process.env.NODE_ENV === "production" && SECRET === "dev-secret-change-in-production")
   throw new Error("JWT_SECRET must be set in production");
@@ -54,9 +66,10 @@ function login(req, res) {
     return fail(`Compte temporairement verrouillé — réessayez dans ${mins} min`, 423);
   }
   if (!verifyPw(password || "", user.password)) {
+    const p = policy();
     user.failedLogins = (user.failedLogins || 0) + 1;
-    if (user.failedLogins >= MAX_FAILED) {
-      user.lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60000).toISOString();
+    if (user.failedLogins >= p.maxFailed) {
+      user.lockedUntil = new Date(Date.now() + p.lockMinutes * 60000).toISOString();
       user.failedLogins = 0;
       audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: "t1" },
         "LOCKED", "User", user.id, { reason: "too many failed logins" });
@@ -65,8 +78,8 @@ function login(req, res) {
     return fail("Identifiants invalides");
   }
 
-  // Two-factor: mandatory for administrators, optional (opt-in) for others
-  const needs2fa = user.totpEnabled || TWOFA_REQUIRED_ROLES.includes(user.role);
+  // Two-factor: policy-driven (Settings > Security)
+  const needs2fa = twoFaRequiredFor(user);
   if (needs2fa) {
     if (!user.totpSecret)
       return res.status(428).json({ error: "Configuration 2FA requise", setupRequired: true, userId: user.id });
@@ -81,7 +94,7 @@ function login(req, res) {
 
   user.failedLogins = 0; user.lockedUntil = null; save();
   const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: "t1" },
-    SECRET, { expiresIn: TOKEN_TTL });
+    SECRET, { expiresIn: `${policy().sessionHours}h` });
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: "t1" }, "LOGIN", "User", user.id, {});
   res.json({ token, user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });
 }
@@ -151,5 +164,16 @@ function changePassword(req, res) {
   res.json({ ok: true });
 }
 
+function totpDisable(req, res) {
+  const user = db.users.find(u => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "Introuvable" });
+  const p = policy();
+  if (p.require2faForAll || (p.require2faForAdmins && user.role === "ADM"))
+    return res.status(403).json({ error: "La 2FA est imposée par la politique de sécurité pour ce rôle" });
+  delete user.totpSecret; user.totpEnabled = false; save();
+  audit(req.user, "CONFIG_CHANGED", "User", user.id, { twoFactor: "disabled" });
+  res.json({ ok: true });
+}
+
 module.exports = { login, authenticate, hash, verifyPw, me, passwordPolicy,
-  totpSetup, totpConfirm, changePassword, TWOFA_REQUIRED_ROLES };
+  totpSetup, totpConfirm, totpDisable, changePassword, policy, twoFaRequiredFor };

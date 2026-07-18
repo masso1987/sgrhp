@@ -9,7 +9,7 @@ SRV=$!
 sleep 3
 total_pass=0; total_fail=0
 for t in test/test_m1.sh test/test_m2.sh test/test_m3.sh test/test_m3b.sh test/test_m3c.sh \
-         test/test_m4.sh test/test_m4b.sh test/test_m4c.sh test/test_m5.sh test/test_m6.sh test/test_m7.sh; do
+         test/test_m4.sh test/test_m4b.sh test/test_m4c.sh test/test_m5.sh test/test_m6.sh test/test_m7.sh test/test_m8.sh; do
   out=$(bash "$t" 2>/dev/null | tail -1)
   p=$(echo "$out" | grep -o '[0-9]* passed' | grep -o '[0-9]*')
   f=$(echo "$out" | grep -o '[0-9]* failed' | grep -o '[0-9]*')

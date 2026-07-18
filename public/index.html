@@ -54,8 +54,21 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
   <p style="text-align:center;color:var(--muted);margin-bottom:16px">Cible RH Emploi S.A.</p>
   <label>Email</label><input id="lEmail" value="gpf@cible-rh.ci">
   <label>Mot de passe</label><input id="lPass" type="password" value="demo123">
+  <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
+    <input id="lTotp" inputmode="numeric" maxlength="6" placeholder="123456"></div>
   <div class="err hidden" id="lErr"></div>
   <button class="btn p" style="width:100%" onclick="doLogin()">Se connecter</button>
+
+  <div id="lSetup" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+    <b style="font-size:13px">Configuration de la double authentification</b>
+    <p style="font-size:12px;color:var(--muted);margin:6px 0">
+      Scannez ce QR code avec Google Authenticator, Microsoft Authenticator ou FreeOTP,
+      puis saisissez le code affiché.</p>
+    <div style="text-align:center"><img id="lQr" style="width:190px;height:190px"></div>
+    <p style="font-size:11px;color:var(--muted);word-break:break-all">Clé manuelle : <code id="lKey"></code></p>
+    <input id="lSetupCode" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres">
+    <button class="btn p" style="width:100%" onclick="confirm2fa()">Activer la 2FA</button>
+  </div>
   <div class="hint">Comptes de démonstration (mot de passe <b>demo123</b>) :<br>
   gpf@cible-rh.ci · cd@cible-rh.ci · rj@cible-rh.ci · ui@cible-rh.ci · admin@cible-rh.ci</div>
 </div>
@@ -342,7 +355,57 @@ const I18N = {
 "Code 2FA requis": "2FA code required",
 "Code 2FA invalide": "Invalid 2FA code",
 "Jeton manquant": "Missing token",
-"Session expirée, reconnectez-vous": "Session expired, please sign in again"
+"Session expirée, reconnectez-vous": "Session expired, please sign in again",
+"🔧 Paramètres": "🔧 Settings",
+"👤 Mon compte": "👤 My account",
+"Paramètres de l'application": "Application settings",
+"🔐 Sécurité": "🔐 Security",
+"Double authentification obligatoire pour les administrateurs": "Two-factor authentication mandatory for administrators",
+"Double authentification obligatoire pour tous les utilisateurs": "Two-factor authentication mandatory for all users",
+"Durée de session (heures)": "Session duration (hours)",
+"Échecs avant verrouillage": "Failures before lockout",
+"Durée du verrouillage (minutes)": "Lockout duration (minutes)",
+"Enregistrer la sécurité": "Save security settings",
+"📧 Serveur d'envoi d'emails (SMTP)": "📧 Outgoing email server (SMTP)",
+"Utilisé pour envoyer les notifications de workflow et les alertes de délai.": "Used to send workflow notifications and SLA alerts.",
+"Activer l'envoi d'emails": "Enable email sending",
+"Serveur": "Host",
+"Port": "Port",
+"Expéditeur": "Sender",
+"Connexion chiffrée SSL/TLS (port 465)": "Encrypted SSL/TLS connection (port 465)",
+"Notifier les étapes de validation": "Notify on validation steps",
+"Notifier les alertes de délai (36h / 48h)": "Notify on SLA alerts (36h / 48h)",
+"Enregistrer SMTP": "Save SMTP",
+"Envoyer un test": "Send test",
+"Adresse pour le test": "Test recipient address",
+"Gmail : utilisez un « mot de passe d'application », port 587 (TLS) ou 465 (SSL).": "Gmail: use an app password, port 587 (TLS) or 465 (SSL).",
+"Paramètres de sécurité enregistrés.": "Security settings saved.",
+"Configuration SMTP enregistrée.": "SMTP configuration saved.",
+"Email de test envoyé — vérifiez la boîte de réception.": "Test email sent — check the inbox.",
+"Mon compte": "My account",
+"👤 Profil": "👤 Profile",
+"🔐 Double authentification": "🔐 Two-factor authentication",
+"Activée ✓": "Enabled ✓",
+"Non configurée": "Not configured",
+"Désactiver la 2FA": "Disable 2FA",
+"Configurer la 2FA": "Set up 2FA",
+"Activer": "Enable",
+"Impossible si la politique de sécurité l'impose pour votre rôle.": "Not possible when the security policy requires it for your role.",
+"🔑 Changer mon mot de passe": "🔑 Change my password",
+"Mot de passe actuel": "Current password",
+"Nouveau mot de passe": "New password",
+"10 caractères minimum, avec majuscule, minuscule et chiffre.": "At least 10 characters, with uppercase, lowercase and a digit.",
+"Modifier": "Change",
+"Mot de passe modifié.": "Password changed.",
+"2FA activée. Elle vous sera demandée à la prochaine connexion.": "2FA enabled. It will be requested at your next sign-in.",
+"2FA désactivée.": "2FA disabled.",
+"Code 2FA (6 chiffres)": "2FA code (6 digits)",
+"Code à 6 chiffres": "6-digit code",
+"Activer la 2FA": "Enable 2FA",
+"Configuration de la double authentification": "Two-factor authentication setup",
+"Scannez ce QR code avec Google Authenticator, Microsoft Authenticator ou FreeOTP,\n      puis saisissez le code affiché.": "Scan this QR code with Google Authenticator, Microsoft Authenticator or FreeOTP, then enter the code shown.",
+"Clé manuelle :": "Manual key:",
+"2FA activée — saisissez maintenant le code affiché par votre application.": "2FA enabled — now enter the code shown by your app."
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -420,14 +483,54 @@ function sessionEnded() {
 }
 
 async function doLogin() {
+  lErr.classList.add("hidden");
   try {
+    const body = { email: lEmail.value.trim(), password: lPass.value };
+    if (!lTotpWrap.classList.contains("hidden") && lTotp.value) body.totp = lTotp.value.trim();
     const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: lEmail.value.trim(), password: lPass.value }) });
+      body: JSON.stringify(body) });
     const j = await r.json();
+
+    if (r.status === 428 && j.setupRequired) return start2faEnrolment();   // 2FA mandatory, not yet configured
+    if (r.status === 401 && j.totpRequired) {                             // ask for the code
+      lTotpWrap.classList.remove("hidden");
+      lErr.textContent = t("Code 2FA requis"); lErr.classList.remove("hidden");
+      lTotp.focus();
+      return;
+    }
     if (!r.ok) throw new Error(j.error);
+
     TOKEN = j.token; ME = j.user;
     sessionStorage.setItem("t", TOKEN); sessionStorage.setItem("me", JSON.stringify(ME));
     boot();
+  } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
+}
+
+/** First-time enrolment straight from the login screen. */
+async function start2faEnrolment() {
+  try {
+    const r = await fetch("/api/2fa/setup", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: lEmail.value.trim(), password: lPass.value }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    lQr.src = j.qr; lKey.textContent = j.manualKey;
+    lSetup.classList.remove("hidden");
+    lErr.classList.add("hidden");
+    lSetupCode.focus();
+  } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
+}
+async function confirm2fa() {
+  try {
+    const r = await fetch("/api/2fa/confirm", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: lEmail.value.trim(), password: lPass.value, totp: lSetupCode.value.trim() }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    lSetup.classList.add("hidden");
+    lTotpWrap.classList.remove("hidden");
+    lTotp.value = "";
+    lErr.textContent = t("2FA activée — saisissez maintenant le code affiché par votre application.");
+    lErr.classList.remove("hidden");
+    lTotp.focus();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
 }
 function logout() { sessionStorage.clear(); TOKEN = null; ME = null; location.href = "/"; }
@@ -443,6 +546,8 @@ const NAV = [
   { k: "generated", label: "🖨 Documents générés", roles: ["UI","ADM","CD","RJ"] },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"] },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"] },
+  { k: "params", label: "🔧 Paramètres", roles: ["ADM"] },
+  { k: "account", label: "👤 Mon compte", roles: ["GPF","CD","RJ","UI","ADM"] },
   { k: "portfolios", label: "⚙ Config. portefeuilles", roles: ["ADM"] },
   { k: "users", label: "🔐 Utilisateurs", roles: ["ADM"] },
   { k: "audit", label: "🕘 Journal d'audit", roles: ["CD","RJ","ADM"] },
@@ -459,7 +564,7 @@ async function boot() {
 }
 function go(k) {
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1559,6 +1664,127 @@ async function repExport(fmt) {
   if (!r.ok) return alert(t("Échec de l'export"));
   const blob = await r.blob(); const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = `${REP_KEY}.${fmt}`; a.click();
+}
+
+
+/* ================= Paramètres (sécurité + SMTP) ================= */
+async function paramsView() {
+  const s = await api("/settings");
+  view.innerHTML = `<h1>Paramètres de l'application</h1>
+  <div class="grid2">
+    <div class="panel"><b>🔐 Sécurité</b>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="p2faAdm" ${s.security.require2faForAdmins ? "checked" : ""}>
+        <span>Double authentification obligatoire pour les administrateurs</span></label>
+      <label class="chk"><input type="checkbox" id="p2faAll" ${s.security.require2faForAll ? "checked" : ""}>
+        <span>Double authentification obligatoire pour tous les utilisateurs</span></label>
+      <div class="grid2" style="margin-top:8px">
+        <div><label>Durée de session (heures)</label><input id="pSess" type="number" min="1" max="24" value="${s.security.sessionHours}"></div>
+        <div><label>Échecs avant verrouillage</label><input id="pFail" type="number" min="3" max="20" value="${s.security.maxFailedLogins}"></div>
+        <div><label>Durée du verrouillage (minutes)</label><input id="pLock" type="number" min="1" max="120" value="${s.security.lockoutMinutes}"></div>
+      </div>
+      <div class="err hidden" id="pSecErr"></div>
+      <button class="btn p" onclick="saveSecurity()">Enregistrer la sécurité</button></div>
+
+    <div class="panel"><b>📧 Serveur d'envoi d'emails (SMTP)</b>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0">
+        Utilisé pour envoyer les notifications de workflow et les alertes de délai.</p>
+      <label class="chk"><input type="checkbox" id="mEnabled" ${s.smtp.enabled ? "checked" : ""}>
+        <span>Activer l'envoi d'emails</span></label>
+      <div class="grid2" style="margin-top:8px">
+        <div><label>Serveur</label><input id="mHost" value="${s.smtp.host}" placeholder="smtp.gmail.com"></div>
+        <div><label>Port</label><input id="mPort" type="number" value="${s.smtp.port}"></div>
+        <div><label>Utilisateur</label><input id="mUser" value="${s.smtp.user}" placeholder="compte@domaine.com"></div>
+        <div><label>Mot de passe</label><input id="mPass" type="password" value="${s.smtp.password}" placeholder="••••••••"></div>
+      </div>
+      <label>Expéditeur</label><input id="mFrom" value="${s.smtp.from}">
+      <label class="chk"><input type="checkbox" id="mSecure" ${s.smtp.secure ? "checked" : ""}>
+        <span>Connexion chiffrée SSL/TLS (port 465)</span></label>
+      <label class="chk"><input type="checkbox" id="mWf" ${s.smtp.notifyOnWorkflow ? "checked" : ""}>
+        <span>Notifier les étapes de validation</span></label>
+      <label class="chk"><input type="checkbox" id="mSla" ${s.smtp.notifyOnSla ? "checked" : ""}>
+        <span>Notifier les alertes de délai (36h / 48h)</span></label>
+      <div class="err hidden" id="pSmtpErr"></div>
+      <button class="btn p" onclick="saveSmtp()">Enregistrer SMTP</button>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <input id="mTest" placeholder="Adresse pour le test" style="margin:0">
+        <button class="btn ghost sm" onclick="testSmtp()">Envoyer un test</button></div>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px">
+        Gmail : utilisez un « mot de passe d'application », port 587 (TLS) ou 465 (SSL).</p>
+    </div>
+  </div>`;
+}
+async function saveSecurity() {
+  try { await api("/settings/security", { method: "PUT", body: JSON.stringify({
+      require2faForAdmins: p2faAdm.checked, require2faForAll: p2faAll.checked,
+      sessionHours: Number(pSess.value), maxFailedLogins: Number(pFail.value),
+      lockoutMinutes: Number(pLock.value) }) });
+    alert(t("Paramètres de sécurité enregistrés.")); paramsView(); }
+  catch (e) { pSecErr.textContent = e.message; pSecErr.classList.remove("hidden"); }
+}
+async function saveSmtp() {
+  try { await api("/settings/smtp", { method: "PUT", body: JSON.stringify({
+      enabled: mEnabled.checked, host: mHost.value, port: Number(mPort.value), secure: mSecure.checked,
+      user: mUser.value, password: mPass.value, from: mFrom.value,
+      notifyOnWorkflow: mWf.checked, notifyOnSla: mSla.checked }) });
+    alert(t("Configuration SMTP enregistrée.")); paramsView(); }
+  catch (e) { pSmtpErr.textContent = e.message; pSmtpErr.classList.remove("hidden"); }
+}
+async function testSmtp() {
+  try { await api("/settings/smtp/test", { method: "POST", body: JSON.stringify({ to: mTest.value.trim() }) });
+    alert(t("Email de test envoyé — vérifiez la boîte de réception.")); }
+  catch (e) { alert(e.message); }
+}
+
+/* ================= Mon compte (2FA + mot de passe) ================= */
+async function accountView() {
+  const me = await api("/me");
+  view.innerHTML = `<h1>Mon compte</h1>
+  <div class="grid2">
+    <div class="panel"><b>👤 Profil</b>
+      <div style="margin-top:8px;font-size:13px">
+        <div><b>${me.fullName}</b></div><div style="color:var(--muted)">${me.email}</div>
+        <div style="margin-top:6px"><span class="tag gray">${me.role}</span></div></div></div>
+
+    <div class="panel"><b>🔐 Double authentification</b>
+      <div style="margin:8px 0">${me.twoFactor
+        ? '<span class="tag green">Activée ✓</span>'
+        : '<span class="tag amber">Non configurée</span>'}</div>
+      ${me.twoFactor
+        ? `<button class="btn ghost sm" onclick="disable2fa()">Désactiver la 2FA</button>
+           <p style="font-size:11px;color:var(--muted)">Impossible si la politique de sécurité l'impose pour votre rôle.</p>`
+        : `<button class="btn p sm" onclick="enrol2fa()">Configurer la 2FA</button>`}
+      <div id="acQr" class="hidden" style="margin-top:10px;text-align:center">
+        <img id="acQrImg" style="width:190px;height:190px"><br>
+        <code id="acKey" style="font-size:11px;word-break:break-all"></code>
+        <input id="acCode" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres" style="margin-top:8px">
+        <button class="btn p sm" onclick="confirmEnrol()">Activer</button></div></div>
+
+    <div class="panel"><b>🔑 Changer mon mot de passe</b>
+      <label>Mot de passe actuel</label><input id="acCur" type="password">
+      <label>Nouveau mot de passe</label><input id="acNew" type="password">
+      <p style="font-size:11px;color:var(--muted)">10 caractères minimum, avec majuscule, minuscule et chiffre.</p>
+      <div class="err hidden" id="acErr"></div>
+      <button class="btn p" onclick="changePw()">Modifier</button></div>
+  </div>`;
+}
+async function enrol2fa() {
+  try { const j = await api("/2fa/setup", { method: "POST", body: JSON.stringify({}) });
+    acQrImg.src = j.qr; acKey.textContent = j.manualKey; acQr.classList.remove("hidden"); }
+  catch (e) { alert(e.message); }
+}
+async function confirmEnrol() {
+  try { await api("/2fa/confirm", { method: "POST", body: JSON.stringify({ totp: acCode.value.trim() }) });
+    alert(t("2FA activée. Elle vous sera demandée à la prochaine connexion.")); accountView(); }
+  catch (e) { alert(e.message); }
+}
+async function disable2fa() {
+  try { await api("/me/2fa/disable", { method: "POST", body: JSON.stringify({}) });
+    alert(t("2FA désactivée.")); accountView(); } catch (e) { alert(e.message); }
+}
+async function changePw() {
+  try { await api("/me/password", { method: "POST", body: JSON.stringify({ current: acCur.value, next: acNew.value }) });
+    alert(t("Mot de passe modifié.")); accountView(); }
+  catch (e) { acErr.textContent = e.message; acErr.classList.remove("hidden"); }
 }
 
 </script>

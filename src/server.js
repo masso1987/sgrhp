@@ -44,6 +44,7 @@ app.use("/api", apiLimiter);
 app.use("/api", authenticate);
 app.get("/api/me", require("./auth").me);
 app.post("/api/me/password", require("./auth").changePassword);
+app.post("/api/me/2fa/disable", require("./auth").totpDisable);
 app.use("/api/employees", require("./routes/employees"));
 app.use("/api/portfolios", require("./routes/portfolios"));
 app.use("/api/audit", require("./routes/audit"));
@@ -59,6 +60,7 @@ app.use("/api/config", require("./routes/contractConfig"));
 app.use("/api/fiches", require("./routes/fiches"));
 app.use("/api/career", require("./routes/career"));
 app.use("/api/reports", require("./routes/reports"));
+app.use("/api/settings", require("./routes/settings").router);
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
@@ -73,6 +75,7 @@ const PORT = process.env.PORT || 4000;
 (async () => {
   const info = await initStorage();
   seed();
+  require("./routes/settings").settings();   // materialise defaults
   require("./seed").ensureReferentials();
   require("./templateEngine").syncSeedTemplates();
   app.listen(PORT, () =>
