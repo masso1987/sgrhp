@@ -1,0 +1,35 @@
+const router = require("express").Router();
+const { db, save, id } = require("../store");
+const { allow } = require("../rbac");
+const { audit } = require("../audit");
+const { hash } = require("../auth");
+
+router.get("/", allow("ADM"), (req, res) =>
+  res.json(db.users.map(({ password, ...u }) => u)));
+
+router.post("/", allow("ADM"), (req, res) => {
+  const { email, fullName, role, portfolioIds = [], password } = req.body;
+  if (!email || !fullName || !["GPF","CD","RJ","UI","ADM"].includes(role) || !password)
+    return res.status(400).json({ error: "email, fullName, valid role and password required" });
+  if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Email exists" });
+  const u = { id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true };
+  db.users.push(u); save();
+  audit(req.user, "CREATED", "User", u.id, { email, role });
+  const { password: _, ...safe } = u;
+  res.status(201).json(safe);
+});
+// ADM links portfolios to a GPF user (one GPF can hold several portfolios)
+router.put("/:id/portfolios", allow("ADM"), (req, res) => {
+  const user = db.users.find(x => x.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "Not found" });
+  if (user.role !== "GPF") return res.status(400).json({ error: "Portfolio assignment applies to GPF users only" });
+  const ids = req.body?.portfolioIds || [];
+  const invalid = ids.filter(i => !db.portfolios.find(p => p.id === i));
+  if (invalid.length) return res.status(400).json({ error: "Unknown portfolios: " + invalid.join(",") });
+  const before = user.portfolioIds;
+  user.portfolioIds = [...new Set(ids)]; save();
+  audit(req.user, "CONFIG_CHANGED", "User", user.id, { portfoliosBefore: before, portfoliosAfter: user.portfolioIds });
+  res.json({ id: user.id, portfolioIds: user.portfolioIds });
+});
+
+module.exports = router;
