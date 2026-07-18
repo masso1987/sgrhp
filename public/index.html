@@ -73,14 +73,34 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
 let TOKEN = sessionStorage.getItem("t"), ME = JSON.parse(sessionStorage.getItem("me") || "null");
 
 const api = async (path, opts = {}) => {
-  const r = await fetch("/api" + path, { ...opts,
-    headers: { ...(opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
-      Authorization: "Bearer " + TOKEN, ...(opts.headers || {}) } });
-  if (r.status === 401) { logout(); throw new Error("Session expirée"); }
+  let r;
+  try {
+    r = await fetch("/api" + path, { ...opts,
+      headers: { ...(opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+        Authorization: "Bearer " + TOKEN, ...(opts.headers || {}) } });
+  } catch (netErr) {
+    throw new Error("Serveur injoignable — vérifiez votre connexion");
+  }
+  // Only a genuine authentication failure ends the session. Rate limiting (429),
+  // server errors (5xx) and network problems must never trigger a reload loop.
+  if (r.status === 401) { sessionEnded(); throw new Error("Session expirée"); }
+  if (r.status === 429) throw new Error("Trop de requêtes — patientez quelques secondes");
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw new Error(j.error || `Erreur ${r.status}`);
   return j;
 };
+
+/* Ends the session once and shows the login screen — without reloading in a loop. */
+function sessionEnded() {
+  TOKEN = null; ME = null;
+  sessionStorage.clear();
+  document.getElementById("app").classList.add("hidden");
+  const l = document.getElementById("login");
+  l.classList.remove("hidden");
+  const err = document.getElementById("lErr");
+  err.textContent = "Session expirée — reconnectez-vous.";
+  err.classList.remove("hidden");
+}
 
 async function doLogin() {
   try {
@@ -93,7 +113,7 @@ async function doLogin() {
     boot();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
 }
-function logout() { sessionStorage.clear(); location.reload(); }
+function logout() { sessionStorage.clear(); TOKEN = null; ME = null; location.href = "/"; }
 
 const NAV = [
   { k: "dash", label: "▦ Tableau de bord", roles: ["GPF","CD","RJ","UI","ADM"] },
@@ -380,7 +400,20 @@ async function auditView() {
 }
 
 /* preload portfolios for names */
-if (TOKEN) { api("/portfolios").then(p => { PFS = p; boot(); }).catch(logout); }
+if (TOKEN) {
+  api("/portfolios")
+    .then(p => { PFS = p; boot(); })
+    .catch(e => {
+      // Expired token -> login screen (already handled). Anything else: show the
+      // problem instead of reloading, so a failing backend can't loop the page.
+      if (!/Session expirée/.test(e.message)) {
+        document.getElementById("login").classList.remove("hidden");
+        const err = document.getElementById("lErr");
+        err.textContent = e.message;
+        err.classList.remove("hidden");
+      }
+    });
+}
 
 /* ================= M2: workflow ================= */
 async function refreshBell() {

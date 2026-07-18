@@ -8,6 +8,9 @@ const { seed } = require("./seed");
 const { initStorage } = require("./store");
 const app = express();
 app.disable("x-powered-by");
+// Behind Apache/Caddy/App Service: use X-Forwarded-For so rate limits and audit
+// logs key on the real client, not on the proxy's address.
+app.set("trust proxy", Number(process.env.TRUST_PROXY || 1));
 app.use(helmet({ contentSecurityPolicy: false }));   // CSP tuned per deployment
 app.use(express.json({ limit: "1mb" }));
 
