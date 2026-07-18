@@ -102,6 +102,7 @@ const NAV = [
   { k: "fiches", label: "📋 Fiches de Poste", roles: ["GPF","CD","RJ","ADM"] },
   { k: "grid", label: "💰 Salary Grid", roles: ["GPF","CD","ADM"] },
   { k: "career", label: "📈 Career & Perf.", roles: ["GPF","CD","RJ","ADM"] },
+  { k: "reports", label: "📊 Reports & KPIs", roles: ["CD","RJ","ADM"] },
   { k: "generated", label: "🖨 Generated Docs", roles: ["UI","ADM","CD","RJ"] },
   { k: "templates", label: "📄 Templates", roles: ["ADM"] },
   { k: "settings", label: "🛠 Referentials", roles: ["ADM"] },
@@ -119,7 +120,7 @@ async function boot() {
 }
 function go(k) {
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>No modules for this role in M1</h1><p>The Print User screen arrives with the workflow milestone (M2).</p>"; }
 
@@ -1114,6 +1115,94 @@ async function spSucc(id) {
   try { await api(`/career/succession/${id}/successors`, { method: "POST", body: JSON.stringify({
     employeeId: document.getElementById("su-" + id).value, readiness: document.getElementById("sr-" + id).value }) });
     careerTab("succ"); } catch (e) { alert(e.message); }
+}
+
+
+/* ================= M6: Reports & analytics ================= */
+let REP_KEY = "kpis";
+const bar = (pct, color) => `<div style="height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden">
+  <div style="height:100%;width:${Math.min(100, pct)}%;background:${color}"></div></div>`;
+
+async function reportsView() {
+  const list = await api("/reports");
+  const r = await api("/reports/" + REP_KEY);
+  const d = r.data;
+  let body = "";
+
+  if (REP_KEY === "kpis") {
+    const maxP = Math.max(...Object.values(d.buckets), 1);
+    body = `<div class="cards">
+      <div class="card"><div class="kpi">${d.headcount}</div><div class="lbl">Effectif total</div></div>
+      <div class="card"><div class="kpi">${(d.payroll/1000).toFixed(0)}k</div><div class="lbl">Masse salariale (FCFA/mois)</div></div>
+      <div class="card"><div class="kpi">${d.turnover}%</div><div class="lbl">Turnover</div></div>
+      <div class="card"><div class="kpi">${d.absenteeism}%</div><div class="lbl">Absentéisme</div></div>
+      <div class="card"><div class="kpi">${d.generatedDocs}</div><div class="lbl">Documents générés</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><b>Pyramide des âges</b>
+        ${Object.entries(d.buckets).reverse().map(([k,v]) => `<div style="margin-top:8px"><small>${k} — ${v}</small>
+          ${bar(v/maxP*100, "var(--primary)")}</div>`).join("")}</div>
+      <div class="panel"><b>Effectifs par portefeuille</b>
+        ${d.byPortfolio.map(p => `<div class="doc-row"><div>${p.name}</div><span class="tag gray">${p.count}</span></div>`).join("")}</div>
+      <div class="panel"><b>Par type de contrat</b>
+        ${Object.entries(d.byContract).map(([k,v]) => `<div class="doc-row"><div>${k}</div><span class="tag blue">${v}</span></div>`).join("")}</div>
+      <div class="panel"><b>Par catégorie conventionnelle</b>
+        ${Object.entries(d.byCategory).map(([k,v]) => `<div class="doc-row"><div>${k}</div><span class="tag gray">${v}</span></div>`).join("")}</div>
+    </div>`;
+  }
+
+  if (REP_KEY === "compliance") {
+    const col = d.score >= 85 ? "var(--green)" : d.score >= 60 ? "var(--amber)" : "var(--red)";
+    body = `<div class="cards">
+      <div class="card"><div class="kpi" style="color:${col}">${d.score}/100</div><div class="lbl">Score de conformité</div></div>
+      <div class="card"><div class="kpi" style="color:var(--red)">${d.counts.HIGH}</div><div class="lbl">Anomalies critiques</div></div>
+      <div class="card"><div class="kpi" style="color:var(--amber)">${d.counts.MEDIUM}</div><div class="lbl">Anomalies moyennes</div></div>
+      <div class="card"><div class="kpi">${d.counts.LOW}</div><div class="lbl">Anomalies mineures</div></div></div>
+      <div class="panel"><table><tr><th>Employé</th><th>Gravité</th><th>Anomalie</th></tr>
+      ${d.issues.map(i => `<tr><td>${i.employee}</td>
+        <td><span class="tag ${i.severity==="HIGH"?"red":i.severity==="MEDIUM"?"amber":"gray"}">${i.severity}</span></td>
+        <td>${i.issue}</td></tr>`).join("") || "<tr><td colspan=3>Aucune anomalie 🎉</td></tr>"}</table></div>`;
+  }
+
+  if (REP_KEY === "evaluation") {
+    body = `<div class="note">Indicateurs calculés à partir du journal d'audit et des étapes de workflow (§4.3).</div>
+      <div class="panel"><table><tr><th>Utilisateur</th><th>Rôle</th><th>Soumis / Décidés</th><th>Taux de rejet</th>
+      <th>Resoumissions</th><th>Délai moyen</th><th>Dépassements</th><th>Motif récurrent</th></tr>
+      ${d.map(r => `<tr><td>${r.user}</td><td><span class="tag gray">${r.role}</span></td>
+        <td>${r.submitted ?? r.decided ?? "—"}</td>
+        <td><span class="tag ${r.rejectionRate>20?"red":r.rejectionRate>10?"amber":"green"}">${r.rejectionRate}%</span></td>
+        <td>${r.resubmissions ?? "—"}</td>
+        <td>${r.avgDelayH !== null && r.avgDelayH !== undefined ? `<span class="tag ${r.avgDelayH>36?"red":r.avgDelayH>24?"amber":"green"}">${r.avgDelayH}h / 48h</span>` : "—"}</td>
+        <td>${r.breaches ?? "—"}</td><td style="font-size:12px">${r.topRejectReason}</td></tr>`).join("")}</table></div>`;
+  }
+
+  if (REP_KEY === "sla") {
+    body = `<div class="panel"><table><tr><th>Document</th><th>Étape</th><th>Cycle</th><th>Assigné</th><th>Décision</th><th>Heures</th><th>Motif</th></tr>
+      ${d.map(r => `<tr><td>${r.document}</td><td><span class="tag gray">${r.stage}</span></td><td>${r.cycle}</td>
+        <td>${r.assigned}</td><td>${r.decision === "APPROVED" ? '<span class="tag green">Validé</span>' :
+          r.decision === "REJECTED" ? '<span class="tag red">Rejeté</span>' : '<span class="tag amber">En cours</span>'}</td>
+        <td>${r.breach ? `<span class="tag red">${r.elapsedH}h ⚠</span>` : `<span class="tag green">${r.elapsedH}h</span>`}</td>
+        <td style="font-size:12px;color:var(--red)">${r.reason}</td></tr>`).join("") || "<tr><td colspan=7>Aucune donnée.</td></tr>"}</table></div>`;
+  }
+
+  if (REP_KEY === "headcount") {
+    body = `<div class="panel"><table><tr>${Object.keys(d[0]||{nom:""}).map(k => `<th>${k}</th>`).join("")}</tr>
+      ${d.map(row => `<tr>${Object.values(row).map(v => `<td>${v}</td>`).join("")}</tr>`).join("")}</table></div>`;
+  }
+
+  view.innerHTML = `<h1>Reports & KPIs</h1>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+    <select style="max-width:340px;margin:0" onchange="REP_KEY=this.value;reportsView()">
+      ${list.map(x => `<option value="${x.key}" ${x.key===REP_KEY?"selected":""}>${x.label}</option>`).join("")}</select>
+    <button class="btn p sm" onclick="repExport('pdf')">⬇ Export PDF</button>
+    <button class="btn ghost sm" onclick="repExport('xlsx')">⬇ Export Excel</button>
+  </div>${body}`;
+}
+async function repExport(fmt) {
+  const r = await fetch(`/api/reports/${REP_KEY}/export?format=${fmt}`, { headers: { Authorization: "Bearer " + TOKEN } });
+  if (!r.ok) return alert("Export failed");
+  const blob = await r.blob(); const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `${REP_KEY}.${fmt}`; a.click();
 }
 
 </script>

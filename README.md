@@ -49,6 +49,15 @@ Sign in (password `demo123`): gpf@ / cd@ / rj@ / ui@ / admin@ cible-rh.ci
 - Check-ins + digital interviews with e-signature (identity + timestamp, audited, archived)
 - Succession plans: key positions, criticality, successor readiness (now / 1-2y / to develop)
 
+## M6 (Analytics & Reports)
+- Real-time KPIs: headcount, payroll mass, turnover, absenteeism, age pyramid,
+  breakdown by portfolio / contract type / convention category
+- User evaluation indicators from the logs: submissions, rejection rate, recurring
+  rejection reasons, resubmissions, average validation delay, 48h breaches per validator
+- CNPS & labour-law compliance report with a 0-100 score and ranked anomalies
+- SLA report per document and stage
+- Every report exportable to PDF and Excel (exports audited)
+
 ## Next
 M3: template-based document generation — upload a Word template per document type with
 {{placeholders}}; auto-filled from the employee file + a form for missing info.

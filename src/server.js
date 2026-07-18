@@ -27,6 +27,7 @@ app.use("/api/employees", require("./routes/export"));
 app.use("/api/config", require("./routes/contractConfig"));
 app.use("/api/fiches", require("./routes/fiches"));
 app.use("/api/career", require("./routes/career"));
+app.use("/api/reports", require("./routes/reports"));
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
