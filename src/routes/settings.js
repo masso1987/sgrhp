@@ -17,6 +17,7 @@ const DEFAULTS = {
     sessionHours: 8,
     maxFailedLogins: 5,
     lockoutMinutes: 15,
+    idleTimeoutMinutes: 30,
   },
   smtp: { enabled: false, host: "", port: 587, secure: false, user: "", password: "",
     from: "SGRHP <no-reply@cible-rh.ci>", notifyOnWorkflow: true, notifyOnSla: true },
@@ -60,12 +61,15 @@ router.put("/security", allow("ADM"), (req, res) => {
     return res.status(400).json({ error: "La durée de session doit être comprise entre 1 et 24 heures" });
   if (b.maxFailedLogins !== undefined && !(b.maxFailedLogins >= 3 && b.maxFailedLogins <= 20))
     return res.status(400).json({ error: "Le nombre d'échecs autorisés doit être compris entre 3 et 20" });
+  if (b.idleTimeoutMinutes !== undefined && !(b.idleTimeoutMinutes >= 5 && b.idleTimeoutMinutes <= 480))
+    return res.status(400).json({ error: "Le délai d'inactivité doit être compris entre 5 et 480 minutes" });
   Object.assign(s.security, {
     require2faForAdmins: b.require2faForAdmins ?? s.security.require2faForAdmins,
     require2faForAll: b.require2faForAll ?? s.security.require2faForAll,
     sessionHours: b.sessionHours ?? s.security.sessionHours,
     maxFailedLogins: b.maxFailedLogins ?? s.security.maxFailedLogins,
     lockoutMinutes: b.lockoutMinutes ?? s.security.lockoutMinutes,
+    idleTimeoutMinutes: b.idleTimeoutMinutes ?? s.security.idleTimeoutMinutes,
   });
   save();
   audit(req.user, "CONFIG_CHANGED", "Settings", "security", { before, after: s.security });

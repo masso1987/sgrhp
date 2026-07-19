@@ -42,7 +42,7 @@ function seed() {
   mk("rj@cible-rh.ci", "Me. Solange BAMBA", "RJ");
   mk("ui@cible-rh.ci", "Paul N'GUESSAN", "UI");
   mk("admin@cible-rh.ci", "Ferdine MASSO", "ADM");
-  mk("superadmin@sgrhp.io", "Super Administrateur", "SADM");
+
 
   if (!db.tenants.length) db.tenants.push({
     id: "t1", status: "ACTIVE", createdAt: new Date().toISOString(), createdBy: "seed",
@@ -147,5 +147,27 @@ function seedReferentials() {
   );
 }
 // Ensure referentials exist even on older databases
-function ensureReferentials() { seedReferentials(); seedContractConfig(); seedCareer(); save(); }
+function ensureAccounts() {
+  const { hash } = require("./auth");
+  // Platform super-administrator (added after initial deployments)
+  if (!db.users.some(u => u.role === "SADM")) {
+    db.users.push({ id: id("usr"), email: "superadmin@sgrhp.io", fullName: "Super Administrateur",
+      role: "SADM", portfolioIds: [], password: hash("Superadmin2026"), active: true });
+    console.log("Ensured super-admin account: superadmin@sgrhp.io");
+  }
+  // First tenant record if the platform has none
+  if (!db.tenants || !db.tenants.length) {
+    db.tenants = db.tenants || [];
+    db.tenants.push({ id: "t1", status: "ACTIVE", createdAt: new Date().toISOString(), createdBy: "seed",
+      name: "Cible RH Emploi S.A.", acronym: "CRHE", legalForm: "SA",
+      rccm: "RC/DLA/2018/M/5228", niu: "M10300015976N", cnpsEmployer: "",
+      shareCapital: "35000000", sector: "Gestion des ressources humaines",
+      hqAddress: "Immeuble Chine/Cameroun, Akwa", hqCity: "Douala", bp: "3462",
+      phone: "+237 699 68 36 03", email: "contact@ciblerh-emploi.com",
+      legalRep: "Dr Théodoret-Marie FANSI", legalRepTitle: "Directeur Général",
+      website: "", logo: "", modules: ["hr", "careers"] });
+  }
+  save();
+}
+function ensureReferentials() { seedReferentials(); seedContractConfig(); seedCareer(); ensureAccounts(); save(); }
 module.exports = { seed, ensureReferentials, CNI };

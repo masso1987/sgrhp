@@ -25,8 +25,13 @@ function policy() {
     sessionHours: s.sessionHours || Number(String(TOKEN_TTL).replace("h", "")) || 8,
     maxFailed: s.maxFailedLogins || MAX_FAILED,
     lockMinutes: s.lockoutMinutes || LOCK_MINUTES,
+    idleMinutes: (process.env.IDLE_TEST_MIN ? Number(process.env.IDLE_TEST_MIN) : (s.idleTimeoutMinutes || 30)),
   };
 }
+
+/* Server-side idle tracking: userId -> last request time (in memory, per instance). */
+const lastSeen = new Map();
+function touchActivity(userId) { lastSeen.set(userId, Date.now()); }
 function twoFaRequiredFor(user) {
   const p = policy();
   return user.totpEnabled || p.require2faForAll || (p.require2faForAdmins && user.role === "ADM");
@@ -96,22 +101,33 @@ function login(req, res) {
   const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: "t1" },
     SECRET, { expiresIn: `${policy().sessionHours}h` });
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: "t1" }, "LOGIN", "User", user.id, {});
-  res.json({ token, user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });
+  touchActivity(user.id);
+  res.json({ token, idleMinutes: policy().idleMinutes,
+    user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });
 }
 
 function authenticate(req, res, next) {
   const h = req.header("authorization") || "";
   const token = h.startsWith("Bearer ") ? h.slice(7) : null;
   if (!token) return res.status(401).json({ error: "Jeton manquant" });
-  try { req.user = jwt.verify(token, SECRET); next(); }
-  catch { return res.status(401).json({ error: "Session expirée, reconnectez-vous" }); }
+  try {
+    req.user = jwt.verify(token, SECRET);
+    const idleMs = policy().idleMinutes * 60000;
+    const prev = lastSeen.get(req.user.id);
+    if (prev && Date.now() - prev > idleMs) {
+      lastSeen.delete(req.user.id);
+      return res.status(401).json({ error: "Session expirée pour inactivité — reconnectez-vous", idle: true });
+    }
+    lastSeen.set(req.user.id, Date.now());
+    next();
+  } catch { return res.status(401).json({ error: "Session expirée, reconnectez-vous" }); }
 }
 
 function me(req, res) {
   const u = db.users.find(x => x.id === req.user.id);
   if (!u) return res.status(404).json({ error: "Introuvable" });
   const { password, totpSecret, ...safe } = u;
-  res.json({ ...safe, twoFactor: !!u.totpSecret });
+  res.json({ ...safe, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes });
 }
 
 /* ---------- 2FA enrolment ----------

@@ -500,7 +500,10 @@ const I18N = {
 "Paie": "Payroll",
 "Comptabilité": "Accounting",
 "Facturation": "Invoicing",
-"Gestion de stock": "Stock management"
+"Gestion de stock": "Stock management",
+"Déconnecté automatiquement après inactivité.": "Automatically signed out after inactivity.",
+"Session expirée pour inactivité — reconnectez-vous": "Session expired due to inactivity — please sign in again",
+"Déconnexion après inactivité (minutes)": "Sign out after inactivity (minutes)"
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -577,6 +580,29 @@ function watchI18n() {
 
 let TOKEN = sessionStorage.getItem("t"), ME = JSON.parse(sessionStorage.getItem("me") || "null");
 
+/* ================= Auto-déconnexion pour inactivité ================= */
+let IDLE_MIN = 30, _idleTimer = null;
+function armIdle(mins) {
+  IDLE_MIN = mins || IDLE_MIN;
+  const reset = () => {
+    clearTimeout(_idleTimer);
+    if (!TOKEN) return;
+    _idleTimer = setTimeout(() => {
+      sessionStorage.clear(); TOKEN = null; ME = null;
+      const l = document.getElementById("login");
+      document.getElementById("app").classList.add("hidden");
+      l.classList.remove("hidden");
+      const err = document.getElementById("lErr");
+      err.textContent = t("Déconnecté automatiquement après inactivité.");
+      err.classList.remove("hidden");
+    }, IDLE_MIN * 60000);
+  };
+  ["mousemove","mousedown","keydown","scroll","touchstart","click"].forEach(ev =>
+    document.addEventListener(ev, reset, { passive: true }));
+  reset();
+}
+
+
 const api = async (path, opts = {}) => {
   let r;
   try {
@@ -588,7 +614,11 @@ const api = async (path, opts = {}) => {
   }
   // Only a genuine authentication failure ends the session. Rate limiting (429),
   // server errors (5xx) and network problems must never trigger a reload loop.
-  if (r.status === 401) { sessionEnded(); throw new Error("Session expirée"); }
+  if (r.status === 401) {
+    const j401 = await r.json().catch(() => ({}));
+    sessionEnded(j401.idle ? "Déconnecté automatiquement après inactivité." : null);
+    throw new Error(j401.error || "Session expirée");
+  }
   if (r.status === 429) throw new Error("Trop de requêtes — patientez quelques secondes");
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Erreur ${r.status}`);
@@ -596,14 +626,15 @@ const api = async (path, opts = {}) => {
 };
 
 /* Ends the session once and shows the login screen — without reloading in a loop. */
-function sessionEnded() {
+function sessionEnded(msg) {
   TOKEN = null; ME = null;
   sessionStorage.clear();
+  clearTimeout(_idleTimer);
   document.getElementById("app").classList.add("hidden");
   const l = document.getElementById("login");
   l.classList.remove("hidden");
   const err = document.getElementById("lErr");
-  err.textContent = "Session expirée — reconnectez-vous.";
+  err.textContent = t(msg || "Session expirée — reconnectez-vous.");
   err.classList.remove("hidden");
 }
 
@@ -627,6 +658,7 @@ async function doLogin() {
 
     TOKEN = j.token; ME = j.user;
     sessionStorage.setItem("t", TOKEN); sessionStorage.setItem("me", JSON.stringify(ME));
+    armIdle(j.idleMinutes || 30);
     boot();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
 }
@@ -684,6 +716,7 @@ async function boot() {
   document.getElementById("langSel").value = LANG;
   watchI18n();
   fetch("/api/branding").then(r => r.json()).then(applyBranding).catch(() => {});
+  api("/me").then(m => armIdle(m.idleMinutes || 30)).catch(() => armIdle(30));
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${ME.fullName} — ${ME.role}`;
   const items = NAV.filter(n => n.roles.includes(ME.role));
@@ -1810,6 +1843,7 @@ async function paramsView() {
         <div><label>Durée de session (heures)</label><input id="pSess" type="number" min="1" max="24" value="${s.security.sessionHours}"></div>
         <div><label>Échecs avant verrouillage</label><input id="pFail" type="number" min="3" max="20" value="${s.security.maxFailedLogins}"></div>
         <div><label>Durée du verrouillage (minutes)</label><input id="pLock" type="number" min="1" max="120" value="${s.security.lockoutMinutes}"></div>
+        <div><label>Déconnexion après inactivité (minutes)</label><input id="pIdle" type="number" min="5" max="480" value="${s.security.idleTimeoutMinutes||30}"></div>
       </div>
       <div class="err hidden" id="pSecErr"></div>
       <button class="btn p" onclick="saveSecurity()">Enregistrer la sécurité</button></div>
@@ -1929,7 +1963,8 @@ async function saveSecurity() {
   try { await api("/settings/security", { method: "PUT", body: JSON.stringify({
       require2faForAdmins: p2faAdm.checked, require2faForAll: p2faAll.checked,
       sessionHours: Number(pSess.value), maxFailedLogins: Number(pFail.value),
-      lockoutMinutes: Number(pLock.value) }) });
+      lockoutMinutes: Number(pLock.value), idleTimeoutMinutes: Number(pIdle.value) }) });
+    armIdle(Number(pIdle.value));
     alert(t("Paramètres de sécurité enregistrés.")); paramsView(); }
   catch (e) { pSecErr.textContent = e.message; pSecErr.classList.remove("hidden"); }
 }
