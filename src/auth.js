@@ -25,7 +25,7 @@ function policy() {
     sessionHours: s.sessionHours || Number(String(TOKEN_TTL).replace("h", "")) || 8,
     maxFailed: s.maxFailedLogins || MAX_FAILED,
     lockMinutes: s.lockoutMinutes || LOCK_MINUTES,
-    idleMinutes: (process.env.IDLE_TEST_MIN ? Number(process.env.IDLE_TEST_MIN) : (s.idleTimeoutMinutes || 30)),
+    idleMinutes: s.idleTimeoutMinutes || 30,
   };
 }
 
