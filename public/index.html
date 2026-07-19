@@ -368,7 +368,7 @@ const I18N = {
 "Échecs avant verrouillage": "Failures before lockout",
 "Durée du verrouillage (minutes)": "Lockout duration (minutes)",
 "Enregistrer la sécurité": "Save security settings",
-"📧 Serveur d'envoi d'emails (SMTP)": "📧 Outgoing email server (SMTP)",
+"📧 Serveur d'envoi d'emails (SMTP)": "📧 Email configuration",
 "Utilisé pour envoyer les notifications de workflow et les alertes de délai.": "Used to send workflow notifications and SLA alerts.",
 "Activer l'envoi d'emails": "Enable email sending",
 "Serveur": "Host",
@@ -526,8 +526,8 @@ const I18N = {
 "Création": "Created",
 "Modification": "Modified",
 "Soumission": "Submitted",
-"Validation": "Validated",
-"Rejet": "Rejected",
+"Validation": "Validation",
+"Rejet": "Rejection",
 "Génération": "Generated",
 "Signature": "Signed",
 "Impression": "Printed",
@@ -542,7 +542,31 @@ const I18N = {
 "🔎 Rechercher…": "🔎 Search…",
 "Tous les objets": "All objects",
 "événement(s)": "event(s)",
-"Aucun événement.": "No events."
+"Aucun événement.": "No events.",
+"Configuration email": "Email configuration",
+"Choisissez un fournisseur et renseignez ses identifiants. Utilisé pour les notifications de workflow et les alertes de délai.": "Choose a provider and enter its credentials. Used for workflow notifications and SLA alerts.",
+"Fournisseur": "Provider",
+"Expéditeur (From)": "Sender (From)",
+"✉️ Tester la configuration email": "✉️ Test email configuration",
+"Envoyez un email de test pour vérifier votre configuration.": "Send a test email to verify your configuration.",
+"Adresse de destination du test": "Test recipient address",
+"Configuration email enregistrée.": "Email configuration saved.",
+"Saisissez une adresse de test.": "Enter a test address.",
+"✉️ Notifications email": "✉️ Email notifications",
+"Modèles & destinataires des notifications": "Notification templates & recipients",
+"Personnalisez les messages envoyés (français et anglais) et les adresses qui reçoivent chaque type de notification. Variables : {{title}}, {{initiator}}, {{validator}}, {{reason}}, {{stage}}, {{sla}}, {{elapsed}}.": "Customise the messages sent (French and English) and the addresses that receive each notification type. Variables: {{title}}, {{initiator}}, {{validator}}, {{reason}}, {{stage}}, {{sla}}, {{elapsed}}.",
+"Sujet (FR)": "Subject (FR)",
+"Sujet (EN)": "Subject (EN)",
+"Message (FR)": "Message (FR)",
+"Message (EN)": "Message (EN)",
+"Destinataires supplémentaires (emails séparés par des virgules)": "Extra recipients (comma-separated emails)",
+"Copie systématique (CC global)": "Standing copy (global CC)",
+"adresses en copie de toutes les notifications": "addresses copied on every notification",
+"Enregistrer les modèles & destinataires": "Save templates & recipients",
+"Modèles et destinataires enregistrés.": "Templates and recipients saved.",
+"Soumission (à valider)": "Submission (to validate)",
+"Alerte délai 36h": "36h SLA warning",
+"Dépassement 48h": "48h breach"
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -745,6 +769,7 @@ const NAV = [
   { k: "templates", label: "📄 Modèles", roles: ["ADM"] },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"] },
   { k: "params", label: "🔧 Paramètres", roles: ["ADM"] },
+  { k: "mailtpl", label: "✉️ Notifications email", roles: ["ADM"] },
   { k: "account", label: "👤 Mon compte", roles: ["GPF","CD","RJ","UI","ADM"] },
   { k: "portfolios", label: "⚙ Config. portefeuilles", roles: ["ADM"] },
   { k: "users", label: "🔐 Utilisateurs", roles: ["ADM"] },
@@ -765,7 +790,7 @@ async function boot() {
 function go(k) {
   applySectionColor(k);
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1969,6 +1994,7 @@ async function repExport(fmt) {
 /* ================= Paramètres (sécurité + SMTP) ================= */
 async function paramsView() {
   const s = await api("/settings");
+  window._EMAIL = s.email; window._TPLS = s.emailTemplates; window._RCPT = s.emailRecipients;
   view.innerHTML = `<h1>Paramètres de l'application</h1>
   <div class="grid2">
     <div class="panel"><b>🔐 Sécurité</b>
@@ -1985,33 +2011,34 @@ async function paramsView() {
       <div class="err hidden" id="pSecErr"></div>
       <button class="btn p" onclick="saveSecurity()">Enregistrer la sécurité</button></div>
 
-    <div class="panel"><b>📧 Serveur d'envoi d'emails (SMTP)</b>
+    <div class="panel"><b>📧 Configuration email</b>
       <p style="font-size:12px;color:var(--muted);margin:6px 0">
-        Utilisé pour envoyer les notifications de workflow et les alertes de délai.</p>
-      <label class="chk"><input type="checkbox" id="mEnabled" ${s.smtp.enabled ? "checked" : ""}>
+        Choisissez un fournisseur et renseignez ses identifiants. Utilisé pour les notifications de workflow et les alertes de délai.</p>
+      <label class="chk"><input type="checkbox" id="mEnabled" ${s.email.enabled ? "checked" : ""}>
         <span>Activer l'envoi d'emails</span></label>
       <div class="grid2" style="margin-top:8px">
-        <div><label>Serveur</label><input id="mHost" value="${s.smtp.host}" placeholder="smtp.gmail.com"></div>
-        <div><label>Port</label><input id="mPort" type="number" value="${s.smtp.port}"></div>
-        <div><label>Utilisateur</label><input id="mUser" value="${s.smtp.user}" placeholder="compte@domaine.com"></div>
-        <div><label>Mot de passe</label><input id="mPass" type="password" value="${s.smtp.password}" placeholder="••••••••"></div>
+        <div><label>Fournisseur</label>
+          <select id="mProvider" onchange="emailProviderFields()">
+            ${["smtp","ses","postmark","mailgun","sendmail"].map(p=>`<option value="${p}" ${s.email.provider===p?"selected":""}>${({smtp:"SMTP",ses:"Amazon SES",postmark:"Postmark",mailgun:"Mailgun",sendmail:"Sendmail (local)"})[p]}</option>`).join("")}</select></div>
+        <div><label>Expéditeur (From)</label><input id="mFrom" value="${s.email.from||''}" placeholder="SGRHP <no-reply@domaine.com>"></div>
       </div>
-      <label>Expéditeur</label><input id="mFrom" value="${s.smtp.from}">
-      <label class="chk"><input type="checkbox" id="mSecure" ${s.smtp.secure ? "checked" : ""}>
-        <span>Connexion chiffrée SSL/TLS (port 465)</span></label>
-      <label class="chk"><input type="checkbox" id="mWf" ${s.smtp.notifyOnWorkflow ? "checked" : ""}>
-        <span>Notifier les étapes de validation</span></label>
-      <label class="chk"><input type="checkbox" id="mSla" ${s.smtp.notifyOnSla ? "checked" : ""}>
-        <span>Notifier les alertes de délai (36h / 48h)</span></label>
+      <div id="providerFields"></div>
+      <div style="margin-top:8px">
+        <label class="chk"><input type="checkbox" id="mWf" ${s.email.notifyOnWorkflow?"checked":""}><span>Notifier les étapes de validation</span></label>
+        <label class="chk"><input type="checkbox" id="mSla" ${s.email.notifyOnSla?"checked":""}><span>Notifier les alertes de délai (36h / 48h)</span></label>
+      </div>
       <div class="err hidden" id="pSmtpErr"></div>
-      <button class="btn p" onclick="saveSmtp()">Enregistrer SMTP</button>
-      <div style="display:flex;gap:6px;margin-top:10px">
-        <input id="mTest" placeholder="Adresse pour le test" style="margin:0">
-        <button class="btn ghost sm" onclick="testSmtp()">Envoyer un test</button></div>
-      <p style="font-size:11px;color:var(--muted);margin-top:8px">
-        Gmail : utilisez un « mot de passe d'application », port 587 (TLS) ou 465 (SSL).</p>
+      <button class="btn p" onclick="saveEmail()">Enregistrer la configuration</button>
+
+      <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+        <b style="font-size:13px">✉️ Tester la configuration email</b>
+        <p style="font-size:12px;color:var(--muted);margin:4px 0">Envoyez un email de test pour vérifier votre configuration.</p>
+        <div style="display:flex;gap:6px">
+          <input id="mTest" placeholder="Adresse de destination du test" style="margin:0">
+          <button class="btn ghost sm" onclick="testEmail()">Envoyer un test</button></div>
+      </div>
     </div>
-  </div>
+
   <div class="panel" style="margin-top:16px"><b>🎨 Apparence & image de marque</b>
     <p style="font-size:12px;color:var(--muted);margin:6px 0">Personnalisez le nom, le logo, les couleurs et la densité de l'interface. L'aperçu est immédiat.</p>
     <div class="grid2">
@@ -2047,6 +2074,7 @@ async function paramsView() {
       <button class="btn ghost" onclick="previewBranding()">Aperçu</button>
       <button class="btn ghost" onclick="resetBranding()">Réinitialiser</button></div>
   </div>`;
+  emailProviderFields();
 }
 function colorField(label, key, val) {
   return `<div><label>${label}</label><div style="display:flex;gap:6px;align-items:center">
@@ -2104,19 +2132,6 @@ async function saveSecurity() {
     armIdle(Number(pIdle.value));
     alert(t("Paramètres de sécurité enregistrés.")); paramsView(); }
   catch (e) { pSecErr.textContent = e.message; pSecErr.classList.remove("hidden"); }
-}
-async function saveSmtp() {
-  try { await api("/settings/smtp", { method: "PUT", body: JSON.stringify({
-      enabled: mEnabled.checked, host: mHost.value, port: Number(mPort.value), secure: mSecure.checked,
-      user: mUser.value, password: mPass.value, from: mFrom.value,
-      notifyOnWorkflow: mWf.checked, notifyOnSla: mSla.checked }) });
-    alert(t("Configuration SMTP enregistrée.")); paramsView(); }
-  catch (e) { pSmtpErr.textContent = e.message; pSmtpErr.classList.remove("hidden"); }
-}
-async function testSmtp() {
-  try { await api("/settings/smtp/test", { method: "POST", body: JSON.stringify({ to: mTest.value.trim() }) });
-    alert(t("Email de test envoyé — vérifiez la boîte de réception.")); }
-  catch (e) { alert(e.message); }
 }
 
 /* ================= Mon compte (2FA + mot de passe) ================= */
@@ -2404,6 +2419,100 @@ async function tenantToggle(id,cur){
   const st=cur==="ACTIVE"?"SUSPENDED":"ACTIVE";
   if(!confirm(st==="SUSPENDED"?"Suspendre cette entreprise ?":"Réactiver cette entreprise ?"))return;
   try{await api("/tenants/"+id+"/status",{method:"PUT",body:JSON.stringify({status:st})});tenantsView();}catch(e){alert(e.message);}
+}
+
+
+function emailProviderFields() {
+  const p = document.getElementById("mProvider").value, e = window._EMAIL || {};
+  const box = document.getElementById("providerFields");
+  const F = {
+    smtp: `<div class="grid2">
+      <div><label>Serveur SMTP</label><input id="fHost" value="${(e.smtp&&e.smtp.host)||''}" placeholder="smtp.gmail.com"></div>
+      <div><label>Port</label><input id="fPort" type="number" value="${(e.smtp&&e.smtp.port)||587}"></div>
+      <div><label>Utilisateur</label><input id="fUser" value="${(e.smtp&&e.smtp.user)||''}" placeholder="compte@domaine.com"></div>
+      <div><label>Mot de passe</label><input id="fPass" type="password" value="${(e.smtp&&e.smtp.password)||''}" placeholder="••••••••"></div>
+      </div><label class="chk"><input type="checkbox" id="fSecure" ${(e.smtp&&e.smtp.secure)?"checked":""}><span>SSL/TLS (port 465)</span></label>
+      <p style="font-size:11px;color:var(--muted)">Gmail : mot de passe d'application, port 587 (TLS) ou 465 (SSL).</p>`,
+    ses: `<div class="grid2">
+      <div><label>Région AWS</label><input id="fRegion" value="${(e.ses&&e.ses.region)||'eu-west-1'}" placeholder="eu-west-1"></div>
+      <div></div>
+      <div><label>SMTP Username</label><input id="fUser" value="${(e.ses&&e.ses.smtpUser)||''}"></div>
+      <div><label>SMTP Password</label><input id="fPass" type="password" value="${(e.ses&&e.ses.smtpPass)||''}"></div>
+      </div><p style="font-size:11px;color:var(--muted)">Identifiants SMTP SES (console SES → SMTP settings).</p>`,
+    postmark: `<label>Server Token</label><input id="fToken" type="password" value="${(e.postmark&&e.postmark.serverToken)||''}">
+      <p style="font-size:11px;color:var(--muted)">Jeton du serveur Postmark (Server → API Tokens).</p>`,
+    mailgun: `<div class="grid2">
+      <div><label>Domaine</label><input id="fDomain" value="${(e.mailgun&&e.mailgun.domain)||''}" placeholder="mg.domaine.com"></div>
+      <div><label>Région</label><select id="fRegion"><option value="us" ${(e.mailgun&&e.mailgun.region)!=="eu"?"selected":""}>US</option><option value="eu" ${(e.mailgun&&e.mailgun.region)==="eu"?"selected":""}>EU</option></select></div>
+      <div><label>SMTP Login</label><input id="fUser" value="${(e.mailgun&&e.mailgun.smtpLogin)||''}" placeholder="postmaster@mg.domaine.com"></div>
+      <div><label>SMTP Password</label><input id="fPass" type="password" value="${(e.mailgun&&e.mailgun.smtpPassword)||''}"></div>
+      </div>`,
+    sendmail: `<label>Chemin sendmail</label><input id="fPath" value="${(e.sendmail&&e.sendmail.path)||'/usr/sbin/sendmail'}">
+      <p style="font-size:11px;color:var(--muted)">Binaire sendmail local (serveurs disposant d'un MTA).</p>`,
+  };
+  box.innerHTML = F[p] || "";
+}
+function collectEmail() {
+  const p = document.getElementById("mProvider").value;
+  const b = { enabled: mEnabled.checked, provider: p, from: mFrom.value,
+    notifyOnWorkflow: mWf.checked, notifyOnSla: mSla.checked };
+  const v = id => { const el = document.getElementById(id); return el ? el.value : undefined; };
+  const chk = id => { const el = document.getElementById(id); return el ? el.checked : undefined; };
+  if (p === "smtp") b.smtp = { host: v("fHost"), port: Number(v("fPort")), secure: chk("fSecure"), user: v("fUser"), password: v("fPass") };
+  if (p === "ses") b.ses = { region: v("fRegion"), smtpUser: v("fUser"), smtpPass: v("fPass") };
+  if (p === "postmark") b.postmark = { serverToken: v("fToken") };
+  if (p === "mailgun") b.mailgun = { domain: v("fDomain"), region: v("fRegion"), smtpLogin: v("fUser"), smtpPassword: v("fPass") };
+  if (p === "sendmail") b.sendmail = { path: v("fPath") };
+  return b;
+}
+async function saveEmail() {
+  try { await api("/settings/email", { method: "PUT", body: JSON.stringify(collectEmail()) });
+    alert(t("Configuration email enregistrée.")); paramsView(); }
+  catch (e) { pSmtpErr.textContent = e.message; pSmtpErr.classList.remove("hidden"); }
+}
+async function testEmail() {
+  if (!mTest.value.trim()) return alert(t("Saisissez une adresse de test."));
+  try { await api("/settings/email/test", { method: "POST", body: JSON.stringify({ to: mTest.value.trim() }) });
+    alert(t("Email de test envoyé — vérifiez la boîte de réception.")); }
+  catch (e) { alert(e.message); }
+}
+
+/* ---- Notification templates (FR/EN) + recipients: their own screen ---- */
+const EVENT_LABELS = { submitted:"Soumission (à valider)", validated:"Validation", rejected:"Rejet",
+  slaWarning:"Alerte délai 36h", slaBreach:"Dépassement 48h" };
+async function mailtplView() {
+  const s = await api("/settings"); const T = s.emailTemplates, R = s.emailRecipients;
+  view.innerHTML = `<h1>Modèles & destinataires des notifications</h1>
+  <div class="note">Personnalisez les messages envoyés (français et anglais) et les adresses qui reçoivent chaque type de notification. Variables : {{title}}, {{initiator}}, {{validator}}, {{reason}}, {{stage}}, {{sla}}, {{elapsed}}.</div>
+  ${Object.keys(T).map(k=>`<div class="panel"><b>✉️ ${t(EVENT_LABELS[k]||k)}</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Sujet (FR)</label><input data-tpl="${k}" data-f="subjectFr" value="${(T[k].subjectFr||'').replace(/"/g,'&quot;')}"></div>
+      <div><label>Sujet (EN)</label><input data-tpl="${k}" data-f="subjectEn" value="${(T[k].subjectEn||'').replace(/"/g,'&quot;')}"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Message (FR)</label><textarea data-tpl="${k}" data-f="bodyFr" rows="4">${T[k].bodyFr||''}</textarea></div>
+      <div><label>Message (EN)</label><textarea data-tpl="${k}" data-f="bodyEn" rows="4">${T[k].bodyEn||''}</textarea></div>
+    </div>
+    <div style="margin-top:6px"><label>Destinataires supplémentaires (emails séparés par des virgules)</label>
+      <input data-rcpt="${k}" value="${(R.byEvent&&R.byEvent[k])||''}" placeholder="ex. superviseur@entreprise.cm"></div>
+  </div>`).join("")}
+  <div class="panel"><b>Copie systématique (CC global)</b>
+    <input id="rGlobal" value="${R.globalCC||''}" placeholder="adresses en copie de toutes les notifications">
+  </div>
+  <div class="err hidden" id="tplErr"></div>
+  <button class="btn p" onclick="saveTemplates()">Enregistrer les modèles &amp; destinataires</button>`;
+}
+async function saveTemplates() {
+  const tpls = {};
+  view.querySelectorAll("[data-tpl]").forEach(el => { const k = el.dataset.tpl;
+    (tpls[k] = tpls[k] || {})[el.dataset.f] = el.value; });
+  const byEvent = {};
+  view.querySelectorAll("[data-rcpt]").forEach(el => byEvent[el.dataset.rcpt] = el.value);
+  try {
+    await api("/settings/email/templates", { method: "PUT", body: JSON.stringify(tpls) });
+    await api("/settings/email/recipients", { method: "PUT", body: JSON.stringify({ globalCC: rGlobal.value, byEvent }) });
+    alert(t("Modèles et destinataires enregistrés."));
+  } catch (e) { tplErr.textContent = e.message; tplErr.classList.remove("hidden"); }
 }
 
 </script>

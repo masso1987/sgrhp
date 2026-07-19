@@ -19,8 +19,32 @@ const DEFAULTS = {
     lockoutMinutes: 15,
     idleTimeoutMinutes: 30,
   },
-  smtp: { enabled: false, host: "", port: 587, secure: false, user: "", password: "",
-    from: "SGRHP <no-reply@cible-rh.ci>", notifyOnWorkflow: true, notifyOnSla: true },
+  email: {
+    enabled: false, provider: "smtp", from: "SGRHP <no-reply@cible-rh.ci>",
+    notifyOnWorkflow: true, notifyOnSla: true,
+    smtp: { host: "", port: 587, secure: false, user: "", password: "" },
+    ses: { region: "eu-west-1", smtpUser: "", smtpPass: "" },
+    postmark: { serverToken: "" },
+    mailgun: { region: "us", domain: "", smtpLogin: "", smtpPassword: "" },
+    sendmail: { path: "/usr/sbin/sendmail" },
+  },
+  emailRecipients: { globalCC: "", byEvent: { submitted: "", validated: "", rejected: "", slaWarning: "", slaBreach: "" } },
+  emailTemplates: {
+    submitted: { subjectFr: "Nouveau document à valider : {{title}}", subjectEn: "New document to validate: {{title}}",
+      bodyFr: "Bonjour,\n\nLe document « {{title}} » a été soumis par {{initiator}} et attend votre validation (délai : {{sla}}h).\n\n— SGRHP", 
+      bodyEn: "Hello,\n\nThe document \"{{title}}\" was submitted by {{initiator}} and awaits your validation (deadline: {{sla}}h).\n\n— SGRHP" },
+    validated: { subjectFr: "Document validé : {{title}}", subjectEn: "Document validated: {{title}}",
+      bodyFr: "Le document « {{title}} » a été validé.\n\n— SGRHP", bodyEn: "The document \"{{title}}\" has been validated.\n\n— SGRHP" },
+    rejected: { subjectFr: "Document rejeté : {{title}}", subjectEn: "Document rejected: {{title}}",
+      bodyFr: "Le document « {{title}} » a été rejeté par {{validator}}.\nMotif : {{reason}}\n\nMerci de corriger et resoumettre.\n\n— SGRHP",
+      bodyEn: "The document \"{{title}}\" was rejected by {{validator}}.\nReason: {{reason}}\n\nPlease correct and resubmit.\n\n— SGRHP" },
+    slaWarning: { subjectFr: "Alerte délai (36h) : {{title}}", subjectEn: "SLA warning (36h): {{title}}",
+      bodyFr: "Le document « {{title}} » approche du délai de validation de 48h ({{elapsed}}h écoulées).\n\n— SGRHP",
+      bodyEn: "The document \"{{title}}\" is approaching the 48h validation deadline ({{elapsed}}h elapsed).\n\n— SGRHP" },
+    slaBreach: { subjectFr: "Dépassement de délai : {{title}}", subjectEn: "SLA breach: {{title}}",
+      bodyFr: "Le délai de 48h est dépassé pour « {{title}} » ({{elapsed}}h).\n\n— SGRHP",
+      bodyEn: "The 48h deadline is exceeded for \"{{title}}\" ({{elapsed}}h).\n\n— SGRHP" },
+  },
   branding: {
     appName: "SGRHP",
     tagline: "Cible RH Emploi S.A.",
@@ -48,8 +72,14 @@ function settings() {
 /** Public read: password masked. */
 router.get("/", allow("ADM"), (req, res) => {
   const s = settings();
-  res.json({ security: s.security,
-    smtp: { ...s.smtp, password: s.smtp.password ? "********" : "" },
+  const MASK = "********";
+  const em = JSON.parse(JSON.stringify(s.email));
+  if (em.smtp && em.smtp.password) em.smtp.password = MASK;
+  if (em.ses && em.ses.smtpPass) em.ses.smtpPass = MASK;
+  if (em.postmark && em.postmark.serverToken) em.postmark.serverToken = MASK;
+  if (em.mailgun && em.mailgun.smtpPassword) em.mailgun.smtpPassword = MASK;
+  res.json({ security: s.security, email: em,
+    emailTemplates: s.emailTemplates, emailRecipients: s.emailRecipients,
     branding: s.branding });
 });
 
@@ -76,75 +106,82 @@ router.put("/security", allow("ADM"), (req, res) => {
   res.json(s.security);
 });
 
-router.put("/smtp", allow("ADM"), (req, res) => {
+const EMAILRE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+function mergeSecret(next, cur) { return (next && next !== "********") ? next : cur; }
+
+router.put("/email", allow("ADM"), (req, res) => {
   const s = settings();
   const b = req.body || {};
-  const before = { ...s.smtp, password: s.smtp.password ? "***" : "" };
-  if (b.enabled && !b.host) return res.status(400).json({ error: "Le serveur SMTP est obligatoire" });
-  if (b.port !== undefined && !(b.port > 0 && b.port < 65536))
-    return res.status(400).json({ error: "Port SMTP invalide" });
-  Object.assign(s.smtp, {
-    enabled: b.enabled ?? s.smtp.enabled,
-    host: b.host ?? s.smtp.host,
-    port: b.port ?? s.smtp.port,
-    secure: b.secure ?? s.smtp.secure,
-    user: b.user ?? s.smtp.user,
-    // an unchanged masked password must not overwrite the stored one
-    password: (b.password && b.password !== "********") ? b.password : s.smtp.password,
-    from: b.from ?? s.smtp.from,
-    notifyOnWorkflow: b.notifyOnWorkflow ?? s.smtp.notifyOnWorkflow,
-    notifyOnSla: b.notifyOnSla ?? s.smtp.notifyOnSla,
-  });
-  save();
-  mailer.reset();
-  audit(req.user, "CONFIG_CHANGED", "Settings", "smtp",
-    { before, after: { ...s.smtp, password: s.smtp.password ? "***" : "" } });
-  res.json({ ...s.smtp, password: s.smtp.password ? "********" : "" });
+  const before = { provider: s.email.provider, enabled: s.email.enabled };
+  const providers = ["smtp", "ses", "postmark", "mailgun", "sendmail"];
+  if (b.provider && !providers.includes(b.provider)) return res.status(400).json({ error: "Fournisseur inconnu" });
+  s.email.enabled = b.enabled ?? s.email.enabled;
+  s.email.provider = b.provider ?? s.email.provider;
+  if (b.from !== undefined) s.email.from = b.from;
+  if (b.notifyOnWorkflow !== undefined) s.email.notifyOnWorkflow = !!b.notifyOnWorkflow;
+  if (b.notifyOnSla !== undefined) s.email.notifyOnSla = !!b.notifyOnSla;
+  if (b.smtp) Object.assign(s.email.smtp, { host: b.smtp.host ?? s.email.smtp.host,
+    port: b.smtp.port ?? s.email.smtp.port, secure: b.smtp.secure ?? s.email.smtp.secure,
+    user: b.smtp.user ?? s.email.smtp.user, password: mergeSecret(b.smtp.password, s.email.smtp.password) });
+  if (b.ses) Object.assign(s.email.ses, { region: b.ses.region ?? s.email.ses.region,
+    smtpUser: b.ses.smtpUser ?? s.email.ses.smtpUser, smtpPass: mergeSecret(b.ses.smtpPass, s.email.ses.smtpPass) });
+  if (b.postmark) s.email.postmark.serverToken = mergeSecret(b.postmark.serverToken, s.email.postmark.serverToken);
+  if (b.mailgun) Object.assign(s.email.mailgun, { region: b.mailgun.region ?? s.email.mailgun.region,
+    domain: b.mailgun.domain ?? s.email.mailgun.domain, smtpLogin: b.mailgun.smtpLogin ?? s.email.mailgun.smtpLogin,
+    smtpPassword: mergeSecret(b.mailgun.smtpPassword, s.email.mailgun.smtpPassword) });
+  if (b.sendmail) s.email.sendmail.path = b.sendmail.path ?? s.email.sendmail.path;
+  // basic provider-specific validation when enabling
+  if (s.email.enabled) {
+    if (s.email.provider === "smtp" && !s.email.smtp.host) return res.status(400).json({ error: "Serveur SMTP requis" });
+    if (s.email.provider === "ses" && !s.email.ses.smtpUser) return res.status(400).json({ error: "Identifiants SMTP SES requis" });
+    if (s.email.provider === "postmark" && !s.email.postmark.serverToken) return res.status(400).json({ error: "Server Token Postmark requis" });
+    if (s.email.provider === "mailgun" && (!s.email.mailgun.domain || !s.email.mailgun.smtpLogin)) return res.status(400).json({ error: "Domaine et identifiants Mailgun requis" });
+  }
+  save(); mailer.reset();
+  audit(req.user, "CONFIG_CHANGED", "Settings", "email", { before, after: { provider: s.email.provider, enabled: s.email.enabled } });
+  res.json({ ok: true, provider: s.email.provider, enabled: s.email.enabled });
 });
 
-/** Send a test message to verify the configuration. */
-router.post("/smtp/test", allow("ADM"), async (req, res) => {
-  const to = req.body?.to;
-  if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to))
-    return res.status(400).json({ error: "Adresse email de test invalide" });
+router.put("/email/templates", allow("ADM"), (req, res) => {
+  const s = settings();
+  const b = req.body || {};
+  for (const key of Object.keys(s.emailTemplates)) {
+    if (!b[key]) continue;
+    for (const f of ["subjectFr", "subjectEn", "bodyFr", "bodyEn"])
+      if (b[key][f] !== undefined) s.emailTemplates[key][f] = String(b[key][f]).slice(0, 4000);
+  }
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Settings", "emailTemplates", {});
+  res.json(s.emailTemplates);
+});
+
+router.put("/email/recipients", allow("ADM"), (req, res) => {
+  const s = settings();
+  const b = req.body || {};
+  const clean = v => String(v || "").split(",").map(x => x.trim()).filter(Boolean)
+    .filter(x => { if (!EMAILRE.test(x)) throw Object.assign(new Error("Adresse invalide : " + x), { status: 400 }); return true; }).join(", ");
   try {
-    const info = await mailer.send(to, "SGRHP — test de configuration",
-      "Ceci est un message de test envoyé depuis SGRHP.\n\nSi vous le recevez, la configuration SMTP est correcte.");
-    audit(req.user, "CONFIG_CHANGED", "Settings", "smtp-test", { to, ok: true });
-    res.json({ ok: true, messageId: info.messageId || null });
+    if (b.globalCC !== undefined) s.emailRecipients.globalCC = clean(b.globalCC);
+    for (const k of Object.keys(s.emailRecipients.byEvent))
+      if (b.byEvent && b.byEvent[k] !== undefined) s.emailRecipients.byEvent[k] = clean(b.byEvent[k]);
+  } catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Settings", "emailRecipients", {});
+  res.json(s.emailRecipients);
+});
+
+router.post("/email/test", allow("ADM"), async (req, res) => {
+  const to = req.body && req.body.to;
+  if (!to || !EMAILRE.test(to)) return res.status(400).json({ error: "Adresse email de test invalide" });
+  try {
+    const info = await mailer.send(to, "SGRHP — test de configuration email",
+      `Ceci est un email de test envoyé via le fournisseur « ${mailer.cfg().provider} ».\n\nSi vous le recevez, la configuration est correcte.`);
+    audit(req.user, "CONFIG_CHANGED", "Settings", "email-test", { to, provider: mailer.cfg().provider, ok: true });
+    res.json({ ok: true, provider: mailer.cfg().provider, messageId: info.messageId || null });
   } catch (e) {
-    audit(req.user, "CONFIG_CHANGED", "Settings", "smtp-test", { to, ok: false, error: e.message });
+    audit(req.user, "CONFIG_CHANGED", "Settings", "email-test", { to, ok: false, error: e.message });
     res.status(400).json({ error: `Échec de l'envoi : ${e.message}` });
   }
-});
-
-const HEX = /^#[0-9a-fA-F]{6}$/;
-router.put("/branding", allow("ADM"), (req, res) => {
-  const s = settings();
-  const b = req.body || {};
-  const before = JSON.parse(JSON.stringify(s.branding));
-  if (b.appName !== undefined) s.branding.appName = String(b.appName).slice(0, 40) || "SGRHP";
-  if (b.tagline !== undefined) s.branding.tagline = String(b.tagline).slice(0, 80);
-  if (b.logo !== undefined) {
-    if (b.logo && !/^data:image\/(png|jpeg|svg\+xml);base64,/.test(b.logo) && b.logo.length > 0)
-      return res.status(400).json({ error: "Logo invalide (image PNG/JPEG/SVG en data-URL attendue)" });
-    if (b.logo && b.logo.length > 300000) return res.status(400).json({ error: "Logo trop volumineux (max ~200 Ko)" });
-    s.branding.logo = b.logo;
-  }
-  if (b.density && ["comfortable", "compact"].includes(b.density)) s.branding.density = b.density;
-  for (const [k, v] of Object.entries(b.colors || {})) {
-    if (s.branding.colors[k] === undefined) continue;
-    if (!HEX.test(v)) return res.status(400).json({ error: `Couleur invalide pour ${k} : ${v}` });
-    s.branding.colors[k] = v;
-  }
-  for (const [k, v] of Object.entries(b.sectionColors || {})) {
-    if (s.branding.sectionColors[k] === undefined) continue;
-    if (v && !HEX.test(v)) return res.status(400).json({ error: `Couleur de section invalide : ${k}` });
-    s.branding.sectionColors[k] = v || "";
-  }
-  save();
-  audit(req.user, "CONFIG_CHANGED", "Settings", "branding", { before, after: s.branding });
-  res.json(s.branding);
 });
 
 module.exports = { router, settings, DEFAULTS };

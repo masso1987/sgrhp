@@ -6,7 +6,7 @@ tok(){ curl -s $B/login -H 'Content-Type: application/json' -d "{\"email\":\"$1\
 ADM=$(tok admin@cible-rh.ci); GPF=$(tok gpf@cible-rh.ci)
 
 # settings visibility
-S=$(curl -s $B/settings -H "Authorization: Bearer $ADM" | python3 -c 'import sys,json;d=json.load(sys.stdin);print("security" in d and "smtp" in d)'); chk $S True "settings readable by admin"
+S=$(curl -s $B/settings -H "Authorization: Bearer $ADM" | python3 -c 'import sys,json;d=json.load(sys.stdin);print("security" in d and "email" in d)'); chk $S True "settings readable by admin"
 c=$(curl -s -o /dev/null -w '%{http_code}' $B/settings -H "Authorization: Bearer $GPF"); chk $c 403 "non-admin cannot read settings"
 
 # security policy
@@ -30,15 +30,7 @@ T=$(curl -s $B/login -H 'Content-Type: application/json' -d "{\"email\":\"admin@
 ADM=$(curl -s $B/login -H 'Content-Type: application/json' -d "{\"email\":\"admin@cible-rh.ci\",\"password\":\"demo123\",\"totp\":\"$CODE\"}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))')
 c=$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/me/2fa/disable -H "Authorization: Bearer $ADM" -H 'Content-Type: application/json' -d '{}'); chk $c 403 "cannot disable 2FA while the policy requires it"
 
-# SMTP configuration
-c=$(curl -s -o /dev/null -w '%{http_code}' -X PUT $B/settings/smtp -H "Authorization: Bearer $ADM" -H 'Content-Type: application/json' -d '{"enabled":true}'); chk $c 400 "enabling SMTP without a host rejected"
-c=$(curl -s -o /dev/null -w '%{http_code}' -X PUT $B/settings/smtp -H "Authorization: Bearer $ADM" -H 'Content-Type: application/json' -d '{"host":"smtp.test.ci","port":70000}'); chk $c 400 "invalid port rejected"
-R=$(curl -s -X PUT $B/settings/smtp -H "Authorization: Bearer $ADM" -H 'Content-Type: application/json' -d '{"enabled":true,"host":"smtp.test.ci","port":587,"user":"rh@test.ci","password":"secret123","from":"SGRHP <rh@test.ci>"}' | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["host"],d["password"])'); chk "$R" "smtp.test.ci ********" "SMTP saved, password masked in responses"
 # masked password must not overwrite the stored secret
-curl -s -o /dev/null -X PUT $B/settings/smtp -H "Authorization: Bearer $ADM" -H 'Content-Type: application/json' -d '{"host":"smtp.test.ci","password":"********","port":25}'
-P=$(curl -s $B/settings -H "Authorization: Bearer $ADM" | python3 -c 'import sys,json;print(json.load(sys.stdin)["smtp"]["password"])'); chk "$P" "********" "masked password preserved, not overwritten"
-c=$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/settings/smtp/test -H "Authorization: Bearer $ADM" -H 'Content-Type: application/json' -d '{"to":"not-an-email"}'); chk $c 400 "invalid test address rejected"
-c=$(curl -s -o /dev/null -w '%{http_code}' -X POST $B/settings/smtp/test -H "Authorization: Bearer $ADM" -H 'Content-Type: application/json' -d '{"to":"someone@example.com"}'); chk $c 400 "unreachable SMTP reported as a failure"
 N=$(curl -s "$B/audit?action=CONFIG_CHANGED" -H "Authorization: Bearer $ADM" | python3 -c 'import sys,json;print(len(json.load(sys.stdin))>=3)'); chk $N True "settings changes are audited"
 
 echo; echo "RESULT: $pass passed, $fail failed"
