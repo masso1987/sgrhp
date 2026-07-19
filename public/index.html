@@ -522,7 +522,27 @@ const I18N = {
 "Réinit. mdp": "Reset pwd",
 "Fermer": "Close",
 "Entreprise créée. Administrateur :": "Company created. Administrator:",
-"mot de passe temporaire": "temporary password"
+"mot de passe temporaire": "temporary password",
+"Création": "Created",
+"Modification": "Modified",
+"Soumission": "Submitted",
+"Validation": "Validated",
+"Rejet": "Rejected",
+"Génération": "Generated",
+"Signature": "Signed",
+"Impression": "Printed",
+"Téléchargement": "Downloaded",
+"Export": "Export",
+"Import": "Import",
+"Dépôt de fichier": "File upload",
+"Configuration": "Configuration",
+"Connexion": "Sign-in",
+"Échec de connexion": "Sign-in failure",
+"Verrouillage": "Lockout",
+"🔎 Rechercher…": "🔎 Search…",
+"Tous les objets": "All objects",
+"événement(s)": "event(s)",
+"Aucun événement.": "No events."
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -994,14 +1014,112 @@ async function userSave() {
 }
 
 /* ---------- Audit ---------- */
+/* Action metadata: colour, icon, human label (FR source; t() translates). */
+const AUDIT_ACTIONS = {
+  CREATED:      { c:"blue",  i:"➕", l:"Création" },
+  UPDATED:      { c:"gray",  i:"✏️", l:"Modification" },
+  SUBMITTED:    { c:"blue",  i:"📤", l:"Soumission" },
+  VALIDATED:    { c:"green", i:"✅", l:"Validation" },
+  APPROVED:     { c:"green", i:"✅", l:"Validation" },
+  REJECTED:     { c:"red",   i:"⛔", l:"Rejet" },
+  GENERATED:    { c:"green", i:"📄", l:"Génération" },
+  SIGNED:       { c:"green", i:"✍️", l:"Signature" },
+  PRINTED:      { c:"gray",  i:"🖨", l:"Impression" },
+  DOWNLOADED:   { c:"gray",  i:"⬇️", l:"Téléchargement" },
+  EXPORTED:     { c:"blue",  i:"📊", l:"Export" },
+  IMPORTED:     { c:"blue",  i:"📥", l:"Import" },
+  UPLOADED:     { c:"gray",  i:"📎", l:"Dépôt de fichier" },
+  CONFIG_CHANGED:{c:"amber", i:"⚙️", l:"Configuration" },
+  LOGIN:        { c:"green", i:"🔓", l:"Connexion" },
+  LOGIN_FAILED: { c:"red",   i:"⚠️", l:"Échec de connexion" },
+  LOCKED:       { c:"red",   i:"🔒", l:"Verrouillage" },
+  EXPORTED_EMP: { c:"blue",  i:"📊", l:"Export" },
+};
+function actionMeta(a){ return AUDIT_ACTIONS[a] || { c:"gray", i:"•", l:a }; }
+/* Turn a detail object into short, readable pills. */
+function auditDetail(d){
+  if(!d) return "";
+  if(typeof d!=="object") return String(d);
+  const parts=[];
+  const short=v=>{ if(v==null)return"—"; if(typeof v==="object")return Array.isArray(v)?`${v.length} élément(s)`:"…"; const s=String(v); return s.length>60?s.slice(0,60)+"…":s; };
+  const LABELS={reason:"Motif",name:"Nom",title:"Titre",type:"Type",role:"Rôle",email:"Email",format:"Format",
+    count:"Nombre",imported:"Importés",skipped:"Ignorés",stage:"Étape",cycle:"Cycle",tenant:"Entreprise",
+    modules:"Modules",status:"Statut",niu:"NIU",employee:"Employé",docType:"Document",template:"Modèle",
+    elapsedBusinessHours:"Délai (h)",twoFactor:"2FA",passwordReset:"Réinit. mot de passe",provisioned:"Provisionné",
+    changed:"Champs",before:"Avant",after:"Après",fields:"Champs",days:"Jours",leaveType:"Type de congé"};
+  for(const[k,v]of Object.entries(d)){
+    if(k==="before"||k==="after")continue; // shown as a diff below if present
+    parts.push(`<span class="tag gray" style="margin:1px;font-weight:400">${LABELS[k]||k}: <b>${short(v)}</b></span>`);
+  }
+  if(d.before!==undefined&&d.after!==undefined)
+    parts.push(`<span class="tag amber" style="margin:1px;font-weight:400">${short(d.before)} → <b>${short(d.after)}</b></span>`);
+  return parts.join(" ");
+}
+function fmtWhen(iso){
+  const dt=new Date(iso), now=Date.now(), diff=(now-dt)/1000;
+  let rel; if(diff<60)rel="à l'instant"; else if(diff<3600)rel=`il y a ${Math.floor(diff/60)} min`;
+  else if(diff<86400)rel=`il y a ${Math.floor(diff/3600)} h`; else rel=`il y a ${Math.floor(diff/86400)} j`;
+  return { abs: iso.replace("T"," ").slice(0,16), rel };
+}
+
+let AUDIT_CACHE=[];
 async function auditView() {
-  const logs = await api("/audit");
-  view.innerHTML = `<h1>Journal d'audit</h1><div class="panel">
-    <table><tr><th>Horodatage</th><th>Utilisateur</th><th>Action</th><th>Objet</th><th>Détail</th></tr>
-    ${logs.map(l => `<tr><td>${l.at.replace("T", " ").slice(0, 19)}</td><td>${l.userName} (${l.role})</td>
-      <td><span class="tag gray">${l.action}</span></td><td>${l.objectType} ${l.objectId}</td>
-      <td style="font-size:12px;color:var(--muted)">${l.detail ? JSON.stringify(l.detail) : ""}</td></tr>`).join("")}
-    </table></div>`;
+  AUDIT_CACHE = await api("/audit");
+  const actions=[...new Set(AUDIT_CACHE.map(l=>l.action))].sort();
+  const users=[...new Set(AUDIT_CACHE.map(l=>l.userName).filter(Boolean))].sort();
+  const objs=[...new Set(AUDIT_CACHE.map(l=>l.objectType))].sort();
+  view.innerHTML = `<h1>Journal d'audit</h1>
+  <div class="panel" style="padding:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="aSearch" placeholder="🔎 Rechercher…" style="margin:0;max-width:220px" oninput="renderAudit()">
+      <select id="aAction" style="margin:0;max-width:180px" onchange="renderAudit()"><option value="">Toutes les actions</option>
+        ${actions.map(a=>`<option value="${a}">${t(actionMeta(a).l)}</option>`).join("")}</select>
+      <select id="aUser" style="margin:0;max-width:180px" onchange="renderAudit()"><option value="">Tous les utilisateurs</option>
+        ${users.map(u=>`<option>${u}</option>`).join("")}</select>
+      <select id="aObj" style="margin:0;max-width:160px" onchange="renderAudit()"><option value="">Tous les objets</option>
+        ${objs.map(o=>`<option>${o}</option>`).join("")}</select>
+      <input id="aFrom" type="date" style="margin:0" title="Depuis" onchange="renderAudit()">
+      <input id="aTo" type="date" style="margin:0" title="Jusqu'à" onchange="renderAudit()">
+      <button class="btn ghost sm" onclick="auditReset()">Réinitialiser</button>
+      <span class="right" id="aCount" style="color:var(--muted);font-size:12px"></span>
+    </div>
+  </div>
+  <div class="panel" style="padding:0"><div id="auditList"></div></div>`;
+  renderAudit();
+}
+function auditReset(){ ["aSearch","aFrom","aTo"].forEach(k=>document.getElementById(k).value="");
+  ["aAction","aUser","aObj"].forEach(k=>document.getElementById(k).value=""); renderAudit(); }
+function renderAudit(){
+  const q=(aSearch.value||"").toLowerCase(), fa=aAction.value, fu=aUser.value, fo=aObj.value, ff=aFrom.value, ft=aTo.value;
+  let rows=AUDIT_CACHE.filter(l=>{
+    if(fa&&l.action!==fa)return false;
+    if(fu&&l.userName!==fu)return false;
+    if(fo&&l.objectType!==fo)return false;
+    if(ff&&l.at.slice(0,10)<ff)return false;
+    if(ft&&l.at.slice(0,10)>ft)return false;
+    if(q){ const hay=`${l.userName} ${l.role} ${l.action} ${l.objectType} ${l.objectId} ${JSON.stringify(l.detail||"")}`.toLowerCase();
+      if(!hay.includes(q))return false; }
+    return true;
+  });
+  document.getElementById("aCount").textContent=`${rows.length} événement(s)`;
+  const el=document.getElementById("auditList");
+  if(!rows.length){ el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted)">Aucun événement.</div>'; return; }
+  el.innerHTML=rows.map(l=>{
+    const m=actionMeta(l.action), w=fmtWhen(l.at);
+    return `<div style="display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:flex-start">
+      <div style="font-size:18px;width:24px;text-align:center">${m.i}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="tag ${m.c}">${t(m.l)}</span>
+          <b style="font-size:13px">${l.objectType}</b>
+          <span style="color:var(--muted);font-size:12px">${l.objectId||""}</span></div>
+        <div style="margin-top:4px">${auditDetail(l.detail)}</div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <div style="font-size:12px"><b>${l.userName||l.userId}</b> <span class="tag gray">${l.role||""}</span></div>
+        <div style="font-size:11px;color:var(--muted)" title="${w.abs}">${w.rel} · ${w.abs}</div>
+      </div></div>`;
+  }).join("");
 }
 
 /* login screen is translated too */
