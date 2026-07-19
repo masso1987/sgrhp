@@ -20,6 +20,21 @@ const DEFAULTS = {
   },
   smtp: { enabled: false, host: "", port: 587, secure: false, user: "", password: "",
     from: "SGRHP <no-reply@cible-rh.ci>", notifyOnWorkflow: true, notifyOnSla: true },
+  branding: {
+    appName: "SGRHP",
+    tagline: "Cible RH Emploi S.A.",
+    logo: "",                       // small data-URL, optional
+    colors: {
+      primary: "#1e3a5f", accent: "#e8833a", bg: "#f4f6f9",
+      sidebar: "#ffffff", text: "#1f2937",
+    },
+    // optional accent override per interface section (falls back to accent)
+    sectionColors: {
+      dash: "", employees: "", queue: "", career: "", reports: "",
+      grid: "", fiches: "", dataio: "", params: "", settings: "",
+    },
+    density: "comfortable",         // comfortable | compact
+  },
 };
 
 function settings() {
@@ -33,7 +48,8 @@ function settings() {
 router.get("/", allow("ADM"), (req, res) => {
   const s = settings();
   res.json({ security: s.security,
-    smtp: { ...s.smtp, password: s.smtp.password ? "********" : "" } });
+    smtp: { ...s.smtp, password: s.smtp.password ? "********" : "" },
+    branding: s.branding });
 });
 
 router.put("/security", allow("ADM"), (req, res) => {
@@ -96,6 +112,35 @@ router.post("/smtp/test", allow("ADM"), async (req, res) => {
     audit(req.user, "CONFIG_CHANGED", "Settings", "smtp-test", { to, ok: false, error: e.message });
     res.status(400).json({ error: `Échec de l'envoi : ${e.message}` });
   }
+});
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+router.put("/branding", allow("ADM"), (req, res) => {
+  const s = settings();
+  const b = req.body || {};
+  const before = JSON.parse(JSON.stringify(s.branding));
+  if (b.appName !== undefined) s.branding.appName = String(b.appName).slice(0, 40) || "SGRHP";
+  if (b.tagline !== undefined) s.branding.tagline = String(b.tagline).slice(0, 80);
+  if (b.logo !== undefined) {
+    if (b.logo && !/^data:image\/(png|jpeg|svg\+xml);base64,/.test(b.logo) && b.logo.length > 0)
+      return res.status(400).json({ error: "Logo invalide (image PNG/JPEG/SVG en data-URL attendue)" });
+    if (b.logo && b.logo.length > 300000) return res.status(400).json({ error: "Logo trop volumineux (max ~200 Ko)" });
+    s.branding.logo = b.logo;
+  }
+  if (b.density && ["comfortable", "compact"].includes(b.density)) s.branding.density = b.density;
+  for (const [k, v] of Object.entries(b.colors || {})) {
+    if (s.branding.colors[k] === undefined) continue;
+    if (!HEX.test(v)) return res.status(400).json({ error: `Couleur invalide pour ${k} : ${v}` });
+    s.branding.colors[k] = v;
+  }
+  for (const [k, v] of Object.entries(b.sectionColors || {})) {
+    if (s.branding.sectionColors[k] === undefined) continue;
+    if (v && !HEX.test(v)) return res.status(400).json({ error: `Couleur de section invalide : ${k}` });
+    s.branding.sectionColors[k] = v || "";
+  }
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Settings", "branding", { before, after: s.branding });
+  res.json(s.branding);
 });
 
 module.exports = { router, settings, DEFAULTS };

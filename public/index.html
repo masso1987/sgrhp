@@ -38,6 +38,8 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
 .doc-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px}
 .note{background:var(--amber-bg);border:1px solid #fcd34d;border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px}
 .hidden{display:none!important}
+body.compact td{padding:5px 8px}body.compact .panel{padding:11px}body.compact .card{padding:11px}
+body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:9px}
 .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:100;display:flex;align-items:center;justify-content:center}
 .modal{background:#fff;border-radius:12px;padding:20px;width:440px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column}
 .modal .scroll{overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:8px;padding:6px;margin:10px 0}
@@ -50,8 +52,8 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
 <body>
 
 <div id="login">
-  <h1>◆ SGRHP</h1>
-  <p style="text-align:center;color:var(--muted);margin-bottom:16px">Cible RH Emploi S.A.</p>
+  <div style="text-align:center"><img data-brand-logo style="max-height:46px;display:none;margin-bottom:6px"></div><h1 data-brand-name style="text-align:center">◆ SGRHP</h1>
+  <p data-brand-tag style="text-align:center;color:var(--muted);margin-bottom:16px">Cible RH Emploi S.A.</p>
   <label>Email</label><input id="lEmail" value="gpf@cible-rh.ci">
   <label>Mot de passe</label><input id="lPass" type="password" value="demo123">
   <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
@@ -74,7 +76,7 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
 </div>
 
 <div id="app" class="hidden">
-<div class="topbar"><div class="logo">◆ SGRHP<span class="b">Cible RH Emploi S.A.</span></div>
+<div class="topbar"><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>SGRHP</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
   <div style="font-size:13px"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="margin:0 10px 0 0;padding:4px 8px;border-radius:6px;border:none;font-size:12px;cursor:pointer">
       <option value="fr">FR</option><option value="en">EN</option></select><span id="bell" style="cursor:pointer;margin-right:10px" onclick="showNotifs()">🔔</span><span id="who"></span> &nbsp;<button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
@@ -430,7 +432,32 @@ const I18N = {
 "Toutes les lignes sont valides ✓": "All rows are valid ✓",
 "Import terminé :": "Import complete:",
 "importé(s),": "imported,",
-"ignoré(s).": "skipped."
+"ignoré(s).": "skipped.",
+"🎨 Apparence & image de marque": "🎨 Appearance & branding",
+"Personnalisez le nom, le logo, les couleurs et la densité de l'interface. L'aperçu est immédiat.": "Customise the name, logo, colours and density of the interface. Preview is instant.",
+"Nom de l'application": "Application name",
+"Sous-titre": "Tagline",
+"Logo (PNG/JPEG/SVG, max ~200 Ko)": "Logo (PNG/JPEG/SVG, max ~200 KB)",
+"Retirer": "Remove",
+"Couleur principale": "Primary colour",
+"Couleur d'accent": "Accent colour",
+"Arrière-plan": "Background",
+"Barre latérale": "Sidebar",
+"Texte": "Text",
+"Densité": "Density",
+"Confortable": "Comfortable",
+"Compacte": "Compact",
+"ACCENT PAR SECTION (facultatif — hérite de l'accent par défaut)": "PER-SECTION ACCENT (optional — inherits the default accent)",
+"Tableau de bord": "Dashboard",
+"File de validation": "Validation queue",
+"Rapports": "Reports",
+"activer": "enable",
+"Enregistrer l'apparence": "Save appearance",
+"Aperçu": "Preview",
+"Réinitialiser": "Reset",
+"Apparence enregistrée.": "Appearance saved.",
+"Réinitialiser l'apparence par défaut ?": "Reset to default appearance?",
+"Logo trop volumineux (max ~200 Ko)": "Logo too large (max ~200 KB)"
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -582,6 +609,7 @@ async function boot() {
   login.classList.add("hidden"); app.classList.remove("hidden");
   document.getElementById("langSel").value = LANG;
   watchI18n();
+  fetch("/api/branding").then(r => r.json()).then(applyBranding).catch(() => {});
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${ME.fullName} — ${ME.role}`;
   const items = NAV.filter(n => n.roles.includes(ME.role));
@@ -589,6 +617,7 @@ async function boot() {
   go("dash");
 }
 function go(k) {
+  applySectionColor(k);
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
   ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, none }[k] || none)();
 }
@@ -1737,7 +1766,90 @@ async function paramsView() {
       <p style="font-size:11px;color:var(--muted);margin-top:8px">
         Gmail : utilisez un « mot de passe d'application », port 587 (TLS) ou 465 (SSL).</p>
     </div>
+  </div>
+  <div class="panel" style="margin-top:16px"><b>🎨 Apparence & image de marque</b>
+    <p style="font-size:12px;color:var(--muted);margin:6px 0">Personnalisez le nom, le logo, les couleurs et la densité de l'interface. L'aperçu est immédiat.</p>
+    <div class="grid2">
+      <div><label>Nom de l'application</label><input id="bName" value="${(s.branding.appName||'')}"></div>
+      <div><label>Sous-titre</label><input id="bTag" value="${(s.branding.tagline||'')}"></div>
+    </div>
+    <label>Logo (PNG/JPEG/SVG, max ~200 Ko)</label>
+    <div style="display:flex;gap:10px;align-items:center">
+      <img id="bLogoPrev" src="${s.branding.logo||''}" style="height:34px;${s.branding.logo?'':'display:none'}">
+      <input type="file" accept="image/*" onchange="pickLogo(this)" style="margin:0">
+      ${s.branding.logo?'<button class="btn ghost sm" onclick="clearLogo()">Retirer</button>':''}</div>
+    <div class="grid3" style="margin-top:10px">
+      ${colorField('Couleur principale','primary',s.branding.colors.primary)}
+      ${colorField('Couleur d\'accent','accent',s.branding.colors.accent)}
+      ${colorField('Arrière-plan','bg',s.branding.colors.bg)}
+      ${colorField('Barre latérale','sidebar',s.branding.colors.sidebar)}
+      ${colorField('Texte','text',s.branding.colors.text)}
+      <div><label>Densité</label><select id="bDensity"><option value="comfortable" ${s.branding.density!=='compact'?'selected':''}>Confortable</option><option value="compact" ${s.branding.density==='compact'?'selected':''}>Compacte</option></select></div>
+    </div>
+    <div style="margin-top:12px"><b style="font-size:12px;color:var(--muted)">ACCENT PAR SECTION (facultatif — hérite de l'accent par défaut)</b>
+      <div class="grid3" style="margin-top:6px">
+        ${sectionColorField('Tableau de bord','dash',s.branding.sectionColors.dash)}
+        ${sectionColorField('Employés','employees',s.branding.sectionColors.employees)}
+        ${sectionColorField('File de validation','queue',s.branding.sectionColors.queue)}
+        ${sectionColorField('Carrière','career',s.branding.sectionColors.career)}
+        ${sectionColorField('Rapports','reports',s.branding.sectionColors.reports)}
+        ${sectionColorField('Import / Export','dataio',s.branding.sectionColors.dataio)}
+      </div>
+    </div>
+    <div class="err hidden" id="bErr"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn p" onclick="saveBranding()">Enregistrer l'apparence</button>
+      <button class="btn ghost" onclick="previewBranding()">Aperçu</button>
+      <button class="btn ghost" onclick="resetBranding()">Réinitialiser</button></div>
   </div>`;
+}
+function colorField(label, key, val) {
+  return `<div><label>${label}</label><div style="display:flex;gap:6px;align-items:center">
+    <input type="color" data-col="${key}" value="${val}" style="width:44px;height:34px;padding:2px;margin:0" oninput="this.nextElementSibling.value=this.value;previewBranding()">
+    <input value="${val}" style="margin:0" oninput="this.previousElementSibling.value=this.value;previewBranding()"></div></div>`;
+}
+function sectionColorField(label, key, val) {
+  return `<div><label>${label}</label><div style="display:flex;gap:6px;align-items:center">
+    <input type="color" data-seccol="${key}" value="${val||'#e8833a'}" style="width:40px;height:30px;padding:2px;margin:0" oninput="this.nextElementSibling.checked=true">
+    <label class="chk" style="padding:0"><input type="checkbox" ${val?'checked':''} data-secon="${key}"><span style="font-size:11px">activer</span></label></div></div>`;
+}
+let _logoData = undefined;
+function pickLogo(inp) {
+  const f = inp.files[0]; if (!f) return;
+  if (f.size > 200000) return alert(t("Logo trop volumineux (max ~200 Ko)"));
+  const rd = new FileReader();
+  rd.onload = () => { _logoData = rd.result; bLogoPrev.src = rd.result; bLogoPrev.style.display = "inline-block";
+    applyBranding({ ...BRANDING, logo: rd.result }); };
+  rd.readAsDataURL(f);
+}
+function clearLogo() { _logoData = ""; bLogoPrev.style.display = "none"; applyBranding({ ...BRANDING, logo: "" }); }
+function collectBranding() {
+  const colors = {}; view.querySelectorAll("input[data-col]").forEach(i => colors[i.dataset.col] = i.value);
+  const sectionColors = {};
+  view.querySelectorAll("input[data-seccol]").forEach(i => {
+    const on = view.querySelector(`input[data-secon="${i.dataset.seccol}"]`).checked;
+    sectionColors[i.dataset.seccol] = on ? i.value : "";
+  });
+  const body = { appName: bName.value, tagline: bTag.value, colors, sectionColors, density: bDensity.value };
+  if (_logoData !== undefined) body.logo = _logoData;
+  return body;
+}
+function previewBranding() {
+  const b = collectBranding();
+  applyBranding({ ...BRANDING, ...b, logo: _logoData !== undefined ? _logoData : (BRANDING&&BRANDING.logo) });
+}
+async function saveBranding() {
+  try { const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify(collectBranding()) });
+    applyBranding(b); _logoData = undefined; alert(t("Apparence enregistrée.")); }
+  catch (e) { bErr.textContent = e.message; bErr.classList.remove("hidden"); }
+}
+async function resetBranding() {
+  if (!confirm(t("Réinitialiser l'apparence par défaut ?"))) return;
+  try { const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify({
+      appName: "SGRHP", tagline: "Cible RH Emploi S.A.", logo: "", density: "comfortable",
+      colors: { primary: "#1e3a5f", accent: "#e8833a", bg: "#f4f6f9", sidebar: "#ffffff", text: "#1f2937" },
+      sectionColors: { dash:"",employees:"",queue:"",career:"",reports:"",grid:"",fiches:"",dataio:"",params:"",settings:"" } }) });
+    applyBranding(b); paramsView(); } catch (e) { alert(e.message); }
 }
 async function saveSecurity() {
   try { await api("/settings/security", { method: "PUT", body: JSON.stringify({

@@ -33,6 +33,12 @@ app.post("/api/2fa/setup", loginLimiter, require("./auth").totpSetup);
 app.post("/api/2fa/confirm", loginLimiter, require("./auth").totpConfirm);
 
 // Health endpoint for load balancers / uptime monitoring
+// Public branding — no auth, so the login screen reflects the tenant's identity
+app.get("/api/branding", (req, res) => {
+  const s = require("./routes/settings").settings();
+  res.json(s.branding);
+});
+
 app.get("/health", (req, res) => {
   const store = require("./store");
   res.json({ status: store.lastError ? "degraded" : "ok",
