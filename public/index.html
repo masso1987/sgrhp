@@ -397,7 +397,7 @@ const I18N = {
 "Mot de passe actuel": "Current password",
 "Nouveau mot de passe": "New password",
 "10 caractères minimum, avec majuscule, minuscule et chiffre.": "At least 10 characters, with uppercase, lowercase and a digit.",
-"Modifier": "Change",
+"Modifier": "Edit",
 "Mot de passe modifié.": "Password changed.",
 "2FA activée. Elle vous sera demandée à la prochaine connexion.": "2FA enabled. It will be requested at your next sign-in.",
 "2FA désactivée.": "2FA disabled.",
@@ -457,7 +457,50 @@ const I18N = {
 "Réinitialiser": "Reset",
 "Apparence enregistrée.": "Appearance saved.",
 "Réinitialiser l'apparence par défaut ?": "Reset to default appearance?",
-"Logo trop volumineux (max ~200 Ko)": "Logo too large (max ~200 KB)"
+"Logo trop volumineux (max ~200 Ko)": "Logo too large (max ~200 KB)",
+"🏢 Tenants (plateforme)": "🏢 Tenants (platform)",
+"Tenants — entreprises clientes": "Tenants — client companies",
+"+ Nouvelle entreprise": "+ New company",
+"Entreprise": "Company",
+"Forme": "Legal form",
+"Ville": "City",
+"Modules": "Modules",
+"Effectif": "Headcount",
+"Suspendu": "Suspended",
+"Suspendre": "Suspend",
+"Réactiver": "Reactivate",
+"Nouvelle entreprise cliente": "New client company",
+"Modifier l'entreprise": "Edit company",
+"IDENTITÉ LÉGALE": "LEGAL IDENTITY",
+"Raison sociale *": "Corporate name *",
+"Sigle / acronyme": "Acronym",
+"Forme juridique *": "Legal form *",
+"Secteur d'activité": "Sector of activity",
+"IMMATRICULATIONS": "REGISTRATIONS",
+"N° RCCM *": "RCCM no. *",
+"NIU (n° contribuable) *": "NIU (taxpayer no.) *",
+"N° employeur CNPS": "CNPS employer no.",
+"Capital social (FCFA)": "Share capital (FCFA)",
+"SIÈGE & CONTACT": "HEAD OFFICE & CONTACT",
+"Adresse du siège": "Head-office address",
+"Boîte postale": "P.O. box",
+"Site web": "Website",
+"REPRÉSENTANT LÉGAL": "LEGAL REPRESENTATIVE",
+"Nom du représentant *": "Representative name *",
+"Fonction": "Title",
+"LOGO": "LOGO",
+"MODULES ACTIVÉS": "ENABLED MODULES",
+"de base": "core",
+"Créer l'entreprise": "Create company",
+"Entreprise enregistrée.": "Company saved.",
+"Suspendre cette entreprise ?": "Suspend this company?",
+"Réactiver cette entreprise ?": "Reactivate this company?",
+"Administration RH": "HR administration",
+"Carrière & Performance": "Career & performance",
+"Paie": "Payroll",
+"Comptabilité": "Accounting",
+"Facturation": "Invoicing",
+"Gestion de stock": "Stock management"
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -588,6 +631,7 @@ async function confirm2fa() {
 function logout() { sessionStorage.clear(); TOKEN = null; ME = null; location.href = "/"; }
 
 const NAV = [
+  { k: "tenants", label: "🏢 Tenants (plateforme)", roles: ["SADM"] },
   { k: "dash", label: "▦ Tableau de bord", roles: ["GPF","CD","RJ","UI","ADM"] },
   { k: "employees", label: "👥 Employés", roles: ["GPF","CD","RJ","ADM"] },
   { k: "dataio", label: "⇅ Import / Export", roles: ["GPF","CD","RJ","ADM"] },
@@ -619,7 +663,7 @@ async function boot() {
 function go(k) {
   applySectionColor(k);
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -2013,6 +2057,96 @@ async function impCommit() {
     alert(t("Import terminé :") + ` ${r.imported} ` + t("importé(s),") + ` ${r.skipped} ` + t("ignoré(s)."));
     IMP = null; go("employees");
   } catch (e) { alert(e.message); }
+}
+
+
+/* ================= Plateforme : gestion des tenants (SADM) ================= */
+let TEN_MODULES = null, TEN_FORMS = null;
+async function tenantsView() {
+  if (!TEN_MODULES) [TEN_MODULES, TEN_FORMS] = await Promise.all([api("/tenants/modules"), api("/tenants/legal-forms")]);
+  const list = await api("/tenants");
+  view.innerHTML = `<h1>Tenants — entreprises clientes</h1>
+  <button class="btn p" style="margin-bottom:12px" onclick="tenantForm()">+ Nouvelle entreprise</button>
+  <div class="panel"><table><tr><th>Entreprise</th><th>Forme</th><th>NIU</th><th>Ville</th><th>Modules</th><th>Effectif</th><th>Statut</th><th></th></tr>
+  ${list.map(t => `<tr>
+    <td>${t.logo?`<img src="${t.logo}" style="height:20px;vertical-align:middle;margin-right:6px">`:""}<b>${t.name}</b>${t.acronym?` <span class="tag gray">${t.acronym}</span>`:""}</td>
+    <td>${t.legalForm||"—"}</td><td>${t.niu||"—"}</td><td>${t.hqCity||"—"}</td>
+    <td>${(t.modules||[]).map(m=>`<span class="tag blue" style="margin:1px">${(TEN_MODULES.find(x=>x.key===m)||{}).label||m}</span>`).join(" ")}</td>
+    <td>${t.employees}</td>
+    <td><span class="tag ${t.status==="ACTIVE"?"green":"red"}">${t.status==="ACTIVE"?"Actif":"Suspendu"}</span></td>
+    <td><button class="btn ghost sm" onclick="tenantForm('${t.id}')">Modifier</button>
+      <button class="btn ghost sm" onclick="tenantToggle('${t.id}','${t.status}')">${t.status==="ACTIVE"?"Suspendre":"Réactiver"}</button></td></tr>`).join("")}
+  </table></div>`;
+}
+async function tenantForm(id) {
+  const t = id ? await api("/tenants/"+id) : {};
+  const modsOn = t.modules || TEN_MODULES.filter(m=>m.core).map(m=>m.key);
+  window._tenLogo = undefined;
+  view.innerHTML = `<button class="btn ghost sm" onclick="tenantsView()">← Retour</button>
+  <h1 style="margin-top:10px">${id?"Modifier l'entreprise":"Nouvelle entreprise cliente"}</h1>
+  <div class="panel" style="max-width:900px">
+    <b style="font-size:12px;color:var(--muted)">IDENTITÉ LÉGALE</b>
+    <div class="grid2" style="margin-top:6px">
+      <div><label>Raison sociale *</label><input id="tName" value="${t.name||''}"></div>
+      <div><label>Sigle / acronyme</label><input id="tAcr" value="${t.acronym||''}"></div>
+      <div><label>Forme juridique *</label><select id="tForm">${TEN_FORMS.map(f=>`<option ${t.legalForm===f?"selected":""}>${f}</option>`).join("")}</select></div>
+      <div><label>Secteur d'activité</label><input id="tSector" value="${t.sector||''}" placeholder="Ex. BTP, services, industrie"></div>
+    </div>
+    <b style="font-size:12px;color:var(--muted)">IMMATRICULATIONS</b>
+    <div class="grid3" style="margin-top:6px">
+      <div><label>N° RCCM *</label><input id="tRccm" value="${t.rccm||''}" placeholder="RC/DLA/2018/M/5228"></div>
+      <div><label>NIU (n° contribuable) *</label><input id="tNiu" value="${t.niu||''}" placeholder="M10300015976N"></div>
+      <div><label>N° employeur CNPS</label><input id="tCnps" value="${t.cnpsEmployer||''}"></div>
+      <div><label>Capital social (FCFA)</label><input id="tCap" value="${t.shareCapital||''}" placeholder="35000000"></div>
+    </div>
+    <b style="font-size:12px;color:var(--muted)">SIÈGE & CONTACT</b>
+    <div class="grid3" style="margin-top:6px">
+      <div><label>Adresse du siège</label><input id="tAddr" value="${t.hqAddress||''}"></div>
+      <div><label>Ville *</label><input id="tCity" value="${t.hqCity||''}"></div>
+      <div><label>Boîte postale</label><input id="tBp" value="${t.bp||''}"></div>
+      <div><label>Téléphone</label><input id="tPhone" value="${t.phone||''}" placeholder="+237 ..."></div>
+      <div><label>Email *</label><input id="tEmail" value="${t.email||''}"></div>
+      <div><label>Site web</label><input id="tWeb" value="${t.website||''}"></div>
+    </div>
+    <b style="font-size:12px;color:var(--muted)">REPRÉSENTANT LÉGAL</b>
+    <div class="grid2" style="margin-top:6px">
+      <div><label>Nom du représentant *</label><input id="tRep" value="${t.legalRep||''}"></div>
+      <div><label>Fonction</label><input id="tRepT" value="${t.legalRepTitle||'Directeur Général'}"></div>
+    </div>
+    <b style="font-size:12px;color:var(--muted)">LOGO</b>
+    <div style="display:flex;gap:10px;align-items:center;margin:6px 0">
+      <img id="tLogoPrev" src="${t.logo||''}" style="height:44px;${t.logo?'':'display:none'};border:1px solid var(--border);border-radius:6px;padding:2px">
+      <input type="file" accept="image/*" onchange="tenPickLogo(this)" style="margin:0">
+      ${t.logo?'<button class="btn ghost sm" onclick="tenClearLogo()">Retirer</button>':''}</div>
+    <b style="font-size:12px;color:var(--muted)">MODULES ACTIVÉS</b>
+    <div class="grid3" style="margin-top:6px">
+      ${TEN_MODULES.map(m=>`<label class="chk"><input type="checkbox" data-mod="${m.key}" ${modsOn.includes(m.key)?"checked":""} ${m.core?"disabled checked":""}>
+        <span>${m.label}${m.core?' <span class="tag gray">de base</span>':''}</span></label>`).join("")}
+    </div>
+    <div class="err hidden" id="tErr"></div>
+    <button class="btn p" style="margin-top:12px" onclick="tenantSave('${id||''}')">${id?"Enregistrer":"Créer l'entreprise"}</button>
+  </div>`;
+}
+function tenPickLogo(inp){const f=inp.files[0];if(!f)return;if(f.size>200000)return alert("Logo trop volumineux (max ~200 Ko)");
+  const rd=new FileReader();rd.onload=()=>{window._tenLogo=rd.result;tLogoPrev.src=rd.result;tLogoPrev.style.display="inline-block";};rd.readAsDataURL(f);}
+function tenClearLogo(){window._tenLogo="";tLogoPrev.style.display="none";}
+async function tenantSave(id){
+  const body={name:tName.value,acronym:tAcr.value,legalForm:tForm.value,sector:tSector.value,
+    rccm:tRccm.value,niu:tNiu.value,cnpsEmployer:tCnps.value,shareCapital:tCap.value,
+    hqAddress:tAddr.value,hqCity:tCity.value,bp:tBp.value,phone:tPhone.value,email:tEmail.value,website:tWeb.value,
+    legalRep:tRep.value,legalRepTitle:tRepT.value,
+    modules:[...view.querySelectorAll("input[data-mod]")].filter(c=>c.checked).map(c=>c.dataset.mod)};
+  if(window._tenLogo!==undefined)body.logo=window._tenLogo;
+  try{ if(id){await api("/tenants/"+id,{method:"PUT",body:JSON.stringify(body)});
+      await api("/tenants/"+id+"/modules",{method:"PUT",body:JSON.stringify({modules:body.modules})});}
+    else await api("/tenants",{method:"POST",body:JSON.stringify(body)});
+    alert("Entreprise enregistrée.");tenantsView();
+  }catch(e){tErr.textContent=e.message;tErr.classList.remove("hidden");}
+}
+async function tenantToggle(id,cur){
+  const st=cur==="ACTIVE"?"SUSPENDED":"ACTIVE";
+  if(!confirm(st==="SUSPENDED"?"Suspendre cette entreprise ?":"Réactiver cette entreprise ?"))return;
+  try{await api("/tenants/"+id+"/status",{method:"PUT",body:JSON.stringify({status:st})});tenantsView();}catch(e){alert(e.message);}
 }
 
 </script>

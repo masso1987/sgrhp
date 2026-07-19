@@ -9,9 +9,9 @@ const FILE = path.join(DIR, "db.json");
 fs.mkdirSync(DIR, { recursive: true });
 fs.mkdirSync(path.join(__dirname, "..", "uploads"), { recursive: true });
 
-let db = { users: [], portfolios: [], docTypes: [], employees: [], files: [], documents: [], notifications: [], audit: [], seq: 1 };
+let db = { tenants: [], users: [], portfolios: [], docTypes: [], employees: [], files: [], documents: [], notifications: [], audit: [], seq: 1 };
 if (fs.existsSync(FILE)) db = JSON.parse(fs.readFileSync(FILE, "utf8"));
-for (const k of ["users","portfolios","docTypes","employees","files","documents","notifications","audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid","fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360","checkins","interviews","successionPlans"])
+for (const k of ["tenants","users","portfolios","docTypes","employees","files","documents","notifications","audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid","fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360","checkins","interviews","successionPlans"])
   if (!db[k]) db[k] = [];
 
 /* Storage backend: PostgreSQL when DATABASE_URL is set, JSON file otherwise (dev). */
@@ -38,7 +38,7 @@ async function initStorage() {
   pg = require("../db/postgres");
   await pg.init();
   const n = await pg.load(db);
-  for (const k of ["users","portfolios","docTypes","employees","files","documents","notifications",
+  for (const k of ["tenants","users","portfolios","docTypes","employees","files","documents","notifications",
     "audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid",
     "fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360",
     "checkins","interviews","successionPlans"]) if (!db[k]) db[k] = [];

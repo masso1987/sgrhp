@@ -3,7 +3,7 @@ const { db } = require("../store");
 const { allow } = require("../rbac");
 
 // Filterable audit log (§4.1): user, action, object, date range
-router.get("/", allow("CD", "RJ", "ADM"), (req, res) => {
+router.get("/", allow("CD", "RJ", "ADM", "SADM"), (req, res) => {
   let logs = [...db.audit].reverse();
   const { userId, action, objectType, from, to } = req.query;
   if (userId) logs = logs.filter(l => l.userId === userId);

@@ -42,7 +42,17 @@ function seed() {
   mk("rj@cible-rh.ci", "Me. Solange BAMBA", "RJ");
   mk("ui@cible-rh.ci", "Paul N'GUESSAN", "UI");
   mk("admin@cible-rh.ci", "Ferdine MASSO", "ADM");
+  mk("superadmin@sgrhp.io", "Super Administrateur", "SADM");
 
+  if (!db.tenants.length) db.tenants.push({
+    id: "t1", status: "ACTIVE", createdAt: new Date().toISOString(), createdBy: "seed",
+    name: "Cible RH Emploi S.A.", acronym: "CRHE", legalForm: "SA",
+    rccm: "RC/DLA/2018/M/5228", niu: "M10300015976N", cnpsEmployer: "",
+    shareCapital: "35000000", sector: "Gestion des ressources humaines",
+    hqAddress: "Immeuble Chine/Cameroun, Akwa", hqCity: "Douala", bp: "3462",
+    phone: "+237 699 68 36 03", email: "contact@ciblerh-emploi.com",
+    legalRep: "Dr Théodoret-Marie FANSI", legalRepTitle: "Directeur Général",
+    website: "", logo: "", modules: ["hr", "careers"] });
   db.employees.push({
     id: id("emp"), portfolioId: pf1.id,
     firstName: "Karim", lastName: "OUATTARA",

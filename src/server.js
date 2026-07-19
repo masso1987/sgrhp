@@ -67,6 +67,7 @@ app.use("/api/fiches", require("./routes/fiches"));
 app.use("/api/career", require("./routes/career"));
 app.use("/api/reports", require("./routes/reports"));
 app.use("/api/settings", require("./routes/settings").router);
+app.use("/api/tenants", require("./routes/tenants").router);
 app.use("/api/data", require("./routes/dataio"));
 
 // SLA timer scan every minute (§5.4)
