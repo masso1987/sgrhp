@@ -504,6 +504,36 @@ const I18N = {
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
+/* ================= Theming / branding ================= */
+let BRANDING = null;
+function shade(hex, pct) {
+  try { const n = parseInt(hex.slice(1), 16);
+    let r=(n>>16)+Math.round(2.55*pct), g=((n>>8)&255)+Math.round(2.55*pct), b=(n&255)+Math.round(2.55*pct);
+    r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+    return "#"+(0x1000000+r*0x10000+g*0x100+b).toString(16).slice(1); } catch { return hex; }
+}
+function applyBranding(b) {
+  if (!b) return; BRANDING = b;
+  const r = document.documentElement.style, c = b.colors || {};
+  if (c.primary) { r.setProperty("--primary", c.primary); r.setProperty("--primary-light", shade(c.primary, 18)); }
+  if (c.accent) r.setProperty("--accent", c.accent);
+  if (c.bg) r.setProperty("--bg", c.bg);
+  if (c.text) r.setProperty("--text", c.text);
+  document.querySelectorAll(".sidebar").forEach(s => { if (c.sidebar) s.style.background = c.sidebar; });
+  document.querySelectorAll("[data-brand-name]").forEach(e => e.textContent = b.appName || "SGRHP");
+  document.querySelectorAll("[data-brand-tag]").forEach(e => e.textContent = b.tagline || "");
+  document.querySelectorAll("[data-brand-logo]").forEach(e => {
+    if (b.logo) { e.src = b.logo; e.style.display = "inline-block"; } else { e.style.display = "none"; } });
+  document.body.classList.toggle("compact", b.density === "compact");
+}
+function applySectionColor(k) {
+  if (!BRANDING) return;
+  const sc = BRANDING.sectionColors || {}, base = (BRANDING.colors && BRANDING.colors.accent) || "#e8833a";
+  document.documentElement.style.setProperty("--accent", sc[k] || base);
+}
+try { fetch("/api/branding").then(r => r.json()).then(applyBranding).catch(() => {}); } catch {}
+
+
 function t(s) {
   if (LANG === "fr" || s == null) return s;
   const k = String(s).trim();

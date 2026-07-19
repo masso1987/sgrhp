@@ -36,7 +36,7 @@ for s in "${SUITES[@]}"; do
 done
 
 # Browser-free unit checks (no server needed)
-for u in test_pg_adapter test_i18n; do
+for u in test_pg_adapter test_i18n test_client_boot; do
   out=$(node "test/$u.js" 2>/dev/null | tail -1)
   p=$(echo "$out" | grep -o '[0-9]* passed' | grep -o '[0-9]*')
   f=$(echo "$out" | grep -o '[0-9]* failed' | grep -o '[0-9]*')
