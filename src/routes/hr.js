@@ -60,7 +60,7 @@ router.post("/:id/amendments", allow("GPF", "ADM"), (req, res) => {
     warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
   db.documents.push(doc); save();
   audit(req.user, "CREATED", "Amendment", doc.id, { version, changes });
-  notify.toRole("CD", "Amendment awaiting validation", doc.title, doc.id);
+  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
   res.status(201).json(doc);
 });
 
@@ -112,7 +112,7 @@ router.post("/:id/decisions", allow("GPF", "ADM"), decUpload.single("file"), (re
       warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
     db.documents.push(doc);
     dec.amendmentId = doc.id;
-    notify.toRole("CD", "Auto-generated amendment awaiting validation", doc.title, doc.id);
+    notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
     audit(req.user, "CREATED", "Amendment", doc.id, { auto: true, fromDecision: type, changes });
   }
 
@@ -178,7 +178,7 @@ router.post("/:id/leave", allow("GPF", "ADM"), (req, res) => {
     warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
   db.documents.push(doc); save();
   audit(req.user, "CREATED", "Leave", doc.id, { leaveType, days });
-  notify.toRole("CD", "Leave request awaiting validation", doc.title, doc.id);
+  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
   res.status(201).json(doc);
 });
 

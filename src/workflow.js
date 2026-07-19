@@ -11,6 +11,7 @@ const { elapsedBusinessHours } = require("./businessHours");
 const engine = require("./templateEngine");
 
 const SLA = 48, WARN = 36;
+const initiatorName = (uid) => (db.users.find(u => u.id === uid) || {}).fullName || "un gestionnaire";
 
 function docOf(documentId) {
   const d = db.documents.find(x => x.id === documentId);
@@ -39,7 +40,7 @@ function createFromTemplate(templateId, employeeId, provided, user) {
   db.documents.push(doc); save();
   audit(user, "CREATED", "Document", doc.id, { template: template.name });
   audit(user, "SUBMITTED", "Document", doc.id, { cycle: 1 });
-  notify.toRole("CD", "New document awaiting validation", `${doc.title} — 48h SLA started`, doc.id);
+  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
   return doc;
 }
 
@@ -56,7 +57,7 @@ function resubmitTemplateDoc(documentId, provided, user) {
     warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
   save();
   audit(user, "SUBMITTED", "Document", doc.id, { cycle: doc.cycle });
-  notify.toRole("CD", "Corrected document resubmitted", doc.title, doc.id);
+  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
   return doc;
 }
 
@@ -89,7 +90,7 @@ function submitEmployeeFile(employeeId, user) {
   emp.status = "SUBMITTED";
   save();
   audit(user, "SUBMITTED", "Document", doc.id, { cycle: doc.cycle, title: doc.title });
-  notify.toRole("CD", "New document awaiting validation", `${doc.title} — 48h SLA started`, doc.id);
+  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
   return doc;
 }
 
@@ -105,13 +106,13 @@ function approve(documentId, user) {
     doc.status = "CD_APPROVED";
     doc.steps.push({ id: id("stp"), stage: "RJ", assignedAt: new Date().toISOString(),
       warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
-    notify.toRole("RJ", "Document awaiting final legal validation", `${doc.title} — 48h SLA started`, doc.id);
+    notify.event("submitted", { role: "RJ" }, { title: doc.title, initiator: initiatorName(doc.createdById), stage: "RJ", sla: SLA, ref: doc.id });
   } else {
     doc.status = "GENERATED";
     doc.generatedAt = new Date().toISOString();
     doc.generatedFile = generateOfficial(doc);   // M3 replaces with template engine
     setEmpStatus(doc, "VALIDATED");
-    notify.toUser(doc.createdById, "Document generated", `${doc.title} was validated and generated.`, doc.id);
+    notify.event("validated", { userId: doc.createdById }, { title: doc.title, ref: doc.id });
     notify.toRole("UI", "New document available for printing", doc.title, doc.id);
     audit(user, "GENERATED", "Document", doc.id);
   }
@@ -134,8 +135,8 @@ function reject(documentId, user, reason) {
   setEmpStatus(doc, "DRAFT");
   save();
   audit(user, "REJECTED", "Document", doc.id, { stage: user.role, reason });
-  notify.toUser(doc.createdById, `Document rejected by ${user.role}`, `${doc.title} — Reason: ${reason}`, doc.id);
-  if (user.role === "RJ") notify.toRole("CD", "RJ rejected a document you validated", `${doc.title} — ${reason}`, doc.id);
+  notify.event("rejected", { userId: doc.createdById, role: user.role === "RJ" ? "CD" : undefined },
+    { title: doc.title, validator: user.role, reason, ref: doc.id });
   return doc;
 }
 
@@ -186,13 +187,13 @@ function slaScan() {
     const h = elapsedBusinessHours(step.assignedAt);
     if (h >= WARN && !step.warnedAt) {
       step.warnedAt = new Date().toISOString(); changed = true;
-      notify.toRole(step.stage, "⚠ 36h alert — validation due", `${doc.title}: ${h}h elapsed, 48h SLA`, doc.id);
-      notify.toRole("ADM", `⚠ ${step.stage} approaching SLA`, doc.title, doc.id); // supervisor
+      notify.event("slaWarning", { role: step.stage }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
+      notify.event("slaWarning", { role: "ADM" }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id }); // supervisor
     }
     if (h > SLA && !step.breachedAt) {
       step.breachedAt = new Date().toISOString(); changed = true;
-      notify.toRole(step.stage, "🔴 SLA BREACH (>48h)", `${doc.title} — breach imputed to ${step.stage}`, doc.id);
-      notify.toRole("ADM", `🔴 SLA breach imputed to ${step.stage}`, doc.title, doc.id);
+      notify.event("slaBreach", { role: step.stage }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
+      notify.event("slaBreach", { role: "ADM" }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
     }
   }
   if (changed) save();
