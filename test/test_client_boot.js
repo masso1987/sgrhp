@@ -22,7 +22,7 @@ global.fetch = () => Promise.resolve({ ok:true, status:200, json:()=>Promise.res
 global.setInterval = () => 0; global.MutationObserver = class { observe(){} };
 global.alert = () => {}; global.confirm = () => true; global.prompt = () => null; global.FormData = class { append(){} };
 
-js += "\n;globalThis.__go=typeof go!=='undefined'?go:null;globalThis.__ab=typeof applyBranding!=='undefined'?applyBranding:null;globalThis.__asc=typeof applySectionColor!=='undefined'?applySectionColor:null;globalThis.__t=typeof t!=='undefined'?t:null;";
+js += "\n;globalThis.__esc=typeof esc!=='undefined'?esc:null;globalThis.__go=typeof go!=='undefined'?go:null;globalThis.__ab=typeof applyBranding!=='undefined'?applyBranding:null;globalThis.__asc=typeof applySectionColor!=='undefined'?applySectionColor:null;globalThis.__t=typeof t!=='undefined'?t:null;";
 
 let pass = 0, fail = 0;
 const chk = (c, l) => { if (c) { pass++; console.log("PASS: " + l); } else { fail++; console.log("FAIL: " + l); } };
@@ -38,6 +38,13 @@ try { globalThis.__asc("dash"); globalThis.__asc("career"); chk(true, "applySect
 catch (e) { chk(false, "applySectionColor throws — " + e.message); }
 try { globalThis.__ab({ colors:{ primary:"#123456", accent:"#abcdef" }, appName:"X" }); chk(true, "applyBranding runs (no throw)"); }
 catch (e) { chk(false, "applyBranding throws — " + e.message); }
+
+chk(!!globalThis.__esc, "esc() defined");
+if (globalThis.__esc) {
+  chk(globalThis.__esc("<img src=x onerror=alert(1)>") === "&lt;img src=x onerror=alert(1)&gt;", "esc neutralises HTML tags");
+  chk(globalThis.__esc('a"b\'c') === "a&quot;b&#39;c", "esc neutralises quotes (attribute safety)");
+  chk(globalThis.__esc(null) === "" && globalThis.__esc(42) === "42", "esc handles null/number");
+}
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -570,6 +570,14 @@ const I18N = {
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
+/* HTML-escape any user-supplied value before it is placed into innerHTML.
+ * Escapes & < > " ' so text can never break out of an element or attribute. */
+function esc(v) {
+  if (v == null) return "";
+  return String(v).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+
 /* ================= Theming / branding ================= */
 let BRANDING = null;
 function shade(hex, pct) {
@@ -782,9 +790,9 @@ async function boot() {
   fetch("/api/branding").then(r => r.json()).then(applyBranding).catch(() => {});
   api("/me").then(m => armIdle(m.idleMinutes || 30)).catch(() => armIdle(30));
   try { PFS = await api("/portfolios"); } catch {}
-  who.textContent = `${ME.fullName} — ${ME.role}`;
+  who.textContent = `${esc(ME.fullName)} — ${ME.role}`;
   const items = NAV.filter(n => n.roles.includes(ME.role));
-  nav.innerHTML = items.map(n => `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${n.label}</div>`).join("");
+  nav.innerHTML = items.map(n => `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${esc(n.label)}</div>`).join("");
   go("dash");
 }
 function go(k) {
@@ -803,7 +811,7 @@ async function employees() {
     <div class="panel"><table><tr><th>Nom</th><th>Portefeuille</th><th>Contrat</th><th>Embauché</th><th>Pièces requises</th><th></th></tr>
     ${list.map(e => {
       const done = e.checklist.filter(c => c.uploaded).length, tot = e.checklist.length;
-      return `<tr><td><b>${e.firstName} ${e.lastName}</b></td><td>${pfName(e.portfolioId)}</td>
+      return `<tr><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b></td><td>${pfName(e.portfolioId)}</td>
       <td>${e.contract?.type || "—"}</td><td>${e.hireDate}</td>
       <td><span class="tag ${done === tot ? "green" : "amber"}">${done}/${tot}</span></td>
       <td><button class="btn ghost sm" onclick="empDetail('${e.id}')">Ouvrir</button></td></tr>`; }).join("")}
@@ -826,10 +834,10 @@ async function empForm() {
     <div class="grid2"><div><label>Prénom</label><input id="fFirst"></div><div><label>Nom</label><input id="fLast"></div></div>
     <div class="grid3">
       <div><label>Portefeuille ${ME.role === "GPF" ? '<span class="tag gray">vos portefeuilles rattachés</span>' : ""}</label>
-      <select id="fPf" onchange="syncCnv()">${myPfs.map(p => `<option value="${p.id}">${p.name}</option>`).join("")}</select></div>
+      <select id="fPf" onchange="syncCnv()">${myPfs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
       <div><label>Date d'embauche</label><input id="fHire" type="date"></div>
       <div><label>Type de contrat</label><select id="fCt" onchange="fEndWrap.classList.toggle('hidden', !(window._CTYPES.find(t=>t.name===this.value)||{}).fixedTerm)">
-      ${ctypes.map(t => `<option>${t.name}</option>`).join("")}</select></div></div>
+      ${ctypes.map(t => `<option>${esc(t.name)}</option>`).join("")}</select></div></div>
     <div id="fEndWrap" class="hidden"><label>Date de fin de contrat <span class="tag amber">obligatoire pour les contrats à durée déterminée</span></label><input id="fEnd" type="date" style="max-width:220px"></div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;background:#f8fafc">
       <label>Convention collective <span class="tag gray">issue du portefeuille sélectionné</span></label>
@@ -854,10 +862,10 @@ async function empForm() {
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
       <label>Éléments de salaire <span class="tag gray">cochez puis saisissez les montants (gérés par l'administrateur)</span></label>
       ${sels.map(s => `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-        <label class="chk" style="flex:1;padding:2px"><input type="checkbox" data-selname="${s.name}"
+        <label class="chk" style="flex:1;padding:2px"><input type="checkbox" data-selname="${esc(s.name)}"
           onchange="this.closest('div').querySelector('[data-selamt]').classList.toggle('hidden', !this.checked)">
-          <span>${s.name}</span></label>
-        <input data-selamt="${s.name}" type="number" placeholder="Montant F CFA" class="hidden" style="max-width:170px;margin:0"></div>`).join("")}
+          <span>${esc(s.name)}</span></label>
+        <input data-selamt="${esc(s.name)}" type="number" placeholder="Montant F CFA" class="hidden" style="max-width:170px;margin:0"></div>`).join("")}
     </div>
     <div class="err hidden" id="fErr"></div>
     <button class="btn p" onclick="empSave()">Créer le dossier</button>
@@ -870,7 +878,7 @@ function syncCnv() {
   fCnvName.textContent = cnv ? cnv.name : "No convention attached to this portfolio (admin: Portfolio Config)";
   const rows = (cnv?.grid || []).filter(g => g.baseSalary >= 0);
   fCat.innerHTML = '<option value="">— sélectionner —</option>' + rows.map(g =>
-    `<option value="${g.category}">${g.category} — base ${Number(g.baseSalary).toLocaleString("fr-FR")} F CFA</option>`).join("");
+    `<option value="${esc(g.category)}">${esc(g.category)} — base ${Number(g.baseSalary).toLocaleString("fr-FR")} F CFA</option>`).join("");
 }
 async function empSave() {
   try {
@@ -894,21 +902,21 @@ async function empDetail(id) {
   const e = await api("/employees/" + id);
   const canEdit = ["GPF","ADM"].includes(ME.role);
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
-    <h1 style="margin-top:10px">${e.firstName} ${e.lastName}</h1>
+    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)}</h1>
     <div class="panel"><b style="font-size:12px;color:var(--muted)">PERSONAL & CONTRACT</b>
     <div class="grid3" style="margin-top:8px;font-size:13px">
       <div><label>Portefeuille</label><div>${pfName(e.portfolioId)}</div></div>
       <div><label>Embauché le</label><div>${e.hireDate}</div></div>
-      <div><label>Né(e) le</label><div>${e.birthDate} — ${e.birthPlace || "—"}</div></div>
-      <div><label>CNI</label><div>${e.cniNumber} (exp. ${e.cniExpiry})</div></div>
-      <div><label>CNPS</label><div>${e.cnpsNumber || "—"}</div></div>
+      <div><label>Né(e) le</label><div>${e.birthDate} — ${esc(e.birthPlace || "—")}</div></div>
+      <div><label>CNI</label><div>${esc(e.cniNumber)} (exp. ${e.cniExpiry})</div></div>
+      <div><label>CNPS</label><div>${esc(e.cnpsNumber || "—")}</div></div>
       <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "—"}${e.emergencyPhone ? " · " + e.emergencyPhone : ""}</div></div>
       <div><label>Contrat</label><div>${e.contract?.type || "—"} · ${e.contract?.paymentMethod || ""}<br>
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
     <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles. Every upload/download is logged.</div>
     <div class="panel">${e.checklist.map(c => `
-      <div class="doc-row"><div><b>${c.code}.</b> ${c.label} <small style="color:var(--muted)">(${c.formats})</small>
+      <div class="doc-row"><div><b>${c.code}.</b> ${esc(c.label)} <small style="color:var(--muted)">(${c.formats})</small>
         ${c.locked ? '<span class="tag red">OBLIGATOIRE</span>' : ""}</div>
       <div>${c.uploaded
         ? `<span class="tag green">Déposée ✓</span> ${fileBtns(e, c.code)}`
@@ -916,7 +924,7 @@ async function empDetail(id) {
     </div>`;
 }
 const fileBtns = (e, code) => e.files.filter(f => f.docType === code)
-  .map(f => `<button class="btn ghost sm" onclick="dl('${e.id}','${f.id}','${f.fileName}')">⬇ ${f.fileName}</button>`).join(" ");
+  .map(f => `<button class="btn ghost sm" onclick="dl('${e.id}','${f.id}','${esc(f.fileName)}')">⬇ ${esc(f.fileName)}</button>`).join(" ");
 const uploadForm = (empId, code) => `
   <form style="display:inline-flex;gap:6px;align-items:center" onsubmit="return up(event,'${empId}','${code}')">
     <input type="file" required style="width:180px;margin:0;padding:4px">
@@ -955,16 +963,16 @@ async function portfolios() {
     <div class="note">⚠ CNI is mandatory for <b>all</b> portfolios and cannot be unchecked. Every change is traced in the audit log.</div>
     <div class="panel">
     <select style="max-width:280px" onchange="window._pfSel=this.value;portfolios()">
-      ${pfs.map(p => `<option value="${p.id}" ${p.id === pf.id ? "selected" : ""}>${p.name}</option>`).join("")}</select>
+      ${pfs.map(p => `<option value="${p.id}" ${p.id === pf.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
     <div style="margin:10px 0;display:flex;gap:8px;align-items:center">
       <label style="margin:0">Convention collective rattachée</label>
       <select id="pfCnv" style="max-width:380px;margin:0">
-        ${cnvs.map(c => `<option value="${c.id}" ${c.id === pf.conventionId ? "selected" : ""}>${c.name}</option>`).join("")}</select>
+        ${cnvs.map(c => `<option value="${c.id}" ${c.id === pf.conventionId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
       <button class="btn ghost sm" onclick="pfCnvSave('${pf.id}')">Rattacher</button></div>
     <div class="grid2" style="margin-top:10px">${types.map(t => `
       <label class="chk"><input type="checkbox" data-code="${t.code}"
         ${t.code === "V" || pf.required.includes(t.code) ? "checked" : ""} ${t.code === "V" ? "disabled" : ""}>
-        <span><b>${t.code}.</b> ${t.label} ${t.code === "V" ? '<span class="tag red">LOCKED</span>' : ""}</span></label>`).join("")}
+        <span><b>${t.code}.</b> ${esc(t.label)} ${t.code === "V" ? '<span class="tag red">LOCKED</span>' : ""}</span></label>`).join("")}
     </div>
     <div class="err hidden" id="pErr"></div>
     <button class="btn p" style="margin-top:10px" onclick="pfSave('${pf.id}')">Enregistrer la configuration</button></div>`;
@@ -992,7 +1000,7 @@ async function users() {
   const pfs = await api("/portfolios"); PFS = pfs;
   view.innerHTML = `<h1>Users & Roles</h1><div class="panel">
     <table><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Portefeuilles rattachés (GPF)</th><th>Statut</th></tr>
-    ${list.map(u => `<tr><td>${u.fullName}</td><td>${u.email}</td>
+    ${list.map(u => `<tr><td>${esc(u.fullName)}</td><td>${esc(u.email)}</td>
       <td><span class="tag gray">${u.role}</span></td>
       <td>${u.role === "GPF"
         ? `<span class="tag gray">${(u.portfolioIds || []).length} rattaché(s)</span>
@@ -1012,13 +1020,13 @@ async function pfModal(uid) {
   const u = list.find(x => x.id === uid);
   const bg = document.createElement("div");
   bg.className = "modal-bg";
-  bg.innerHTML = `<div class="modal"><b>Rattacher des portefeuilles — ${u.fullName}</b>
+  bg.innerHTML = `<div class="modal"><b>Rattacher des portefeuilles — ${esc(u.fullName)}</b>
     <input id="pfFilter" placeholder="Filtrer les portefeuilles…" style="margin-top:8px" oninput="
       const q=this.value.toLowerCase();
       this.parentElement.querySelectorAll('.chk').forEach(l=>l.style.display=l.textContent.toLowerCase().includes(q)?'':'none')">
     <div class="scroll">
       ${pfs.map(p => `<label class="chk"><input type="checkbox" data-p="${p.id}"
-        ${(u.portfolioIds || []).includes(p.id) ? "checked" : ""}><span>${p.name}</span></label>`).join("")}
+        ${(u.portfolioIds || []).includes(p.id) ? "checked" : ""}><span>${esc(p.name)}</span></label>`).join("")}
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
@@ -1066,7 +1074,7 @@ function auditDetail(d){
   if(!d) return "";
   if(typeof d!=="object") return String(d);
   const parts=[];
-  const short=v=>{ if(v==null)return"—"; if(typeof v==="object")return Array.isArray(v)?`${v.length} élément(s)`:"…"; const s=String(v); return s.length>60?s.slice(0,60)+"…":s; };
+  const short=v=>{ if(v==null)return"—"; if(typeof v==="object")return Array.isArray(v)?`${v.length} élément(s)`:"…"; const s=esc(String(v)); return s.length>66?s.slice(0,66)+"…":s; };
   const LABELS={reason:"Motif",name:"Nom",title:"Titre",type:"Type",role:"Rôle",email:"Email",format:"Format",
     count:"Nombre",imported:"Importés",skipped:"Ignorés",stage:"Étape",cycle:"Cycle",tenant:"Entreprise",
     modules:"Modules",status:"Statut",niu:"NIU",employee:"Employé",docType:"Document",template:"Modèle",
@@ -1122,7 +1130,7 @@ function renderAudit(){
     if(fo&&l.objectType!==fo)return false;
     if(ff&&l.at.slice(0,10)<ff)return false;
     if(ft&&l.at.slice(0,10)>ft)return false;
-    if(q){ const hay=`${l.userName} ${l.role} ${l.action} ${l.objectType} ${l.objectId} ${JSON.stringify(l.detail||"")}`.toLowerCase();
+    if(q){ const hay=`${esc(l.userName)} ${l.role} ${l.action} ${l.objectType} ${l.objectId} ${JSON.stringify(l.detail||"")}`.toLowerCase();
       if(!hay.includes(q))return false; }
     return true;
   });
@@ -1176,8 +1184,8 @@ setInterval(refreshBell, 30000);
 async function showNotifs() {
   const n = await api("/notifications");
   view.innerHTML = `<h1>Notifications</h1><div class="panel">` + (n.items.length ? n.items.map(x => `
-    <div class="doc-row" style="${x.readAt ? "opacity:.6" : ""}"><div><b>${x.subject}</b><br>
-    <small style="color:var(--muted)">${x.body || ""} · ${x.at.replace("T"," ").slice(0,16)}</small></div></div>`).join("") : "Aucune notification") + `</div>
+    <div class="doc-row" style="${x.readAt ? "opacity:.6" : ""}"><div><b>${esc(x.subject)}</b><br>
+    <small style="color:var(--muted)">${esc(x.body || "")} · ${x.at.replace("T"," ").slice(0,16)}</small></div></div>`).join("") : "Aucune notification") + `</div>
     <button class="btn ghost" onclick="markRead()">Tout marquer comme lu</button>`;
 }
 async function markRead(){ await api("/notifications/read-all",{method:"POST"}); refreshBell(); showNotifs(); }
@@ -1193,7 +1201,7 @@ async function queueView() {
   view.innerHTML = `<h1>Validation Queue — ${ME.role === "CD" ? "1ère validation (Chef de département)" : "Validation juridique finale"}</h1>
   <div class="note">📋 Rejection reason is <b>mandatory</b>; it is logged, notified to the initiator and feeds quality statistics.</div>
   <div class="panel">` + (q.length ? `<table><tr><th>Document</th><th>Cycle</th><th>Chronomètre</th><th>Actions</th></tr>` +
-  q.map(d => `<tr><td><b>${d.title}</b></td><td>${d.cycle > 1 ? `<span class="tag amber">resoumission n°${d.cycle}</span>` : d.cycle}</td>
+  q.map(d => `<tr><td><b>${esc(d.title)}</b></td><td>${d.cycle > 1 ? `<span class="tag amber">resoumission n°${d.cycle}</span>` : d.cycle}</td>
     <td>${SLA_TAG(d)}</td>
     <td><button class="btn sm" style="background:var(--green);color:#fff" onclick="wfApprove('${d.id}')">✓ Valider</button>
     <button class="btn sm" style="background:var(--red);color:#fff" onclick="wfReject('${d.id}')">✕ Rejeter</button>
@@ -1218,7 +1226,7 @@ async function generatedView() {
   view.innerHTML = `<h1>Documents générés</h1>
   <div class="note">Lecture seule. Chaque impression ou téléchargement est journalisé (qui, quand, quel document).</div>
   <div class="panel">` + (list.length ? list.map(d => `
-    <div class="doc-row"><div><b>${d.title}</b><br><small style="color:var(--muted)">Generated ${d.generatedAt.replace("T"," ").slice(0,16)}</small></div>
+    <div class="doc-row"><div><b>${esc(d.title)}</b><br><small style="color:var(--muted)">Generated ${d.generatedAt.replace("T"," ").slice(0,16)}</small></div>
     <div><button class="btn p sm" onclick="openGen('${d.id}',0)">⬇ Télécharger</button>
     <button class="btn ghost sm" onclick="openGen('${d.id}',1)">🖨 Imprimer</button></div></div>`).join("")
   : "Aucun document généré pour le moment.") + `</div>`;
@@ -1249,14 +1257,14 @@ async function empDetail(id) {
     <table style="margin-top:8px"><tr><th>Étape</th><th>Assigné</th><th>Décision</th><th>Motif</th></tr>
     ${doc.steps.map(s => `<tr><td>${s.stage}</td><td>${s.assignedAt.replace("T"," ").slice(0,16)}</td>
       <td>${s.decision ? (s.decision === "APPROVED" ? '<span class="tag green">Validé</span>' : '<span class="tag red">Rejeté</span>') + ` <small>${s.elapsedH ?? "?"}h</small>` : '<span class="tag amber">En attente</span>'}</td>
-      <td style="color:var(--red);font-size:12px">${s.rejectReason || ""}</td></tr>`).join("")}</table></div>`;
+      <td style="color:var(--red);font-size:12px">${esc(s.rejectReason || "")}</td></tr>`).join("")}</table></div>`;
   }
   const rejBanner = (doc?.status === "DRAFT" && lastReject) ?
-    `<div class="note" style="background:var(--red-bg);border-color:#fca5a5">✕ <b>Rejected by ${lastReject.stage}:</b> ${lastReject.rejectReason} — correct and resubmit (new cycle).</div>` : "";
+    `<div class="note" style="background:var(--red-bg);border-color:#fca5a5">✕ <b>Rejected by ${lastReject.stage}:</b> ${esc(lastReject.rejectReason)} — correct and resubmit (new cycle).</div>` : "";
 
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
-    <h1 style="margin-top:10px">${e.firstName} ${e.lastName} ${doc ? ST_TAG(doc.status) : ST_TAG(e.status || "DRAFT")}
-  <button class="btn ghost sm" style="float:right" onclick="empExport('${e.id}','${e.lastName}')">⬇ Télécharger le dossier (PDF)</button></h1>
+    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status) : ST_TAG(e.status || "DRAFT")}
+  <button class="btn ghost sm" style="float:right" onclick="empExport('${e.id}','${esc(e.lastName)}')">⬇ Télécharger le dossier (PDF)</button></h1>
     ${rejBanner}
     ${canEdit && (!doc || doc.status === "DRAFT") ? `
       <button class="btn p" style="margin-bottom:12px" ${complete ? "" : "disabled title='Upload all required documents first'"}
@@ -1266,16 +1274,16 @@ async function empDetail(id) {
     <div class="grid3" style="margin-top:8px;font-size:13px">
       <div><label>Portefeuille</label><div>${pfName(e.portfolioId)}</div></div>
       <div><label>Embauché le</label><div>${e.hireDate}</div></div>
-      <div><label>Né(e) le</label><div>${e.birthDate} — ${e.birthPlace || "—"}</div></div>
-      <div><label>CNI</label><div>${e.cniNumber} (exp. ${e.cniExpiry})</div></div>
-      <div><label>CNPS</label><div>${e.cnpsNumber || "—"}</div></div>
+      <div><label>Né(e) le</label><div>${e.birthDate} — ${esc(e.birthPlace || "—")}</div></div>
+      <div><label>CNI</label><div>${esc(e.cniNumber)} (exp. ${e.cniExpiry})</div></div>
+      <div><label>CNPS</label><div>${esc(e.cnpsNumber || "—")}</div></div>
       <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "—"}${e.emergencyPhone ? " · " + e.emergencyPhone : ""}</div></div>
       <div><label>Contrat</label><div>${e.contract?.type || "—"} · ${e.contract?.paymentMethod || ""}<br>
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
     <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles.</div>
     <div class="panel">${e.checklist.map(c => `
-      <div class="doc-row"><div><b>${c.code}.</b> ${c.label} <small style="color:var(--muted)">(${c.formats})</small>
+      <div class="doc-row"><div><b>${c.code}.</b> ${esc(c.label)} <small style="color:var(--muted)">(${c.formats})</small>
         ${c.locked ? '<span class="tag red">OBLIGATOIRE</span>' : ""}</div>
       <div>${c.uploaded
         ? `<span class="tag green">Déposée ✓</span> ${fileBtns(e, c.code)}`
@@ -1306,7 +1314,7 @@ async function templatesView() {
       <button class="btn p sm">Upload & scan</button></form>
     <div class="err hidden" id="tErr"></div></div>
   <div class="panel"><table><tr><th>Modèle</th><th>Type</th><th>Champs détectés</th><th>Déposé le</th></tr>
-  ${list.map(t => `<tr><td><b>${t.name}</b></td><td><span class="tag gray">${t.docType || "CONTRACT"}</span></td>
+  ${list.map(t => `<tr><td><b>${esc(t.name)}</b></td><td><span class="tag gray">${t.docType || "CONTRACT"}</span></td>
     <td style="font-size:12px">${t.tags.map(x => `<span class="tag gray">${x}</span>`).join(" ")}</td>
     <td>${t.uploadedAt.slice(0,10)}</td></tr>`).join("")}</table></div>
 
@@ -1329,14 +1337,14 @@ async function templatesView() {
   <div class="grid2">
   <div class="panel"><b>💵 Éléments de salaire (utilisés à la création d'un employé)</b>
     <table style="margin-top:6px"><tr><th>Element</th><th>Template tag</th><th></th></tr>
-    ${sels.map(s => `<tr><td>${s.name}</td><td>${s.tag ? `<span class="tag gray">{{${s.tag}}}</span>` : "—"}</td>
+    ${sels.map(s => `<tr><td>${esc(s.name)}</td><td>${s.tag ? `<span class="tag gray">{{${s.tag}}}</span>` : "—"}</td>
       <td><button class="btn ghost sm" onclick="selDel('${s.id}')">✕</button></td></tr>`).join("")}</table>
     <div style="display:flex;gap:6px;margin-top:8px">
       <input id="selName" placeholder="Nom de l'élément" style="margin:0"><input id="selTag" placeholder="tag (optional)" style="margin:0;max-width:150px">
       <button class="btn p sm" onclick="selAdd()">Ajouter</button></div></div>
   <div class="panel"><b>📃 Types de contrat (paramétrables, versionnés)</b>
     <table style="margin-top:6px"><tr><th>Type</th><th>Fixed term?</th><th>Versions</th></tr>
-    ${ctypes.map(t => `<tr><td><b>${t.name}</b></td><td>${t.fixedTerm ? "Oui (date de fin requise)" : "No"}</td>
+    ${ctypes.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${t.fixedTerm ? "Oui (date de fin requise)" : "No"}</td>
       <td><span class="tag gray">v${t.versions.length}</span></td></tr>`).join("")}</table>
     <div style="display:flex;gap:6px;margin-top:8px">
       <input id="cttName" placeholder="Nouveau type (ex. Stage, Intérim)" style="margin:0">
@@ -1369,7 +1377,7 @@ async function genForm(employeeId, docId = null, presetTplId = null, presetData 
   <div class="panel" style="max-width:760px">
     <label>Modèle</label>
     <select ${docId ? "disabled" : ""} onchange="genForm('${employeeId}',null,this.value)" style="max-width:340px">
-      ${tpls.map(t => `<option value="${t.id}" ${t.id === tplId ? "selected" : ""}>${t.name}</option>`).join("")}</select>
+      ${tpls.map(t => `<option value="${t.id}" ${t.id === tplId ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select>
     <div class="note" style="margin-top:8px">Les champs verts sont <b>renseignés automatiquement depuis le dossier</b> (modifiables).
     Les champs orange sont <b>des informations obligatoires introuvables</b> — merci de les compléter.</div>
     <div class="grid2">
@@ -1378,7 +1386,7 @@ async function genForm(employeeId, docId = null, presetTplId = null, presetData 
       <input data-tag="${tag}" ${refByTag[tag] ? `list="dl-${tag}"` : ""} value="${(data[tag] ?? "").toString().replace(/"/g,'&quot;')}"
         style="border-color:${data[tag] === undefined ? "var(--amber)" : "var(--green)"}">
       ${refByTag[tag] ? `<datalist id="dl-${tag}">${refByTag[tag].values.map(v => `<option value="${v.replace(/"/g,'&quot;')}">`).join("")}</datalist>
-        <small style="color:var(--muted)">valeurs issues de : ${refByTag[tag].label}</small>` : ""}</div>`).join("")}
+        <small style="color:var(--muted)">valeurs issues de : ${esc(refByTag[tag].label)}</small>` : ""}</div>`).join("")}
     </div>
     <div class="err hidden" id="gErr"></div>
     <button class="btn p" onclick="genSubmit('${employeeId}','${tplId}','${docId || ""}')">
@@ -1407,7 +1415,7 @@ empDetail = async function(id) {
     ${docs.length ? `<table><tr><th>Document</th><th>Cycle</th><th>Statut</th><th></th></tr>
       ${docs.map(d => {
         const rej = d.steps?.slice().reverse().find(s => s.decision === "REJECTED");
-        return `<tr><td><b>${d.title}</b>${d.status === "DRAFT" && rej ? `<br><small style="color:var(--red)">✕ ${rej.stage}: ${rej.rejectReason}</small>` : ""}</td>
+        return `<tr><td><b>${esc(d.title)}</b>${d.status === "DRAFT" && rej ? `<br><small style="color:var(--red)">✕ ${rej.stage}: ${esc(rej.rejectReason)}</small>` : ""}</td>
         <td>${d.cycle}</td><td>${ST_TAG(d.status)} ${SLA_TAG(d)}</td>
         <td>${d.status === "DRAFT" && canEdit ? `<button class="btn ghost sm" onclick='genForm("${id}","${d.id}","${d.templateId}",${JSON.stringify(d.data)})'>Correct & resubmit</button>` : ""}
         ${d.status === "GENERATED" ? `<button class="btn ghost sm" onclick="openGen('${d.id}',0)">⬇ Word</button>` : ""}</td></tr>`; }).join("")}</table>`
@@ -1430,7 +1438,7 @@ async function settingsView() {
     <div class="err hidden" id="rErr"></div>
     <button class="btn p sm" style="margin-top:8px" onclick="refCreate()">+ Créer</button></div>
   <div class="grid2">
-  ${refs.map(r => `<div class="panel"><b>${r.label}</b>
+  ${refs.map(r => `<div class="panel"><b>${esc(r.label)}</b>
     ${r.tag ? `<span class="tag gray">→ {{${r.tag}}}</span>` : '<span class="tag amber">not rattaché(s)</span>'}
     <div style="margin:8px 0">${r.values.map(v => `<span class="tag gray" style="margin:2px">${v}
       <a style="cursor:pointer;color:var(--red)" onclick="refDel('${r.key}','${v.replace(/'/g,"\\'")}')">✕</a></span>`).join(" ")}</div>
@@ -1479,17 +1487,17 @@ async function dashView() {
   </div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">⏱ CHRONOMÈTRES EN COURS — SLA 48h</b>
     ${d.timers.length ? `<table style="margin-top:8px"><tr><th>Document</th><th>Étape</th><th>Cycle</th><th>Chronomètre</th></tr>
-    ${d.timers.map(t => `<tr><td>${t.title}</td><td><span class="tag gray">${t.stage}</span></td><td>${t.cycle}</td>
+    ${d.timers.map(t => `<tr><td>${esc(t.title)}</td><td><span class="tag gray">${t.stage}</span></td><td>${t.cycle}</td>
       <td>${SLA_TAG(t)}</td></tr>`).join("")}</table>` : '<small style="color:var(--muted)">Aucun document en validation.</small>'}</div>
   <div class="grid2">
     <div class="panel"><b style="font-size:12px;color:var(--muted)">🪪 CNI EXPIRANT SOUS 60 JOURS</b>
-      ${d.cniExpiring.length ? d.cniExpiring.map(x => `<div class="doc-row"><div>${x.name}</div>
+      ${d.cniExpiring.length ? d.cniExpiring.map(x => `<div class="doc-row"><div>${esc(x.name)}</div>
         <span class="tag ${x.days <= 14 ? "red" : "amber"}">${x.date} (${x.days}d)</span></div>`).join("") : '<small style="color:var(--muted)">Aucun.</small>'}</div>
     <div class="panel"><b style="font-size:12px;color:var(--muted)">📋 CDD SE TERMINANT SOUS 30 JOURS</b>
-      ${d.cddEnding.length ? d.cddEnding.map(x => `<div class="doc-row"><div>${x.name}</div>
+      ${d.cddEnding.length ? d.cddEnding.map(x => `<div class="doc-row"><div>${esc(x.name)}</div>
         <span class="tag amber">${x.date} (${x.days}d)</span></div>`).join("") : '<small style="color:var(--muted)">Aucun.</small>'}</div>
     <div class="panel"><b style="font-size:12px;color:var(--muted)">👥 EFFECTIFS PAR PORTEFEUILLE</b>
-      ${d.portfolios.map(p => `<div class="doc-row"><div>${p.name}</div><span class="tag gray">${p.count}</span></div>`).join("")}</div>
+      ${d.portfolios.map(p => `<div class="doc-row"><div>${esc(p.name)}</div><span class="tag gray">${p.count}</span></div>`).join("")}</div>
   </div>`;
 }
 
@@ -1530,12 +1538,12 @@ async function hrSection(id) {
         <small><b>Promotion/mutation:</b> optional salary & category change — an <b>avenant is created automatically</b> and goes through CD→RJ validation.</small>
         <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
           <input id="decCat" placeholder="New category (e.g. C1)" style="max-width:170px;margin:0">
-          <select id="decSalEl" style="max-width:190px;margin:0">${(refs.find(r => false) || {values:[]}).values.join("")}<option value="">— salary element —</option>${(window._SELS || []).map(s => `<option>${s.name}</option>`).join("")}</select>
+          <select id="decSalEl" style="max-width:190px;margin:0">${(refs.find(r => false) || {values:[]}).values.join("")}<option value="">— salary element —</option>${(window._SELS || []).map(s => `<option>${esc(s.name)}</option>`).join("")}</select>
           <input id="decSalAmt" type="number" placeholder="New amount" style="max-width:140px;margin:0"></div></div>` : ""}
     ${dec.length ? `<table><tr><th>Date</th><th>Type</th><th>Détail</th></tr>
       ${dec.map(d => `<tr><td>${d.date}</td><td><span class="tag ${/négative|Avertissement|Blâme|pied/.test(d.type) ? "red" : "green"}">${d.type}</span></td>
-        <td>${d.detail}${d.amendmentId ? ' <span class="tag blue">avenant auto</span>' : ""}
-        ${d.fileName ? ` <a style="cursor:pointer;color:var(--primary)" onclick="decDl('${d.employeeId}','${d.id}','${d.fileName}')">📎 ${d.fileName}</a>` : ""}</td></tr>`).join("")}</table>` : '<small style="color:var(--muted)">Aucun.</small>'}</div>
+        <td>${esc(d.detail)}${d.amendmentId ? ' <span class="tag blue">avenant auto</span>' : ""}
+        ${d.fileName ? ` <a style="cursor:pointer;color:var(--primary)" onclick="decDl('${d.employeeId}','${d.id}','${esc(d.fileName)}')">📎 ${esc(d.fileName)}</a>` : ""}</td></tr>`).join("")}</table>` : '<small style="color:var(--muted)">Aucun.</small>'}</div>
 
   <div class="panel"><b style="font-size:12px;color:var(--muted)">🌴 LEAVE & PERMISSIONS</b>
     <div style="margin:6px 0"><span class="tag green">Balance: ${lv.balance.remaining} d</span>
@@ -1607,13 +1615,13 @@ async function fichesView() {
     <input type="text" id="fpTitle" placeholder="Title (e.g. Technicien électricien)" style="margin:0;max-width:260px">
     <input type="file" accept=".pdf,.xlsx,.xls,.csv" required style="margin:0;max-width:260px">
     <button class="btn p sm">Upload & extract</button></form><div class="err hidden" id="fpErr"></div></div>` : ""}
-  ${list.map(f => `<div class="panel"><b>${f.title}</b>
+  ${list.map(f => `<div class="panel"><b>${esc(f.title)}</b>
     <span class="tag ${f.sectionsFound >= 3 ? "green" : "amber"}">${f.sectionsFound}/6 sections détectées</span>
-    <button class="btn ghost sm" onclick="fpDl('${f.id}','${f.fileName}')">⬇ Original</button>
+    <button class="btn ghost sm" onclick="fpDl('${f.id}','${esc(f.fileName)}')">⬇ Original</button>
     <div class="grid2" style="margin-top:8px">
     ${["profil","missions","activites","avantages","risques","penibilites"].map(k => `
       <div><label>${k}</label><textarea data-fp="${f.id}" data-k="${k}" rows="3" ${canUp ? "" : "readonly"}
-        style="font-size:12px">${(f.extracted[k] || "")}</textarea></div>`).join("")}
+        style="font-size:12px">${esc(f.extracted[k] || "")}</textarea></div>`).join("")}
     </div>
     ${canUp ? `<button class="btn p sm" onclick="fpSave('${f.id}')">Enregistrer les corrections</button>` : ""}</div>`).join("")
   || '<div class="panel">Aucune fiche pour le moment.</div>'}`;
@@ -1650,13 +1658,13 @@ async function gridView() {
   Editable by GPF, CD and Admin — changes audited.</div>
   <div class="panel" style="max-width:560px">
   <select style="max-width:420px" onchange="window._cnvSel=this.value;gridView()">
-    ${cnvs.map(c => `<option value="${c.id}" ${c.id === cnv?.id ? "selected" : ""}>${c.name}</option>`).join("")}</select>
+    ${cnvs.map(c => `<option value="${c.id}" ${c.id === cnv?.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
   ${ME.role === "ADM" ? `<div style="display:flex;gap:6px;margin-top:8px">
     <input id="newCnv" placeholder="Nom de la nouvelle convention" style="margin:0">
     <button class="btn ghost sm" onclick="cnvAdd()">+ Ajouter une convention</button></div>` : ""}
   <table style="margin-top:10px"><tr><th>Catégorie</th><th>Salaire de base (F CFA)</th></tr>
-  ${grid.map(g => `<tr><td><b>${g.category}</b></td>
-    <td><input type="number" data-cat="${g.category}" value="${g.baseSalary}" style="margin:0;max-width:180px"></td></tr>`).join("")}
+  ${grid.map(g => `<tr><td><b>${esc(g.category)}</b></td>
+    <td><input type="number" data-cat="${esc(g.category)}" value="${g.baseSalary}" style="margin:0;max-width:180px"></td></tr>`).join("")}
   </table><div class="err hidden" id="grErr"></div>
   <button class="btn p" style="margin-top:10px" onclick="gridSave()">Enregistrer la grille</button></div>`;
 }
@@ -1696,7 +1704,7 @@ async function studioConvert() {
     find: d.querySelector("[data-find]").value, tag: d.querySelector("[data-tag]").value })).filter(r => r.find && r.tag);
   try { const t = await api(`/templates/raw/${STUDIO_ID}/tagify`, { method: "POST",
       body: JSON.stringify({ replacements, name: studioName.value, docType: studioType.value }) });
-    alert(`Template created: ${t.name} — ${t.tags.length} placeholders detected.`); templatesView(); }
+    alert(`Template created: ${esc(t.name)} — ${t.tags.length} placeholders detected.`); templatesView(); }
   catch (e) { stErr.textContent = e.message; stErr.classList.remove("hidden"); }
 }
 async function selAdd() {
@@ -1723,7 +1731,7 @@ async function careerView() {
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
     <label style="margin:0">Employé</label>
     <select style="max-width:280px;margin:0" onchange="CAR_EMP=this.value;careerTab(CAR_TAB)">
-      ${emps.map(e => `<option value="${e.id}" ${e.id === CAR_EMP ? "selected" : ""}>${e.firstName} ${e.lastName}</option>`).join("")}</select>
+      ${emps.map(e => `<option value="${e.id}" ${e.id === CAR_EMP ? "selected" : ""}>${esc(e.firstName)} ${esc(e.lastName)}</option>`).join("")}</select>
   </div>
   <div class="tabsbar" style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:14px">
     ${[["overview","Overview & Matching"],["plan","Plan de carrière"],["okr","OKR"],["e360","360°"],["meet","Check-ins & Interviews"],["succ","Succession"]].map(([k,l]) =>
@@ -1743,11 +1751,11 @@ async function careerTab(k) {
     const [match, succ] = await Promise.all([api("/career/matching"), api("/career/succession")]);
     P.innerHTML = `<div class="grid2">
       <div class="panel"><b>🔮 Rapprochement prédictif — suggestions de mobilité interne</b>
-        ${match.length ? match.map(m => `<div class="doc-row"><div><b>${m.employee}</b> → ${m.keyPosition}</div>
+        ${match.length ? match.map(m => `<div class="doc-row"><div><b>${m.employee}</b> → ${esc(m.keyPosition)}</div>
           <span class="tag ${m.score >= 75 ? "green" : "amber"}">${m.score}% match</span></div>`).join("")
         : '<small style="color:var(--muted)">No matches yet — fill career plans (preferences, potential) and create key positions in Succession.</small>'}</div>
       <div class="panel"><b>🗝 Postes clés</b>
-        ${succ.length ? succ.map(s => `<div class="doc-row"><div>${s.keyPosition}</div>
+        ${succ.length ? succ.map(s => `<div class="doc-row"><div>${esc(s.keyPosition)}</div>
           <span class="tag ${s.criticité === "HIGH" ? "red" : s.criticité === "MEDIUM" ? "amber" : "green"}">${s.criticité}</span>
           <span class="tag gray">${s.successors.length} successor(s)</span></div>`).join("") : '<small style="color:var(--muted)">Aucun défini.</small>'}</div></div>`;
   }
@@ -1757,14 +1765,14 @@ async function careerTab(k) {
     const p = plan || {};
     P.innerHTML = `<div class="panel" style="max-width:720px">
       <div class="grid2">
-        <div><label>Postes souhaités (séparés par des virgules)</label><input id="cpPos" value="${(p.preferredPositions||[]).join(", ")}" ${canEdit?"":"disabled"}></div>
-        <div><label>Lieux souhaités</label><input id="cpLoc" value="${(p.preferredLocations||[]).join(", ")}" ${canEdit?"":"disabled"}></div>
+        <div><label>Postes souhaités (séparés par des virgules)</label><input id="cpPos" value="${esc((p.preferredPositions||[]).join(", "))}" ${canEdit?"":"disabled"}></div>
+        <div><label>Lieux souhaités</label><input id="cpLoc" value="${esc((p.preferredLocations||[]).join(", "))}" ${canEdit?"":"disabled"}></div>
         <div><label>Disponibilité</label><input id="cpAv" value="${p.availability||""}" placeholder="e.g. mobile national" ${canEdit?"":"disabled"}></div>
         <div><label>Matrice de potentiel (1–9)</label><select id="cpPot" ${canEdit?"":"disabled"}><option value="">—</option>
           ${[1,2,3,4,5,6,7,8,9].map(n => `<option ${p.potential==n?"selected":""}>${n}</option>`).join("")}</select></div>
         <div><label>Parcours de carrière</label><select id="cpPath" ${canEdit?"":"disabled"}><option value="">—</option>
-          ${paths.map(c => `<option value="${c.id}" ${p.careerPathId===c.id?"selected":""}>${c.name}</option>`).join("")}</select></div>
-        <div><label>Formations (séparées par des virgules)</label><input id="cpTr" value="${(p.trainings||[]).join(", ")}" ${canEdit?"":"disabled"}></div>
+          ${paths.map(c => `<option value="${c.id}" ${p.careerPathId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+        <div><label>Formations (séparées par des virgules)</label><input id="cpTr" value="${esc((p.trainings||[]).join(", "))}" ${canEdit?"":"disabled"}></div>
       </div>
       ${p.careerPathId ? `<div class="note">Path: ${(paths.find(c=>c.id===p.careerPathId)||{}).stages?.join(" → ")||""}</div>` : ""}
       ${canEdit ? `<button class="btn p" onclick="cpSave()">Enregistrer le plan de carrière</button>` : ""}</div>`;
@@ -1777,8 +1785,8 @@ async function careerTab(k) {
       <input id="okObj" placeholder="Objectif" style="margin:0"></div>
       <input id="okKrs" placeholder="Key results, separated by ; (e.g. Réduire incidents 20%; Certifier 2 équipements)" style="margin-top:6px">
       <button class="btn p sm" onclick="okCreate()">+ Créer OKR</button></div>` : ""}
-      ${okrs.map(o => `<div class="panel"><b>${o.objective}</b> <span class="tag gray">${o.period}</span>
-        ${o.keyResults.map((kr, i) => `<div style="margin-top:8px"><small>${kr.title}</small>
+      ${okrs.map(o => `<div class="panel"><b>${esc(o.objective)}</b> <span class="tag gray">${o.period}</span>
+        ${o.keyResults.map((kr, i) => `<div style="margin-top:8px"><small>${esc(kr.title)}</small>
           <div style="display:flex;gap:8px;align-items:center">
           <div class="bar" style="flex:1;height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden"><div style="height:100%;width:${kr.progress}%;background:${kr.progress>=70?"var(--green)":kr.progress>=40?"var(--amber)":"var(--red)"}"></div></div>
           ${canEdit ? `<input type="number" min="0" max="100" value="${kr.progress}" data-okr="${o.id}" data-i="${i}" style="max-width:80px;margin:0">` : `<b>${kr.progress}%</b>`}</div></div>`).join("")}
@@ -1794,11 +1802,11 @@ async function careerTab(k) {
       <button class="btn p sm" onclick="evCreate()">+ Lancer la campagne</button></div>` : ""}
       ${await Promise.all(evs.map(async ev => {
         const full = await api(`/career/eval360/${ev.id}`);
-        return `<div class="panel"><b>${ev.name}</b> <span class="tag ${ev.status === "COMPLETE" ? "green" : "amber"}">${ev.status}</span>
+        return `<div class="panel"><b>${esc(ev.name)}</b> <span class="tag ${ev.status === "COMPLETE" ? "green" : "amber"}">${ev.status}</span>
         <span class="tag gray">${full.consolidated.submitted}/${full.consolidated.total} submitted</span>
         ${full.consolidated.overall ? `<span class="tag blue">overall ${full.consolidated.overall}/5</span>` : ""}
         <table style="margin-top:8px"><tr><th>Évaluateur</th><th>Rôle</th><th>Statut</th><th></th></tr>
-        ${ev.evaluators.map((e, i) => `<tr><td>${e.name}</td><td><span class="tag gray">${e.role}</span></td>
+        ${ev.evaluators.map((e, i) => `<tr><td>${esc(e.name)}</td><td><span class="tag gray">${e.role}</span></td>
           <td>${e.submittedAt ? '<span class="tag green">Transmis</span>' : '<span class="tag amber">En attente</span>'}</td>
           <td>${!e.submittedAt ? `<button class="btn ghost sm" onclick="evSubmit('${ev.id}',${i},${ev.criteria.length})">Saisir les notes</button>` : ""}</td></tr>`).join("")}</table>
         ${full.consolidated.overall ? `<div style="margin-top:8px">${full.consolidated.byCriterion.map(c =>
@@ -1813,7 +1821,7 @@ async function careerTab(k) {
         ${canEdit ? `<div style="display:flex;gap:6px;margin:8px 0"><input id="ckNotes" placeholder="Notes" style="margin:0">
           <input id="ckNext" type="date" title="Next check-in" style="max-width:150px;margin:0">
           <button class="btn p sm" onclick="ckAdd()">+ Enregistrer</button></div>` : ""}
-        ${chk.map(c => `<div class="doc-row"><div><b>${c.date}</b> — ${c.notes || "—"}<br>
+        ${chk.map(c => `<div class="doc-row"><div><b>${c.date}</b> — ${esc(c.notes || "—")}<br>
           <small style="color:var(--muted)">by ${c.managerName}${c.nextDate ? " · next: " + c.nextDate : ""}</small></div></div>`).join("") || "<small style='color:var(--muted)'>Aucun.</small>"}</div>
       <div class="panel"><b>📝 Entretiens dématérialisés (signature électronique)</b>
         ${canMgr ? `<div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
@@ -1821,7 +1829,7 @@ async function careerTab(k) {
           <input id="itSum" placeholder="Synthèse" style="margin:0"><button class="btn p sm" onclick="itAdd()">+ Créer</button></div>` : ""}
         ${itv.map(it => `<div class="doc-row"><div><b>${it.type}</b> — ${it.date}
           ${it.status === "SIGNED_ARCHIVED" ? '<span class="tag green">Signed & archived ✓</span>' : '<span class="tag amber">En attente de signatures</span>'}<br>
-          <small style="color:var(--muted)">${it.summary || ""}</small><br>
+          <small style="color:var(--muted)">${esc(it.summary || "")}</small><br>
           <small>Manager: ${it.signatures.manager ? "✓ " + it.signatures.manager.name : "—"} · Employee: ${it.signatures.employee ? "✓ " + it.signatures.employee.name : "—"}</small></div>
           <div>${!it.signatures.manager && canMgr ? `<button class="btn ghost sm" onclick="itSign('${it.id}','manager')">Signer (responsable)</button>` : ""}
           ${!it.signatures.employee && canEdit ? `<button class="btn ghost sm" onclick="itSign('${it.id}','employee')">Signer (employé)</button>` : ""}</div></div>`).join("") || "<small style='color:var(--muted)'>Aucun.</small>"}</div></div>`;
@@ -1833,10 +1841,10 @@ async function careerTab(k) {
       <div style="display:flex;gap:6px;margin-top:6px"><input id="spPos" placeholder="Key position (e.g. Superviseur de site)" style="margin:0">
       <select id="spCrit" style="max-width:140px;margin:0"><option>HIGH</option><option>MEDIUM</option><option>LOW</option></select>
       <button class="btn p sm" onclick="spAdd()">+ Add</button></div></div>` : ""}
-      ${succ.map(s => `<div class="panel"><b>${s.keyPosition}</b>
+      ${succ.map(s => `<div class="panel"><b>${esc(s.keyPosition)}</b>
         <span class="tag ${s.criticité === "HIGH" ? "red" : s.criticité === "MEDIUM" ? "amber" : "green"}">criticité ${s.criticité}</span>
         ${canMgr ? `<div style="display:flex;gap:6px;margin:8px 0">
-          <select id="su-${s.id}" style="max-width:220px;margin:0">${emps.map(e => `<option value="${e.id}">${e.firstName} ${e.lastName}</option>`).join("")}</select>
+          <select id="su-${s.id}" style="max-width:220px;margin:0">${emps.map(e => `<option value="${e.id}">${esc(e.firstName)} ${esc(e.lastName)}</option>`).join("")}</select>
           <select id="sr-${s.id}" style="max-width:170px;margin:0"><option value="READY_NOW">Prêt maintenant</option><option value="READY_1_2Y">Prêt sous 1–2 ans</option><option value="TO_DEVELOP">À développer</option></select>
           <button class="btn ghost sm" onclick="spSucc('${s.id}')">+ Successeur</button></div>` : ""}
         ${s.successors.map(x => { const e = emps.find(z => z.id === x.employeeId);
@@ -1928,7 +1936,7 @@ async function reportsView() {
         ${Object.entries(d.buckets).reverse().map(([k,v]) => `<div style="margin-top:8px"><small>${k} — ${v}</small>
           ${bar(v/maxP*100, "var(--primary)")}</div>`).join("")}</div>
       <div class="panel"><b>Effectifs par portefeuille</b>
-        ${d.byPortfolio.map(p => `<div class="doc-row"><div>${p.name}</div><span class="tag gray">${p.count}</span></div>`).join("")}</div>
+        ${d.byPortfolio.map(p => `<div class="doc-row"><div>${esc(p.name)}</div><span class="tag gray">${p.count}</span></div>`).join("")}</div>
       <div class="panel"><b>Par type de contrat</b>
         ${Object.entries(d.byContract).map(([k,v]) => `<div class="doc-row"><div>${k}</div><span class="tag blue">${v}</span></div>`).join("")}</div>
       <div class="panel"><b>Par catégorie conventionnelle</b>
@@ -1946,7 +1954,7 @@ async function reportsView() {
       <div class="panel"><table><tr><th>Employé</th><th>Gravité</th><th>Anomalie</th></tr>
       ${d.issues.map(i => `<tr><td>${i.employee}</td>
         <td><span class="tag ${i.severity==="HIGH"?"red":i.severity==="MEDIUM"?"amber":"gray"}">${i.severity}</span></td>
-        <td>${i.issue}</td></tr>`).join("") || "<tr><td colspan=3>Aucune anomalie 🎉</td></tr>"}</table></div>`;
+        <td>${esc(i.issue)}</td></tr>`).join("") || "<tr><td colspan=3>Aucune anomalie 🎉</td></tr>"}</table></div>`;
   }
 
   if (REP_KEY === "evaluation") {
@@ -1967,7 +1975,7 @@ async function reportsView() {
         <td>${r.assigned}</td><td>${r.decision === "APPROVED" ? '<span class="tag green">Validé</span>' :
           r.decision === "REJECTED" ? '<span class="tag red">Rejeté</span>' : '<span class="tag amber">En cours</span>'}</td>
         <td>${r.breach ? `<span class="tag red">${r.elapsedH}h ⚠</span>` : `<span class="tag green">${r.elapsedH}h</span>`}</td>
-        <td style="font-size:12px;color:var(--red)">${r.reason}</td></tr>`).join("") || "<tr><td colspan=7>Aucune donnée.</td></tr>"}</table></div>`;
+        <td style="font-size:12px;color:var(--red)">${esc(r.reason)}</td></tr>`).join("") || "<tr><td colspan=7>Aucune donnée.</td></tr>"}</table></div>`;
   }
 
   if (REP_KEY === "headcount") {
@@ -1978,7 +1986,7 @@ async function reportsView() {
   view.innerHTML = `<h1>Reports & KPIs</h1>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
     <select style="max-width:340px;margin:0" onchange="REP_KEY=this.value;reportsView()">
-      ${list.map(x => `<option value="${x.key}" ${x.key===REP_KEY?"selected":""}>${x.label}</option>`).join("")}</select>
+      ${list.map(x => `<option value="${x.key}" ${x.key===REP_KEY?"selected":""}>${esc(x.label)}</option>`).join("")}</select>
     <button class="btn p sm" onclick="repExport('pdf')">⬇ Export PDF</button>
     <button class="btn ghost sm" onclick="repExport('xlsx')">⬇ Export Excel</button>
   </div>${body}`;
@@ -2141,7 +2149,7 @@ async function accountView() {
   <div class="grid2">
     <div class="panel"><b>👤 Profil</b>
       <div style="margin-top:8px;font-size:13px">
-        <div><b>${me.fullName}</b></div><div style="color:var(--muted)">${me.email}</div>
+        <div><b>${esc(me.fullName)}</b></div><div style="color:var(--muted)">${esc(me.email)}</div>
         <div style="margin-top:6px"><span class="tag gray">${me.role}</span></div></div></div>
 
     <div class="panel"><b>🔐 Double authentification</b>
@@ -2242,7 +2250,7 @@ function renderMapping() {
     <p style="font-size:12px;color:var(--muted)">Associez chaque champ SGRHP à une colonne de votre fichier. Les obligatoires sont marqués.</p>
     <div class="grid2" style="margin-top:8px">
     ${IMP.fields.map(f => `<div style="display:flex;gap:8px;align-items:center">
-      <label style="flex:1;margin:0">${f.label}${f.required ? ' <span class="tag red">*</span>' : ''}</label>
+      <label style="flex:1;margin:0">${esc(f.label)}${f.required ? ' <span class="tag red">*</span>' : ''}</label>
       <select data-field="${f.key}" style="max-width:220px;margin:0" onchange="IMP.mapping['${f.key}']=this.value">
         ${opts.replace(`value="${IMP.mapping[f.key]||''}"`, `value="${IMP.mapping[f.key]||''}" selected`)}</select></div>`).join("")}
     </div>
@@ -2262,7 +2270,7 @@ async function impValidate() {
         <span class="tag green">${r.valid} valides</span>
         <span class="tag ${r.invalid ? "red" : "gray"}">${r.invalid} en erreur</span></div>
       ${bad.length ? `<table><tr><th>Ligne</th><th>Employé</th><th>Erreurs</th></tr>
-        ${bad.slice(0,50).map(x => `<tr><td>${x.line}</td><td>${x.name}</td>
+        ${bad.slice(0,50).map(x => `<tr><td>${x.line}</td><td>${esc(x.name)}</td>
           <td style="color:var(--red);font-size:12px">${x.errors.join(" · ")}</td></tr>`).join("")}</table>
         <p style="font-size:12px;color:var(--muted)">Les lignes en erreur seront ignorées à l'import.</p>` : '<p style="color:var(--green)">Toutes les lignes sont valides ✓</p>'}
       ${r.valid ? `<button class="btn p" onclick="impCommit()">4. Importer ${r.valid} employé(s)</button>` : ''}</div>`;
@@ -2292,12 +2300,12 @@ async function tenantsView() {
   </div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">ADOPTION DES MODULES</b>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-      ${ov.moduleAdoption.map(m=>`<span class="tag ${m.count?'blue':'gray'}">${m.label}: ${m.count}</span>`).join(" ")}</div></div>
+      ${ov.moduleAdoption.map(m=>`<span class="tag ${m.count?'blue':'gray'}">${esc(m.label)}: ${m.count}</span>`).join(" ")}</div></div>
   <button class="btn p" style="margin-bottom:12px" onclick="tenantForm()">+ Nouvelle entreprise</button>
   <div class="panel"><table><tr><th>Entreprise</th><th>Forme</th><th>NIU</th><th>Ville</th><th>Modules</th><th>Effectif</th><th>Statut</th><th></th></tr>
   ${list.map(t => `<tr>
-    <td>${t.logo?`<img src="${t.logo}" style="height:20px;vertical-align:middle;margin-right:6px">`:""}<b>${t.name}</b>${t.acronym?` <span class="tag gray">${t.acronym}</span>`:""}</td>
-    <td>${t.legalForm||"—"}</td><td>${t.niu||"—"}</td><td>${t.hqCity||"—"}</td>
+    <td>${t.logo?`<img src="${t.logo}" style="height:20px;vertical-align:middle;margin-right:6px">`:""}<b>${esc(t.name)}</b>${t.acronym?` <span class="tag gray">${esc(t.acronym)}</span>`:""}</td>
+    <td>${t.legalForm||"—"}</td><td>${esc(t.niu||"—")}</td><td>${esc(t.hqCity||"—")}</td>
     <td>${(t.modules||[]).map(m=>`<span class="tag blue" style="margin:1px">${(TEN_MODULES.find(x=>x.key===m)||{}).label||m}</span>`).join(" ")}</td>
     <td>${t.employees}</td>
     <td><span class="tag ${t.status==="ACTIVE"?"green":"red"}">${t.status==="ACTIVE"?"Actif":"Suspendu"}</span></td>
@@ -2315,31 +2323,31 @@ async function tenantForm(id) {
   <div class="panel" style="max-width:900px">
     <b style="font-size:12px;color:var(--muted)">IDENTITÉ LÉGALE</b>
     <div class="grid2" style="margin-top:6px">
-      <div><label>Raison sociale *</label><input id="tName" value="${t.name||''}"></div>
-      <div><label>Sigle / acronyme</label><input id="tAcr" value="${t.acronym||''}"></div>
+      <div><label>Raison sociale *</label><input id="tName" value="${esc(t.name||'')}"></div>
+      <div><label>Sigle / acronyme</label><input id="tAcr" value="${esc(t.acronym||'')}"></div>
       <div><label>Forme juridique *</label><select id="tForm">${TEN_FORMS.map(f=>`<option ${t.legalForm===f?"selected":""}>${f}</option>`).join("")}</select></div>
-      <div><label>Secteur d'activité</label><input id="tSector" value="${t.sector||''}" placeholder="Ex. BTP, services, industrie"></div>
+      <div><label>Secteur d'activité</label><input id="tSector" value="${esc(t.sector||'')}" placeholder="Ex. BTP, services, industrie"></div>
     </div>
     <b style="font-size:12px;color:var(--muted)">IMMATRICULATIONS</b>
     <div class="grid3" style="margin-top:6px">
-      <div><label>N° RCCM *</label><input id="tRccm" value="${t.rccm||''}" placeholder="RC/DLA/2018/M/5228"></div>
-      <div><label>NIU (n° contribuable) *</label><input id="tNiu" value="${t.niu||''}" placeholder="M10300015976N"></div>
-      <div><label>N° employeur CNPS</label><input id="tCnps" value="${t.cnpsEmployer||''}"></div>
+      <div><label>N° RCCM *</label><input id="tRccm" value="${esc(t.rccm||'')}" placeholder="RC/DLA/2018/M/5228"></div>
+      <div><label>NIU (n° contribuable) *</label><input id="tNiu" value="${esc(t.niu||'')}" placeholder="M10300015976N"></div>
+      <div><label>N° employeur CNPS</label><input id="tCnps" value="${esc(t.cnpsEmployer||'')}"></div>
       <div><label>Capital social (FCFA)</label><input id="tCap" value="${t.shareCapital||''}" placeholder="35000000"></div>
     </div>
     <b style="font-size:12px;color:var(--muted)">SIÈGE & CONTACT</b>
     <div class="grid3" style="margin-top:6px">
-      <div><label>Adresse du siège</label><input id="tAddr" value="${t.hqAddress||''}"></div>
-      <div><label>Ville *</label><input id="tCity" value="${t.hqCity||''}"></div>
+      <div><label>Adresse du siège</label><input id="tAddr" value="${esc(t.hqAddress||'')}"></div>
+      <div><label>Ville *</label><input id="tCity" value="${esc(t.hqCity||'')}"></div>
       <div><label>Boîte postale</label><input id="tBp" value="${t.bp||''}"></div>
-      <div><label>Téléphone</label><input id="tPhone" value="${t.phone||''}" placeholder="+237 ..."></div>
-      <div><label>Email *</label><input id="tEmail" value="${t.email||''}"></div>
-      <div><label>Site web</label><input id="tWeb" value="${t.website||''}"></div>
+      <div><label>Téléphone</label><input id="tPhone" value="${esc(t.phone||'')}" placeholder="+237 ..."></div>
+      <div><label>Email *</label><input id="tEmail" value="${esc(t.email||'')}"></div>
+      <div><label>Site web</label><input id="tWeb" value="${esc(t.website||'')}"></div>
     </div>
     <b style="font-size:12px;color:var(--muted)">REPRÉSENTANT LÉGAL</b>
     <div class="grid2" style="margin-top:6px">
-      <div><label>Nom du représentant *</label><input id="tRep" value="${t.legalRep||''}"></div>
-      <div><label>Fonction</label><input id="tRepT" value="${t.legalRepTitle||'Directeur Général'}"></div>
+      <div><label>Nom du représentant *</label><input id="tRep" value="${esc(t.legalRep||'')}"></div>
+      <div><label>Fonction</label><input id="tRepT" value="${esc(t.legalRepTitle||'Directeur Général')}"></div>
     </div>
     <b style="font-size:12px;color:var(--muted)">LOGO</b>
     <div style="display:flex;gap:10px;align-items:center;margin:6px 0">
@@ -2349,7 +2357,7 @@ async function tenantForm(id) {
     <b style="font-size:12px;color:var(--muted)">MODULES ACTIVÉS</b>
     <div class="grid3" style="margin-top:6px">
       ${TEN_MODULES.map(m=>`<label class="chk"><input type="checkbox" data-mod="${m.key}" ${modsOn.includes(m.key)?"checked":""} ${m.core?"disabled checked":""}>
-        <span>${m.label}${m.core?' <span class="tag gray">de base</span>':''}</span></label>`).join("")}
+        <span>${esc(m.label)}${m.core?' <span class="tag gray">de base</span>':''}</span></label>`).join("")}
     </div>
     ${id ? "" : `<b style="font-size:12px;color:var(--muted)">COMPTE ADMINISTRATEUR INITIAL (facultatif)</b>
     <div class="grid2" style="margin-top:6px">
@@ -2367,8 +2375,8 @@ async function tenantUsers(tid, name) {
   bg.innerHTML = `<div class="modal" style="width:560px">
     <b>Utilisateurs — ${name}</b>
     <div class="scroll" style="max-height:240px">
-      ${users.length ? users.map(u=>`<div class="doc-row"><div>${u.fullName} <span class="tag gray">${u.role}</span><br>
-        <small style="color:var(--muted)">${u.email}${u.active?'':' · <span style="color:var(--red)">désactivé</span>'}</small></div>
+      ${users.length ? users.map(u=>`<div class="doc-row"><div>${esc(u.fullName)} <span class="tag gray">${u.role}</span><br>
+        <small style="color:var(--muted)">${esc(u.email)}${u.active?'':' · <span style="color:var(--red)">désactivé</span>'}</small></div>
         <button class="btn ghost sm" onclick="tenantReset('${tid}','${u.id}')">Réinit. mdp</button></div>`).join("")
        : "<small>Aucun utilisateur. Ajoutez un administrateur ci-dessous.</small>"}
     </div>
@@ -2410,7 +2418,7 @@ async function tenantSave(id){
   try{ if(id){await api("/tenants/"+id,{method:"PUT",body:JSON.stringify(body)});
       await api("/tenants/"+id+"/modules",{method:"PUT",body:JSON.stringify({modules:body.modules})});}
     else { const r=await api("/tenants",{method:"POST",body:JSON.stringify(body)});
-      if(r.admin&&r.admin.tempPassword) alert(t("Entreprise créée. Administrateur :")+` ${r.admin.email} — ${t("mot de passe temporaire")} : ${r.admin.tempPassword}`);
+      if(r.admin&&r.admin.tempPassword) alert(t("Entreprise créée. Administrateur :")+` ${esc(r.admin.email)} — ${t("mot de passe temporaire")} : ${r.admin.tempPassword}`);
       else alert(t("Entreprise enregistrée.")); tenantsView(); return; }
     alert(t("Entreprise enregistrée."));tenantsView();
   }catch(e){tErr.textContent=e.message;tErr.classList.remove("hidden");}
@@ -2490,8 +2498,8 @@ async function mailtplView() {
       <div><label>Sujet (EN)</label><input data-tpl="${k}" data-f="subjectEn" value="${(T[k].subjectEn||'').replace(/"/g,'&quot;')}"></div>
     </div>
     <div class="grid2">
-      <div><label>Message (FR)</label><textarea data-tpl="${k}" data-f="bodyFr" rows="4">${T[k].bodyFr||''}</textarea></div>
-      <div><label>Message (EN)</label><textarea data-tpl="${k}" data-f="bodyEn" rows="4">${T[k].bodyEn||''}</textarea></div>
+      <div><label>Message (FR)</label><textarea data-tpl="${k}" data-f="bodyFr" rows="4">${esc(T[k].bodyFr||'')}</textarea></div>
+      <div><label>Message (EN)</label><textarea data-tpl="${k}" data-f="bodyEn" rows="4">${esc(T[k].bodyEn||'')}</textarea></div>
     </div>
     <div style="margin-top:6px"><label>Destinataires supplémentaires (emails séparés par des virgules)</label>
       <input data-rcpt="${k}" value="${(R.byEvent&&R.byEvent[k])||''}" placeholder="ex. superviseur@entreprise.cm"></div>
