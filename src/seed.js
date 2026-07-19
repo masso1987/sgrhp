@@ -36,7 +36,7 @@ function seed() {
   db.portfolios.push(pf1, pf2, pf3);
 
   const mk = (email, fullName, role, portfolioIds = []) =>
-    db.users.push({ id: id("usr"), email, fullName, role, portfolioIds, password: hash("demo123"), active: true });
+    db.users.push({ id: id("usr"), tenantId: "t1", email, fullName, role, portfolioIds, password: hash("demo123"), active: true });
   mk("gpf@cible-rh.ci", "Aïcha KABORÉ", "GPF", [pf1.id, pf2.id]);
   mk("cd@cible-rh.ci", "Jean-Marc TANO", "CD");
   mk("rj@cible-rh.ci", "Me. Solange BAMBA", "RJ");
@@ -152,7 +152,7 @@ function ensureAccounts() {
   // Platform super-administrator (added after initial deployments)
   if (!db.users.some(u => u.role === "SADM")) {
     db.users.push({ id: id("usr"), email: "superadmin@sgrhp.io", fullName: "Super Administrateur",
-      role: "SADM", portfolioIds: [], password: hash("Superadmin2026"), active: true });
+      role: "SADM", tenantId: "platform", portfolioIds: [], password: hash("Superadmin2026"), active: true });
     console.log("Ensured super-admin account: superadmin@sgrhp.io");
   }
   // First tenant record if the platform has none

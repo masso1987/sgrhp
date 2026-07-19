@@ -47,4 +47,9 @@ async function initStorage() {
 }
 const id = (p) => `${p}_${(db.seq++).toString(36)}${Date.now().toString(36).slice(-4)}`;
 
-module.exports = { db, save, id, initStorage, USE_PG, lastError: null };
+/* Multi-tenant helpers. Legacy rows without a tenantId belong to the founding tenant "t1". */
+function tenantId(req) { return (req && req.user && req.user.tenantId) || "t1"; }
+function mine(list, req) { const tid = tenantId(req); return (list || []).filter(x => (x.tenantId || "t1") === tid); }
+function stamp(obj, req) { obj.tenantId = tenantId(req); return obj; }
+
+module.exports = { db, save, id, initStorage, USE_PG, lastError: null, tenantId, mine, stamp };

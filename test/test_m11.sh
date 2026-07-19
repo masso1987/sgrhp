@@ -3,7 +3,7 @@ B=http://localhost:4000/api
 pass=0; fail=0
 chk(){ if [ "$1" = "$2" ]; then pass=$((pass+1)); echo "PASS: $3"; else fail=$((fail+1)); echo "FAIL: $3 (got $1, want $2)"; fi }
 tok(){ curl -s $B/login -H 'Content-Type: application/json' -d "{\"email\":\"$1\",\"password\":\"demo123\"}" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("token",""))'; }
-SADM=$(tok superadmin@sgrhp.io); ADM=$(tok admin@cible-rh.ci)
+SADM=$(curl -s $B/login -H "Content-Type: application/json" -d "{\"email\":\"superadmin@sgrhp.io\",\"password\":\"Superadmin2026\"}" | python3 -c "import sys,json;print(json.load(sys.stdin).get(\"token\",\"\"))"); ADM=$(tok admin@cible-rh.ci)
 
 # super-admin exists and can list; regular admin cannot
 [ -n "$SADM" ] && chk 1 1 "super-admin account seeded & can log in" || chk 0 1 "SADM login"

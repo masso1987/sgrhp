@@ -503,7 +503,26 @@ const I18N = {
 "Gestion de stock": "Stock management",
 "Déconnecté automatiquement après inactivité.": "Automatically signed out after inactivity.",
 "Session expirée pour inactivité — reconnectez-vous": "Session expired due to inactivity — please sign in again",
-"Déconnexion après inactivité (minutes)": "Sign out after inactivity (minutes)"
+"Déconnexion après inactivité (minutes)": "Sign out after inactivity (minutes)",
+"Plateforme — entreprises clientes": "Platform — client companies",
+"Entreprises": "Companies",
+"Actives": "Active",
+"Suspendues": "Suspended",
+"Utilisateurs": "Users",
+"Employés (toutes entreprises)": "Employees (all companies)",
+"ADOPTION DES MODULES": "MODULE ADOPTION",
+"COMPTE ADMINISTRATEUR INITIAL (facultatif)": "INITIAL ADMINISTRATOR ACCOUNT (optional)",
+"Email de l'administrateur": "Administrator email",
+"Nom de l'administrateur": "Administrator name",
+"Un mot de passe temporaire sera généré et affiché une fois.": "A temporary password will be generated and shown once.",
+"Utilisateur créé.": "User created.",
+"Mot de passe temporaire :": "Temporary password:",
+"Réinitialiser le mot de passe de cet utilisateur ?": "Reset this user's password?",
+"Nouveau mot de passe temporaire :": "New temporary password:",
+"Réinit. mdp": "Reset pwd",
+"Fermer": "Close",
+"Entreprise créée. Administrateur :": "Company created. Administrator:",
+"mot de passe temporaire": "temporary password"
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -2129,8 +2148,18 @@ async function impCommit() {
 let TEN_MODULES = null, TEN_FORMS = null;
 async function tenantsView() {
   if (!TEN_MODULES) [TEN_MODULES, TEN_FORMS] = await Promise.all([api("/tenants/modules"), api("/tenants/legal-forms")]);
-  const list = await api("/tenants");
-  view.innerHTML = `<h1>Tenants — entreprises clientes</h1>
+  const [list, ov] = await Promise.all([api("/tenants"), api("/tenants/stats/overview")]);
+  view.innerHTML = `<h1>Plateforme — entreprises clientes</h1>
+  <div class="cards">
+    <div class="card"><div class="kpi">${ov.tenants}</div><div class="lbl">Entreprises</div></div>
+    <div class="card"><div class="kpi" style="color:var(--green)">${ov.active}</div><div class="lbl">Actives</div></div>
+    <div class="card"><div class="kpi" style="color:${ov.suspended?'var(--red)':'var(--muted)'}">${ov.suspended}</div><div class="lbl">Suspendues</div></div>
+    <div class="card"><div class="kpi">${ov.totalUsers}</div><div class="lbl">Utilisateurs</div></div>
+    <div class="card"><div class="kpi">${ov.totalEmployees}</div><div class="lbl">Employés (toutes entreprises)</div></div>
+  </div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">ADOPTION DES MODULES</b>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+      ${ov.moduleAdoption.map(m=>`<span class="tag ${m.count?'blue':'gray'}">${m.label}: ${m.count}</span>`).join(" ")}</div></div>
   <button class="btn p" style="margin-bottom:12px" onclick="tenantForm()">+ Nouvelle entreprise</button>
   <div class="panel"><table><tr><th>Entreprise</th><th>Forme</th><th>NIU</th><th>Ville</th><th>Modules</th><th>Effectif</th><th>Statut</th><th></th></tr>
   ${list.map(t => `<tr>
@@ -2140,6 +2169,7 @@ async function tenantsView() {
     <td>${t.employees}</td>
     <td><span class="tag ${t.status==="ACTIVE"?"green":"red"}">${t.status==="ACTIVE"?"Actif":"Suspendu"}</span></td>
     <td><button class="btn ghost sm" onclick="tenantForm('${t.id}')">Modifier</button>
+      <button class="btn ghost sm" onclick="tenantUsers('${t.id}','${t.name.replace(/'/g,"")}')">Utilisateurs</button>
       <button class="btn ghost sm" onclick="tenantToggle('${t.id}','${t.status}')">${t.status==="ACTIVE"?"Suspendre":"Réactiver"}</button></td></tr>`).join("")}
   </table></div>`;
 }
@@ -2188,9 +2218,49 @@ async function tenantForm(id) {
       ${TEN_MODULES.map(m=>`<label class="chk"><input type="checkbox" data-mod="${m.key}" ${modsOn.includes(m.key)?"checked":""} ${m.core?"disabled checked":""}>
         <span>${m.label}${m.core?' <span class="tag gray">de base</span>':''}</span></label>`).join("")}
     </div>
+    ${id ? "" : `<b style="font-size:12px;color:var(--muted)">COMPTE ADMINISTRATEUR INITIAL (facultatif)</b>
+    <div class="grid2" style="margin-top:6px">
+      <div><label>Email de l'administrateur</label><input id="tAdmEmail" placeholder="admin@entreprise.cm"></div>
+      <div><label>Nom de l'administrateur</label><input id="tAdmName"></div>
+    </div>
+    <p style="font-size:11px;color:var(--muted)">Un mot de passe temporaire sera généré et affiché une fois.</p>`}
     <div class="err hidden" id="tErr"></div>
     <button class="btn p" style="margin-top:12px" onclick="tenantSave('${id||''}')">${id?"Enregistrer":"Créer l'entreprise"}</button>
   </div>`;
+}
+async function tenantUsers(tid, name) {
+  const users = await api("/tenants/"+tid+"/users");
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="width:560px">
+    <b>Utilisateurs — ${name}</b>
+    <div class="scroll" style="max-height:240px">
+      ${users.length ? users.map(u=>`<div class="doc-row"><div>${u.fullName} <span class="tag gray">${u.role}</span><br>
+        <small style="color:var(--muted)">${u.email}${u.active?'':' · <span style="color:var(--red)">désactivé</span>'}</small></div>
+        <button class="btn ghost sm" onclick="tenantReset('${tid}','${u.id}')">Réinit. mdp</button></div>`).join("")
+       : "<small>Aucun utilisateur. Ajoutez un administrateur ci-dessous.</small>"}
+    </div>
+    <b style="font-size:12px">Ajouter un utilisateur</b>
+    <div class="grid2" style="margin-top:6px">
+      <input id="nuEmail" placeholder="email" style="margin:0"><input id="nuName" placeholder="nom complet" style="margin:0">
+      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option></select></div>
+    <div class="err hidden" id="nuErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>
+      <button class="btn p sm" onclick="tenantAddUser('${tid}','${name}')">Ajouter</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
+}
+async function tenantAddUser(tid, name) {
+  try { const r = await api("/tenants/"+tid+"/users",{method:"POST",body:JSON.stringify({
+      email:nuEmail.value,fullName:nuName.value,role:nuRole.value})});
+    alert(t("Utilisateur créé.")+(r.tempPassword?` ${t("Mot de passe temporaire :")} ${r.tempPassword}`:""));
+    document.querySelector(".modal-bg").remove(); tenantUsers(tid,name);
+  } catch(e){ nuErr.textContent=e.message; nuErr.classList.remove("hidden"); }
+}
+async function tenantReset(tid, uid) {
+  if(!confirm(t("Réinitialiser le mot de passe de cet utilisateur ?")))return;
+  try { const r = await api(`/tenants/${tid}/users/${uid}/reset`,{method:"POST",body:JSON.stringify({})});
+    alert(t("Nouveau mot de passe temporaire :")+" "+r.tempPassword); } catch(e){ alert(e.message); }
 }
 function tenPickLogo(inp){const f=inp.files[0];if(!f)return;if(f.size>200000)return alert("Logo trop volumineux (max ~200 Ko)");
   const rd=new FileReader();rd.onload=()=>{window._tenLogo=rd.result;tLogoPrev.src=rd.result;tLogoPrev.style.display="inline-block";};rd.readAsDataURL(f);}
@@ -2202,10 +2272,14 @@ async function tenantSave(id){
     legalRep:tRep.value,legalRepTitle:tRepT.value,
     modules:[...view.querySelectorAll("input[data-mod]")].filter(c=>c.checked).map(c=>c.dataset.mod)};
   if(window._tenLogo!==undefined)body.logo=window._tenLogo;
+  if(!id){ const ae=document.getElementById("tAdmEmail"), an=document.getElementById("tAdmName");
+    if(ae&&ae.value){ body.adminEmail=ae.value; body.adminName=an.value; } }
   try{ if(id){await api("/tenants/"+id,{method:"PUT",body:JSON.stringify(body)});
       await api("/tenants/"+id+"/modules",{method:"PUT",body:JSON.stringify({modules:body.modules})});}
-    else await api("/tenants",{method:"POST",body:JSON.stringify(body)});
-    alert("Entreprise enregistrée.");tenantsView();
+    else { const r=await api("/tenants",{method:"POST",body:JSON.stringify(body)});
+      if(r.admin&&r.admin.tempPassword) alert(t("Entreprise créée. Administrateur :")+` ${r.admin.email} — ${t("mot de passe temporaire")} : ${r.admin.tempPassword}`);
+      else alert(t("Entreprise enregistrée.")); tenantsView(); return; }
+    alert(t("Entreprise enregistrée."));tenantsView();
   }catch(e){tErr.textContent=e.message;tErr.classList.remove("hidden");}
 }
 async function tenantToggle(id,cur){

@@ -6,7 +6,7 @@ set -u
 cd "$(dirname "$0")/.."
 
 SUITES=(test_m1 test_m2 test_m3 test_m3b test_m3c test_m4 test_m4b test_m4c \
-        test_m5 test_m6 test_m7 test_m8 test_m9 test_m10 test_m11 test_m12)
+        test_m5 test_m6 test_m7 test_m8 test_m9 test_m10 test_m11 test_m12 test_m13)
 total_pass=0; total_fail=0
 
 start() {

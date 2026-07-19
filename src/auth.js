@@ -76,7 +76,7 @@ function login(req, res) {
     if (user.failedLogins >= p.maxFailed) {
       user.lockedUntil = new Date(Date.now() + p.lockMinutes * 60000).toISOString();
       user.failedLogins = 0;
-      audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: "t1" },
+      audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" },
         "LOCKED", "User", user.id, { reason: "too many failed logins" });
     }
     save();
@@ -91,16 +91,16 @@ function login(req, res) {
     if (!totp) return res.status(401).json({ error: "Code 2FA requis", totpRequired: true });
     const ok = speakeasy.totp.verify({ secret: user.totpSecret, encoding: "base32", token: String(totp), window: 1 });
     if (!ok) {
-      audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: "t1" },
+      audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" },
         "LOGIN_FAILED", "User", user.id, { reason: "bad 2FA code" });
       return fail("Code 2FA invalide");
     }
   }
 
   user.failedLogins = 0; user.lockedUntil = null; save();
-  const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: "t1" },
+  const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: user.tenantId || "t1" },
     SECRET, { expiresIn: `${policy().sessionHours}h` });
-  audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: "t1" }, "LOGIN", "User", user.id, {});
+  audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" }, "LOGIN", "User", user.id, {});
   touchActivity(user.id);
   res.json({ token, idleMinutes: policy().idleMinutes,
     user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });

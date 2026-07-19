@@ -11,6 +11,7 @@ const router = require("express").Router();
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
+const { hash, passwordPolicy } = require("../auth");
 
 /* Catalogue of platform modules. HR & Careers ship first; others are placeholders. */
 const MODULES = [
@@ -76,9 +77,22 @@ router.post("/", allow("SADM"), (req, res) => {
   // enabled modules from the form (core stay on)
   if (Array.isArray(b.modules)) t.modules = [...new Set([...MODULES.filter(m => m.core).map(m => m.key),
     ...b.modules.filter(k => MODULES.some(m => m.key === k))])];
-  tenants().push(t); save();
-  audit(req.user, "CREATED", "Tenant", t.id, { name: t.name, niu: t.niu, modules: t.modules });
-  res.status(201).json(t);
+  tenants().push(t);
+  let adminInfo = null;
+  if (b.adminEmail && b.adminName) {
+    if (!db.users.find(u => u.email === b.adminEmail)) {
+      const pw = b.adminPassword || ("Bienvenue" + new Date().getFullYear());
+      if (!passwordPolicy(pw)) {
+        const u = { id: id("usr"), tenantId: t.id, email: b.adminEmail, fullName: b.adminName,
+          role: "ADM", portfolioIds: [], password: hash(pw), active: true };
+        db.users.push(u);
+        adminInfo = { email: u.email, tempPassword: b.adminPassword ? undefined : pw };
+      }
+    }
+  }
+  save();
+  audit(req.user, "CREATED", "Tenant", t.id, { name: t.name, niu: t.niu, modules: t.modules, admin: !!adminInfo });
+  res.status(201).json({ ...t, admin: adminInfo });
 });
 
 router.put("/:id", allow("SADM"), (req, res) => {
@@ -112,6 +126,72 @@ router.put("/:id/status", allow("SADM"), (req, res) => {
   t.status = st; save();
   audit(req.user, "CONFIG_CHANGED", "Tenant", t.id, { status: st });
   res.json({ id: t.id, status: st });
+});
+
+/* -------- Platform overview (dashboard) -------- */
+router.get("/stats/overview", allow("SADM"), (req, res) => {
+  const list = tenants();
+  res.json({
+    tenants: list.length,
+    active: list.filter(t => t.status === "ACTIVE").length,
+    suspended: list.filter(t => t.status === "SUSPENDED").length,
+    totalUsers: db.users.filter(u => u.role !== "SADM").length,
+    totalEmployees: db.employees.length,
+    moduleAdoption: MODULES.map(m => ({ key: m.key, label: m.label,
+      count: list.filter(t => (t.modules || []).includes(m.key)).length })),
+    perTenant: list.map(t => ({ id: t.id, name: t.name, status: t.status,
+      users: db.users.filter(u => (u.tenantId || "t1") === t.id && u.role !== "SADM").length,
+      employees: db.employees.filter(e => (e.tenantId || "t1") === t.id).length,
+      modules: (t.modules || []).length })),
+  });
+});
+
+/* -------- Provision & manage a tenant's users -------- */
+router.get("/:id/users", allow("SADM"), (req, res) => {
+  const t = tenants().find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Tenant introuvable" });
+  res.json(db.users.filter(u => (u.tenantId || "t1") === t.id)
+    .map(({ password, totpSecret, pendingTotp, ...u }) => u));
+});
+
+/** Create a user (typically the first administrator) for a tenant. */
+router.post("/:id/users", allow("SADM"), (req, res) => {
+  const t = tenants().find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Tenant introuvable" });
+  const { email, fullName, role = "ADM", password } = req.body || {};
+  if (!email || !fullName) return res.status(400).json({ error: "Email et nom complet obligatoires" });
+  if (!["GPF", "CD", "RJ", "UI", "ADM"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
+  if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Cet email existe déjà" });
+  const pw = password || ("Bienvenue" + new Date().getFullYear());   // temp password, admin changes it
+  const pwErr = passwordPolicy(pw);
+  if (pwErr) return res.status(400).json({ error: pwErr });
+  const u = { id: id("usr"), tenantId: t.id, email, fullName, role, portfolioIds: [],
+    password: hash(pw), active: true };
+  db.users.push(u); save();
+  audit(req.user, "CREATED", "User", u.id, { tenant: t.id, role, provisioned: true });
+  res.status(201).json({ id: u.id, email: u.email, fullName: u.fullName, role: u.role,
+    tempPassword: password ? undefined : pw });   // returned once so the SADM can hand it over
+});
+
+/** Reset a tenant user's password (returns the new temp password once). */
+router.post("/:id/users/:uid/reset", allow("SADM"), (req, res) => {
+  const t = tenants().find(x => x.id === req.params.id);
+  const u = db.users.find(x => x.id === req.params.uid && (x.tenantId || "t1") === (t && t.id));
+  if (!t || !u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  const pw = "Reinit" + Math.floor(1000 + Math.random() * 9000) + "Rh";
+  u.password = hash(pw); u.failedLogins = 0; u.lockedUntil = null; save();
+  audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true, tenant: t.id });
+  res.json({ tempPassword: pw });
+});
+
+/** Enable/disable a tenant user. */
+router.put("/:id/users/:uid/status", allow("SADM"), (req, res) => {
+  const t = tenants().find(x => x.id === req.params.id);
+  const u = db.users.find(x => x.id === req.params.uid && (x.tenantId || "t1") === (t && t.id));
+  if (!t || !u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  u.active = !!req.body.active; save();
+  audit(req.user, "CONFIG_CHANGED", "User", u.id, { active: u.active, tenant: t.id });
+  res.json({ id: u.id, active: u.active });
 });
 
 module.exports = { router, MODULES, LEGAL_FORMS };
