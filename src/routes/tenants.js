@@ -78,6 +78,7 @@ router.post("/", allow("SADM"), (req, res) => {
   if (Array.isArray(b.modules)) t.modules = [...new Set([...MODULES.filter(m => m.core).map(m => m.key),
     ...b.modules.filter(k => MODULES.some(m => m.key === k))])];
   tenants().push(t);
+  require("../seed").seedTenantData(t.id);   // baseline referentials/conventions/config for the new tenant
   let adminInfo = null;
   if (b.adminEmail && b.adminName) {
     if (!db.users.find(u => u.email === b.adminEmail)) {

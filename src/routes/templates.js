@@ -3,6 +3,7 @@ const path = require("path");
 const multer = require("multer");
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
+const { mine } = require("../store");
 const { audit } = require("../audit");
 const engine = require("../templateEngine");
 
@@ -15,7 +16,7 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json(db.templates));
+router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json(mine(db.templates, req)));
 
 // ADM uploads a Word template; placeholders are scanned automatically
 router.post("/", allow("ADM"), upload.single("file"), (req, res, next) => {
@@ -28,7 +29,7 @@ router.post("/", allow("ADM"), upload.single("file"), (req, res, next) => {
       docType: req.body.docType || "CONTRACT", storedAs: req.file.filename,
       originalName: req.file.originalname, tags,
       uploadedBy: req.user.id, uploadedAt: new Date().toISOString() };
-    db.templates.push(t); save();
+    t.tenantId = req.user.tenantId || "t1"; db.templates.push(t); save();
     audit(req.user, "CREATED", "Template", t.id, { name: t.name, tags: tags.length });
     res.status(201).json(t);
   } catch (e) { next(e); }
@@ -63,7 +64,7 @@ router.post("/raw", allow("ADM"), upload.single("file"), (req, res, next) => {
       .replace(/\s+/g, " ").trim();
     const raw = { id: id("raw"), storedAs: req.file.filename, originalName: req.file.originalname,
       uploadedBy: req.user.id, uploadedAt: new Date().toISOString() };
-    db.rawTemplates.push(raw); save();
+    raw.tenantId = req.user.tenantId || "t1"; db.rawTemplates.push(raw); save();
     res.status(201).json({ id: raw.id, name: req.file.originalname, text: text.slice(0, 8000) });
   } catch (e) { next(e); }
 });
@@ -115,7 +116,7 @@ router.post("/raw/:id/tagify", allow("ADM"), (req, res, next) => {
     const t = { id: id("tpl"), name: name || raw.originalName.replace(/\.docx$/i, "") + " (template)",
       docType: docType || "ATTESTATION", storedAs: outName, originalName: raw.originalName, tags,
       uploadedBy: req.user.id, uploadedAt: new Date().toISOString() };
-    db.templates.push(t); save();
+    t.tenantId = req.user.tenantId || "t1"; db.templates.push(t); save();
     audit(req.user, "CREATED", "Template", t.id, { studio: true, name: t.name, tags: tags.length });
     res.status(201).json(t);
   } catch (e) { next(e); }

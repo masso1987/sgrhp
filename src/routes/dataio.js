@@ -11,6 +11,7 @@ const XLSX = require("xlsx");
 const PDFDocument = require("pdfkit");
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
+const { mine } = require("../store");
 const { audit } = require("../audit");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -42,10 +43,10 @@ const FIELDS = [
 ];
 
 /* ---------------- Export ---------------- */
-function exportRows() {
-  return db.employees.map(e => {
-    const pf = db.portfolios.find(p => p.id === e.portfolioId);
-    const cnv = db.conventions.find(c => c.id === pf?.conventionId);
+function exportRows(req) {
+  return mine(db.employees, req).map(e => {
+    const pf = mine(db.portfolios, req).find(p => p.id === e.portfolioId);
+    const cnv = mine(db.conventions, req).find(c => c.id === pf?.conventionId);
     const c = e.contract || {};
     const gross = Object.values(e.salary || {}).reduce((s, v) => s + (Number(v) || 0), 0);
     return {
@@ -68,7 +69,7 @@ function exportRows() {
 
 router.get("/export", allow("CD", "RJ", "ADM"), (req, res) => {
   const fmt = (req.query.format || "xlsx").toLowerCase();
-  const rows = exportRows();
+  const rows = exportRows(req);
   audit(req.user, "EXPORTED", "Employees", "all", { format: fmt, count: rows.length });
 
   if (fmt === "xlsx" || fmt === "csv") {
@@ -76,10 +77,10 @@ router.get("/export", allow("CD", "RJ", "ADM"), (req, res) => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Employés");
     // reference sheets that make re-import easy
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-      db.portfolios.map(p => ({ Portefeuille: p.name,
-        Convention: (db.conventions.find(c => c.id === p.conventionId) || {}).name || "" }))), "Portefeuilles");
+      mine(db.portfolios, req).map(p => ({ Portefeuille: p.name,
+        Convention: (mine(db.conventions, req).find(c => c.id === p.conventionId) || {}).name || "" }))), "Portefeuilles");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-      (db.referentials.find(r => r.key === "categories")?.values || []).map(v => ({ Catégorie: v }))), "Catégories");
+      (mine(db.referentials, req).find(r => r.key === "categories")?.values || []).map(v => ({ Catégorie: v }))), "Catégories");
     const type = fmt === "csv" ? "csv" : "xlsx";
     const buf = XLSX.write(wb, { type: "buffer", bookType: type });
     res.setHeader("Content-Type", fmt === "csv" ? "text/csv"
@@ -120,7 +121,7 @@ router.get("/export", allow("CD", "RJ", "ADM"), (req, res) => {
 router.get("/import/template", allow("GPF", "ADM"), (req, res) => {
   const wb = XLSX.utils.book_new();
   const header = {}; FIELDS.forEach(f => header[f.label] = "");
-  const example = { "Nom": "OUATTARA", "Prénom(s)": "Karim", "Portefeuille": db.portfolios[0]?.name || "",
+  const example = { "Nom": "OUATTARA", "Prénom(s)": "Karim", "Portefeuille": mine(db.portfolios, req)[0]?.name || "",
     "Date d'embauche": "2026-03-02", "Date de naissance": "1994-06-14", "Numéro CNI": "CI000001",
     "Validité CNI": "2030-01-01", "Type de contrat": "CDI", "Catégorie": "B2" };
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([header, example]), "Modèle import");
@@ -170,12 +171,13 @@ router.post("/import/analyze", allow("GPF", "ADM"), upload.single("file"), (req,
 
 /** Step 2 — validate the mapping against real data without writing (dry run). */
 function validateRows(rows, mapping, user, { commit } = {}) {
-  const cats = db.referentials.find(r => r.key === "categories")?.values || [];
-  const ctypes = db.contractTypes.map(t => t.name);
+  const req = { user };   // for tenant-scoped mine()
+  const cats = mine(db.referentials, req).find(r => r.key === "categories")?.values || [];
+  const ctypes = mine(db.contractTypes, req).map(t => t.name);
   const scopedPf = user.role === "GPF"
     ? (db.users.find(u => u.id === user.id)?.portfolioIds || []) : null;
-  const seenCni = new Set(db.employees.map(e => e.cniNumber));
-  const seenCnps = new Set(db.employees.filter(e => e.cnpsNumber).map(e => e.cnpsNumber));
+  const seenCni = new Set(mine(db.employees, req).map(e => e.cniNumber));
+  const seenCnps = new Set(mine(db.employees, req).filter(e => e.cnpsNumber).map(e => e.cnpsNumber));
   const results = [];
   const created = [];
 
@@ -194,7 +196,7 @@ function validateRows(rows, mapping, user, { commit } = {}) {
     for (const f of FIELDS) if (f.required && !get(f.key)) errs.push(`${f.label} manquant`);
 
     const pfName = get("portfolio");
-    const pf = db.portfolios.find(p => p.name.toLowerCase() === pfName.toLowerCase());
+    const pf = mine(db.portfolios, req).find(p => p.name.toLowerCase() === pfName.toLowerCase());
     if (pfName && !pf) errs.push(`Portefeuille inconnu : ${pfName}`);
     if (pf && scopedPf && !scopedPf.includes(pf.id)) errs.push("Portefeuille non rattaché à vous");
 
@@ -207,7 +209,7 @@ function validateRows(rows, mapping, user, { commit } = {}) {
     if (cat && !cats.includes(cat)) errs.push(`Catégorie inconnue : ${cat}`);
     const ctype = get("contractType") || "CDI";
     if (get("contractType") && !ctypes.includes(ctype)) errs.push(`Type de contrat inconnu : ${ctype}`);
-    const fixed = (db.contractTypes.find(t => t.name === ctype) || {}).fixedTerm;
+    const fixed = (mine(db.contractTypes, req).find(t => t.name === ctype) || {}).fixedTerm;
     if (fixed && !get("contractEndDate")) errs.push(`${ctype} exige une date de fin`);
 
     if (errs.length === 0 && !seenCni.has(cni)) { seenCni.add(cni); if (cnps) seenCnps.add(cnps); }
@@ -229,7 +231,7 @@ function validateRows(rows, mapping, user, { commit } = {}) {
           endDate: fixed ? toISO(get("contractEndDate")) : null },
         salary,
       };
-      db.employees.push(emp); created.push(emp.id);
+      emp.tenantId = user.tenantId || "t1"; db.employees.push(emp); created.push(emp.id);
     }
   });
 

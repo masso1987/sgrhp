@@ -3,6 +3,7 @@ const path = require("path");
 const multer = require("multer");
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
+const { mine, stamp } = require("../store");
 const { audit } = require("../audit");
 
 const upload = multer({
@@ -15,7 +16,7 @@ const upload = multer({
 
 // GPF scope: only employees of their portfolios
 const scoped = (req) => {
-  let list = db.employees;
+  let list = mine(db.employees, req);
   if (req.user.role === "GPF") {
     const u = db.users.find(x => x.id === req.user.id);
     list = list.filter(e => (u?.portfolioIds || []).includes(e.portfolioId));
@@ -72,7 +73,7 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
       b.salary[k] = Number(v);
     }
   }
-  const emp = { id: id("emp"), status: "DRAFT", createdBy: req.user.id, createdAt: new Date().toISOString(), ...b };
+  const emp = stamp({ id: id("emp"), status: "DRAFT", createdBy: req.user.id, createdAt: new Date().toISOString(), ...b }, req);
   db.employees.push(emp); save();
   audit(req.user, "CREATED", "Employee", emp.id, { name: `${b.firstName} ${b.lastName}` });
   res.status(201).json({ ...emp, checklist: checklist(emp) });
@@ -108,7 +109,7 @@ router.post("/:id/files", allow("GPF", "ADM"), upload.single("file"), (req, res)
     expiryDate: expiryDate || null,
     uploadedBy: req.user.id, uploadedAt: new Date().toISOString(),
   };
-  db.files.push(f); save();
+  stamp(f, req); db.files.push(f); save();
   audit(req.user, "UPLOADED", "DocFile", f.id, { employeeId: emp.id, docType, fileName: f.fileName });
   res.status(201).json(f);
 });

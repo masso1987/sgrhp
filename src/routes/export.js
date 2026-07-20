@@ -3,15 +3,16 @@ const router = require("express").Router();
 const PDFDocument = require("pdfkit");
 const { db } = require("../store");
 const { allow } = require("../rbac");
+const { mine } = require("../store");
 const { audit } = require("../audit");
 
 router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
-  const emp = db.employees.find(e => e.id === req.params.id);
+  const emp = mine(db.employees, req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
-  const pf = db.portfolios.find(p => p.id === emp.portfolioId);
-  const files = db.files.filter(f => f.employeeId === emp.id);
-  const docs = db.documents.filter(d => d.refId === emp.id);
-  const decisions = db.decisions.filter(d => d.employeeId === emp.id);
+  const pf = mine(db.portfolios, req).find(p => p.id === emp.portfolioId);
+  const files = mine(db.files, req).filter(f => f.employeeId === emp.id);
+  const docs = mine(db.documents, req).filter(d => d.refId === emp.id);
+  const decisions = mine(db.decisions, req).filter(d => d.employeeId === emp.id);
   const fr = d => d ? new Date(d).toLocaleDateString("fr-FR") : "—";
 
   audit(req.user, "EXPORTED", "Employee", emp.id, { name: `${emp.firstName} ${emp.lastName}` });

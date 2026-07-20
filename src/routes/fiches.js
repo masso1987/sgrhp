@@ -9,6 +9,7 @@ const fs = require("fs");
 const multer = require("multer");
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
+const { mine } = require("../store");
 const { audit } = require("../audit");
 
 const DIR = path.join(__dirname, "..", "..", "uploads", "fiches");
@@ -66,7 +67,7 @@ async function textOf(filePath, name) {
   throw Object.assign(new Error("Only PDF or Excel files are accepted"), { status: 400 });
 }
 
-router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json(db.fichesPoste));
+router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json(mine(db.fichesPoste, req)));
 
 router.post("/", allow("GPF", "CD", "ADM"), upload.single("file"), async (req, res, next) => {
   try {
@@ -78,7 +79,7 @@ router.post("/", allow("GPF", "CD", "ADM"), upload.single("file"), async (req, r
       fileName: req.file.originalname, storedAs: req.file.filename,
       extracted, sectionsFound: found,
       uploadedBy: req.user.id, uploadedAt: new Date().toISOString() };
-    db.fichesPoste.push(fiche); save();
+    fiche.tenantId = req.user.tenantId || "t1"; db.fichesPoste.push(fiche); save();
     audit(req.user, "CREATED", "FichePoste", fiche.id, { title: fiche.title, sectionsFound: found });
     res.status(201).json(fiche);
   } catch (e) { next(e); }
@@ -86,7 +87,7 @@ router.post("/", allow("GPF", "CD", "ADM"), upload.single("file"), async (req, r
 
 // Correct/complete extracted sections manually
 router.put("/:id", allow("GPF", "CD", "ADM"), (req, res) => {
-  const f = db.fichesPoste.find(x => x.id === req.params.id);
+  const f = mine(db.fichesPoste, req).find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: "Not found" });
   for (const [k] of SECTIONS)
     if (req.body[k] !== undefined) f.extracted[k] = String(req.body[k]).slice(0, 3000);
@@ -97,7 +98,7 @@ router.put("/:id", allow("GPF", "CD", "ADM"), (req, res) => {
 });
 
 router.get("/:id/download", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
-  const f = db.fichesPoste.find(x => x.id === req.params.id);
+  const f = mine(db.fichesPoste, req).find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: "Not found" });
   audit(req.user, "DOWNLOADED", "FichePoste", f.id, {});
   res.download(path.join(DIR, f.storedAs), f.fileName);

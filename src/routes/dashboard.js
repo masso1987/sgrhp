@@ -2,6 +2,7 @@
 const router = require("express").Router();
 const { db } = require("../store");
 const { allow } = require("../rbac");
+const { mine } = require("../store");
 const wf = require("../workflow");
 
 router.get("/", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
@@ -9,7 +10,7 @@ router.get("/", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   const now = new Date();
   const inDays = d => Math.ceil((new Date(d) - now) / 86400e3);
 
-  const docs = db.documents.map(wf.withTimer);
+  const docs = mine(db.documents, req).map(wf.withTimer);
   const pending = docs.filter(d => ["SUBMITTED", "CD_APPROVED"].includes(d.status));
   const cniExpiring = db.employees
     .filter(e => e.cniExpiry && inDays(e.cniExpiry) <= 60)
@@ -19,14 +20,14 @@ router.get("/", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
     .map(e => ({ name: `${e.firstName} ${e.lastName}`, date: e.contract.endDate, days: inDays(e.contract.endDate) }));
 
   res.json({
-    headcount: db.employees.length,
-    portfolios: db.portfolios.map(p => ({
-      name: p.name, count: db.employees.filter(e => e.portfolioId === p.id).length })),
+    headcount: mine(db.employees, req).length,
+    portfolios: mine(db.portfolios, req).map(p => ({
+      name: p.name, count: mine(db.employees, req).filter(e => e.portfolioId === p.id).length })),
     pendingCD: pending.filter(d => d.currentStage === "CD").length,
     pendingRJ: pending.filter(d => d.currentStage === "RJ").length,
     warnings: pending.filter(d => d.slaState === "WARNING").length,
     breaches: pending.filter(d => d.slaState === "BREACH").length,
-    generated: db.documents.filter(d => d.status === "GENERATED").length,
+    generated: mine(db.documents, req).filter(d => d.status === "GENERATED").length,
     myQueue: ["CD", "RJ"].includes(req.user.role)
       ? pending.filter(d => d.currentStage === req.user.role).length : null,
     myRejected: req.user.role === "GPF"

@@ -34,6 +34,8 @@ function scanTags(filePath) {
 /** Values the system can resolve automatically from the employee record (auto-fill). */
 function autoContext(employeeId) {
   const e = db.employees.find(x => x.id === employeeId) || {};
+  const _tid = e.tenantId || "t1";
+  const _mine = (coll) => (db[coll] || []).filter(x => (x.tenantId || "t1") === _tid);
   const pf = db.portfolios.find(p => p.id === e.portfolioId);
   const c = e.contract || {};
   const today = new Date().toLocaleDateString("fr-FR");
@@ -54,17 +56,17 @@ function autoContext(employeeId) {
   };
   // Salary elements: expose configured tags + gross total; salary-grid fallback for base
   let gross = 0;
-  for (const el of db.salaryElements || []) {
+  for (const el of _mine("salaryElements")) {
     const amount = (e.salary || {})[el.name];
     if (amount !== undefined) { gross += Number(amount) || 0; if (el.tag) base[el.tag] = amount; }
   }
   if (gross > 0) base.salary_gross = gross;
   // Convention collective of the employee's portfolio: name + salary figures
-  const cnv = (db.conventions || []).find(x => x.id === pf?.conventionId);
+  const cnv = _mine("conventions").find(x => x.id === pf?.conventionId);
   if (cnv) base.collective_agreement = cnv.name;
   if (base.salary_base === undefined && c.category) {
     const row = (cnv?.grid || []).find(g => g.category === c.category)
-      || (db.salaryGrid || []).find(g => g.category === c.category);
+      || _mine("salaryGrid").find(g => g.category === c.category);
     if (row && row.baseSalary > 0) { base.salary_base = row.baseSalary; if (!gross) base.salary_gross = row.baseSalary; }
   }
   return base;

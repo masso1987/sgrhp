@@ -29,7 +29,7 @@ function createFromTemplate(templateId, employeeId, provided, user) {
     const e = new Error("Missing information: " + missing.join(", "));
     e.status = 422; e.missing = missing; throw e;
   }
-  const doc = { id: id("doc"), type: "TEMPLATE_DOC", refId: employeeId,
+  const doc = { id: id("doc"), tenantId: user.tenantId || "t1", type: "TEMPLATE_DOC", refId: employeeId,
     templateId, data: resolved,
     title: `${template.name} — ${emp.firstName} ${emp.lastName}`,
     createdById: user.id, createdAt: new Date().toISOString(),
@@ -77,7 +77,7 @@ function submitEmployeeFile(employeeId, user) {
     const e = new Error(`Already in workflow (status ${doc.status})`); e.status = 409; throw e;
   }
   if (!doc) {
-    doc = { id: id("doc"), type: "EMPLOYEE_FILE", refId: employeeId,
+    doc = { id: id("doc"), tenantId: user.tenantId || "t1", type: "EMPLOYEE_FILE", refId: employeeId,
       title: `Employee file — ${emp.firstName} ${emp.lastName}`,
       createdById: user.id, createdAt: new Date().toISOString(),
       status: "DRAFT", cycle: 0, steps: [], generatedFile: null };
