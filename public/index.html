@@ -773,7 +773,7 @@ const NAV = [
   { k: "grid", label: "💰 Grille salariale", roles: ["GPF","CD","ADM"] },
   { k: "career", label: "📈 Career & Perf.", roles: ["GPF","CD","RJ","ADM"] },
   { k: "reports", label: "📊 Reports & KPIs", roles: ["CD","RJ","ADM"] },
-  { k: "generated", label: "🖨 Documents générés", roles: ["UI","ADM","CD","RJ"] },
+  { k: "generated", label: "🖨 Documents générés", roles: ["GPF","CD","RJ","UI","ADM"] },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"] },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"] },
   { k: "params", label: "🔧 Paramètres", roles: ["ADM"] },
@@ -1221,15 +1221,32 @@ async function wfReject(id) {
   catch (e) { alert(e.message); }
 }
 
+let GEN_CACHE = [];
 async function generatedView() {
-  const list = await api("/documents/generated");
+  GEN_CACHE = await api("/documents/generated");
   view.innerHTML = `<h1>Documents générés</h1>
-  <div class="note">Lecture seule. Chaque impression ou téléchargement est journalisé (qui, quand, quel document).</div>
-  <div class="panel">` + (list.length ? list.map(d => `
-    <div class="doc-row"><div><b>${esc(d.title)}</b><br><small style="color:var(--muted)">Generated ${d.generatedAt.replace("T"," ").slice(0,16)}</small></div>
-    <div><button class="btn p sm" onclick="openGen('${d.id}',0)">⬇ Télécharger</button>
-    <button class="btn ghost sm" onclick="openGen('${d.id}',1)">🖨 Imprimer</button></div></div>`).join("")
-  : "Aucun document généré pour le moment.") + `</div>`;
+  <div class="note">Tous les documents dont le circuit de validation est terminé, classés par employé.
+  Accessible à tous les comptes. Chaque impression ou téléchargement est journalisé (qui, quand, quel document).</div>
+  <input id="genSearch" placeholder="🔍 Rechercher par employé ou par document…" style="max-width:420px"
+    oninput="renderGen(this.value)">
+  <div id="genList"></div>`;
+  renderGen("");
+}
+function renderGen(q) {
+  q = (q || "").toLowerCase();
+  const list = GEN_CACHE.filter(d =>
+    !q || (d.title || "").toLowerCase().includes(q) || (d.employeeName || "").toLowerCase().includes(q));
+  if (!list.length) { genList.innerHTML = `<div class="panel">Aucun document généré pour le moment.</div>`; return; }
+  const groups = {};
+  list.forEach(d => { const k = d.employeeName || "— Non rattaché —"; (groups[k] = groups[k] || []).push(d); });
+  genList.innerHTML = Object.keys(groups).sort().map(name => `
+    <div class="panel"><b style="font-size:12px;color:var(--muted)">👤 ${esc(name)}</b>
+    ${groups[name].map(d => `
+      <div class="doc-row"><div><b>${esc(d.title)}</b><br>
+        <small style="color:var(--muted)">Généré le ${(d.generatedAt||"").replace("T"," ").slice(0,16)}</small></div>
+      <div><button class="btn p sm" onclick="openGen('${d.id}',0)">⬇ Télécharger</button>
+      <button class="btn ghost sm" onclick="openGen('${d.id}',1)">🖨 Imprimer</button></div></div>`).join("")}
+    </div>`).join("");
 }
 async function openGen(id, print) {
   const r = await fetch(`/api/documents/${id}/download?print=${print}`, { headers: { Authorization: "Bearer " + TOKEN } });
@@ -1418,7 +1435,8 @@ empDetail = async function(id) {
         return `<tr><td><b>${esc(d.title)}</b>${d.status === "DRAFT" && rej ? `<br><small style="color:var(--red)">✕ ${rej.stage}: ${esc(rej.rejectReason)}</small>` : ""}</td>
         <td>${d.cycle}</td><td>${ST_TAG(d.status)} ${SLA_TAG(d)}</td>
         <td>${d.status === "DRAFT" && canEdit ? `<button class="btn ghost sm" onclick='genForm("${id}","${d.id}","${d.templateId}",${JSON.stringify(d.data)})'>Correct & resubmit</button>` : ""}
-        ${d.status === "GENERATED" ? `<button class="btn ghost sm" onclick="openGen('${d.id}',0)">⬇ Word</button>` : ""}</td></tr>`; }).join("")}</table>`
+        ${d.status === "GENERATED" ? `<button class="btn p sm" onclick="openGen('${d.id}',0)">⬇ Word</button>
+          <button class="btn ghost sm" onclick="openGen('${d.id}',1)">🖨 Imprimer</button>` : ""}</td></tr>`; }).join("")}</table>`
     : '<small style="color:var(--muted)">Aucun pour le moment.</small>'}</div>`;
   view.appendChild(div.firstElementChild);
 };
