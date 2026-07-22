@@ -305,51 +305,96 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Bulletin_${(s.employeeName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
-  const doc = new PDFDocument({ margin: 42, size: "A4" });
+  const doc = new PDFDocument({ margin: 28, size: "A4" });
   doc.pipe(res);
   const t = s.result.totals, r = s.result;
+  const F = (n) => String(Math.round(n||0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const C = (emp.contract) || {};
+  const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if(!h) return "";
+    const d = new Date(s.period + "-01"); let m=(d.getFullYear()-h.getFullYear())*12+(d.getMonth()-h.getMonth());
+    return `${Math.floor(m/12)} an(s) et ${m%12} mois`; })();
+  const cum = (db.payCumuls||[]).find(c => (c.tenantId||"t1")===(s.tenantId||"t1") && c.employeeId===s.employeeId && c.year===s.period.slice(0,4));
+  let y = 30;
+  const L = (x,txt,opt={}) => { doc.text(txt==null?"":String(txt), x, y, opt); };
 
-  doc.fontSize(15).text(tenant.name, { align: "left" });
-  doc.fontSize(9).fillColor("#555").text(`${tenant.hqCity || ""}${tenant.niu ? "  ·  NIU " + tenant.niu : ""}${tenant.cnpsEmployer ? "  ·  CNPS " + tenant.cnpsEmployer : ""}`);
-  doc.moveDown(0.4).fillColor("#000").fontSize(13).text(`BULLETIN DE PAIE — ${s.period}`, { align: "center" });
-  doc.moveDown(0.4);
-  doc.fontSize(9).fillColor("#000");
-  doc.text(`Salarié : ${s.employeeName}     Matricule : ${s.matricule}`);
-  doc.text(`Catégorie : ${(emp.contract && emp.contract.category) || "—"}     Emploi : ${(emp.contract && emp.contract.position) || emp.position || "—"}`);
-  doc.text(`Embauche : ${emp.hireDate || "—"}     CNPS : ${emp.cnpsNumber || "—"}`);
-  doc.moveDown(0.5);
-
-  // table header
-  const cols = [42, 210, 300, 360, 430, 500]; // x positions
-  const head = () => {
-    doc.fontSize(8).fillColor("#000");
-    doc.text("Rubrique", cols[0], doc.y, { continued: false });
-    const y = doc.y - 10;
-    doc.text("Base", cols[2], y); doc.text("Taux", cols[3], y);
-    doc.text("Gain", cols[4], y); doc.text("Retenue", cols[5], y);
-    doc.moveTo(42, doc.y).lineTo(553, doc.y).strokeColor("#ccc").stroke();
-  };
-  head();
-  doc.fontSize(8);
-  for (const l of r.lines) {
-    if (!l.gain && !l.retenue && !l.employer) continue;
-    const y = doc.y + 2;
-    doc.fillColor("#000").text(`${l.code}  ${l.label}`, cols[0], y, { width: 250 });
-    if (l.base) doc.text(money(l.base), cols[2], y, { width: 55, align: "right" });
-    if (l.rate && l.rate !== 1) doc.text((l.rate * 100).toFixed(2) + "%", cols[3], y, { width: 55, align: "right" });
-    if (l.gain) doc.text(money(l.gain), cols[4], y, { width: 60, align: "right" });
-    if (l.retenue) doc.text(money(l.retenue), cols[5], y, { width: 53, align: "right" });
-    doc.moveDown(0.2);
+  // ---- Header ----
+  doc.fontSize(13).font("Helvetica-Bold"); L(28, tenant.name); doc.font("Helvetica");
+  doc.fontSize(13).font("Helvetica-Bold"); L(360, "BULLETIN DE PAIE", {width:207,align:"right"}); doc.font("Helvetica");
+  y+=20; doc.fontSize(8);
+  L(28, `Période : ${s.period}`, {width:300}); L(360,`Payé par ${C.paymentMethod||"Virement"}`,{width:207,align:"right"});
+  y+=14;
+  // info grid (two columns)
+  const info = [
+    ["N° Contribuable", tenant.niu||"—", "Matricule", s.matricule||emp.matricule||"—"],
+    ["N° Employeur (CNPS)", tenant.cnpsEmployer||"—", "N° CNPS", emp.cnpsNumber||"—"],
+    ["Banque", emp.bankName||C.bankName||"—", "N° Compte", emp.bankAccount||C.bankIban||"—"],
+    ["Conv. collective", C.convention||emp.convention||"—", "Catégorie", C.category||"—"],
+    ["Salarié", s.employeeName, "Emploi", C.position||emp.position||"—"],
+    ["Date embauche", emp.hireDate||"—", "Ancienneté", yrs||"—"],
+    ["Sit. familiale", emp.maritalStatus||"—", "Nbre enfants", (emp.children!=null?emp.children:"—")],
+    ["Qualification", emp.qualification||"—", "Département", emp.department||s.department||"—"],
+    ["N° DIPE", emp.dipe||tenant.dipe||"—", "Jour/Mois", "30,00"],
+  ];
+  doc.fontSize(7.5);
+  for (const [k1,v1,k2,v2] of info) {
+    doc.fillColor("#666"); L(28,k1); L(300,k2);
+    doc.fillColor("#000"); doc.font("Helvetica-Bold"); L(120,v1,{width:170}); L(392,v2,{width:170}); doc.font("Helvetica");
+    y+=12;
   }
-  doc.moveTo(42, doc.y + 2).lineTo(553, doc.y + 2).strokeColor("#ccc").stroke();
-  doc.moveDown(0.5).fontSize(9).fillColor("#000");
-  const row = (k, v) => doc.text(k, 300, doc.y, { continued: true }).text("  " + money(v) + " XAF", { align: "right" });
-  row("Salaire brut", t.brutTotal);
-  row("Total retenues", t.totalRetenues);
-  doc.font("Helvetica-Bold"); row("NET À PAYER", t.netAPayer); doc.font("Helvetica");
-  doc.moveDown(0.4).fillColor("#555").fontSize(8);
-  doc.text(`Charges patronales : ${money(t.chargesPatronales)} XAF     Coût total employeur : ${money(t.coutTotalEmployeur)} XAF`, 42);
-  doc.moveDown(0.3).text(`Payé le ${new Date().toLocaleDateString("fr-FR")} — par ${(emp.contract && emp.contract.paymentMethod) || "Virement"}`);
+  y+=4;
+  // ---- Rubrique table ----
+  const X={num:28,des:56,nb:210,base:255,txs:312,gain:352,ret:418,txp:478,retp:512};
+  const th=(lbl,x,w,al="right")=>doc.fillColor("#000").text(lbl,x,y,{width:w,align:al});
+  doc.fontSize(7).font("Helvetica-Bold");
+  th("N°",X.num,26,"left"); th("Désignation",X.des,150,"left"); th("Nombre",X.nb,42); th("Base",X.base,52);
+  th("Taux",X.txs,38); th("Gain",X.gain,62); th("Retenue",X.ret,56); th("Tx pat",X.txp,32); th("Ret. pat",X.retp,43);
+  doc.font("Helvetica"); y+=10; doc.moveTo(28,y).lineTo(567,y).strokeColor("#999").lineWidth(0.5).stroke(); y+=3;
+  const rowLine=(l)=>{
+    doc.fontSize(7).fillColor("#000");
+    L(X.num,String(l.code).slice(0,7),{width:26}); L(X.des,l.label,{width:152});
+    if(l.hours) doc.text(F(l.hours),X.nb,y,{width:42,align:"right"});
+    if(l.base) doc.text(F(l.base),X.base,y,{width:52,align:"right"});
+    if(l.rate&&l.rate!==1&&l.kind!=="GAIN") doc.text((l.rate*100).toFixed(2),X.txs,y,{width:38,align:"right"});
+    if(l.gain) doc.text(F(l.gain),X.gain,y,{width:62,align:"right"});
+    if(l.retenue) doc.text(F(l.retenue),X.ret,y,{width:56,align:"right"});
+    if(l.employerRate) doc.text((l.employerRate*100).toFixed(2),X.txp,y,{width:32,align:"right"});
+    if(l.employer) doc.text(F(l.employer),X.retp,y,{width:43,align:"right"});
+    y+=10;
+  };
+  const gains=r.lines.filter(l=>l.kind==="GAIN"&&l.gain);
+  gains.forEach(rowLine);
+  doc.moveTo(28,y).lineTo(567,y).strokeColor("#ccc").stroke(); y+=2;
+  doc.font("Helvetica-Bold").fontSize(7.5); L(X.des,"Total Brut"); doc.text(F(t.brutTotal),X.gain,y,{width:62,align:"right"}); doc.font("Helvetica"); y+=12;
+  const cot=r.lines.filter(l=>l.kind==="COTIS"||l.kind==="IMPOT"||l.kind==="RETENUE");
+  cot.forEach(rowLine);
+  doc.moveTo(28,y).lineTo(567,y).strokeColor("#999").stroke(); y+=2;
+  const cotisPatSlip=(t.cnpsPatronal||0)+(t.cfcPatronal||0);
+  doc.font("Helvetica-Bold").fontSize(7.5); L(X.des,"Total Cotisations");
+  doc.text(F(t.totalRetenues-(t.autresRetenues||0)),X.ret,y,{width:56,align:"right"});
+  doc.text(F(cotisPatSlip),X.retp,y,{width:43,align:"right"}); doc.font("Helvetica"); y+=16;
+
+  // ---- Summary band ----
+  const bandCols=[["Cumuls",28,60],["Salaire brut",92,70],["Salaire taxable",165,70],["Charges\nsalariales",240,55],["Charges\npatronales",298,55],["Avantages\nnature",356,50],["Heures\nsupp.",408,42],["Jours",452,34],["NET A PAYER",488,79]];
+  doc.rect(28,y,539,46).strokeColor("#999").stroke();
+  doc.fontSize(6.5).fillColor("#555");
+  bandCols.forEach(([lbl,x,w])=>doc.text(lbl.replace("\\n"," "),x,y+2,{width:w,align:x===28?"left":"right"}));
+  const bandRow=(name,yy,vals)=>{ doc.fillColor("#000").fontSize(7.5);
+    doc.text(name,28,yy,{width:60}); const xs=[92,165,240,298,356,408,452,488],ws=[70,70,55,55,50,42,34,79];
+    vals.forEach((v,i)=>doc.text(v,xs[i],yy,{width:ws[i],align:"right"})); };
+  bandRow("Période",y+16,[F(t.brutTotal),F(t.netImposable),F(t.totalRetenues),F(t.chargesPatronales),"0","0","30",F(t.netAPayer)]);
+  if(cum) bandRow("Année",y+30,[F(cum.brut),"—",F(cum.cnps+cum.irpp),"—","0","0","—",F(cum.net)]);
+  y+=54;
+  // NET emphasis
+  doc.font("Helvetica-Bold").fontSize(11).fillColor("#000");
+  L(360,`NET À PAYER : ${F(t.netAPayer)} XAF`,{width:207,align:"right"}); doc.font("Helvetica");
+  y+=22;
+  // ---- Footer: congés + signature + legal ----
+  doc.fontSize(7).fillColor("#000");
+  doc.rect(28,y,539,30).strokeColor("#ccc").stroke();
+  L(34,`Congés : acquis ${(r.meta&&r.meta.leaveAccrued)||2.5} j/mois`,{width:250}); L(360,"Signature",{width:200,align:"right"});
+  y+=36;
+  doc.fontSize(6.5).fillColor("#666");
+  L(28,"Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé.",{width:539,align:"center"});
   doc.end();
 });
 
