@@ -774,6 +774,8 @@ const NAV = [
   { k: "career", label: "📈 Career & Perf.", roles: ["GPF","CD","RJ","ADM"] },
   { k: "reports", label: "📊 Reports & KPIs", roles: ["CD","RJ","ADM"] },
   { k: "generated", label: "🖨 Documents générés", roles: ["GPF","CD","RJ","UI","ADM"] },
+  { k: "payroll", label: "💵 Paie", roles: ["ADM","CD","RJ","GPF"], module: "payroll" },
+  { k: "payconfig", label: "⚙️ Paramètres paie", roles: ["ADM"], module: "payroll" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"] },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"] },
   { k: "params", label: "🔧 Paramètres", roles: ["ADM"] },
@@ -791,14 +793,14 @@ async function boot() {
   api("/me").then(m => armIdle(m.idleMinutes || 30)).catch(() => armIdle(30));
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} — ${ME.role}`;
-  const items = NAV.filter(n => n.roles.includes(ME.role));
+  const items = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || !ME.modules || ME.modules.includes(n.module)));
   nav.innerHTML = items.map(n => `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${esc(n.label)}</div>`).join("");
   go("dash");
 }
 function go(k) {
   applySectionColor(k);
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -2539,6 +2541,271 @@ async function saveTemplates() {
     await api("/settings/email/recipients", { method: "PUT", body: JSON.stringify({ globalCC: rGlobal.value, byEvent }) });
     alert(t("Modèles et destinataires enregistrés."));
   } catch (e) { tplErr.textContent = e.message; tplErr.classList.remove("hidden"); }
+}
+
+
+/* ================================================================= */
+/* Module Paie (Payroll) — SGRHP                                      */
+/* ================================================================= */
+const fCFA = n => (Math.round(n || 0)).toLocaleString("fr-FR");
+function payStatusTag(s) {
+  return ({ OPEN: '<span class="tag amber">Ouverte</span>',
+    CALCULATED: '<span class="tag blue">Calculée</span>',
+    CLOSED: '<span class="tag green">Clôturée ✓</span>' }[s] || s);
+}
+
+/* ---- Runs list ---- */
+async function payrollView() {
+  const runs = await api("/payroll/runs");
+  view.innerHTML = `<h1>💵 Paie — cycles mensuels</h1>
+  <div class="note">Créez une paie mensuelle, saisissez les éléments variables (primes, heures supp., acomptes),
+  calculez les bulletins, éditez-les en PDF, puis clôturez la période.</div>
+  ${ME.role === "ADM" ? `<div class="panel"><form onsubmit="return payCreateRun(event)" style="display:flex;gap:8px;align-items:center">
+    <label style="margin:0">Nouvelle paie&nbsp;</label>
+    <input type="month" id="pRunPeriod" required style="max-width:180px;margin:0">
+    <button class="btn p sm">+ Créer</button></form><div class="err hidden" id="pRunErr"></div></div>` : ""}
+  <div class="panel"><table><tr><th>Période</th><th>Statut</th><th>Effectif</th><th>Calculée le</th><th></th></tr>
+  ${runs.length ? runs.map(r => `<tr><td><b>${esc(r.period)}</b></td><td>${payStatusTag(r.status)}</td>
+    <td>${r.count || 0}</td><td>${r.computedAt ? r.computedAt.slice(0, 10) : "—"}</td>
+    <td><button class="btn ghost sm" onclick="payRunView('${r.id}')">Ouvrir</button></td></tr>`).join("")
+    : `<tr><td colspan="5">Aucune paie pour le moment.</td></tr>`}
+  </table></div>`;
+}
+async function payCreateRun(ev) {
+  ev.preventDefault();
+  try {
+    await api("/payroll/runs", { method: "POST", body: JSON.stringify({ period: pRunPeriod.value }) });
+    payrollView();
+  } catch (e) { pRunErr.textContent = e.message; pRunErr.classList.remove("hidden"); }
+  return false;
+}
+
+/* ---- Single run ---- */
+let PAY_EMPS = null;
+async function payRunView(id) {
+  const [data, emps] = await Promise.all([api("/payroll/runs/" + id), PAY_EMPS ? Promise.resolve(PAY_EMPS) : api("/employees")]);
+  PAY_EMPS = emps;
+  const { run, payslips, totals } = data;
+  const isAdm = ME.role === "ADM", open = run.status !== "CLOSED";
+  view.innerHTML = `<button class="btn ghost sm" onclick="payrollView()">← Retour</button>
+  <h1 style="margin-top:10px">Paie ${esc(run.period)} ${payStatusTag(run.status)}</h1>
+  <div class="panel" style="display:flex;gap:18px;flex-wrap:wrap">
+    <div><label>Effectif</label><div><b>${totals.count}</b></div></div>
+    <div><label>Brut total</label><div><b>${fCFA(totals.brut)}</b> XAF</div></div>
+    <div><label>Net total</label><div><b>${fCFA(totals.net)}</b> XAF</div></div>
+    <div><label>Charges patronales</label><div>${fCFA(totals.charges)} XAF</div></div>
+    <div><label>Coût employeur</label><div><b>${fCFA(totals.cout)}</b> XAF</div></div>
+  </div>
+  ${isAdm ? `<div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
+    ${open ? `<button class="btn p" onclick="payCompute('${run.id}')">⚙ Calculer la paie</button>` : ""}
+    ${run.status === "CALCULATED" ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">🔒 Clôturer la période</button>` : ""}
+    <button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>
+    <button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button>
+  </div>` : `<div class="panel"><button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>
+    <button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button></div>`}
+
+  ${open && (isAdm || ME.role === "GPF") ? payElementsForm(run) : ""}
+
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">BULLETINS</b>
+  <table style="margin-top:6px"><tr><th>Matricule</th><th>Salarié</th><th>Brut</th><th>Retenues</th><th>Net à payer</th><th></th></tr>
+  ${payslips.length ? payslips.map(s => `<tr><td>${esc(s.matricule)}</td><td><b>${esc(s.employeeName)}</b></td>
+    <td>${fCFA(s.brut)}</td><td>${fCFA(s.retenues)}</td><td><b>${fCFA(s.net)}</b></td>
+    <td><button class="btn ghost sm" onclick="payslipView('${s.id}')">Détail</button>
+    <button class="btn p sm" onclick="payPdf('${s.id}',0)">⬇ PDF</button>
+    <button class="btn ghost sm" onclick="payPdf('${s.id}',1)">🖨</button></td></tr>`).join("")
+    : `<tr><td colspan="6">Pas encore calculée. Cliquez « Calculer la paie ».</td></tr>`}
+  </table></div>`;
+}
+
+function payElementsForm(run) {
+  return `<div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES — ${esc(run.period)}</b>
+  <form onsubmit="return payAddElement(event,'${run.period}')" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
+    <div><label>Salarié</label><select id="peEmp" style="min-width:200px">
+      ${(PAY_EMPS || []).map(e => `<option value="${e.id}">${esc(e.firstName + " " + e.lastName)}</option>`).join("")}</select></div>
+    <div><label>Type</label><select id="peType" onchange="peToggle()">
+      <option value="PRIME">Prime (imposable)</option>
+      <option value="INDEMNITE">Indemnité (non imposable)</option>
+      <option value="HS20">Heures supp. +20%</option>
+      <option value="HS30">Heures supp. +30%</option>
+      <option value="HS40">Heures supp. +40%</option>
+      <option value="NUIT">Heures de nuit +50%</option>
+      <option value="ABSENCE">Absence (jours)</option>
+      <option value="ACOMPTE">Acompte</option>
+      <option value="PRET">Remboursement prêt</option>
+    </select></div>
+    <div><label>Libellé</label><input id="peLabel" placeholder="ex. Prime de performance" style="min-width:180px"></div>
+    <div><label id="peValLbl">Montant (XAF)</label><input id="peVal" type="number" min="0" step="1" style="max-width:130px"></div>
+    <button class="btn p sm">+ Ajouter</button>
+  </form>
+  <div class="err hidden" id="peErr" style="margin-top:6px"></div>
+  <div id="peList" style="margin-top:8px"></div></div>`;
+}
+function peToggle() {
+  const t = peType.value, lbl = document.getElementById("peValLbl");
+  if (["HS20", "HS30", "HS40", "NUIT"].includes(t)) lbl.textContent = "Heures";
+  else if (t === "ABSENCE") lbl.textContent = "Jours";
+  else lbl.textContent = "Montant (XAF)";
+}
+async function payAddElement(ev, period) {
+  ev.preventDefault();
+  const t = peType.value;
+  const body = { employeeId: peEmp.value, period, type: t, label: peLabel.value || peType.selectedOptions[0].text };
+  const v = Number(peVal.value || 0);
+  if (["HS20", "HS30", "HS40", "NUIT"].includes(t)) body.hours = v;
+  else if (t === "ABSENCE") body.days = v;
+  else body.amount = v;
+  try {
+    await api("/payroll/elements", { method: "POST", body: JSON.stringify(body) });
+    peVal.value = ""; peLabel.value = "";
+    payLoadElements(period, peEmp.value);
+  } catch (e) { peErr.textContent = e.message; peErr.classList.remove("hidden"); }
+  return false;
+}
+async function payLoadElements(period, employeeId) {
+  const list = await api(`/payroll/elements?period=${period}&employeeId=${employeeId}`);
+  peList.innerHTML = list.length ? `<table><tr><th>Type</th><th>Libellé</th><th>Valeur</th><th></th></tr>
+    ${list.map(e => `<tr><td>${esc(e.type)}</td><td>${esc(e.label)}</td>
+      <td>${e.amount != null ? fCFA(e.amount) + " XAF" : e.hours != null ? e.hours + " h" : (e.days || 0) + " j"}</td>
+      <td><button class="btn ghost sm" onclick="payDelElement('${e.id}','${period}','${employeeId}')">✕</button></td></tr>`).join("")}</table>`
+    : `<small style="color:var(--muted)">Aucun élément saisi pour ce salarié.</small>`;
+}
+async function payDelElement(id, period, employeeId) {
+  try { await api("/payroll/elements/" + id, { method: "DELETE" }); payLoadElements(period, employeeId); }
+  catch (e) { alert(e.message); }
+}
+async function payCompute(id) {
+  if (!confirm("Calculer/recalculer tous les bulletins de cette paie ?")) return;
+  try { const r = await api(`/payroll/runs/${id}/compute`, { method: "POST" }); alert(`Paie calculée : ${r.computed} bulletin(s).`); payRunView(id); }
+  catch (e) { alert(e.message); }
+}
+async function payClose(id) {
+  if (!confirm("Clôturer la période ? Les bulletins seront verrouillés et les cumuls mis à jour.")) return;
+  try { await api(`/payroll/runs/${id}/close`, { method: "POST" }); payRunView(id); }
+  catch (e) { alert(e.message); }
+}
+
+/* ---- Payslip detail ---- */
+async function payslipView(id) {
+  const s = await api("/payroll/payslips/" + id);
+  const t = s.result.totals;
+  const line = l => `<tr><td>${esc(l.code)}</td><td>${esc(l.label)}</td>
+    <td style="text-align:right">${l.base ? fCFA(l.base) : ""}</td>
+    <td style="text-align:right">${l.rate && l.rate !== 1 ? (l.rate * 100).toFixed(2) + "%" : ""}</td>
+    <td style="text-align:right;color:var(--green)">${l.gain ? fCFA(l.gain) : ""}</td>
+    <td style="text-align:right;color:var(--red)">${l.retenue ? fCFA(l.retenue) : ""}</td>
+    <td style="text-align:right;color:var(--muted)">${l.employer ? fCFA(l.employer) : ""}</td></tr>`;
+  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${s.runId}')">← Retour</button>
+  <h1 style="margin-top:10px">Bulletin — ${esc(s.employeeName)} <small style="color:var(--muted)">${esc(s.period)}</small></h1>
+  <div class="panel"><button class="btn p" onclick="payPdf('${s.id}',0)">⬇ Télécharger PDF</button>
+    <button class="btn ghost" onclick="payPdf('${s.id}',1)">🖨 Imprimer</button></div>
+  <div class="panel"><table><tr><th>Code</th><th>Rubrique</th><th style="text-align:right">Base</th>
+    <th style="text-align:right">Taux</th><th style="text-align:right">Gain</th><th style="text-align:right">Retenue</th>
+    <th style="text-align:right">Patronal</th></tr>
+    ${s.result.lines.filter(l => l.gain || l.retenue || l.employer).map(line).join("")}</table></div>
+  <div class="panel" style="display:flex;gap:24px;flex-wrap:wrap">
+    <div><label>Salaire brut</label><div><b>${fCFA(t.brutTotal)}</b> XAF</div></div>
+    <div><label>CNPS salarié</label><div>${fCFA(t.cnpsSalarie)} XAF</div></div>
+    <div><label>IRPP + CAC</label><div>${fCFA(t.irpp + t.cac)} XAF</div></div>
+    <div><label>Total retenues</label><div>${fCFA(t.totalRetenues)} XAF</div></div>
+    <div><label>Net à payer</label><div style="font-size:18px;color:var(--green)"><b>${fCFA(t.netAPayer)}</b> XAF</div></div>
+    <div><label>Coût employeur</label><div>${fCFA(t.coutTotalEmployeur)} XAF</div></div>
+  </div>`;
+}
+function payPdf(id, print) {
+  const url = `/api/payroll/payslips/${id}/pdf?print=${print}`;
+  fetch(url, { headers: { Authorization: "Bearer " + TOKEN } }).then(r => r.blob()).then(b => {
+    const u = URL.createObjectURL(b);
+    if (print) { const w = window.open(u); if (w) w.onload = () => w.print(); }
+    else { const a = document.createElement("a"); a.href = u; a.download = "bulletin.pdf"; a.click(); }
+  });
+}
+
+/* ---- Livre de paie & cotisations ---- */
+async function payLivre(id) {
+  const { run, rows, totals } = await api(`/payroll/runs/${id}/livre`);
+  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
+  <h1 style="margin-top:10px">📖 Livre de paie — ${esc(run.period)}</h1>
+  <div class="panel"><table><tr><th>Matricule</th><th>Salarié</th><th style="text-align:right">Brut</th>
+    <th style="text-align:right">Retenues</th><th style="text-align:right">Net</th><th style="text-align:right">Coût empl.</th></tr>
+    ${rows.map(r => `<tr><td>${esc(r.matricule)}</td><td>${esc(r.employeeName)}</td>
+      <td style="text-align:right">${fCFA(r.brut)}</td><td style="text-align:right">${fCFA(r.retenues)}</td>
+      <td style="text-align:right"><b>${fCFA(r.net)}</b></td><td style="text-align:right">${fCFA(r.cout)}</td></tr>`).join("")}
+    <tr style="font-weight:bold;border-top:2px solid #999"><td colspan="2">TOTAUX (${totals.count})</td>
+      <td style="text-align:right">${fCFA(totals.brut)}</td><td style="text-align:right"></td>
+      <td style="text-align:right">${fCFA(totals.net)}</td><td style="text-align:right">${fCFA(totals.cout)}</td></tr>
+  </table></div>`;
+}
+async function payCotis(id) {
+  const { run, lignes, totals } = await api(`/payroll/runs/${id}/cotisations`);
+  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
+  <h1 style="margin-top:10px">🏛 États des cotisations — ${esc(run.period)}</h1>
+  <div class="note">Base de déclaration CNPS et impôts (DIPE).</div>
+  <div class="panel"><table><tr><th>Code</th><th>Cotisation</th><th style="text-align:right">Base</th>
+    <th style="text-align:right">Part salariale</th><th style="text-align:right">Part patronale</th></tr>
+    ${lignes.map(l => `<tr><td>${esc(l.code)}</td><td>${esc(l.label)}</td>
+      <td style="text-align:right">${fCFA(l.base)}</td><td style="text-align:right">${fCFA(l.salarie)}</td>
+      <td style="text-align:right">${fCFA(l.patronal)}</td></tr>`).join("")}
+  </table></div>`;
+}
+
+/* ================= Paramètres paie (config + rubriques) ============= */
+async function payconfigView() {
+  const [cfg, rubs] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques")]);
+  const num = (path, val) => `<input type="number" step="any" data-cfg="${path}" value="${val}" style="max-width:110px">`;
+  view.innerHTML = `<h1>⚙️ Paramètres paie</h1>
+  <div class="note">Barèmes et taux (Cameroun) — modifiables. Ils s'appliquent au prochain calcul de paie.</div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">CNPS</b>
+    <div class="grid3" style="margin-top:8px">
+      <div><label>Plafond mensuel</label>${num("cnps.ceiling", cfg.cnps.ceiling)}</div>
+      <div><label>PVID salarié</label>${num("cnps.pvidEmployee", cfg.cnps.pvidEmployee)}</div>
+      <div><label>PVID employeur</label>${num("cnps.pvidEmployer", cfg.cnps.pvidEmployer)}</div>
+      <div><label>Prestations familiales (emp.)</label>${num("cnps.familyEmployer", cfg.cnps.familyEmployer)}</div>
+      <div><label>Risques prof. (emp.)</label>${num("cnps.workAccidentEmployer", cfg.cnps.workAccidentEmployer)}</div>
+    </div></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">IMPÔTS & AUTRES</b>
+    <div class="grid3" style="margin-top:8px">
+      <div><label>IRPP — frais pro (abattement)</label>${num("irpp.fraisProRate", cfg.irpp.fraisProRate)}</div>
+      <div><label>IRPP — abattement annuel</label>${num("irpp.annualAbatement", cfg.irpp.annualAbatement)}</div>
+      <div><label>CAC (% IRPP)</label>${num("irpp.cacRate", cfg.irpp.cacRate)}</div>
+      <div><label>CFC salarié</label>${num("cfc.employee", cfg.cfc.employee)}</div>
+      <div><label>CFC employeur</label>${num("cfc.employer", cfg.cfc.employer)}</div>
+      <div><label>FNE employeur</label>${num("fne.employer", cfg.fne.employer)}</div>
+    </div>
+    <div style="margin-top:10px"><label>Barème IRPP (JSON, tranches annuelles)</label>
+      <textarea id="cfgIrppBr" style="width:100%;height:70px;font-family:monospace;font-size:12px">${esc(JSON.stringify(cfg.irpp.brackets))}</textarea></div>
+    <div style="margin-top:8px"><label>Barème RAV (JSON)</label>
+      <textarea id="cfgRav" style="width:100%;height:60px;font-family:monospace;font-size:12px">${esc(JSON.stringify(cfg.rav))}</textarea></div>
+    <div style="margin-top:8px"><label>Barème TDL (JSON)</label>
+      <textarea id="cfgTdl" style="width:100%;height:60px;font-family:monospace;font-size:12px">${esc(JSON.stringify(cfg.tdl))}</textarea></div>
+  </div>
+  <div class="panel"><button class="btn p" onclick="paySaveConfig()">💾 Enregistrer les paramètres</button>
+    <span class="err hidden" id="cfgErr" style="margin-left:10px"></span>
+    <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>
+
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">RUBRIQUES DE PAIE (${rubs.length})</b>
+  <table style="margin-top:6px"><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Sens</th><th>Imposable</th></tr>
+  ${rubs.map(r => `<tr><td>${esc(r.code)}</td><td>${esc(r.label)}</td><td>${esc(r.family)}</td>
+    <td>${esc(r.formula)}</td><td>${esc(r.sens)}</td><td>${r.taxable ? "Oui" : "Non"}</td></tr>`).join("")}
+  </table></div>`;
+}
+async function paySaveConfig() {
+  const body = {};
+  view.querySelectorAll("input[data-cfg]").forEach(i => {
+    const path = i.dataset.cfg.split("."); let o = body;
+    for (let k = 0; k < path.length - 1; k++) o = o[path[k]] = o[path[k]] || {};
+    o[path[path.length - 1]] = Number(i.value);
+  });
+  try {
+    body.irpp = body.irpp || {};
+    body.irpp.brackets = JSON.parse(cfgIrppBr.value);
+    body.rav = JSON.parse(cfgRav.value);
+    body.tdl = JSON.parse(cfgTdl.value);
+  } catch (e) { cfgErr.textContent = "JSON invalide : " + e.message; cfgErr.classList.remove("hidden"); return; }
+  try {
+    await api("/payroll/config", { method: "PUT", body: JSON.stringify(body) });
+    cfgErr.classList.add("hidden"); cfgOk.textContent = "Enregistré ✓";
+    setTimeout(() => cfgOk.textContent = "", 2500);
+  } catch (e) { cfgErr.textContent = e.message; cfgErr.classList.remove("hidden"); }
 }
 
 </script>

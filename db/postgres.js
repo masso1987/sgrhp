@@ -28,6 +28,9 @@ const COLLECTIONS = {
   interviews: "interviews", successionPlans: "succession_plans",
   notifications: "notifications", audit: "audit_log", docTypes: "doc_types",
   salaryGrid: "salary_grid",
+  payrollConfig: "payroll_config", payRubriques: "pay_rubriques",
+  bulletinModels: "bulletin_models", payRuns: "pay_runs", payslips: "payslips",
+  payElements: "pay_elements", payCumuls: "pay_cumuls",
 };
 
 let pool;

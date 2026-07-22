@@ -31,6 +31,7 @@ const CNI = "V";
  *  paths, default portfolios), all stamped with tenantId. Idempotent per tenant. */
 function seedTenantData(tid) {
   const has = (coll) => (db[coll] || []).some(x => (x.tenantId || "t1") === tid);
+  try { require("./payroll/seed").seedPayroll(tid); } catch (e) { console.error("payroll seed:", e.message); }
 
   if (!has("referentials")) {
     const R = [

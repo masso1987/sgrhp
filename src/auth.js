@@ -127,7 +127,8 @@ function me(req, res) {
   const u = db.users.find(x => x.id === req.user.id);
   if (!u) return res.status(404).json({ error: "Introuvable" });
   const { password, totpSecret, ...safe } = u;
-  res.json({ ...safe, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes });
+  const _t = (db.tenants || []).find(t => t.id === (u.tenantId || "t1"));
+  res.json({ ...safe, modules: _t && _t.modules ? _t.modules : null, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes });
 }
 
 /* ---------- 2FA enrolment ----------
