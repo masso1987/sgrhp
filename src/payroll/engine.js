@@ -28,9 +28,12 @@ const DEFAULT_CONFIG = {
   cfc: { employee: 0.01, employer: 0.015 }, // 5050/5060 Crédit Foncier
   fne: { employer: 0.01 },                  // 5070 FNE (base BRUT)
 
-  // IRPP — SNI = fraisProRate × NETIMPO ; progressive monthly brackets ; CAC = cacRate × IRPP
+  // IRPP — SNI = fraisProRate × NETIMPO − PVID − (annualAbatement/12) ; progressive ; CAC = cacRate × IRPP
+  // (validated against ZANG payslip: NETIMPO 396 211 → IRPP 24 602)
   irpp: {
-    fraisProRate: 0.70,       // SNI = 70% du net imposable (abattement 30% frais pro)
+    fraisProRate: 0.70,       // abattement 30% frais professionnels
+    annualAbatement: 500000,  // abattement forfaitaire annuel (÷12 par mois)
+    deductPvid: true,         // SNI net of the employee CNPS (PVID)
     brackets: [               // monthly equivalents of the annual 2M/3M/5M bands
       { upTo: 166667, rate: 0.10 },
       { upTo: 250000, rate: 0.15 },
@@ -141,7 +144,9 @@ function computePayslip(input, configOverride) {
   add({ code: "5020", label: "CNPS Accident de travail", kind: "COTIS", base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
 
   /* 4) IMPÔTS */
-  const sni = Math.max(0, NETIMPO * cfg.irpp.fraisProRate);
+  const sni = Math.max(0, NETIMPO * cfg.irpp.fraisProRate
+    - (cfg.irpp.deductPvid ? pvidE : 0)
+    - (cfg.irpp.annualAbatement || 0) / 12);
   const irpp = r0(progressive(sni, cfg.irpp.brackets));
   const cac = r0(irpp * cfg.irpp.cacRate);
   const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0(BRUT * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
