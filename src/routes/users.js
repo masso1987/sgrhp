@@ -49,4 +49,34 @@ router.put("/:id/modules", allow("ADM"), (req, res) => {
   res.json({ id: user.id, modules: user.modules });
 });
 
+// ADM enables / disables a user account (blocks login when disabled).
+router.put("/:id/active", allow("ADM"), (req, res) => {
+  const u = mine(db.users, req).find(x => x.id === req.params.id);
+  if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  if (u.id === req.user.id) return res.status(400).json({ error: "Vous ne pouvez pas désactiver votre propre compte" });
+  const active = !!(req.body && req.body.active);
+  if (!active && u.role === "ADM" &&
+      !mine(db.users, req).some(x => x.role === "ADM" && x.active && x.id !== u.id))
+    return res.status(400).json({ error: "Impossible : c'est le dernier administrateur actif du tenant" });
+  u.active = active; save();
+  audit(req.user, active ? "ENABLED" : "DISABLED", "User", u.id, { email: u.email });
+  res.json({ id: u.id, active: u.active });
+});
+
+// ADM changes a user's role.
+router.put("/:id/role", allow("ADM"), (req, res) => {
+  const u = mine(db.users, req).find(x => x.id === req.params.id);
+  if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  const role = req.body && req.body.role;
+  if (!["GPF", "CD", "RJ", "UI", "ADM"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
+  if (u.role === "ADM" && role !== "ADM" &&
+      !mine(db.users, req).some(x => x.role === "ADM" && x.active && x.id !== u.id))
+    return res.status(400).json({ error: "Impossible : c'est le dernier administrateur du tenant" });
+  const before = u.role; u.role = role;
+  if (role !== "GPF") u.portfolioIds = [];
+  save();
+  audit(req.user, "ROLE_CHANGED", "User", u.id, { email: u.email, before, after: role });
+  res.json({ id: u.id, role: u.role });
+});
+
 module.exports = router;

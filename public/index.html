@@ -1045,14 +1045,27 @@ async function saveMods(uid, btn) {
 async function users() {
   const list = await api("/users");
   const pfs = await api("/portfolios"); PFS = pfs;
-  view.innerHTML = `<h1>Users & Roles</h1><div class="panel">
-    <table><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Portefeuilles rattachés (GPF)</th><th>Modules (accès)</th><th>Statut</th></tr>
-    ${list.map(u => `<tr><td>${esc(u.fullName)}</td><td>${esc(u.email)}</td>
-      <td><span class="tag gray">${u.role}</span></td>
+  const roleSel = (u) => `<select onchange="setRole('${u.id}', this.value)" ${u.id === ME.id ? "disabled title='Votre propre compte'" : ""}>
+      ${["GPF","CD","RJ","UI","ADM"].map(rr => `<option ${u.role === rr ? "selected" : ""}>${rr}</option>`).join("")}</select>`;
+  view.innerHTML = `<h1>Utilisateurs & accès</h1>
+    <div class="note">Gérez les comptes de votre organisation : rôle, accès aux modules (Paie, etc. activés par la plateforme),
+    portefeuilles, et activation/désactivation des comptes.</div>
+    <div class="panel"><table>
+    <tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Modules (accès)</th><th>Portefeuilles (GPF)</th><th>Statut</th><th>Actions</th></tr>
+    ${list.map(u => `<tr>
+      <td><b>${esc(u.fullName)}</b></td><td>${esc(u.email)}</td>
+      <td>${roleSel(u)}</td>
+      <td>${u.role === "ADM"
+        ? '<span class="tag gray">tous (admin)</span>'
+        : `<span class="tag ${u.modules && u.modules.length ? "blue" : "gray"}">${(u.modules || []).length}</span>
+           <button class="btn ghost sm" onclick="modModal('${u.id}')">🧩 Modules</button>`}</td>
       <td>${u.role === "GPF"
-        ? `<span class="tag gray">${(u.portfolioIds || []).length} rattaché(s)</span>
+        ? `<span class="tag gray">${(u.portfolioIds || []).length}</span>
            <button class="btn ghost sm" onclick="pfModal('${u.id}')">🔗 Gérer</button>` : "—"}</td>
-      <td><span class="tag ${u.active ? "green" : "red"}">${u.active ? "Active" : "Disabled"}</span></td></tr>`).join("")}
+      <td><span class="tag ${u.active ? "green" : "red"}">${u.active ? "Actif" : "Désactivé"}</span></td>
+      <td>${u.id === ME.id ? '<span style="color:var(--muted)">—</span>'
+        : `<button class="btn ${u.active ? "ghost" : "p"} sm" onclick="toggleActive('${u.id}', ${!u.active})">${u.active ? "Désactiver" : "Activer"}</button>`}</td>
+    </tr>`).join("")}
     </table></div>
     <div class="panel" style="max-width:560px"><b>Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:8px">
@@ -1061,6 +1074,15 @@ async function users() {
       <div><label>Mot de passe</label><input id="uPass" type="password"></div></div>
     <div class="err hidden" id="uErr"></div>
     <button class="btn p" onclick="userSave()">Créer</button></div>`;
+}
+async function setRole(uid, role) {
+  try { await api(`/users/${uid}/role`, { method: "PUT", body: JSON.stringify({ role }) }); users(); }
+  catch (e) { alert(e.message); users(); }
+}
+async function toggleActive(uid, active) {
+  if (!active && !confirm("Désactiver ce compte ? L'utilisateur ne pourra plus se connecter (aucune donnée supprimée).")) return;
+  try { await api(`/users/${uid}/active`, { method: "PUT", body: JSON.stringify({ active }) }); users(); }
+  catch (e) { alert(e.message); }
 }
 async function pfModal(uid) {
   const [list, pfs] = await Promise.all([api("/users"), api("/portfolios")]);
