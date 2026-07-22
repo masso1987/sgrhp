@@ -692,7 +692,7 @@ const api = async (path, opts = {}) => {
   }
   if (r.status === 429) throw new Error("Trop de requêtes — patientez quelques secondes");
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || `Erreur ${r.status}`);
+  if (!r.ok) { const e = new Error(j.error || `Erreur ${r.status}`); Object.assign(e, j); throw e; }
   return j;
 };
 
@@ -2803,10 +2803,71 @@ async function payconfigView() {
     <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>
 
   <div class="panel"><b style="font-size:12px;color:var(--muted)">RUBRIQUES DE PAIE (${rubs.length})</b>
-  <table style="margin-top:6px"><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Sens</th><th>Imposable</th></tr>
-  ${rubs.map(r => `<tr><td>${esc(r.code)}</td><td>${esc(r.label)}</td><td>${esc(r.family)}</td>
-    <td>${esc(r.formula)}</td><td>${esc(r.sens)}</td><td>${r.taxable ? "Oui" : "Non"}</td></tr>`).join("")}
-  </table></div>`;
+    <div style="margin:8px 0;display:flex;gap:8px;align-items:center">
+      <button class="btn p sm" onclick="rubModal()">+ Créer une rubrique</button>
+      <input id="rubSearch" placeholder="🔍 Rechercher (code ou libellé)…" style="max-width:320px;margin:0" oninput="rubRender(this.value)">
+    </div>
+    <div class="note" style="margin-bottom:8px">Les rubriques sont votre baseline modifiable. ⚠️ Une rubrique déjà utilisée
+    dans des bulletins calculés est verrouillée : la modifier affecte toute la paie et exige une confirmation.</div>
+    <div id="rubList"></div></div>`;
+  PAY_RUBS = rubs; rubRender("");
+}
+let PAY_RUBS = [];
+function rubRender(q) {
+  q = (q || "").toLowerCase();
+  const list = PAY_RUBS.filter(r => !q || (r.code + " " + r.label).toLowerCase().includes(q));
+  rubList.innerHTML = `<table><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Base</th>
+    <th>Taux</th><th>CNPS</th><th>IRPP</th><th></th></tr>
+    ${list.map(r => `<tr>
+      <td>${esc(r.code)}${r.inUse ? ' <span class="tag amber" title="Utilisée dans la paie — verrouillée">🔒</span>' : ""}</td>
+      <td><b>${esc(r.label)}</b>${r.system ? ' <span class="tag gray">baseline</span>' : ""}</td>
+      <td>${esc(r.family)}</td><td style="font-size:12px">${esc(r.formula)}</td><td>${esc(r.base || "—")}</td>
+      <td>${r.taux != null ? r.taux + "%" : "—"}</td>
+      <td>${r.cnps ? "✓" : "—"}</td><td>${r.impo ? "✓" : "—"}</td>
+      <td><button class="btn ghost sm" onclick='rubModal(${JSON.stringify(r).replace(/'/g,"&#39;")})'>✏️</button></td></tr>`).join("")}
+    </table>${list.length ? "" : "<small style=\"color:var(--muted)\">Aucune rubrique.</small>"}`;
+}
+function rubModal(r) {
+  const isEdit = !!r; r = r || { family: "BRUT", formula: "Nombre x Base", sens: "GAIN", cnps: true, impo: true };
+  const opt = (v, cur) => `<option ${v === cur ? "selected" : ""}>${v}</option>`;
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="max-width:520px"><b>${isEdit ? "Modifier" : "Créer"} une rubrique</b>
+    ${isEdit && r.inUse ? `<div class="note" style="background:var(--red-bg);border-color:#fca5a5;margin-top:8px">
+      🔒 <b>Rubrique utilisée dans des bulletins calculés.</b> Toute modification affectera l'ensemble de la paie
+      et nécessitera un recalcul. Cochez la confirmation ci-dessous pour l'autoriser.</div>` : ""}
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Code</label><input id="rmCode" value="${esc(r.code || "")}" ${isEdit ? "disabled" : ""}></div>
+      <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}"></div>
+      <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
+      <div><label>Formule</label><select id="rmFormula">${["Nombre x Base","Base x Taux","Nombre x Base x Taux","Montant pris tel quel","Barème"].map(f => opt(f, r.formula)).join("")}</select></div>
+      <div><label>Base (constante)</label><input id="rmBase" value="${esc(r.base || "")}" placeholder="ex. NETCOTI, SALJOURN"></div>
+      <div><label>Taux %</label><input id="rmTaux" type="number" step="any" value="${r.taux != null ? r.taux : ""}"></div>
+      <div><label>Sens</label><select id="rmSens">${opt("GAIN", r.sens)}${opt("RETENUE", r.sens)}${opt("PATRONAL", r.sens)}</select></div>
+      <div style="display:flex;gap:14px;align-items:end;padding-bottom:6px">
+        <label class="chk" style="margin:0"><input type="checkbox" id="rmCnps" ${r.cnps ? "checked" : ""}><span>Soumis CNPS</span></label>
+        <label class="chk" style="margin:0"><input type="checkbox" id="rmImpo" ${r.impo ? "checked" : ""}><span>Soumis IRPP</span></label></div>
+    </div>
+    ${isEdit && r.inUse ? `<label class="chk" style="margin-top:8px;color:var(--red)"><input type="checkbox" id="rmForce"><span>Je confirme : appliquer malgré l'impact sur la paie</span></label>` : ""}
+    <div class="err hidden" id="rmErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="rubSave('${isEdit ? r.id : ""}', ${isEdit && r.inUse})">Enregistrer</button></div></div>`;
+  bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function rubSave(id, needForce) {
+  const body = { code: rmCode.value.trim(), label: rmLabel.value.trim(), family: rmFamily.value,
+    formula: rmFormula.value, base: rmBase.value.trim(), taux: rmTaux.value, sens: rmSens.value,
+    cnps: rmCnps.checked, impo: rmImpo.checked };
+  if (needForce) { if (!document.getElementById("rmForce").checked) { rmErr.textContent = "Cochez la confirmation pour modifier une rubrique utilisée."; rmErr.classList.remove("hidden"); return; } body.force = true; }
+  try {
+    if (id) await api("/payroll/rubriques/" + id, { method: "PUT", body: JSON.stringify(body) });
+    else await api("/payroll/rubriques", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector(".modal-bg").remove(); payconfigView();
+  } catch (e) {
+    if (e.requiresConfirmation) { rmErr.textContent = e.warning || e.message; rmErr.classList.remove("hidden"); }
+    else { rmErr.textContent = e.message; rmErr.classList.remove("hidden"); }
+  }
 }
 async function paySaveConfig() {
   const body = {};

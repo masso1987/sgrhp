@@ -85,30 +85,66 @@ router.put("/config", allow("ADM"), (req, res) => {
   res.json(c);
 });
 
-router.get("/rubriques", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.payRubriques, req)));
+// A rubrique is "in use" once its code appears in any computed/closed payslip.
+// Such rubriques are locked: modifying them would alter already-produced payroll,
+// so it requires an explicit confirmation (force) and is audited.
+function rubriqueInUse(rub, req) {
+  const tid = req.user.tenantId || "t1";
+  return db.payslips.some(s => (s.tenantId || "t1") === tid &&
+    (s.status === "CALCULATED" || s.status === "CLOSED") &&
+    Array.isArray(s.result && s.result.lines) && s.result.lines.some(l => l.code === rub.code));
+}
+const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active"];
+
+router.get("/rubriques", allow("ADM", "CD", "RJ", "GPF"), (req, res) =>
+  res.json(mine(db.payRubriques, req).map(r => ({ ...r, inUse: rubriqueInUse(r, req) }))));
 
 router.post("/rubriques", allow("ADM"), (req, res) => {
   const b = req.body || {};
-  if (!b.code || !b.label) return res.status(400).json({ error: "code et libellé obligatoires" });
-  const r = stamp({ id: id("rub"), code: b.code, label: b.label, family: b.family || "BRUT",
-    formula: b.formula || "Montant pris tel quel", sens: b.sens || "GAIN", taxable: b.taxable !== false, active: true }, req);
+  if (!b.code || !b.label) return res.status(400).json({ error: "Code et libellé obligatoires" });
+  if (mine(db.payRubriques, req).some(r => r.code === b.code))
+    return res.status(409).json({ error: `Le code ${b.code} existe déjà` });
+  const r = stamp({ id: id("rub"), code: String(b.code), label: b.label, family: b.family || "BRUT",
+    formula: b.formula || "Montant pris tel quel", base: b.base || null, nombre: b.nombre || null,
+    taux: b.taux != null && b.taux !== "" ? Number(b.taux) : null,
+    tauxPat: b.tauxPat != null && b.tauxPat !== "" ? Number(b.tauxPat) : null,
+    cnps: !!b.cnps, impo: !!b.impo, sens: b.sens || "GAIN",
+    active: true, system: false, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.payRubriques.push(r); save();
-  audit(req.user, "CREATED", "PayRubrique", r.id, { code: r.code });
+  audit(req.user, "CREATED", "PayRubrique", r.id, { code: r.code, label: r.label });
   res.status(201).json(r);
 });
 
 router.put("/rubriques/:id", allow("ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Rubrique introuvable" });
-  Object.assign(r, req.body || {}, { id: r.id, tenantId: r.tenantId });
+  const b = req.body || {};
+  const inUse = rubriqueInUse(r, req);
+  if (inUse && !b.force)
+    return res.status(409).json({ error: "Rubrique déjà utilisée dans des bulletins calculés",
+      requiresConfirmation: true,
+      warning: `La rubrique « ${r.code} ${r.label} » est déjà utilisée dans des bulletins de paie calculés/clôturés. ` +
+        `La modifier affectera l'ensemble de la paie et nécessitera un recalcul. Confirmez pour appliquer.` });
+  const before = { ...r };
+  for (const f of RUB_FIELDS) if (b[f] !== undefined) {
+    r[f] = (f === "taux" || f === "tauxPat") ? (b[f] === "" || b[f] == null ? null : Number(b[f]))
+      : (f === "cnps" || f === "impo" || f === "active") ? !!b[f] : b[f];
+  }
   save();
-  res.json(r);
+  audit(req.user, inUse ? "FORCED_CHANGE" : "UPDATED", "PayRubrique", r.id,
+    { code: r.code, inUse, before: { label: before.label, taux: before.taux, cnps: before.cnps, impo: before.impo } });
+  res.json({ ...r, inUse });
 });
 
 router.delete("/rubriques/:id", allow("ADM"), (req, res) => {
-  const i = db.payRubriques.findIndex(x => x.id === req.params.id && (x.tenantId || "t1") === (req.user.tenantId || "t1"));
-  if (i < 0) return res.status(404).json({ error: "Introuvable" });
-  db.payRubriques.splice(i, 1); save();
+  const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (rubriqueInUse(r, req) && !(req.query.force === "1"))
+    return res.status(409).json({ error: "Rubrique utilisée dans des bulletins calculés — suppression bloquée",
+      requiresConfirmation: true,
+      warning: `« ${r.code} ${r.label} » est utilisée dans la paie. La supprimer peut casser des recalculs. Confirmez pour supprimer.` });
+  db.payRubriques.splice(db.payRubriques.indexOf(r), 1); save();
+  audit(req.user, "DELETED", "PayRubrique", r.id, { code: r.code });
   res.json({ ok: true });
 });
 
