@@ -73,10 +73,16 @@ app.use("/api/data", require("./routes/dataio"));
 // super-administrator (SADM) on the tenant before its admins can use it.
 const requireModule = (key) => (req, res, next) => {
   const { db } = require("./store");
-  const t = (db.tenants || []).find(x => x.id === ((req.user && req.user.tenantId) || "t1"));
+  const u = req.user || {};
+  const t = (db.tenants || []).find(x => x.id === (u.tenantId || "t1"));
   const mods = (t && t.modules) || [];
   if (!mods.includes(key))
     return res.status(403).json({ error: `Module « ${key} » non activé pour votre organisation — contactez le super-administrateur.` });
+  if (u.role !== "ADM" && u.role !== "SADM") {
+    const dbu = (db.users || []).find(x => x.id === u.id);
+    if (!(((dbu && dbu.modules) || []).includes(key)))
+      return res.status(403).json({ error: `Accès au module « ${key} » non accordé — contactez votre administrateur.` });
+  }
   next();
 };
 app.use("/api/payroll", requireModule("payroll"), require("./routes/payroll"));

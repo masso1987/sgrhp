@@ -997,11 +997,31 @@ async function pfSave(id) {
 }
 
 /* ---------- Users (ADM) ---------- */
+const MODULE_LABELS = { payroll: "💵 Paie", accounting: "📒 Comptabilité", invoicing: "🧾 Facturation", stock: "📦 Gestion de stock" };
+async function modModal(uid) {
+  const list = await api("/users"); const u = list.find(x => x.id === uid);
+  const me = await api("/me");
+  const grantable = (me.tenantModules || []).filter(k => MODULE_LABELS[k]);
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal"><b>Accès aux modules — ${esc(u.fullName)}</b>
+    <div class="note" style="margin-top:6px">Modules activés pour votre organisation (par le super-administrateur). Cochez ceux auxquels ${esc(u.fullName)} peut accéder.</div>
+    <div class="scroll">${grantable.length ? grantable.map(k => `<label class="chk"><input type="checkbox" data-m="${k}" ${(u.modules || []).includes(k) ? "checked" : ""}><span>${MODULE_LABELS[k]}</span></label>`).join("") : '<small style="color:var(--muted)">Aucun module optionnel activé pour votre organisation.</small>'}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="saveMods('${uid}', this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function saveMods(uid, btn) {
+  const ids = [...btn.closest(".modal").querySelectorAll("input[data-m]")].filter(c => c.checked).map(c => c.dataset.m);
+  try { await api(`/users/${uid}/modules`, { method: "PUT", body: JSON.stringify({ modules: ids }) }); btn.closest(".modal-bg").remove(); users(); }
+  catch (e) { alert(e.message); }
+}
 async function users() {
   const list = await api("/users");
   const pfs = await api("/portfolios"); PFS = pfs;
   view.innerHTML = `<h1>Users & Roles</h1><div class="panel">
-    <table><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Portefeuilles rattachés (GPF)</th><th>Statut</th></tr>
+    <table><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Portefeuilles rattachés (GPF)</th><th>Modules (accès)</th><th>Statut</th></tr>
     ${list.map(u => `<tr><td>${esc(u.fullName)}</td><td>${esc(u.email)}</td>
       <td><span class="tag gray">${u.role}</span></td>
       <td>${u.role === "GPF"

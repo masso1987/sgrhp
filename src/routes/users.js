@@ -35,4 +35,18 @@ router.put("/:id/portfolios", allow("ADM"), (req, res) => {
   res.json({ id: user.id, portfolioIds: user.portfolioIds });
 });
 
+// ADM grants access to optional modules (only those activated for the tenant).
+router.put("/:id/modules", allow("ADM"), (req, res) => {
+  const user = mine(db.users, req).find(x => x.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "Utilisateur introuvable" });
+  const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1"));
+  const activated = (t && t.modules) || [];
+  const grantable = ["payroll", "accounting", "invoicing", "stock"]; // non-core, licence-gated
+  const ids = (req.body && req.body.modules || []).filter(k => grantable.includes(k) && activated.includes(k));
+  const before = user.modules || [];
+  user.modules = [...new Set(ids)]; save();
+  audit(req.user, "CONFIG_CHANGED", "User", user.id, { modulesBefore: before, modulesAfter: user.modules });
+  res.json({ id: user.id, modules: user.modules });
+});
+
 module.exports = router;
