@@ -869,6 +869,19 @@ async function empForm() {
           <span>${esc(s.name)}</span></label>
         <input data-selamt="${esc(s.name)}" type="number" placeholder="Montant F CFA" class="hidden" style="max-width:170px;margin:0"></div>`).join("")}
     </div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
+      <label>Informations paie <span class="tag gray">figurent sur le bulletin de paie</span></label>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Matricule</label><input id="fMat"></div>
+        <div><label>Emploi / poste</label><input id="fPos"></div>
+        <div><label>Qualification</label><input id="fQual"></div>
+        <div><label>Département</label><input id="fDept"></div>
+        <div><label>Nombre d'enfants</label><input id="fChild" type="number" min="0"></div>
+        <div><label>N° DIPE</label><input id="fDipe"></div>
+        <div><label>Banque</label><input id="fBank"></div>
+        <div><label>N° de compte</label><input id="fAcct"></div>
+      </div>
+    </div>
     <div class="err hidden" id="fErr"></div>
     <button class="btn p" onclick="empSave()">Créer le dossier</button>
     <button class="btn ghost" onclick="employees()">Annuler</button></div>`;
@@ -889,6 +902,10 @@ async function empSave() {
       hireDate: fHire.value, birthDate: fBirth.value, birthPlace: fBp.value,
       maritalStatus: fMs.value, cniNumber: fCni.value, cniExpiry: fCniExp.value,
       cnpsNumber: fCnps.value, phone: fPhone.value,
+      matricule: fMat.value || undefined, qualification: fQual.value || undefined,
+      department: fDept.value || undefined, position: fPos.value || undefined,
+      children: fChild.value !== "" ? Number(fChild.value) : undefined, dipe: fDipe.value || undefined,
+      bankName: fBank.value || undefined, bankAccount: fAcct.value || undefined,
       emergencyName: fEmgName.value, emergencyPhone: fEmgTel.value,
       emergencyContact: [fEmgName.value, fEmgTel.value].filter(Boolean).join(" — "),
       contract: { type: fCt.value, category: fCat.value || undefined, step: fStep.value || undefined,
