@@ -69,7 +69,17 @@ app.use("/api/reports", require("./routes/reports"));
 app.use("/api/settings", require("./routes/settings").router);
 app.use("/api/tenants", require("./routes/tenants").router);
 app.use("/api/data", require("./routes/dataio"));
-app.use("/api/payroll", require("./routes/payroll"));
+// Module activation guard: a licensed module must be enabled by the platform
+// super-administrator (SADM) on the tenant before its admins can use it.
+const requireModule = (key) => (req, res, next) => {
+  const { db } = require("./store");
+  const t = (db.tenants || []).find(x => x.id === ((req.user && req.user.tenantId) || "t1"));
+  const mods = (t && t.modules) || [];
+  if (!mods.includes(key))
+    return res.status(403).json({ error: `Module « ${key} » non activé pour votre organisation — contactez le super-administrateur.` });
+  next();
+};
+app.use("/api/payroll", requireModule("payroll"), require("./routes/payroll"));
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);

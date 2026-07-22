@@ -793,7 +793,7 @@ async function boot() {
   api("/me").then(m => armIdle(m.idleMinutes || 30)).catch(() => armIdle(30));
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} — ${ME.role}`;
-  const items = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || !ME.modules || ME.modules.includes(n.module)));
+  const items = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)));
   nav.innerHTML = items.map(n => `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${esc(n.label)}</div>`).join("");
   go("dash");
 }
