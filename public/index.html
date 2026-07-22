@@ -790,7 +790,15 @@ async function boot() {
   document.getElementById("langSel").value = LANG;
   watchI18n();
   fetch("/api/branding").then(r => r.json()).then(applyBranding).catch(() => {});
-  api("/me").then(m => armIdle(m.idleMinutes || 30)).catch(() => armIdle(30));
+  // Load the full profile so the menu reflects the modules activated for this tenant
+  // (the login response does not carry modules).
+  try {
+    const meFull = await api("/me");
+    ME.modules = meFull.modules || [];
+    ME.tenantModules = meFull.tenantModules || [];
+    sessionStorage.setItem("me", JSON.stringify(ME));
+    armIdle(meFull.idleMinutes || 30);
+  } catch { armIdle(30); }
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} — ${ME.role}`;
   const items = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)));
