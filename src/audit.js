@@ -4,6 +4,7 @@ function audit(user, action, objectType, objectId, detail = null) {
   db.audit.push({
     id: id("log"), at: new Date().toISOString(),
     userId: user.id, userName: user.fullName, role: user.role,
+    tenantId: user.tenantId || "t1",
     action, objectType, objectId, detail,
   });
   save();

@@ -5,8 +5,21 @@ const { mine, stamp } = require("../store");
 const { audit } = require("../audit");
 const { hash, passwordPolicy } = require("../auth");
 
+// A tenant admin never sees the platform super-administrator.
 router.get("/", allow("ADM"), (req, res) =>
-  res.json(mine(db.users, req).map(({ password, ...u }) => u)));
+  res.json(mine(db.users, req).filter(u => u.role !== "SADM").map(({ password, ...u }) => u)));
+
+// Resolve a manageable target: SADM manages any tenant account; ADM only its own
+// tenant. A super-administrator account is never manageable through this API.
+function targetUser(req, id) {
+  const u = db.users.find(x => x.id === id);
+  if (!u || u.role === "SADM") return null;
+  if (req.user.role === "SADM") return u;
+  if ((u.tenantId || "t1") === (req.user.tenantId || "t1")) return u;
+  return null;
+}
+const _tenantUsers = (u) => db.users.filter(x => (x.tenantId || "t1") === (u.tenantId || "t1"));
+const _tenantModules = (u) => { const t = (db.tenants || []).find(x => x.id === (u.tenantId || "t1")); return (t && t.modules) || []; };
 
 router.post("/", allow("ADM"), (req, res) => {
   const { email, fullName, role, portfolioIds = [], password } = req.body;
@@ -22,8 +35,8 @@ router.post("/", allow("ADM"), (req, res) => {
   res.status(201).json(safe);
 });
 // ADM links portfolios to a GPF user (one GPF can hold several portfolios)
-router.put("/:id/portfolios", allow("ADM"), (req, res) => {
-  const user = db.users.find(x => x.id === req.params.id);
+router.put("/:id/portfolios", allow("ADM", "SADM"), (req, res) => {
+  const user = targetUser(req, req.params.id);
   if (!user) return res.status(404).json({ error: "Not found" });
   if (user.role !== "GPF") return res.status(400).json({ error: "Portfolio assignment applies to GPF users only" });
   const ids = req.body?.portfolioIds || [];
@@ -36,11 +49,10 @@ router.put("/:id/portfolios", allow("ADM"), (req, res) => {
 });
 
 // ADM grants access to optional modules (only those activated for the tenant).
-router.put("/:id/modules", allow("ADM"), (req, res) => {
-  const user = mine(db.users, req).find(x => x.id === req.params.id);
+router.put("/:id/modules", allow("ADM", "SADM"), (req, res) => {
+  const user = targetUser(req, req.params.id);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable" });
-  const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1"));
-  const activated = (t && t.modules) || [];
+  const activated = _tenantModules(user);
   const grantable = ["payroll", "accounting", "invoicing", "stock"]; // non-core, licence-gated
   const ids = (req.body && req.body.modules || []).filter(k => grantable.includes(k) && activated.includes(k));
   const before = user.modules || [];
@@ -50,13 +62,13 @@ router.put("/:id/modules", allow("ADM"), (req, res) => {
 });
 
 // ADM enables / disables a user account (blocks login when disabled).
-router.put("/:id/active", allow("ADM"), (req, res) => {
-  const u = mine(db.users, req).find(x => x.id === req.params.id);
+router.put("/:id/active", allow("ADM", "SADM"), (req, res) => {
+  const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
   if (u.id === req.user.id) return res.status(400).json({ error: "Vous ne pouvez pas désactiver votre propre compte" });
   const active = !!(req.body && req.body.active);
   if (!active && u.role === "ADM" &&
-      !mine(db.users, req).some(x => x.role === "ADM" && x.active && x.id !== u.id))
+      !_tenantUsers(u).some(x => x.role === "ADM" && x.active && x.id !== u.id))
     return res.status(400).json({ error: "Impossible : c'est le dernier administrateur actif du tenant" });
   u.active = active; save();
   audit(req.user, active ? "ENABLED" : "DISABLED", "User", u.id, { email: u.email });
@@ -64,13 +76,13 @@ router.put("/:id/active", allow("ADM"), (req, res) => {
 });
 
 // ADM changes a user's role.
-router.put("/:id/role", allow("ADM"), (req, res) => {
-  const u = mine(db.users, req).find(x => x.id === req.params.id);
+router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
+  const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
   const role = req.body && req.body.role;
   if (!["GPF", "CD", "RJ", "UI", "ADM"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
   if (u.role === "ADM" && role !== "ADM" &&
-      !mine(db.users, req).some(x => x.role === "ADM" && x.active && x.id !== u.id))
+      !_tenantUsers(u).some(x => x.role === "ADM" && x.active && x.id !== u.id))
     return res.status(400).json({ error: "Impossible : c'est le dernier administrateur du tenant" });
   const before = u.role; u.role = role;
   if (role !== "GPF") u.portfolioIds = [];
@@ -81,8 +93,8 @@ router.put("/:id/role", allow("ADM"), (req, res) => {
 
 // ADM grants employee edit/delete capabilities to a user.
 const EMP_CAPS = ["employee.edit", "employee.delete"];
-router.put("/:id/permissions", allow("ADM"), (req, res) => {
-  const u = mine(db.users, req).find(x => x.id === req.params.id);
+router.put("/:id/permissions", allow("ADM", "SADM"), (req, res) => {
+  const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
   u.permissions = [...new Set((req.body.permissions || []).filter(p => EMP_CAPS.includes(p)))];
   save();

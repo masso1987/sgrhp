@@ -2547,15 +2547,24 @@ async function tenantForm(id) {
     <button class="btn p" style="margin-top:12px" onclick="tenantSave('${id||''}')">${id?"Enregistrer":"Créer l'entreprise"}</button>
   </div>`;
 }
+let _SADM_TU = { tid:null, name:null, tenant:null, users:[] };
 async function tenantUsers(tid, name) {
-  const users = await api("/tenants/"+tid+"/users");
+  const [tenant, users] = await Promise.all([api("/tenants/"+tid), api("/tenants/"+tid+"/users")]);
+  _SADM_TU = { tid, name, tenant, users };
   const bg = document.createElement("div"); bg.className = "modal-bg";
-  bg.innerHTML = `<div class="modal" style="width:560px">
-    <b>Utilisateurs — ${name}</b>
-    <div class="scroll" style="max-height:240px">
-      ${users.length ? users.map(u=>`<div class="doc-row"><div>${esc(u.fullName)} <span class="tag gray">${u.role}</span><br>
-        <small style="color:var(--muted)">${esc(u.email)}${u.active?'':' · <span style="color:var(--red)">désactivé</span>'}</small></div>
-        <button class="btn ghost sm" onclick="tenantReset('${tid}','${u.id}')">Réinit. mdp</button></div>`).join("")
+  bg.innerHTML = `<div class="modal" style="width:620px">
+    <b>Comptes — ${esc(name)}</b>
+    <div class="note" style="margin-top:6px">Vous pouvez modifier le rôle, activer/désactiver, et accorder modules & droits à tout compte de ce tenant.</div>
+    <div class="scroll" style="max-height:300px">
+      ${users.length ? users.map(u=>`<div class="doc-row"><div style="flex:1">
+        <b>${esc(u.fullName)}</b>
+        <select onchange="sadmSetRole('${u.id}', this.value)" style="margin:0 0 0 6px;max-width:82px;display:inline-block;padding:2px">
+          ${["GPF","CD","RJ","UI","ADM"].map(r=>`<option ${u.role===r?"selected":""}>${r}</option>`).join("")}</select>
+        <br><small style="color:var(--muted)">${esc(u.email)}${u.active?'':' · <span style="color:var(--red)">désactivé</span>'}</small></div>
+        <div style="display:flex;gap:4px">
+          <button class="btn ghost sm" title="Modules & droits" onclick="sadmRights('${u.id}')">🛡</button>
+          <button class="btn ${u.active?'ghost':'p'} sm" title="${u.active?'Désactiver':'Activer'}" onclick="sadmToggleActive('${u.id}', ${!u.active})">${u.active?'⏸':'▶'}</button>
+          <button class="btn ghost sm" title="Réinit. mot de passe" onclick="tenantReset('${tid}','${u.id}')">🔑</button></div></div>`).join("")
        : "<small>Aucun utilisateur. Ajoutez un administrateur ci-dessous.</small>"}
     </div>
     <b style="font-size:12px">Ajouter un utilisateur</b>
@@ -2568,6 +2577,44 @@ async function tenantUsers(tid, name) {
       <button class="btn p sm" onclick="tenantAddUser('${tid}','${name}')">Ajouter</button></div></div>`;
   bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
+}
+async function sadmSetRole(uid, role) {
+  try { await api(`/users/${uid}/role`, { method: "PUT", body: JSON.stringify({ role }) }); }
+  catch (e) { alert(e.message); }
+  document.querySelector(".modal-bg").remove(); tenantUsers(_SADM_TU.tid, _SADM_TU.name);
+}
+async function sadmToggleActive(uid, active) {
+  if (!active && !confirm("Désactiver ce compte ? L'utilisateur ne pourra plus se connecter.")) return;
+  try { await api(`/users/${uid}/active`, { method: "PUT", body: JSON.stringify({ active }) });
+    document.querySelector(".modal-bg").remove(); tenantUsers(_SADM_TU.tid, _SADM_TU.name); }
+  catch (e) { alert(e.message); }
+}
+async function sadmRights(uid) {
+  const u = _SADM_TU.users.find(x => x.id === uid); if (!u) return;
+  const tmods = (_SADM_TU.tenant.modules || []).filter(k => MODULE_LABELS[k]);
+  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"]];
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal"><b>Modules & droits — ${esc(u.fullName)}</b>
+    ${u.role === "ADM" ? '<div class="note" style="margin-top:6px">Administrateur : accès à tous les modules activés du tenant.</div>' : `
+    <div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">MODULES (activés pour le tenant)</b>
+    <div class="scroll">${tmods.length ? tmods.map(k=>`<label class="chk"><input type="checkbox" data-m="${k}" ${(u.modules||[]).includes(k)?"checked":""}><span>${MODULE_LABELS[k]}</span></label>`).join("") : '<small style="color:var(--muted)">Aucun module optionnel activé pour ce tenant.</small>'}</div></div>`}
+    <div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">DROITS EMPLOYÉS</b>
+    <div class="scroll">${caps.map(([k,l])=>`<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions||[]).includes(k)?"checked":""}><span>${l}</span></label>`).join("")}</div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="sadmSaveRights('${uid}', this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function sadmSaveRights(uid, btn) {
+  const modal = btn.closest(".modal");
+  const modules = [...modal.querySelectorAll("input[data-m]")].filter(c=>c.checked).map(c=>c.dataset.m);
+  const permissions = [...modal.querySelectorAll("input[data-perm]")].filter(c=>c.checked).map(c=>c.dataset.perm);
+  try {
+    if (modal.querySelector("input[data-m]")) await api(`/users/${uid}/modules`, { method:"PUT", body: JSON.stringify({ modules }) });
+    await api(`/users/${uid}/permissions`, { method:"PUT", body: JSON.stringify({ permissions }) });
+    modal.closest(".modal-bg").remove();
+  } catch (e) { alert(e.message); }
 }
 async function tenantAddUser(tid, name) {
   try { const r = await api("/tenants/"+tid+"/users",{method:"POST",body:JSON.stringify({
