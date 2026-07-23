@@ -59,8 +59,12 @@ function autoContext(employeeId) {
   // Open-ended (CDI) contracts have no end date / mission duration -> "indéterminée"
   const _ct = _mine("contractTypes").find(t => t.name === c.type);
   const _openEnded = _ct ? !_ct.fixedTerm : (String(c.type).toUpperCase() === "CDI");
-  base.contract_endDate = _openEnded ? "indéterminée" : (c.endDate || undefined);
-  base.mission_duration = _openEnded ? "indéterminée" : (c.missionDuration || undefined);
+  // CDI (open-ended): auto "indéterminée". CDD (fixed-term): a specific end date,
+  // so leave contract_endDate & mission_duration to be entered manually at generation.
+  if (_openEnded) {
+    base.contract_endDate = "indéterminée";
+    base.mission_duration = "indéterminée";
+  }
 
   // Salary elements: expose configured tags + gross total; salary-grid fallback for base
   let gross = 0;
