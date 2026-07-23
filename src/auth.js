@@ -131,7 +131,9 @@ function me(req, res) {
   const _tm = (_t && _t.modules) || [];
   const _isAdmin = u.role === "ADM" || u.role === "SADM";
   const _eff = _isAdmin ? _tm : _tm.filter(k => ["hr", "careers"].includes(k) || (u.modules || []).includes(k));
-  res.json({ ...safe, modules: _eff, tenantModules: _tm, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes });
+  const _perms = _isAdmin ? ["employee.edit", "employee.delete"]
+    : [...new Set([...(u.role === "GPF" ? ["employee.edit"] : []), ...(u.permissions || [])])];
+  res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes });
 }
 
 /* ---------- 2FA enrolment ----------

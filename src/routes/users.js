@@ -79,4 +79,15 @@ router.put("/:id/role", allow("ADM"), (req, res) => {
   res.json({ id: u.id, role: u.role });
 });
 
+// ADM grants employee edit/delete capabilities to a user.
+const EMP_CAPS = ["employee.edit", "employee.delete"];
+router.put("/:id/permissions", allow("ADM"), (req, res) => {
+  const u = mine(db.users, req).find(x => x.id === req.params.id);
+  if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  u.permissions = [...new Set((req.body.permissions || []).filter(p => EMP_CAPS.includes(p)))];
+  save();
+  audit(req.user, "CONFIG_CHANGED", "User", u.id, { permissions: u.permissions });
+  res.json({ id: u.id, permissions: u.permissions });
+});
+
 module.exports = router;

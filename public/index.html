@@ -796,6 +796,7 @@ async function boot() {
     const meFull = await api("/me");
     ME.modules = meFull.modules || [];
     ME.tenantModules = meFull.tenantModules || [];
+    ME.permissions = meFull.permissions || [];
     sessionStorage.setItem("me", JSON.stringify(ME));
     armIdle(meFull.idleMinutes || 30);
   } catch { armIdle(30); }
@@ -1119,7 +1120,8 @@ async function users() {
            <button class="btn ghost sm" onclick="pfModal('${u.id}')">🔗 Gérer</button>` : "—"}</td>
       <td><span class="tag ${u.active ? "green" : "red"}">${u.active ? "Actif" : "Désactivé"}</span></td>
       <td>${u.id === ME.id ? '<span style="color:var(--muted)">—</span>'
-        : `<button class="btn ${u.active ? "ghost" : "p"} sm" onclick="toggleActive('${u.id}', ${!u.active})">${u.active ? "Désactiver" : "Activer"}</button>`}</td>
+        : `<button class="btn ${u.active ? "ghost" : "p"} sm" onclick="toggleActive('${u.id}', ${!u.active})">${u.active ? "Désactiver" : "Activer"}</button>
+           ${u.role !== "ADM" ? `<button class="btn ghost sm" onclick="permModal('${u.id}')">🛡 Droits</button>` : ""}`}</td>
     </tr>`).join("")}
     </table></div>
     <div class="panel" style="max-width:560px"><b>Ajouter un utilisateur</b>
@@ -1137,6 +1139,24 @@ async function setRole(uid, role) {
 async function toggleActive(uid, active) {
   if (!active && !confirm("Désactiver ce compte ? L'utilisateur ne pourra plus se connecter (aucune donnée supprimée).")) return;
   try { await api(`/users/${uid}/active`, { method: "PUT", body: JSON.stringify({ active }) }); users(); }
+  catch (e) { alert(e.message); }
+}
+async function permModal(uid) {
+  const u = (await api("/users")).find(x => x.id === uid);
+  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"]];
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal"><b>Droits sur les employés — ${esc(u.fullName)}</b>
+    <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger (modifier) ou supprimer des dossiers employés.</div>
+    <div class="scroll">${caps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""}><span>${lbl}</span></label>`).join("")}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="savePerms('${uid}', this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function savePerms(uid, btn) {
+  const permissions = [...btn.closest(".modal").querySelectorAll("input[data-perm]")].filter(c => c.checked).map(c => c.dataset.perm);
+  try { await api(`/users/${uid}/permissions`, { method: "PUT", body: JSON.stringify({ permissions }) }); btn.closest(".modal-bg").remove(); users(); }
   catch (e) { alert(e.message); }
 }
 async function pfModal(uid) {
@@ -1406,8 +1426,8 @@ async function empDetail(id) {
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
     <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status) : ST_TAG(e.status || "DRAFT")}
   <span style="float:right;display:inline-flex;gap:6px">
-    ${canEdit ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">✏️ Modifier</button>` : ""}
-    ${ME.role === "ADM" ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">🗑 Supprimer</button>` : ""}
+    ${(ME.role === "ADM" || ME.role === "GPF" || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">✏️ Modifier</button>` : ""}
+    ${(ME.role === "ADM" || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">🗑 Supprimer</button>` : ""}
     <button class="btn ghost sm" onclick="empExport('${e.id}','${esc(e.lastName)}')">⬇ Dossier (PDF)</button></span></h1>
     ${rejBanner}
     ${canEdit && (!doc || doc.status === "DRAFT") ? `

@@ -14,6 +14,15 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
+// Capability check: ADM has all; GPF may edit by default; others need an admin grant.
+function hasPerm(req, perm) {
+  const role = req.user.role;
+  if (role === "ADM") return true;
+  if (perm === "employee.edit" && role === "GPF") return true;
+  const u = db.users.find(x => x.id === req.user.id);
+  return (((u && u.permissions) || []).includes(perm));
+}
+
 // GPF scope: only employees of their portfolios
 const scoped = (req) => {
   let list = mine(db.employees, req);
@@ -79,7 +88,8 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
   res.status(201).json({ ...emp, checklist: checklist(emp) });
 });
 
-router.put("/:id", allow("GPF", "ADM"), (req, res) => {
+router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
+  if (!hasPerm(req, "employee.edit")) return res.status(403).json({ error: "Modification non autorisee - demandez le droit a l'administrateur" });
   const emp = scoped(req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
   const before = { ...emp };
@@ -134,7 +144,8 @@ function checklist(emp) {
 
 // Delete an employee (ADM). Blocked if referenced by generated documents or payroll,
 // to protect payroll/audit integrity.
-router.delete("/:id", allow("ADM"), (req, res) => {
+router.delete("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
+  if (!hasPerm(req, "employee.delete")) return res.status(403).json({ error: "Suppression non autorisee - demandez le droit a l'administrateur" });
   const emp = scoped(req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
   const inPayroll = (db.payslips || []).some(s => s.employeeId === emp.id);
