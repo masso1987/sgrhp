@@ -814,19 +814,49 @@ function go(k) {
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
 /* ---------- Employees ---------- */
+let EMP_LIST = [];
 async function employees() {
-  const list = await api("/employees");
-  const canEdit = ["GPF","ADM"].includes(ME.role);
+  EMP_LIST = await api("/employees");
+  const canCreate = ["GPF","ADM"].includes(ME.role);
+  const pfs = [...new Set(EMP_LIST.map(e => e.portfolioId))];
+  const ctypes = [...new Set(EMP_LIST.map(e => e.contract && e.contract.type).filter(Boolean))];
+  const cats = [...new Set(EMP_LIST.map(e => e.contract && e.contract.category).filter(Boolean))].sort();
+  const stats = [...new Set(EMP_LIST.map(e => e.status || "DRAFT"))];
   view.innerHTML = `<h1>Dossiers du personnel</h1>
-    ${canEdit ? `<button class="btn p" style="margin-bottom:12px" onclick="empForm()">+ Nouveau dossier</button>` : ""}
-    <div class="panel"><table><tr><th>Nom</th><th>Portefeuille</th><th>Contrat</th><th>Embauché</th><th>Pièces requises</th><th></th></tr>
-    ${list.map(e => {
-      const done = e.checklist.filter(c => c.uploaded).length, tot = e.checklist.length;
-      return `<tr><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b></td><td>${pfName(e.portfolioId)}</td>
-      <td>${e.contract?.type || "—"}</td><td>${e.hireDate}</td>
+    ${canCreate ? `<button class="btn p" style="margin-bottom:12px" onclick="empForm()">+ Nouveau dossier</button>` : ""}
+    <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="empSearch" placeholder="🔍 Nom, matricule, CNI…" style="margin:0;max-width:230px" oninput="empRender()">
+      <select id="fltPf" style="margin:0" onchange="empRender()"><option value="">Tous portefeuilles</option>${pfs.map(x => `<option value="${x}">${esc(pfName(x))}</option>`).join("")}</select>
+      <select id="fltCt" style="margin:0" onchange="empRender()"><option value="">Tout contrat</option>${ctypes.map(c => `<option>${esc(c)}</option>`).join("")}</select>
+      <select id="fltCat" style="margin:0" onchange="empRender()"><option value="">Toute catégorie</option>${cats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
+      <select id="fltSt" style="margin:0" onchange="empRender()"><option value="">Tout statut</option>${stats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
+      <span id="empCount" style="color:var(--muted);font-size:12px"></span>
+    </div>
+    <div id="empList"></div>`;
+  empRender();
+}
+function empRender() {
+  const q = (empSearch.value || "").toLowerCase(), pf = fltPf.value, ct = fltCt.value, cat = fltCat.value, st = fltSt.value;
+  const list = EMP_LIST.filter(e => {
+    if (pf && e.portfolioId !== pf) return false;
+    if (ct && ((e.contract && e.contract.type) || "") !== ct) return false;
+    if (cat && ((e.contract && e.contract.category) || "") !== cat) return false;
+    if (st && (e.status || "DRAFT") !== st) return false;
+    if (q && !`${e.firstName} ${e.lastName} ${e.matricule || ""} ${e.cniNumber || ""}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  empCount.textContent = `${list.length} employé(s)`;
+  const groups = {}; list.forEach(e => { (groups[e.portfolioId] = groups[e.portfolioId] || []).push(e); });
+  empList.innerHTML = Object.keys(groups).length ? Object.keys(groups).sort((a, b) => pfName(a).localeCompare(pfName(b))).map(pfid => `
+    <div class="panel"><b style="font-size:12px;color:var(--muted)">📁 ${esc(pfName(pfid))} — ${groups[pfid].length}</b>
+    <table style="margin-top:6px"><tr><th>Nom</th><th>Matricule</th><th>Contrat</th><th>Catégorie</th><th>Embauché</th><th>Statut</th><th>Pièces</th><th></th></tr>
+    ${groups[pfid].map(e => { const done = e.checklist.filter(c => c.uploaded).length, tot = e.checklist.length;
+      return `<tr><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b></td><td>${esc(e.matricule || "—")}</td>
+      <td>${esc((e.contract && e.contract.type) || "—")}</td><td>${esc((e.contract && e.contract.category) || "—")}</td>
+      <td>${e.hireDate || "—"}</td><td>${ST_TAG(e.status || "DRAFT")}</td>
       <td><span class="tag ${done === tot ? "green" : "amber"}">${done}/${tot}</span></td>
       <td><button class="btn ghost sm" onclick="empDetail('${e.id}')">Ouvrir</button></td></tr>`; }).join("")}
-    </table></div>`;
+    </table></div>`).join("") : `<div class="panel">Aucun employé ne correspond aux filtres.</div>`;
 }
 let PFS = [];
 const pfName = id => (PFS.find(p => p.id === id) || {}).name || id;
@@ -2811,15 +2841,28 @@ async function payRunView(id) {
 
   ${open && (isAdm || ME.role === "GPF") ? payElementsForm(run) : ""}
 
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">BULLETINS</b>
-  <table style="margin-top:6px"><tr><th>Matricule</th><th>Salarié</th><th>Brut</th><th>Retenues</th><th>Net à payer</th><th></th></tr>
-  ${payslips.length ? payslips.map(s => `<tr><td>${esc(s.matricule)}</td><td><b>${esc(s.employeeName)}</b></td>
-    <td>${fCFA(s.brut)}</td><td>${fCFA(s.retenues)}</td><td><b>${fCFA(s.net)}</b></td>
-    <td><button class="btn ghost sm" onclick="payslipView('${s.id}')">Détail</button>
-    <button class="btn p sm" onclick="payPdf('${s.id}',0)">⬇ PDF</button>
-    <button class="btn ghost sm" onclick="payPdf('${s.id}',1)">🖨</button></td></tr>`).join("")
-    : `<tr><td colspan="6">Pas encore calculée. Cliquez « Calculer la paie ».</td></tr>`}
-  </table></div>`;
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">BULLETINS — par portefeuille</b>
+    <input id="paySlipSearch" placeholder="🔍 Salarié, matricule…" style="margin:6px 0;max-width:240px" oninput="payRenderSlips()">
+    <div id="paySlipList"></div></div>`;
+  PAY_SLIPS = payslips; PAY_RUN_OPEN = run.status !== "CLOSED";
+  PAY_EMP_PF = {}; (PAY_EMPS || []).forEach(e => PAY_EMP_PF[e.id] = e.portfolioId);
+  payRenderSlips();
+}
+let PAY_SLIPS = [], PAY_EMP_PF = {}, PAY_RUN_OPEN = true;
+function payRenderSlips() {
+  const q = ((document.getElementById("paySlipSearch") || {}).value || "").toLowerCase();
+  const list = (PAY_SLIPS || []).filter(s => !q || `${s.employeeName} ${s.matricule || ""}`.toLowerCase().includes(q));
+  const groups = {}; list.forEach(s => { const pf = PAY_EMP_PF[s.employeeId] || "—"; (groups[pf] = groups[pf] || []).push(s); });
+  const el = document.getElementById("paySlipList");
+  el.innerHTML = list.length ? Object.keys(groups).sort((a, b) => pfName(a).localeCompare(pfName(b))).map(pf => `
+    <div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">📁 ${esc(pfName(pf))} — ${groups[pf].length}</b>
+    <table style="margin-top:4px"><tr><th>Matricule</th><th>Salarié</th><th>Brut</th><th>Retenues</th><th>Net</th><th></th></tr>
+    ${groups[pf].map(s => `<tr><td>${esc(s.matricule)}</td><td><b>${esc(s.employeeName)}</b></td>
+      <td>${fCFA(s.brut)}</td><td>${fCFA(s.retenues)}</td><td><b>${fCFA(s.net)}</b></td>
+      <td><button class="btn ghost sm" onclick="payslipView('${s.id}')">Détail</button>
+      <button class="btn p sm" onclick="payPdf('${s.id}',0)">⬇ PDF</button>
+      <button class="btn ghost sm" onclick="payPdf('${s.id}',1)">🖨</button></td></tr>`).join("")}
+    </table></div>`).join("") : `<div style="color:var(--muted);margin-top:8px">Pas encore calculée ou aucun résultat.</div>`;
 }
 
 function payElementsForm(run) {
@@ -2890,31 +2933,56 @@ async function payClose(id) {
 }
 
 /* ---- Payslip detail ---- */
-async function payslipView(id) {
+async function payslipView(id, edit) {
   const s = await api("/payroll/payslips/" + id);
   const t = s.result.totals;
-  const line = l => `<tr><td>${esc(l.code)}</td><td>${esc(l.label)}</td>
+  const canEdit = ME.role === "ADM";
+  const rows = s.result.lines.filter(l => l.gain || l.retenue || l.employer);
+  const amt = (l, field) => {
+    const editable = edit && ((field === "gain" && l.kind === "GAIN") || (field === "retenue" && (l.retenue || l.kind !== "GAIN")));
+    if (editable) return `<input type="number" step="1" data-code="${esc(l.code)}" data-field="${field}" value="${l[field] || 0}" style="width:92px;text-align:right;margin:0;padding:2px">`;
+    return l[field] ? fCFA(l[field]) : "";
+  };
+  const line = l => `<tr><td>${esc(l.code)}${l.manual ? ' <span class="tag amber" title="corrigé">✎</span>' : ""}</td><td>${esc(l.label)}</td>
     <td style="text-align:right">${l.base ? fCFA(l.base) : ""}</td>
     <td style="text-align:right">${l.rate && l.rate !== 1 ? (l.rate * 100).toFixed(2) + "%" : ""}</td>
-    <td style="text-align:right;color:var(--green)">${l.gain ? fCFA(l.gain) : ""}</td>
-    <td style="text-align:right;color:var(--red)">${l.retenue ? fCFA(l.retenue) : ""}</td>
+    <td style="text-align:right;color:var(--green)">${amt(l, "gain")}</td>
+    <td style="text-align:right;color:var(--red)">${amt(l, "retenue")}</td>
     <td style="text-align:right;color:var(--muted)">${l.employer ? fCFA(l.employer) : ""}</td></tr>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${s.runId}')">← Retour</button>
-  <h1 style="margin-top:10px">Bulletin — ${esc(s.employeeName)} <small style="color:var(--muted)">${esc(s.period)}</small></h1>
-  <div class="panel"><button class="btn p" onclick="payPdf('${s.id}',0)">⬇ Télécharger PDF</button>
-    <button class="btn ghost" onclick="payPdf('${s.id}',1)">🖨 Imprimer</button></div>
+  <h1 style="margin-top:10px">Bulletin — ${esc(s.employeeName)} <small style="color:var(--muted)">${esc(s.period)}</small>
+    ${s.edited ? '<span class="tag blue">corrigé manuellement</span>' : ""}</h1>
+  <div class="panel">${canEdit && edit
+    ? `<button class="btn p" onclick="payslipSaveLines('${s.id}')">💾 Enregistrer les corrections</button>
+       <button class="btn ghost" onclick="payslipView('${s.id}')">Annuler</button>
+       <span class="note" style="display:inline-block;margin-left:8px;padding:4px 8px">Seuls les montants (gain/retenue) sont modifiables — la formule et la base restent verrouillées.</span>`
+    : `<button class="btn p" onclick="payPdf('${s.id}',0)">⬇ Télécharger PDF</button>
+       <button class="btn ghost" onclick="payPdf('${s.id}',1)">🖨 Imprimer</button>
+       ${canEdit ? `<button class="btn ghost" onclick="payslipView('${s.id}', true)">✏️ Corriger les montants</button>` : ""}`}</div>
   <div class="panel"><table><tr><th>Code</th><th>Rubrique</th><th style="text-align:right">Base</th>
     <th style="text-align:right">Taux</th><th style="text-align:right">Gain</th><th style="text-align:right">Retenue</th>
     <th style="text-align:right">Patronal</th></tr>
-    ${s.result.lines.filter(l => l.gain || l.retenue || l.employer).map(line).join("")}</table></div>
+    ${rows.map(line).join("")}</table></div>
   <div class="panel" style="display:flex;gap:24px;flex-wrap:wrap">
     <div><label>Salaire brut</label><div><b>${fCFA(t.brutTotal)}</b> XAF</div></div>
     <div><label>CNPS salarié</label><div>${fCFA(t.cnpsSalarie)} XAF</div></div>
-    <div><label>IRPP + CAC</label><div>${fCFA(t.irpp + t.cac)} XAF</div></div>
+    <div><label>IRPP + CAC</label><div>${fCFA((t.irpp || 0) + (t.cac || 0))} XAF</div></div>
     <div><label>Total retenues</label><div>${fCFA(t.totalRetenues)} XAF</div></div>
     <div><label>Net à payer</label><div style="font-size:18px;color:var(--green)"><b>${fCFA(t.netAPayer)}</b> XAF</div></div>
     <div><label>Coût employeur</label><div>${fCFA(t.coutTotalEmployeur)} XAF</div></div>
   </div>`;
+}
+async function payslipSaveLines(id) {
+  const overrides = {};
+  view.querySelectorAll("input[data-code]").forEach(i => {
+    (overrides[i.dataset.code] = overrides[i.dataset.code] || {})[i.dataset.field] = Number(i.value);
+  });
+  const send = (force) => api(`/payroll/payslips/${id}/lines`, { method: "PUT", body: JSON.stringify({ overrides, force }) });
+  try { await send(false); payslipView(id); }
+  catch (e) {
+    if (e.requiresConfirmation) { if (confirm(e.warning || e.message)) { try { await send(true); payslipView(id); } catch (e2) { alert(e2.message); } } }
+    else alert(e.message);
+  }
 }
 function payPdf(id, print) {
   const url = `/api/payroll/payslips/${id}/pdf?print=${print}`;

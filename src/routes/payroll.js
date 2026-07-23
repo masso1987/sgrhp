@@ -74,8 +74,8 @@ function elementsToInput(emp, period, req) {
     switch (e.type) {
       case "PRIME": gains.push({ code: e.code, label: e.label, amount: Number(e.amount) }); break;
       case "INDEMNITE": nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount) }); break;
-      case "ACOMPTE":
-      case "PRET": otherDeductions.push({ code: e.code, label: e.label, amount: Number(e.amount) }); break;
+      case "ACOMPTE": otherDeductions.push({ code: "7000", label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
+      case "PRET": otherDeductions.push({ code: "7010", label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
       case "HS20": overtime.tier1 += Number(e.hours || 0); break;
       case "HS30": overtime.tier2 += Number(e.hours || 0); break;
       case "HS40": overtime.tier3 += Number(e.hours || 0); break;
@@ -446,6 +446,49 @@ router.get("/runs/:id/cotisations", allow("ADM", "CD", "RJ"), (req, res) => {
     a.base += l.base || 0; a.salarie += l.retenue || 0; a.patronal += l.employer || 0;
   }
   res.json({ run, lignes: Object.values(agg), totals: runTotals(run, req) });
+});
+
+// Edit an individual payslip: override specific rubrique AMOUNTS by hand (formula/base
+// stay locked). Re-totals without re-running the engine. Adjusts cumuls if the run is closed.
+router.put("/payslips/:id/lines", allow("ADM"), (req, res) => {
+  const s = mine(db.payslips, req).find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
+  const run = mine(db.payRuns, req).find(r => r.id === s.runId);
+  const closed = run && run.status === "CLOSED";
+  if (closed && !(req.body && req.body.force))
+    return res.status(409).json({ error: "Paie clôturée",
+      requiresConfirmation: true,
+      warning: "Cette paie est clôturée. Corriger ce bulletin ajustera les cumuls de l'employé. Confirmez pour appliquer." });
+  const overrides = (req.body && req.body.overrides) || {};
+  const before = { ...s.result.totals };
+  for (const l of s.result.lines) {
+    const o = overrides[l.code];
+    if (!o) continue;
+    if (o.gain !== undefined && l.kind === "GAIN") { l.gain = Math.round(Number(o.gain) || 0); l.manual = true; }
+    if (o.retenue !== undefined) { l.retenue = Math.round(Number(o.retenue) || 0); l.manual = true; }
+    if (o.employer !== undefined) { l.employer = Math.round(Number(o.employer) || 0); l.manual = true; }
+  }
+  const lines = s.result.lines, t = s.result.totals;
+  const gains = lines.filter(l => l.kind === "GAIN");
+  const ret = (code) => (lines.find(l => l.code === code) || {}).retenue || 0;
+  t.brutTotal = gains.reduce((a, l) => a + (l.gain || 0), 0);
+  t.netCotisable = gains.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0);
+  t.netImposable = gains.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0);
+  t.totalRetenues = lines.reduce((a, l) => a + (l.retenue || 0), 0);
+  t.chargesPatronales = lines.reduce((a, l) => a + (l.employer || 0), 0);
+  t.cnpsSalarie = ret("5000"); t.irpp = ret("5025"); t.cac = ret("5045");
+  t.cfcSalarie = ret("5050"); t.rav = ret("5080"); t.tdl = ret("5090");
+  t.netAPayer = t.brutTotal - t.totalRetenues;
+  t.coutTotalEmployeur = t.brutTotal + t.chargesPatronales;
+  s.edited = true;
+  if (closed) {
+    const cum = db.payCumuls.find(c => (c.tenantId || "t1") === (s.tenantId || "t1") && c.employeeId === s.employeeId && c.year === s.period.slice(0, 4));
+    if (cum) { cum.brut += t.brutTotal - before.brutTotal; cum.net += t.netAPayer - before.netAPayer;
+      cum.irpp += (t.irpp || 0) - (before.irpp || 0); cum.cnps += (t.cnpsSalarie || 0) - (before.cnpsSalarie || 0); }
+  }
+  save();
+  audit(req.user, "PAYSLIP_EDITED", "Payslip", s.id, { employeeId: s.employeeId, period: s.period, overrides: Object.keys(overrides), closed });
+  res.json(s);
 });
 
 module.exports = router;
