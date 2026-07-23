@@ -16,6 +16,27 @@ for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
+
+// Recompute all payslip totals from its lines (used after manual edits).
+function recomputePayslip(s) {
+  const L = s.result.lines, t = s.result.totals;
+  const G = L.filter(l => l.kind === "GAIN");
+  const ret = c => (L.find(l => l.code === c) || {}).retenue || 0;
+  const emp = c => (L.find(l => l.code === c) || {}).employer || 0;
+  t.brutTotal = G.reduce((a, l) => a + (l.gain || 0), 0);
+  t.netCotisable = G.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0);
+  t.netImposable = G.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0);
+  t.cnpsSalarie = ret("5000"); t.irpp = ret("5025"); t.cac = ret("5045");
+  t.cfcSalarie = ret("5050"); t.rav = ret("5080"); t.tdl = ret("5090");
+  t.totalImpots = t.irpp + t.cac + t.cfcSalarie + t.rav + t.tdl;
+  t.autresRetenues = L.filter(l => l.kind === "RETENUE").reduce((a, l) => a + (l.retenue || 0), 0);
+  t.totalRetenues = L.reduce((a, l) => a + (l.retenue || 0), 0);
+  t.chargesPatronales = L.reduce((a, l) => a + (l.employer || 0), 0);
+  t.cnpsPatronal = emp("5000") + emp("5010") + emp("5020");
+  t.cfcPatronal = emp("5060") || emp("5050"); t.fnePatronal = emp("5070");
+  t.netAPayer = t.brutTotal - t.totalRetenues;   // deducts cotisations, impôts AND acomptes/prêts
+  t.coutTotalEmployeur = t.brutTotal + t.chargesPatronales;
+}
 const fmtPeriod = (p) => p; // "YYYY-MM"
 
 function configOf(req) {
@@ -340,6 +361,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   const C = (emp.contract) || {};
   const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if(!h) return "";
     const d = new Date(s.period + "-01"); let m=(d.getFullYear()-h.getFullYear())*12+(d.getMonth()-h.getMonth());
+    if (m < 0) m = 0;
     return `${Math.floor(m/12)} an(s) et ${m%12} mois`; })();
   const cum = (db.payCumuls||[]).find(c => (c.tenantId||"t1")===(s.tenantId||"t1") && c.employeeId===s.employeeId && c.year===s.period.slice(0,4));
   let y = 30;
@@ -398,7 +420,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   doc.moveTo(28,y).lineTo(567,y).strokeColor("#999").stroke(); y+=2;
   const cotisPatSlip=(t.cnpsPatronal||0)+(t.cfcPatronal||0);
   doc.font("Helvetica-Bold").fontSize(7.5); L(X.des,"Total Cotisations");
-  doc.text(F(t.totalRetenues-(t.autresRetenues||0)),X.ret,y,{width:56,align:"right"});
+  doc.text(F((t.cnpsSalarie||0)+(t.totalImpots||0)),X.ret,y,{width:56,align:"right"});
   doc.text(F(cotisPatSlip),X.retp,y,{width:43,align:"right"}); doc.font("Helvetica"); y+=16;
 
   // ---- Summary band ----
@@ -409,7 +431,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   const bandRow=(name,yy,vals)=>{ doc.fillColor("#000").fontSize(7.5);
     doc.text(name,28,yy,{width:60}); const xs=[92,165,240,298,356,408,452,488],ws=[70,70,55,55,50,42,34,79];
     vals.forEach((v,i)=>doc.text(v,xs[i],yy,{width:ws[i],align:"right"})); };
-  bandRow("Période",y+16,[F(t.brutTotal),F(t.netImposable),F(t.totalRetenues),F(t.chargesPatronales),"0","0","30",F(t.netAPayer)]);
+  bandRow("Période",y+16,[F(t.brutTotal),F(t.netImposable),F((t.cnpsSalarie||0)+(t.totalImpots||0)),F(t.chargesPatronales),"0","0","30",F(t.netAPayer)]);
   if(cum) bandRow("Année",y+30,[F(cum.brut),"—",F(cum.cnps+cum.irpp),"—","0","0","—",F(cum.net)]);
   y+=54;
   // NET emphasis
@@ -464,27 +486,27 @@ router.put("/payslips/:id/lines", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, r
     return res.status(409).json({ error: "Paie clôturée",
       requiresConfirmation: true,
       warning: "Cette paie est clôturée. Corriger ce bulletin ajustera les cumuls de l'employé. Confirmez pour appliquer." });
-  const overrides = (req.body && req.body.overrides) || {};
   const before = { ...s.result.totals };
-  for (const l of s.result.lines) {
-    const o = overrides[l.code];
-    if (!o) continue;
-    if (o.gain !== undefined && l.kind === "GAIN") { l.gain = Math.round(Number(o.gain) || 0); l.manual = true; }
-    if (o.retenue !== undefined) { l.retenue = Math.round(Number(o.retenue) || 0); l.manual = true; }
-    if (o.employer !== undefined) { l.employer = Math.round(Number(o.employer) || 0); l.manual = true; }
+  if (Array.isArray(req.body.lines)) {
+    // Full edit: add / remove / modify rubriques (formula not re-run; amounts as given)
+    s.result.lines = req.body.lines
+      .filter(l => l && l.code)
+      .map(l => ({ code: String(l.code), label: String(l.label || l.code), kind: l.kind || "GAIN",
+        base: Number(l.base) || 0, rate: Number(l.rate) || 0,
+        gain: Math.round(Number(l.gain) || 0), retenue: Math.round(Number(l.retenue) || 0),
+        employer: Math.round(Number(l.employer) || 0), employerRate: Number(l.employerRate) || 0,
+        cnps: !!l.cnps, impo: !!l.impo, manual: true }));
+  } else {
+    const overrides = (req.body && req.body.overrides) || {};
+    for (const l of s.result.lines) {
+      const o = overrides[l.code]; if (!o) continue;
+      if (o.gain !== undefined && l.kind === "GAIN") { l.gain = Math.round(Number(o.gain) || 0); l.manual = true; }
+      if (o.retenue !== undefined) { l.retenue = Math.round(Number(o.retenue) || 0); l.manual = true; }
+      if (o.employer !== undefined) { l.employer = Math.round(Number(o.employer) || 0); l.manual = true; }
+    }
   }
-  const lines = s.result.lines, t = s.result.totals;
-  const gains = lines.filter(l => l.kind === "GAIN");
-  const ret = (code) => (lines.find(l => l.code === code) || {}).retenue || 0;
-  t.brutTotal = gains.reduce((a, l) => a + (l.gain || 0), 0);
-  t.netCotisable = gains.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0);
-  t.netImposable = gains.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0);
-  t.totalRetenues = lines.reduce((a, l) => a + (l.retenue || 0), 0);
-  t.chargesPatronales = lines.reduce((a, l) => a + (l.employer || 0), 0);
-  t.cnpsSalarie = ret("5000"); t.irpp = ret("5025"); t.cac = ret("5045");
-  t.cfcSalarie = ret("5050"); t.rav = ret("5080"); t.tdl = ret("5090");
-  t.netAPayer = t.brutTotal - t.totalRetenues;
-  t.coutTotalEmployeur = t.brutTotal + t.chargesPatronales;
+  recomputePayslip(s);
+  const t = s.result.totals;
   s.edited = true;
   if (closed) {
     const cum = db.payCumuls.find(c => (c.tenantId || "t1") === (s.tenantId || "t1") && c.employeeId === s.employeeId && c.year === s.period.slice(0, 4));
@@ -492,7 +514,7 @@ router.put("/payslips/:id/lines", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, r
       cum.irpp += (t.irpp || 0) - (before.irpp || 0); cum.cnps += (t.cnpsSalarie || 0) - (before.cnpsSalarie || 0); }
   }
   save();
-  audit(req.user, "PAYSLIP_EDITED", "Payslip", s.id, { employeeId: s.employeeId, period: s.period, overrides: Object.keys(overrides), closed });
+  audit(req.user, "PAYSLIP_EDITED", "Payslip", s.id, { employeeId: s.employeeId, period: s.period, mode: Array.isArray(req.body.lines) ? "full" : "override", lineCount: s.result.lines.length, closed });
   res.json(s);
 });
 
