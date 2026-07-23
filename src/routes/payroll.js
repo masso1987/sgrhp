@@ -427,7 +427,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
 });
 
 /* ===================== LIVRE DE PAIE ========================== */
-router.get("/runs/:id/livre", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/runs/:id/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const slips = mine(db.payslips, req).filter(s => s.runId === run.id);
@@ -435,7 +435,7 @@ router.get("/runs/:id/livre", allow("ADM", "CD", "RJ"), (req, res) => {
 });
 
 /* ================= ÉTATS DES COTISATIONS ===================== */
-router.get("/runs/:id/cotisations", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/runs/:id/cotisations", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const slips = mine(db.payslips, req).filter(s => s.runId === run.id);
