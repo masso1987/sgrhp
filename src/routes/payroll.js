@@ -450,7 +450,12 @@ router.get("/runs/:id/cotisations", allow("ADM", "CD", "RJ"), (req, res) => {
 
 // Edit an individual payslip: override specific rubrique AMOUNTS by hand (formula/base
 // stay locked). Re-totals without re-running the engine. Adjusts cumuls if the run is closed.
-router.put("/payslips/:id/lines", allow("ADM"), (req, res) => {
+router.put("/payslips/:id/lines", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+  if (req.user.role !== "ADM") {
+    const _u = db.users.find(x => x.id === req.user.id);
+    if (!(((_u && _u.permissions) || []).includes("payroll.edit")))
+      return res.status(403).json({ error: "Correction de paie non autorisée — demandez le droit à l'administrateur" });
+  }
   const s = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
   const run = mine(db.payRuns, req).find(r => r.id === s.runId);

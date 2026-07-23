@@ -802,11 +802,38 @@ async function boot() {
   } catch { armIdle(30); }
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} — ${ME.role}`;
+  buildNav();
+  go("dash");
+  startAccessPolling();
+}
+function buildNav() {
   const items = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)));
   nav.innerHTML = items.map(n => `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${esc(n.label)}</div>`).join("");
-  go("dash");
+  const cur = document.querySelector(".nav.active"); // preserved across rebuild via CURRENT_VIEW
+  if (window.CURRENT_VIEW) { const el = document.getElementById("nav-" + window.CURRENT_VIEW); if (el) el.classList.add("active"); }
+}
+// Poll the profile so access changes made by an admin/super-admin (modules, rights)
+// take effect live — no re-login required.
+function startAccessPolling() {
+  if (window._accessPoll) clearInterval(window._accessPoll);
+  window._accessPoll = setInterval(async () => {
+    if (!TOKEN) return;
+    try {
+      const m = await api("/me");
+      const modsChanged = JSON.stringify(m.modules || []) !== JSON.stringify(ME.modules || []);
+      const permsChanged = JSON.stringify(m.permissions || []) !== JSON.stringify(ME.permissions || []);
+      if (modsChanged || permsChanged) {
+        ME.modules = m.modules || []; ME.permissions = m.permissions || []; ME.tenantModules = m.tenantModules || [];
+        sessionStorage.setItem("me", JSON.stringify(ME));
+        if (modsChanged) buildNav();               // reveal/hide module menus
+        if (typeof toast === "function") toast("Vos accès ont été mis à jour."); else console.log("Accès mis à jour.");
+        if (permsChanged && window.CURRENT_VIEW) go(window.CURRENT_VIEW);  // refresh in-view buttons
+      }
+    } catch (e) {}
+  }, 20000);
 }
 function go(k) {
+  window.CURRENT_VIEW = k;
   applySectionColor(k);
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
   ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, none }[k] || none)();
@@ -1173,7 +1200,7 @@ async function toggleActive(uid, active) {
 }
 async function permModal(uid) {
   const u = (await api("/users")).find(x => x.id === uid);
-  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"]];
+  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits sur les employés — ${esc(u.fullName)}</b>
     <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger (modifier) ou supprimer des dossiers employés.</div>
@@ -2622,7 +2649,7 @@ async function sadmToggleActive(uid, active) {
 async function sadmRights(uid) {
   const u = _SADM_TU.users.find(x => x.id === uid); if (!u) return;
   const tmods = (_SADM_TU.tenant.modules || []).filter(k => MODULE_LABELS[k]);
-  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"]];
+  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"],["payroll.edit","💵 Corriger les bulletins de paie"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Modules & droits — ${esc(u.fullName)}</b>
     ${u.role === "ADM" ? '<div class="note" style="margin-top:6px">Administrateur : accès à tous les modules activés du tenant.</div>' : `
@@ -2936,7 +2963,7 @@ async function payClose(id) {
 async function payslipView(id, edit) {
   const s = await api("/payroll/payslips/" + id);
   const t = s.result.totals;
-  const canEdit = ME.role === "ADM";
+  const canEdit = ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit");
   const rows = s.result.lines.filter(l => l.gain || l.retenue || l.employer);
   const amt = (l, field) => {
     const editable = edit && ((field === "gain" && l.kind === "GAIN") || (field === "retenue" && (l.retenue || l.kind !== "GAIN")));
