@@ -830,7 +830,7 @@ async function employees() {
 let PFS = [];
 const pfName = id => (PFS.find(p => p.id === id) || {}).name || id;
 
-async function empForm() {
+async function empForm(edit) {
   PFS = await api("/portfolios");
   const [ctypes, sels, me, cnvs] = await Promise.all([
     api("/config/contract-types"), api("/config/salary-elements"), api("/me"), api("/config/conventions")]);
@@ -840,7 +840,7 @@ async function empForm() {
   if (!myPfs.length) return view.innerHTML = `<h1>Nouveau dossier employé</h1>
     <div class="note">No portfolio is linked to your account yet. Ask the administrator to link you to
     at least one portfolio (Users screen → 🔗 Gérer).</div>`;
-  view.innerHTML = `<h1>Nouveau dossier employé</h1><div class="panel" style="max-width:720px">
+  view.innerHTML = `<h1>${edit ? "Modifier le dossier employé" : "Nouveau dossier employé"}</h1><div class="panel" style="max-width:720px">
     <div class="grid2"><div><label>Prénom</label><input id="fFirst"></div><div><label>Nom</label><input id="fLast"></div></div>
     <div class="grid3">
       <div><label>Portefeuille ${ME.role === "GPF" ? '<span class="tag gray">vos portefeuilles rattachés</span>' : ""}</label>
@@ -891,9 +891,39 @@ async function empForm() {
       </div>
     </div>
     <div class="err hidden" id="fErr"></div>
-    <button class="btn p" onclick="empSave()">Créer le dossier</button>
+    <button class="btn p" onclick="empSave('${edit ? edit.id : ""}')">${edit ? "Enregistrer les modifications" : "Créer le dossier"}</button>
     <button class="btn ghost" onclick="employees()">Annuler</button></div>`;
   syncCnv();
+  if (edit) {
+    fFirst.value = edit.firstName || ""; fLast.value = edit.lastName || "";
+    if (edit.portfolioId) fPf.value = edit.portfolioId; syncCnv();
+    fHire.value = edit.hireDate || ""; fBirth.value = edit.birthDate || ""; fBp.value = edit.birthPlace || "";
+    if (edit.maritalStatus) fMs.value = edit.maritalStatus;
+    fCni.value = edit.cniNumber || ""; fCniExp.value = edit.cniExpiry || ""; fCnps.value = edit.cnpsNumber || "";
+    fPhone.value = edit.phone || ""; fEmgName.value = edit.emergencyName || ""; fEmgTel.value = edit.emergencyPhone || "";
+    fMat.value = edit.matricule || ""; fPos.value = edit.position || (edit.contract && edit.contract.position) || "";
+    fQual.value = edit.qualification || ""; fDept.value = edit.department || ""; fChild.value = edit.children != null ? edit.children : "";
+    fDipe.value = edit.dipe || ""; fBank.value = edit.bankName || ""; fAcct.value = edit.bankAccount || "";
+    const c = edit.contract || {};
+    if (c.type) fCt.value = c.type; if (c.paymentMethod) fPay.value = c.paymentMethod;
+    if (c.category) fCat.value = c.category; if (c.step) fStep.value = c.step;
+    const ft = (window._CTYPES.find(t => t.name === fCt.value) || {}).fixedTerm;
+    fEndWrap.classList.toggle("hidden", !ft); if (c.endDate) fEnd.value = c.endDate;
+    if (edit.salary) Object.entries(edit.salary).forEach(([name, amt]) => {
+      const cb = view.querySelector(`[data-selname="${name}"]`);
+      if (cb) { cb.checked = true; const a = view.querySelector(`[data-selamt="${name}"]`); if (a) { a.classList.remove("hidden"); a.value = amt; } }
+    });
+  }
+}
+async function empEdit(id) { const e = await api("/employees/" + id); empForm(e); }
+async function empDelete(id, name) {
+  if (!confirm(`Supprimer le dossier de ${name} ? Cette action est journalisée.`)) return;
+  try { await api("/employees/" + id, { method: "DELETE" }); employees(); }
+  catch (e) {
+    if (e.requiresConfirmation && confirm((e.warning || e.message) + "\n\nConfirmer la suppression ?")) {
+      try { await api("/employees/" + id + "?force=1", { method: "DELETE" }); employees(); } catch (e2) { alert(e2.message); }
+    } else if (!e.requiresConfirmation) alert(e.message);
+  }
 }
 function syncCnv() {
   const pf = (window._MYPFS || []).find(p => p.id === fPf.value);
@@ -902,10 +932,19 @@ function syncCnv() {
   const rows = (cnv?.grid || []).filter(g => g.baseSalary >= 0);
   fCat.innerHTML = '<option value="">— sélectionner —</option>' + rows.map(g =>
     `<option value="${esc(g.category)}">${esc(g.category)} — base ${Number(g.baseSalary).toLocaleString("fr-FR")} F CFA</option>`).join("");
+  // pre-check the salary elements (rubriques) allocated to this portfolio
+  if (pf && Array.isArray(pf.salaryElements) && pf.salaryElements.length) {
+    view.querySelectorAll("[data-selname]").forEach(cb => {
+      if (pf.salaryElements.includes(cb.dataset.selname)) {
+        cb.checked = true;
+        const a = view.querySelector(`[data-selamt="${cb.dataset.selname}"]`); if (a) a.classList.remove("hidden");
+      }
+    });
+  }
 }
-async function empSave() {
+async function empSave(editId) {
   try {
-    const e = await api("/employees", { method: "POST", body: JSON.stringify({
+    const _payload = {
       firstName: fFirst.value, lastName: fLast.value, portfolioId: fPf.value,
       hireDate: fHire.value, birthDate: fBirth.value, birthPlace: fBp.value,
       maritalStatus: fMs.value, cniNumber: fCni.value, cniExpiry: fCniExp.value,
@@ -920,8 +959,11 @@ async function empSave() {
         paymentMethod: fPay.value, startDate: fHire.value,
         endDate: (window._CTYPES.find(t=>t.name===fCt.value)||{}).fixedTerm ? fEnd.value : null },
       salary: Object.fromEntries([...view.querySelectorAll("[data-selname]")].filter(c => c.checked)
-        .map(c => [c.dataset.selname, view.querySelector(`[data-selamt="${c.dataset.selname}"]`).value])) }) });
-    empDetail(e.id);
+        .map(c => [c.dataset.selname, view.querySelector(`[data-selamt="${c.dataset.selname}"]`).value])) };
+    const e = editId
+      ? await api("/employees/" + editId, { method: "PUT", body: JSON.stringify(_payload) })
+      : await api("/employees", { method: "POST", body: JSON.stringify(_payload) });
+    empDetail(editId || e.id);
   } catch (err) { fErr.textContent = err.message; fErr.classList.remove("hidden"); }
 }
 
@@ -976,7 +1018,7 @@ async function dl(empId, fileId, name) {
 
 /* ---------- Portfolio config (ADM) ---------- */
 async function portfolios() {
-  const [pfs, types, cnvs] = await Promise.all([api("/portfolios"), api("/portfolios/doc-types"), api("/config/conventions")]);
+  const [pfs, types, cnvs, sels] = await Promise.all([api("/portfolios"), api("/portfolios/doc-types"), api("/config/conventions"), api("/config/salary-elements")]);
   PFS = pfs;
   const sel = window._pfSel || pfs[0].id;
   const pf = pfs.find(p => p.id === sel) || pfs[0];
@@ -1002,7 +1044,20 @@ async function portfolios() {
         <span><b>${t.code}.</b> ${esc(t.label)} ${t.code === "V" ? '<span class="tag red">LOCKED</span>' : ""}</span></label>`).join("")}
     </div>
     <div class="err hidden" id="pErr"></div>
-    <button class="btn p" style="margin-top:10px" onclick="pfSave('${pf.id}')">Enregistrer la configuration</button></div>`;
+    <button class="btn p" style="margin-top:10px" onclick="pfSave('${pf.id}')">Enregistrer la configuration</button>
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:10px">
+      <b style="font-size:12px;color:var(--muted)">💵 RUBRIQUES DE SALAIRE ALLOUÉES À CE PORTEFEUILLE</b>
+      <div class="note" style="margin-top:6px">Ces éléments seront pré-cochés à la création d'un employé de ce portefeuille.</div>
+      <div class="grid2" style="margin-top:8px">${sels.map(el => `
+        <label class="chk"><input type="checkbox" data-pfsel="${esc(el.name)}" ${(pf.salaryElements || []).includes(el.name) ? "checked" : ""}>
+          <span>${esc(el.name)}${el.rubriqueCode ? ` <span class="tag gray">rub. ${esc(el.rubriqueCode)}</span>` : ""}</span></label>`).join("")}</div>
+      <button class="btn p sm" style="margin-top:8px" onclick="pfSelSave('${pf.id}')">Enregistrer les rubriques du portefeuille</button>
+    </div></div>`;
+}
+async function pfSelSave(id) {
+  const elements = [...view.querySelectorAll("[data-pfsel]")].filter(c => c.checked).map(c => c.dataset.pfsel);
+  try { await api(`/portfolios/${id}/salary-elements`, { method: "PUT", body: JSON.stringify({ elements }) });
+    alert("Rubriques du portefeuille enregistrées."); } catch (e) { alert(e.message); }
 }
 async function pfCnvSave(id) {
   try { await api(`/portfolios/${id}/convention`, { method: "PUT", body: JSON.stringify({ conventionId: pfCnv.value }) });
@@ -1350,7 +1405,10 @@ async function empDetail(id) {
 
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
     <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status) : ST_TAG(e.status || "DRAFT")}
-  <button class="btn ghost sm" style="float:right" onclick="empExport('${e.id}','${esc(e.lastName)}')">⬇ Télécharger le dossier (PDF)</button></h1>
+  <span style="float:right;display:inline-flex;gap:6px">
+    ${canEdit ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">✏️ Modifier</button>` : ""}
+    ${ME.role === "ADM" ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">🗑 Supprimer</button>` : ""}
+    <button class="btn ghost sm" onclick="empExport('${e.id}','${esc(e.lastName)}')">⬇ Dossier (PDF)</button></span></h1>
     ${rejBanner}
     ${canEdit && (!doc || doc.status === "DRAFT") ? `
       <button class="btn p" style="margin-bottom:12px" ${complete ? "" : "disabled title='Upload all required documents first'"}

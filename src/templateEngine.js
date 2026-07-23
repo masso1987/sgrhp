@@ -47,13 +47,21 @@ function autoContext(employeeId) {
     employee_phone: e.phone, employee_cniNumber: e.cniNumber,
     employee_cnpsNumber: e.cnpsNumber, employee_hireDate: e.hireDate,
     contract_type: c.type, contract_category: c.category, contract_step: c.step,
-    contract_startDate: c.startDate || e.hireDate, contract_endDate: c.endDate,
+    contract_startDate: c.startDate || e.hireDate,
+    contract_position: c.position || e.position,          // Emploi/poste (auto)
     contract_paymentMethod: c.paymentMethod,
     portfolio_name: pf?.name,
+    client_company: pf?.clientCompany || pf?.name,        // portefeuille = entreprise utilisatrice (auto)
     signature_city: "Douala", signature_date: today, today,
     company_name: "CIBLE RH EMPLOI S.A.", company_bp: "BP 3462 Douala",
     work_hours: "40 heures / semaine",
   };
+  // Open-ended (CDI) contracts have no end date / mission duration -> "indéterminée"
+  const _ct = _mine("contractTypes").find(t => t.name === c.type);
+  const _openEnded = _ct ? !_ct.fixedTerm : (String(c.type).toUpperCase() === "CDI");
+  base.contract_endDate = _openEnded ? "indéterminée" : (c.endDate || undefined);
+  base.mission_duration = _openEnded ? "indéterminée" : (c.missionDuration || undefined);
+
   // Salary elements: expose configured tags + gross total; salary-grid fallback for base
   let gross = 0;
   for (const el of _mine("salaryElements")) {

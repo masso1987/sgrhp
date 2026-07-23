@@ -45,4 +45,15 @@ router.put("/:id/convention", allow("ADM"), (req, res) => {
   res.json(pf);
 });
 
+// Allocate the salary elements (rubriques) used for employees of this portfolio.
+router.put("/:id/salary-elements", allow("ADM"), (req, res) => {
+  const pf = mine(db.portfolios, req).find(p => p.id === req.params.id);
+  if (!pf) return res.status(404).json({ error: "Portefeuille introuvable" });
+  const valid = mine(db.salaryElements, req).map(e => e.name);
+  pf.salaryElements = [...new Set((req.body.elements || []).filter(n => valid.includes(n)))];
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { salaryElements: pf.salaryElements });
+  res.json({ id: pf.id, salaryElements: pf.salaryElements });
+});
+
 module.exports = router;

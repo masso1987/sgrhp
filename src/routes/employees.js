@@ -132,6 +132,25 @@ function checklist(emp) {
   });
 }
 
+// Delete an employee (ADM). Blocked if referenced by generated documents or payroll,
+// to protect payroll/audit integrity.
+router.delete("/:id", allow("ADM"), (req, res) => {
+  const emp = scoped(req).find(e => e.id === req.params.id);
+  if (!emp) return res.status(404).json({ error: "Not found" });
+  const inPayroll = (db.payslips || []).some(s => s.employeeId === emp.id);
+  const inDocs = (db.documents || []).some(d => d.refId === emp.id && d.status === "GENERATED");
+  if ((inPayroll || inDocs) && req.query.force !== "1")
+    return res.status(409).json({ error: "Cet employé a des bulletins de paie ou documents générés",
+      requiresConfirmation: true,
+      warning: `${emp.firstName} ${emp.lastName} possède des documents ou bulletins générés. ` +
+        `La suppression retirera son dossier (les pièces déjà générées restent archivées). Confirmez pour supprimer.` });
+  db.employees = db.employees.filter(e => e.id !== emp.id);
+  db.files = (db.files || []).filter(f => f.employeeId !== emp.id);
+  save();
+  audit(req.user, "DELETED", "Employee", emp.id, { name: `${emp.firstName} ${emp.lastName}` });
+  res.json({ ok: true });
+});
+
 module.exports = router;
 
 // --- M2: submit employee file for validation (§5 step 1) ---
