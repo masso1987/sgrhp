@@ -82,11 +82,11 @@ function seedTenantData(tid) {
   }
   if (!has("salaryElements")) {
     db.salaryElements.push(
-      { id: id("sel"), tenantId: tid, name: "Salaire de base", tag: "salary_base" },
-      { id: id("sel"), tenantId: tid, name: "Indemnité de transport", tag: "allowance_transport" },
-      { id: id("sel"), tenantId: tid, name: "Indemnité de logement", tag: "allowance_housing" },
-      { id: id("sel"), tenantId: tid, name: "Indemnité de salissure", tag: "allowance_dirt" },
-      { id: id("sel"), tenantId: tid, name: "Prime de rendement", tag: "bonus_performance" });
+      { id: id("sel"), tenantId: tid, name: "Salaire de base", tag: "salary_base", rubriqueCode: "1000" },
+      { id: id("sel"), tenantId: tid, name: "Indemnité de transport", tag: "allowance_transport", rubriqueCode: "3513" },
+      { id: id("sel"), tenantId: tid, name: "Indemnité de logement", tag: "allowance_housing", rubriqueCode: "3510" },
+      { id: id("sel"), tenantId: tid, name: "Indemnité de salissure", tag: "allowance_dirt", rubriqueCode: "2129" },
+      { id: id("sel"), tenantId: tid, name: "Prime de rendement", tag: "bonus_performance", rubriqueCode: "2127" });
   }
   if (!has("salaryGrid"))
     for (const g of defaultGrid) db.salaryGrid.push({ ...g, id: id("sg"), tenantId: tid });

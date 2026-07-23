@@ -38,11 +38,38 @@ function seniorityYears(emp, period) {
 }
 
 /** Turn variable elements for one employee/period into engine input. */
+// Build the recurring salary structure from the employee's filled-in RH salary
+// elements, mapped to Paie rubriques (element.rubriqueCode). This is the RH -> Paie
+// bridge: amounts entered in the HR dossier drive payroll automatically each month.
+function structureToInput(emp, req) {
+  const elements = mine(db.salaryElements, req);
+  const rubOf = (code) => mine(db.payRubriques, req).find(r => r.code === code);
+  // Default tag -> rubrique mapping (used when an element has no explicit rubriqueCode)
+  const TAG_RUB = { salary_base: "1000", allowance_transport: "3513", allowance_housing: "3510",
+    allowance_dirt: "2129", bonus_performance: "2127" };
+  const salary = emp.salary || {};
+  const gains = []; let baseSalary = 0, transport = null;
+  for (const el of elements) {
+    const amount = Number(salary[el.name]);
+    if (!amount) continue;
+    const code = el.rubriqueCode || TAG_RUB[el.tag] || null; const rub = code ? rubOf(code) : null;
+    if (code === "1000" || el.tag === "salary_base") { baseSalary = amount; continue; }
+    if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount }; continue; }
+    gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount,
+      cnps: rub ? !!rub.cnps : true, impo: rub ? !!rub.impo : true });
+  }
+  if (!baseSalary) baseSalary = baseSalaryOf(emp, req); // fallback to the salary grid
+  return { baseSalary, gains, transport };
+}
+
 function elementsToInput(emp, period, req) {
-  const els = mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
-  const gains = [], nonTaxable = [], otherDeductions = [];
+  // 1) recurring structure from the HR dossier
+  const struct = structureToInput(emp, req);
+  const gains = [...struct.gains], nonTaxable = [], otherDeductions = [];
   const overtime = { tier1: 0, tier2: 0, tier3: 0, night: 0, sundayHoliday: 0 };
   let absenceDays = 0;
+  // 2) variable elements entered for this period (on top of the structure)
+  const els = mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
   for (const e of els) {
     switch (e.type) {
       case "PRIME": gains.push({ code: e.code, label: e.label, amount: Number(e.amount) }); break;
@@ -60,10 +87,11 @@ function elementsToInput(emp, period, req) {
   const cfg = configOf(req);
   const workedDays = Math.max(0, (cfg.standardMonthlyDays || 30) - absenceDays);
   return {
-    baseSalary: baseSalaryOf(emp, req),
+    baseSalary: struct.baseSalary,
     workedDays, standardDays: cfg.standardMonthlyDays || 30,
     seniorityYears: seniorityYears(emp, period),
-    overtime, gains, nonTaxable, otherDeductions,
+    overtime, gains, nonTaxable, transport: struct.transport, otherDeductions,
+    tdlBase: struct.baseSalary,
   };
 }
 function computeFor(emp, period, req) {

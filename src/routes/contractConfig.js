@@ -39,13 +39,25 @@ router.put("/contract-types/:id", allow("ADM"), (req, res) => {
 router.get("/salary-elements", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json(mine(db.salaryElements, req)));
 
 router.post("/salary-elements", allow("ADM"), (req, res) => {
-  const { name, tag } = req.body || {};
+  const { name, tag, rubriqueCode } = req.body || {};
   if (!name) return res.status(400).json({ error: "name required" });
   if (mine(db.salaryElements, req).find(e => e.name === name)) return res.status(409).json({ error: "Element exists" });
-  const e = stamp({ id: id("sel"), name, tag: tag || null }, req);
+  const e = stamp({ id: id("sel"), name, tag: tag || null, rubriqueCode: rubriqueCode || null }, req);
   db.salaryElements.push(e); save();
-  audit(req.user, "CONFIG_CHANGED", "SalaryElement", e.id, { created: name, tag });
+  audit(req.user, "CONFIG_CHANGED", "SalaryElement", e.id, { created: name, tag, rubriqueCode });
   res.status(201).json(e);
+});
+
+// Link a salary element to a Paie rubrique (drives the RH -> Paie bridge).
+router.put("/salary-elements/:id", allow("ADM"), (req, res) => {
+  const e = mine(db.salaryElements, req).find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: "Not found" });
+  if (req.body.name) e.name = req.body.name;
+  if (req.body.tag !== undefined) e.tag = req.body.tag || null;
+  if (req.body.rubriqueCode !== undefined) e.rubriqueCode = req.body.rubriqueCode || null;
+  save();
+  audit(req.user, "CONFIG_CHANGED", "SalaryElement", e.id, { name: e.name, rubriqueCode: e.rubriqueCode });
+  res.json(e);
 });
 
 router.delete("/salary-elements/:id", allow("ADM"), (req, res) => {

@@ -1367,6 +1367,10 @@ async function empDetail(id) {
       <div><label>Contrat</label><div>${e.contract?.type || "—"} · ${e.contract?.paymentMethod || ""}<br>
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
+    ${e.salary && Object.keys(e.salary).length ? `<div class="panel"><b style="font-size:12px;color:var(--muted)">STRUCTURE DE PAIE — transmise au module Paie</b>
+      <table style="margin-top:6px"><tr><th>Élément de salaire</th><th style="text-align:right">Montant mensuel</th></tr>
+      ${Object.entries(e.salary).map(([k,v]) => `<tr><td>${esc(k)}</td><td style="text-align:right"><b>${Number(v).toLocaleString("fr-FR")}</b> XAF</td></tr>`).join("")}
+      </table><div class="note" style="margin-top:6px">💵 Ces montants alimentent automatiquement chaque bulletin de paie (rubriques fixes récurrentes), en plus des éléments variables saisis par période.</div></div>` : ""}
     <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles.</div>
     <div class="panel">${e.checklist.map(c => `
       <div class="doc-row"><div><b>${c.code}.</b> ${esc(c.label)} <small style="color:var(--muted)">(${c.formats})</small>
@@ -1421,12 +1425,17 @@ async function templatesView() {
       <div class="err hidden" id="stErr"></div></div></div>
 
   <div class="grid2">
-  <div class="panel"><b>💵 Éléments de salaire (utilisés à la création d'un employé)</b>
-    <table style="margin-top:6px"><tr><th>Element</th><th>Template tag</th><th></th></tr>
+  <div class="panel"><b>💵 Éléments de salaire → rubriques Paie</b>
+    <div class="note" style="margin-top:6px">Chaque élément saisi dans le dossier RH est transmis à la Paie via la rubrique liée.
+    Modifiez le code rubrique pour changer le traitement (ex. 1000 salaire, 3513 transport, 3510 logement, 2129 salissure).</div>
+    <table style="margin-top:6px"><tr><th>Élément</th><th>Template tag</th><th>Rubrique Paie</th><th></th></tr>
     ${sels.map(s => `<tr><td>${esc(s.name)}</td><td>${s.tag ? `<span class="tag gray">{{${s.tag}}}</span>` : "—"}</td>
+      <td><input value="${esc(s.rubriqueCode || "")}" placeholder="code" style="margin:0;max-width:90px"
+        onchange="selMap('${s.id}', this.value)"></td>
       <td><button class="btn ghost sm" onclick="selDel('${s.id}')">✕</button></td></tr>`).join("")}</table>
     <div style="display:flex;gap:6px;margin-top:8px">
-      <input id="selName" placeholder="Nom de l'élément" style="margin:0"><input id="selTag" placeholder="tag (optional)" style="margin:0;max-width:150px">
+      <input id="selName" placeholder="Nom de l'élément" style="margin:0"><input id="selTag" placeholder="tag" style="margin:0;max-width:120px">
+      <input id="selRub" placeholder="rubrique" style="margin:0;max-width:90px">
       <button class="btn p sm" onclick="selAdd()">Ajouter</button></div></div>
   <div class="panel"><b>📃 Types de contrat (paramétrables, versionnés)</b>
     <table style="margin-top:6px"><tr><th>Type</th><th>Fixed term?</th><th>Versions</th></tr>
@@ -1795,7 +1804,11 @@ async function studioConvert() {
   catch (e) { stErr.textContent = e.message; stErr.classList.remove("hidden"); }
 }
 async function selAdd() {
-  try { await api("/config/salary-elements", { method: "POST", body: JSON.stringify({ name: selName.value, tag: selTag.value }) }); templatesView(); }
+  try { await api("/config/salary-elements", { method: "POST", body: JSON.stringify({ name: selName.value, tag: selTag.value, rubriqueCode: (typeof selRub!=="undefined"?selRub.value:"") }) }); templatesView(); }
+  catch (e) { alert(e.message); }
+}
+async function selMap(id, rubriqueCode) {
+  try { await api(`/config/salary-elements/${id}`, { method: "PUT", body: JSON.stringify({ rubriqueCode }) }); }
   catch (e) { alert(e.message); }
 }
 async function selDel(id) {
