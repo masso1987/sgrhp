@@ -1200,7 +1200,7 @@ async function toggleActive(uid, active) {
 }
 async function permModal(uid) {
   const u = (await api("/users")).find(x => x.id === uid);
-  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"]];
+  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits sur les employés — ${esc(u.fullName)}</b>
     <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger (modifier) ou supprimer des dossiers employés.</div>
@@ -2649,7 +2649,7 @@ async function sadmToggleActive(uid, active) {
 async function sadmRights(uid) {
   const u = _SADM_TU.users.find(x => x.id === uid); if (!u) return;
   const tmods = (_SADM_TU.tenant.modules || []).filter(k => MODULE_LABELS[k]);
-  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"],["payroll.edit","💵 Corriger les bulletins de paie"],["payroll.run","🧮 Calculer / clôturer la paie"],["payroll.livre","📖 Livre de paie"],["payroll.cotisations","🏛 États des cotisations"]];
+  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"],["payroll.edit","💵 Corriger les bulletins de paie"],["payroll.run","🧮 Calculer / clôturer la paie"],["payroll.livre","📖 Livre de paie"],["payroll.cotisations","🏛 États des cotisations"],["payroll.compta","🧾 Passation comptable"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Modules & droits — ${esc(u.fullName)}</b>
     ${u.role === "ADM" ? '<div class="note" style="margin-top:6px">Administrateur : accès à tous les modules activés du tenant.</div>' : `
@@ -2876,6 +2876,7 @@ async function payRunView(id) {
     ${hasRight("payroll.livre") ? `<button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>` : ""}
     ${hasRight("payroll.cotisations") ? `<button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">🏦 Ordre de virement</button>` : ""}
+    ${hasRight("payroll.compta") ? `<button class="btn ghost" onclick="payJournal('${run.id}')">🧾 Passation comptable</button>` : ""}
   </div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">SALARIÉS — par portefeuille (cliquez pour ouvrir le bulletin)</b>
     <input id="rosterSearch" placeholder="🔍 Salarié, matricule…" style="margin:6px 0;max-width:240px" oninput="payRenderRoster()">
@@ -3232,6 +3233,24 @@ async function payCotis(id) {
   </table></div>`;
 }
 
+async function payJournal(id) {
+  const j = await api("/payroll/runs/" + id + "/journal");
+  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
+  <h1 style="margin-top:10px">🧾 Passation comptable — ${esc(j.run.period)}
+    <button class="btn ghost sm" style="float:right" onclick="payDownload('/payroll/runs/${id}/journal/export','Journal_paie_${j.run.period}.csv')">⬇ Export</button></h1>
+  <div class="note">Écritures du journal de paie. ${j.balanced ? '<span style="color:var(--green)">Équilibré ✓</span>' : '<span style="color:var(--red)">Déséquilibré ⚠</span>'}</div>
+  <div class="panel"><table><tr><th>Compte</th><th>Libellé</th><th style="text-align:right">Débit</th><th style="text-align:right">Crédit</th></tr>
+    ${j.entries.map(e => `<tr><td><b>${esc(e.compte)}</b></td><td>${esc(e.libelle)}</td>
+      <td style="text-align:right">${e.debit ? fCFA(e.debit) : ""}</td><td style="text-align:right">${e.credit ? fCFA(e.credit) : ""}</td></tr>`).join("")}
+    <tr style="font-weight:bold;border-top:2px solid #999"><td colspan="2">TOTAUX</td>
+      <td style="text-align:right">${fCFA(j.totalDebit)}</td><td style="text-align:right">${fCFA(j.totalCredit)}</td></tr>
+  </table></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">VENTILATION PAR PORTEFEUILLE</b>
+  <table style="margin-top:6px"><tr><th>Portefeuille</th><th style="text-align:right">Brut</th><th style="text-align:right">Charges pat.</th><th style="text-align:right">Net</th></tr>
+    ${j.ventilation.map(v => `<tr><td>${esc(pfName(v.portfolio))}</td><td style="text-align:right">${fCFA(v.brut)}</td>
+      <td style="text-align:right">${fCFA(v.chargesPat)}</td><td style="text-align:right">${fCFA(v.net)}</td></tr>`).join("")}
+  </table></div>`;
+}
 /* ================= Paramètres paie (config + rubriques) ============= */
 async function payconfigView() {
   const [cfg, rubs, models] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques"), api("/payroll/models")]);

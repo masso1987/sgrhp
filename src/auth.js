@@ -131,7 +131,7 @@ function me(req, res) {
   const _tm = (_t && _t.modules) || [];
   const _isAdmin = u.role === "ADM" || u.role === "SADM";
   const _eff = _isAdmin ? _tm : _tm.filter(k => ["hr", "careers"].includes(k) || (u.modules || []).includes(k));
-  const _perms = _isAdmin ? ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations"]
+  const _perms = _isAdmin ? ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"]
     : [...new Set([...(u.role === "GPF" ? ["employee.edit"] : []), ...(u.permissions || [])])];
   res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes });
 }

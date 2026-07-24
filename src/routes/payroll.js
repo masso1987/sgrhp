@@ -700,4 +700,63 @@ router.delete("/loans/:id", allow("ADM", "GPF"), (req, res) => {
   db.payLoans.splice(i, 1); save(); res.json({ ok: true });
 });
 
+/* ---------------- Passation comptable ---------------- */
+const ACC_DEFAULTS = { salairesBrut: "641", chargesPatronales: "645", cnps: "431", impots: "447", netAPayer: "421", avances: "425" };
+function accountingOf(req) { const c = configOf(req); return { ...ACC_DEFAULTS, ...(c.accounting || {}) }; }
+
+function buildJournal(run, req) {
+  const model = accountingOf(req);
+  const slips = mine(db.payslips, req).filter(s => s.runId === run.id);
+  const zero = () => ({ brut: 0, cnpsSal: 0, cnpsPat: 0, impots: 0, chargesPat: 0, cfcFnePat: 0, net: 0, autres: 0 });
+  const agg = zero(), byPf = {};
+  for (const s of slips) {
+    const t = s.result.totals;
+    const emp = mine(db.employees, req).find(e => e.id === s.employeeId) || {};
+    const pf = emp.portfolioId || "—";
+    const acc = (o) => {
+      o.brut += t.brutTotal; o.cnpsSal += t.cnpsSalarie; o.cnpsPat += t.cnpsPatronal;
+      o.impots += (t.irpp || 0) + (t.cac || 0) + (t.cfcSalarie || 0) + (t.rav || 0) + (t.tdl || 0);
+      o.chargesPat += t.chargesPatronales; o.cfcFnePat += (t.cfcPatronal || 0) + (t.fnePatronal || 0);
+      o.net += t.netAPayer; o.autres += (t.autresRetenues || 0);
+    };
+    acc(agg); acc(byPf[pf] = byPf[pf] || zero());
+  }
+  const E = (compte, libelle, debit, credit) => ({ compte, libelle, debit: Math.round(debit || 0), credit: Math.round(credit || 0) });
+  const entries = [
+    E(model.salairesBrut, "Rémunérations brutes", agg.brut, 0),
+    E(model.chargesPatronales, "Charges patronales", agg.chargesPat, 0),
+    E(model.cnps, "CNPS (salariale + patronale)", 0, agg.cnpsSal + agg.cnpsPat),
+    E(model.impots, "Impôts & taxes (IRPP/CAC/CFC/RAV/TDL/FNE)", 0, agg.impots + agg.cfcFnePat),
+    E(model.avances, "Acomptes / prêts (avances)", 0, agg.autres),
+    E(model.netAPayer, "Net à payer au personnel", 0, agg.net),
+  ].filter(e => e.debit || e.credit);
+  const totalDebit = entries.reduce((a, e) => a + e.debit, 0), totalCredit = entries.reduce((a, e) => a + e.credit, 0);
+  const ventilation = Object.keys(byPf).map(pf => ({ portfolio: pf, ...byPf[pf] }));
+  return { model, entries, totalDebit, totalCredit, balanced: totalDebit === totalCredit, ventilation };
+}
+
+router.get("/accounting-model", allow("ADM", "CD", "RJ"), (req, res) => res.json(accountingOf(req)));
+router.put("/accounting-model", allow("ADM"), (req, res) => {
+  const c = configOf(req); c.accounting = { ...ACC_DEFAULTS, ...(c.accounting || {}), ...(req.body || {}) };
+  save(); audit(req.user, "CONFIG_CHANGED", "AccountingModel", c.id, { accounting: c.accounting });
+  res.json(c.accounting);
+});
+router.get("/runs/:id/journal", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.compta")) return res.status(403).json({ error: "Passation comptable non autorisée" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  res.json({ run, ...buildJournal(run, req) });
+});
+router.get("/runs/:id/journal/export", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.compta")) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const j = buildJournal(run, req);
+  const rows = [["Compte", "Libellé", "Débit", "Crédit"]];
+  for (const e of j.entries) rows.push([e.compte, e.libelle, e.debit || "", e.credit || ""]);
+  rows.push(["", "TOTAUX", j.totalDebit, j.totalCredit]);
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "journal", format: "csv" });
+  sendCSV(res, `Journal_paie_${run.period}.csv`, rows);
+});
+
 module.exports = router;
