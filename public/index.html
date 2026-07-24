@@ -2913,7 +2913,7 @@ async function bulletinView(runId, empId) {
     ${prev ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${prev}')">◀ Précédent</button>` : ""}
     ${next ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${next}')">Suivant ▶</button>` : ""}
   </div>
-  <div class="panel" style="display:flex;gap:6px">${tab("elements", "Éléments variables")}${tab("structure", "Structure de paie")}${tab("calcule", "Bulletin calculé")}</div>
+  <div class="panel" style="display:flex;gap:6px">${tab("elements", "Éléments variables")}${tab("prets", "Prêts")}${tab("structure", "Structure de paie")}${tab("calcule", "Bulletin calculé")}</div>
   <div id="bulletinTab"></div>`;
   bulletinRenderTab();
 }
@@ -2929,6 +2929,17 @@ function bulletinRenderTab() {
       </table></div>`;
   } else if (BULLETIN_TAB === "calcule") {
     box.innerHTML = slip ? bulletinCalcule(slip) : `<div class="panel" style="color:var(--muted)">Pas encore calculé. Cliquez « ⚙ Calculer ce bulletin ».</div>`;
+  } else if (BULLETIN_TAB === "prets") {
+    box.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">PRÊTS — remboursement automatique par échéances</b>
+      <form onsubmit="return loanAdd(event,'${empId}')" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;margin-top:8px">
+        <div><label>Libellé</label><input id="loLabel" placeholder="Prêt véhicule" style="min-width:150px"></div>
+        <div><label>Montant total</label><input id="loPrin" type="number" min="1" style="max-width:130px"></div>
+        <div><label>Nb échéances</label><input id="loInst" type="number" min="1" style="max-width:100px"></div>
+        <div><label>Début (AAAA-MM)</label><input id="loStart" placeholder="${run.period}" style="max-width:110px"></div>
+        <button class="btn p sm">+ Créer le prêt</button></form>
+      <div class="err hidden" id="loErr" style="margin-top:6px"></div>
+      <div id="loList" style="margin-top:8px"></div></div>`;
+    loanRender(empId);
   } else {
     box.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES DU MOIS (primes, heures supp., absences, acomptes)</b>
       ${open ? `<form onsubmit="return bulletinAddEl(event,'${run.period}','${empId}')" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;margin-top:8px">
@@ -2936,7 +2947,7 @@ function bulletinRenderTab() {
           <option value="PRIME">Prime (imposable)</option><option value="INDEMNITE">Indemnité (non imposable)</option>
           <option value="HS20">Heures supp. +20%</option><option value="HS30">Heures supp. +30%</option><option value="HS40">Heures supp. +40%</option>
           <option value="NUIT">Heures de nuit +50%</option><option value="ABSENCE">Absence (jours)</option>
-          <option value="ACOMPTE">Acompte</option><option value="PRET">Remboursement prêt</option></select></div>
+          <option value="ACOMPTE">Acompte</option><option value="AVANTAGE">Avantage en nature</option><option value="TREIZE">13e mois</option><option value="RAPPEL">Rappel de salaire</option></select></div>
         <div><label>Libellé</label><input id="beLabel" placeholder="ex. Prime de rendement" style="min-width:160px"></div>
         <div><label id="beValLbl">Montant (XAF)</label><input id="beVal" type="number" min="0" style="max-width:130px"></div>
         <button class="btn p sm">+ Ajouter</button></form>
@@ -2984,6 +2995,26 @@ async function bulletinDelEl(id) {
   try { await api("/payroll/elements/" + id, { method: "DELETE" });
     const { run, empId } = BULLETIN_CTX; const els = await api(`/payroll/elements?period=${run.period}&employeeId=${empId}`);
     BULLETIN_CTX.els = els; bulletinRenderEls(els); } catch (e) { alert(e.message); }
+}
+async function loanRender(empId) {
+  const box = document.getElementById("loList"); if (!box) return;
+  const loans = await api("/payroll/loans?employeeId=" + empId);
+  box.innerHTML = loans.length ? `<table><tr><th>Libellé</th><th>Total</th><th>Échéances</th><th>Mensualité</th><th>Début</th><th>Statut</th><th></th></tr>
+    ${loans.map(l => `<tr><td>${esc(l.label)}</td><td>${fCFA(l.principal)}</td><td>${l.installments}</td>
+      <td><b>${fCFA(l.monthlyAmount)}</b></td><td>${esc(l.startPeriod)}</td>
+      <td>${l.active !== false ? '<span class="tag green">actif</span>' : '<span class="tag gray">clos</span>'}</td>
+      <td><button class="btn ghost sm" onclick="loanDel('${l.id}','${empId}')">✕</button></td></tr>`).join("")}</table>`
+    : '<small style="color:var(--muted)">Aucun prêt. La mensualité est déduite du net automatiquement chaque mois sur la durée.</small>';
+}
+async function loanAdd(ev, empId) {
+  ev.preventDefault();
+  const body = { employeeId: empId, label: loLabel.value || "Prêt", principal: Number(loPrin.value), installments: Number(loInst.value), startPeriod: loStart.value || undefined };
+  try { await api("/payroll/loans", { method: "POST", body: JSON.stringify(body) }); loLabel.value = loPrin.value = loInst.value = ""; loanRender(empId); }
+  catch (e) { loErr.textContent = e.message; loErr.classList.remove("hidden"); }
+}
+async function loanDel(id, empId) {
+  if (!confirm("Supprimer ce prêt ?")) return;
+  try { await api("/payroll/loans/" + id, { method: "DELETE" }); loanRender(empId); } catch (e) { alert(e.message); }
 }
 async function bulletinCompute(runId, empId) {
   try { await api(`/payroll/runs/${runId}/employees/${empId}/compute`, { method: "POST" }); BULLETIN_TAB = "calcule"; bulletinView(runId, empId); }

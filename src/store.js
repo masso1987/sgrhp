@@ -11,7 +11,7 @@ fs.mkdirSync(path.join(__dirname, "..", "uploads"), { recursive: true });
 
 let db = { tenants: [], users: [], portfolios: [], docTypes: [], employees: [], files: [], documents: [], notifications: [], audit: [], seq: 1 };
 if (fs.existsSync(FILE)) db = JSON.parse(fs.readFileSync(FILE, "utf8"));
-for (const k of ["tenants","users","portfolios","docTypes","employees","files","documents","notifications","audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid","fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360","checkins","interviews","successionPlans","payrollConfig","payRubriques","bulletinModels","payRuns","payslips","payElements","payCumuls"])
+for (const k of ["tenants","users","portfolios","docTypes","employees","files","documents","notifications","audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid","fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360","checkins","interviews","successionPlans","payrollConfig","payRubriques","bulletinModels","payRuns","payslips","payElements","payCumuls","payLoans"])
   if (!db[k]) db[k] = [];
 
 /* Storage backend: PostgreSQL when DATABASE_URL is set, JSON file otherwise (dev). */
@@ -41,7 +41,7 @@ async function initStorage() {
   for (const k of ["tenants","users","portfolios","docTypes","employees","files","documents","notifications",
     "audit","templates","referentials","decisions","contractTypes","salaryElements","salaryGrid",
     "fichesPoste","rawTemplates","conventions","careerPlans","careerPaths","okrs","evaluations360",
-    "checkins","interviews","successionPlans","payrollConfig","payRubriques","bulletinModels","payRuns","payslips","payElements","payCumuls"]) if (!db[k]) db[k] = [];
+    "checkins","interviews","successionPlans","payrollConfig","payRubriques","bulletinModels","payRuns","payslips","payElements","payCumuls","payLoans"]) if (!db[k]) db[k] = [];
   if (!db.seq) db.seq = 1;
   return { backend: "postgres", rows: n };
 }

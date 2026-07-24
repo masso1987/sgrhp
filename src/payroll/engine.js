@@ -129,10 +129,22 @@ function computePayslip(input, configOverride) {
     add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", base: amt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
   }
 
+  // Avantages en nature: valued benefit — taxable (and optionally cotisable) but NOT
+  // paid in cash. Increases NETIMPO/NETCOTI (so IRPP/CNPS rise) without touching brut/net.
+  const avantages = input.avantages || input.nonCashBenefits || [];
+  let avTotal = 0, avImpo = 0, avCnps = 0;
+  for (const a of avantages) {
+    if (!a || !a.amount) continue;
+    const amt = r0(a.amount);
+    add({ code: a.code || "4000", label: a.label || "Avantage en nature", kind: "AVANTAGE",
+      base: amt, rate: 1, gain: amt, avantage: true, cnps: !!a.cnps, impo: a.impo !== false });
+    avTotal += amt; if (a.impo !== false) avImpo += amt; if (a.cnps) avCnps += amt;
+  }
+
   /* 2) NAMED BASES */
   const BRUT = lines.filter(l => l.kind === "GAIN").reduce((s, l) => s + l.gain, 0);
-  const NETCOTI = lines.filter(l => l.kind === "GAIN" && l.cnps).reduce((s, l) => s + l.gain, 0);
-  const NETIMPO = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s, l) => s + l.gain, 0) + transportTaxable;
+  const NETCOTI = lines.filter(l => l.kind === "GAIN" && l.cnps).reduce((s, l) => s + l.gain, 0) + avCnps;
+  const NETIMPO = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s, l) => s + l.gain, 0) + transportTaxable + avImpo;
   const BASECF = Math.round(NETIMPO / 1000) * 1000;
   const cnpsBase = Math.min(NETCOTI, cfg.cnps.ceiling);
 
@@ -173,12 +185,14 @@ function computePayslip(input, configOverride) {
     totals: {
       brutTotal: BRUT, netCotisable: NETCOTI, netImposable: NETIMPO, baseCF: BASECF,
       cnpsSalarie: pvidE, irpp, cac, cfcSalarie: cfcE, rav, tdl,
-      totalImpots, autresRetenues: autres, totalRetenues, netAPayer: BRUT - totalRetenues,
+      totalImpots, autresRetenues: autres, totalRetenues, netAPayer: BRUT - totalRetenues, avantagesNature: avTotal,
       cnpsPatronal: pvidP + pfP + rpP, cfcPatronal: cfcP, fnePatronal: fneP,
       chargesPatronales: chargesPat, coutTotalEmployeur: BRUT + chargesPat,
     },
     meta: { seniorityRate: senR, proratedBase, hourlyRate: r0(hourlyRate), cnpsBase, sni: r0(sni),
-      leaveAccrued: cfg.leave.daysPerMonth },
+      leaveAccrued: cfg.leave.daysPerMonth,
+      leaveDailyRate: r0(baseSalary / (cfg.standardMonthlyDays || 30)),
+      leaveProvisionMonthly: r0((baseSalary / (cfg.standardMonthlyDays || 30)) * cfg.leave.daysPerMonth) },
   };
 }
 

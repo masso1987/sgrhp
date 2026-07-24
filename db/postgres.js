@@ -31,7 +31,7 @@ const COLLECTIONS = {
   salaryGrid: "salary_grid",
   payrollConfig: "payroll_config", payRubriques: "pay_rubriques",
   bulletinModels: "bulletin_models", payRuns: "pay_runs", payslips: "payslips",
-  payElements: "pay_elements", payCumuls: "pay_cumuls",
+  payElements: "pay_elements", payCumuls: "pay_cumuls", payLoans: "pay_loans",
 };
 
 let pool;

@@ -12,7 +12,7 @@ const { audit } = require("../audit");
 const { computePayslip } = require("../payroll/engine");
 
 /* Ensure collections exist (defensive for older stores). */
-for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls"])
+for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans"])
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
@@ -45,6 +45,11 @@ function recomputePayslip(s) {
 }
 const fmtPeriod = (p) => p; // "YYYY-MM"
 
+function periodDiff(from, to) { // whole months between "YYYY-MM" strings
+  if (!from || !to) return -1;
+  const [fy, fm] = from.split("-").map(Number), [ty, tm] = to.split("-").map(Number);
+  return (ty - fy) * 12 + (tm - fm);
+}
 function configOf(req) {
   let c = mine(db.payrollConfig, req)[0];
   if (!c) { c = stamp({ id: id("pcfg"), ...require("../payroll/engine").DEFAULT_CONFIG }, req); db.payrollConfig.push(c); save(); }
@@ -92,7 +97,7 @@ function structureToInput(emp, req) {
 function elementsToInput(emp, period, req) {
   // 1) recurring structure from the HR dossier
   const struct = structureToInput(emp, req);
-  const gains = [...struct.gains], nonTaxable = [], otherDeductions = [];
+  const gains = [...struct.gains], nonTaxable = [], otherDeductions = [], avantages = [];
   const overtime = { tier1: 0, tier2: 0, tier3: 0, night: 0, sundayHoliday: 0 };
   let absenceDays = 0;
   // 2) variable elements entered for this period (on top of the structure)
@@ -108,8 +113,17 @@ function elementsToInput(emp, period, req) {
       case "HS40": overtime.tier3 += Number(e.hours || 0); break;
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
+      case "AVANTAGE": avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: Number(e.amount), cnps: !!e.cnps, impo: e.impo !== false }); break;
+      case "TREIZE": gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary) }); break;
+      case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount) }); break;
       default: break;
     }
+  }
+  // Prêts avec échéancier: auto-deduct the monthly installment while within the schedule.
+  for (const ln of mine(db.payLoans, req).filter(l => l.employeeId === emp.id && l.active !== false)) {
+    const diff = periodDiff(ln.startPeriod, period);
+    if (diff >= 0 && diff < ln.installments)
+      otherDeductions.push({ code: "7010", label: `${ln.label || "Prêt"} (${diff + 1}/${ln.installments})`, amount: Number(ln.monthlyAmount) });
   }
   const cfg = configOf(req);
   const workedDays = Math.max(0, (cfg.standardMonthlyDays || 30) - absenceDays);
@@ -117,7 +131,7 @@ function elementsToInput(emp, period, req) {
     baseSalary: struct.baseSalary,
     workedDays, standardDays: cfg.standardMonthlyDays || 30,
     seniorityYears: seniorityYears(emp, period),
-    overtime, gains, nonTaxable, transport: struct.transport, otherDeductions,
+    overtime, gains, nonTaxable, avantages, transport: struct.transport, otherDeductions,
     tdlBase: struct.baseSalary,
   };
 }
@@ -494,7 +508,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   const bandRow=(name,yy,vals)=>{ doc.fillColor("#000").fontSize(7.5);
     doc.text(name,28,yy,{width:60}); const xs=[92,165,240,298,356,408,452,488],ws=[70,70,55,55,50,42,34,79];
     vals.forEach((v,i)=>doc.text(v,xs[i],yy,{width:ws[i],align:"right"})); };
-  bandRow("Période",y+16,[F(t.brutTotal),F(t.netImposable),F((t.cnpsSalarie||0)+(t.totalImpots||0)),F(t.chargesPatronales),"0","0","30",F(t.netAPayer)]);
+  bandRow("Période",y+16,[F(t.brutTotal),F(t.netImposable),F((t.cnpsSalarie||0)+(t.totalImpots||0)),F(t.chargesPatronales),F(t.avantagesNature||0),"0","30",F(t.netAPayer)]);
   if(cum) bandRow("Année",y+30,[F(cum.brut),"—",F(cum.cnps+cum.irpp),"—","0","0","—",F(cum.net)]);
   y+=54;
   // NET emphasis
@@ -504,7 +518,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   // ---- Footer: congés + signature + legal ----
   doc.fontSize(7).fillColor("#000");
   doc.rect(28,y,539,30).strokeColor("#ccc").stroke();
-  L(34,`Congés : acquis ${(r.meta&&r.meta.leaveAccrued)||2.5} j/mois`,{width:250}); L(360,"Signature",{width:200,align:"right"});
+  L(34,`Congés : acquis ${(r.meta&&r.meta.leaveAccrued)||2.5} j/mois · provision ${F((r.meta&&r.meta.leaveProvisionMonthly)||0)} XAF/mois`,{width:320}); L(400,"Signature",{width:160,align:"right"});
   y+=36;
   doc.fontSize(6.5).fillColor("#666");
   L(28,"Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé.",{width:539,align:"center"});
@@ -581,6 +595,38 @@ router.put("/payslips/:id/lines", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, r
   save();
   audit(req.user, "PAYSLIP_EDITED", "Payslip", s.id, { employeeId: s.employeeId, period: s.period, mode: Array.isArray(req.body.lines) ? "full" : "override", lineCount: s.result.lines.length, closed });
   res.json(s);
+});
+
+/* ---------------- Prêts (loans with échéancier) ---------------- */
+router.get("/loans", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const { employeeId } = req.query;
+  let list = mine(db.payLoans, req);
+  if (employeeId) list = list.filter(l => l.employeeId === employeeId);
+  res.json(list);
+});
+router.post("/loans", allow("ADM", "GPF"), (req, res) => {
+  const b = req.body || {};
+  if (!b.employeeId || !(Number(b.principal) > 0) || !(Number(b.installments) > 0))
+    return res.status(400).json({ error: "employeeId, principal et nombre d'échéances requis" });
+  const principal = Number(b.principal), installments = Math.round(Number(b.installments));
+  const l = stamp({ id: id("loan"), employeeId: b.employeeId, label: b.label || "Prêt",
+    principal, installments, monthlyAmount: Math.round(principal / installments),
+    startPeriod: b.startPeriod || new Date().toISOString().slice(0, 7), active: true,
+    createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.payLoans.push(l); save();
+  audit(req.user, "CREATED", "PayLoan", l.id, { employeeId: l.employeeId, principal, installments });
+  res.status(201).json(l);
+});
+router.put("/loans/:id", allow("ADM", "GPF"), (req, res) => {
+  const l = mine(db.payLoans, req).find(x => x.id === req.params.id);
+  if (!l) return res.status(404).json({ error: "Prêt introuvable" });
+  if (req.body.active !== undefined) l.active = !!req.body.active;
+  save(); res.json(l);
+});
+router.delete("/loans/:id", allow("ADM", "GPF"), (req, res) => {
+  const i = db.payLoans.findIndex(x => x.id === req.params.id && (x.tenantId || "t1") === (req.user.tenantId || "t1"));
+  if (i < 0) return res.status(404).json({ error: "Introuvable" });
+  db.payLoans.splice(i, 1); save(); res.json({ ok: true });
 });
 
 module.exports = router;
