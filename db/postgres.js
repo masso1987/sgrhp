@@ -85,6 +85,7 @@ async function load(db) {
   let seq = 1;
   for (const r of rows) {
     if (r.collection === "_meta") { seq = r.doc.seq || 1; continue; }
+    if (r.collection === "settings") { db.settings = r.doc; continue; }
     (db[r.collection] = db[r.collection] || []).push(r.doc);
   }
   db.seq = seq;
@@ -119,6 +120,12 @@ async function save(db) {
       `INSERT INTO store (tenant_id, collection, id, doc, updated_at) VALUES ($1,$2,$3,$4, now())
        ON CONFLICT (tenant_id, collection, id) DO UPDATE SET doc = EXCLUDED.doc, updated_at = now()`,
       [TENANT, "_meta", "seq", { seq: db.seq }]);
+    if (db.settings && typeof db.settings === "object") {
+      await client.query(
+        `INSERT INTO store (tenant_id, collection, id, doc, updated_at) VALUES ($1,$2,$3,$4, now())
+         ON CONFLICT (tenant_id, collection, id) DO UPDATE SET doc = EXCLUDED.doc, updated_at = now()`,
+        [TENANT, "settings", "_singleton", db.settings]);
+    }
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
