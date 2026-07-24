@@ -1200,7 +1200,7 @@ async function toggleActive(uid, active) {
 }
 async function permModal(uid) {
   const u = (await api("/users")).find(x => x.id === uid);
-  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"]];
+  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits sur les employés — ${esc(u.fullName)}</b>
     <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger (modifier) ou supprimer des dossiers employés.</div>
@@ -2649,7 +2649,7 @@ async function sadmToggleActive(uid, active) {
 async function sadmRights(uid) {
   const u = _SADM_TU.users.find(x => x.id === uid); if (!u) return;
   const tmods = (_SADM_TU.tenant.modules || []).filter(k => MODULE_LABELS[k]);
-  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"],["payroll.edit","💵 Corriger les bulletins de paie"]];
+  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"],["payroll.edit","💵 Corriger les bulletins de paie"],["payroll.run","🧮 Calculer / clôturer la paie"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Modules & droits — ${esc(u.fullName)}</b>
     ${u.role === "ADM" ? '<div class="note" style="margin-top:6px">Administrateur : accès à tous les modules activés du tenant.</div>' : `
@@ -2810,6 +2810,7 @@ async function saveTemplates() {
 /* Module Paie (Payroll) — SGRHP                                      */
 /* ================================================================= */
 const fCFA = n => (Math.round(n || 0)).toLocaleString("fr-FR");
+function canRunPay() { return ME.role === "ADM" || (ME.permissions || []).includes("payroll.run"); }
 function payStatusTag(s) {
   return ({ OPEN: '<span class="tag amber">Ouverte</span>',
     CALCULATED: '<span class="tag blue">Calculée</span>',
@@ -2822,7 +2823,7 @@ async function payrollView() {
   view.innerHTML = `<h1>💵 Paie — cycles mensuels</h1>
   <div class="note">Créez une paie mensuelle, saisissez les éléments variables (primes, heures supp., acomptes),
   calculez les bulletins, éditez-les en PDF, puis clôturez la période.</div>
-  ${ME.role === "ADM" ? `<div class="panel"><form onsubmit="return payCreateRun(event)" style="display:flex;gap:8px;align-items:center">
+  ${canRunPay() ? `<div class="panel"><form onsubmit="return payCreateRun(event)" style="display:flex;gap:8px;align-items:center">
     <label style="margin:0">Nouvelle paie&nbsp;</label>
     <input type="month" id="pRunPeriod" required style="max-width:180px;margin:0">
     <button class="btn p sm">+ Créer</button></form><div class="err hidden" id="pRunErr"></div></div>` : ""}
@@ -2848,7 +2849,7 @@ async function payRunView(id) {
   const [data, emps] = await Promise.all([api("/payroll/runs/" + id), PAY_EMPS ? Promise.resolve(PAY_EMPS) : api("/employees")]);
   PAY_EMPS = emps;
   const { run, payslips, totals } = data;
-  const isAdm = ME.role === "ADM", open = run.status !== "CLOSED";
+  const isAdm = canRunPay(), open = run.status !== "CLOSED";
   view.innerHTML = `<button class="btn ghost sm" onclick="payrollView()">← Retour</button>
   <h1 style="margin-top:10px">Paie ${esc(run.period)} ${payStatusTag(run.status)}</h1>
   <div class="panel" style="display:flex;gap:18px;flex-wrap:wrap">

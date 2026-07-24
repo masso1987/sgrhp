@@ -16,6 +16,11 @@ for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
+function canRunPayroll(req) {
+  if (req.user.role === "ADM") return true;
+  const u = db.users.find(x => x.id === req.user.id);
+  return (((u && u.permissions) || []).includes("payroll.run"));
+}
 
 // Recompute all payslip totals from its lines (used after manual edits).
 function recomputePayslip(s) {
@@ -251,7 +256,9 @@ router.get("/runs", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   res.json(mine(db.payRuns, req).slice().sort((a, b) => (b.period || "").localeCompare(a.period || "")));
 });
 
-router.post("/runs", allow("ADM"), (req, res) => {
+router.post("/runs", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+    if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
+
   const period = (req.body && req.body.period || "").trim();
   if (!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({ error: "Période attendue au format YYYY-MM" });
   if (mine(db.payRuns, req).some(r => r.period === period))
@@ -271,7 +278,9 @@ router.get("/runs/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 });
 
 /** Compute (or recompute) payslips for all active employees in the run's period. */
-router.post("/runs/:id/compute", allow("ADM"), (req, res) => {
+router.post("/runs/:id/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+    if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
+
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   if (run.status === "CLOSED") return res.status(409).json({ error: "Paie clôturée" });
@@ -299,7 +308,9 @@ router.post("/runs/:id/compute", allow("ADM"), (req, res) => {
 });
 
 /** Close the period: lock payslips and roll year-to-date cumuls. */
-router.post("/runs/:id/close", allow("ADM"), (req, res) => {
+router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+    if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
+
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   if (run.status === "CLOSED") return res.status(409).json({ error: "Déjà clôturée" });

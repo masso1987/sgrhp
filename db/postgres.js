@@ -19,6 +19,7 @@ const TENANT = process.env.TENANT_ID || "t1";
 
 // collection -> { table, columns } ; JSONB "doc" column keeps shape parity with the JSON store
 const COLLECTIONS = {
+  tenants: "tenants",
   users: "users", portfolios: "portfolios", conventions: "conventions",
   employees: "employees", files: "doc_files", documents: "documents",
   decisions: "decisions", referentials: "referentials", contractTypes: "contract_types",
