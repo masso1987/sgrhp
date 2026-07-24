@@ -1200,7 +1200,7 @@ async function toggleActive(uid, active) {
 }
 async function permModal(uid) {
   const u = (await api("/users")).find(x => x.id === uid);
-  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"]];
+  const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits sur les employés — ${esc(u.fullName)}</b>
     <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger (modifier) ou supprimer des dossiers employés.</div>
@@ -2649,7 +2649,7 @@ async function sadmToggleActive(uid, active) {
 async function sadmRights(uid) {
   const u = _SADM_TU.users.find(x => x.id === uid); if (!u) return;
   const tmods = (_SADM_TU.tenant.modules || []).filter(k => MODULE_LABELS[k]);
-  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"],["payroll.edit","💵 Corriger les bulletins de paie"],["payroll.run","🧮 Calculer / clôturer la paie"]];
+  const caps = [["employee.edit","✏️ Modifier les employés"],["employee.delete","🗑 Supprimer les employés"],["payroll.edit","💵 Corriger les bulletins de paie"],["payroll.run","🧮 Calculer / clôturer la paie"],["payroll.livre","📖 Livre de paie"],["payroll.cotisations","🏛 États des cotisations"]];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Modules & droits — ${esc(u.fullName)}</b>
     ${u.role === "ADM" ? '<div class="note" style="margin-top:6px">Administrateur : accès à tous les modules activés du tenant.</div>' : `
@@ -2811,6 +2811,7 @@ async function saveTemplates() {
 /* ================================================================= */
 const fCFA = n => (Math.round(n || 0)).toLocaleString("fr-FR");
 function canRunPay() { return ME.role === "ADM" || (ME.permissions || []).includes("payroll.run"); }
+function hasRight(perm) { return ME.role === "ADM" || (ME.permissions || []).includes(perm); }
 function payStatusTag(s) {
   return ({ OPEN: '<span class="tag amber">Ouverte</span>',
     CALCULATED: '<span class="tag blue">Calculée</span>',
@@ -2859,13 +2860,12 @@ async function payRunView(id) {
     <div><label>Charges patronales</label><div>${fCFA(totals.charges)} XAF</div></div>
     <div><label>Coût employeur</label><div><b>${fCFA(totals.cout)}</b> XAF</div></div>
   </div>
-  ${isAdm ? `<div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
-    ${open ? `<button class="btn p" onclick="payCompute('${run.id}')">⚙ Calculer la paie</button>` : ""}
-    ${run.status === "CALCULATED" ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">🔒 Clôturer la période</button>` : ""}
-    <button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>
-    <button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button>
-  </div>` : `<div class="panel"><button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>
-    <button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button></div>`}
+  <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
+    ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">⚙ Calculer la paie</button>` : ""}
+    ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">🔒 Clôturer la période</button>` : ""}
+    ${hasRight("payroll.livre") ? `<button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>` : ""}
+    ${hasRight("payroll.cotisations") ? `<button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button>` : ""}
+  </div>
 
   ${open && (isAdm || ME.role === "GPF") ? payElementsForm(run) : ""}
 

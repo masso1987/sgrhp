@@ -16,10 +16,11 @@ for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
-function canRunPayroll(req) {
+function canRunPayroll(req) { return hasPayPerm(req, "payroll.run"); }
+function hasPayPerm(req, perm) {
   if (req.user.role === "ADM") return true;
   const u = db.users.find(x => x.id === req.user.id);
-  return (((u && u.permissions) || []).includes("payroll.run"));
+  return (((u && u.permissions) || []).includes(perm));
 }
 
 // Recompute all payslip totals from its lines (used after manual edits).
@@ -461,6 +462,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
 
 /* ===================== LIVRE DE PAIE ========================== */
 router.get("/runs/:id/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Livre de paie non autorise - demandez le droit a votre administrateur" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const slips = mine(db.payslips, req).filter(s => s.runId === run.id);
@@ -469,6 +471,7 @@ router.get("/runs/:id/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) 
 
 /* ================= ÉTATS DES COTISATIONS ===================== */
 router.get("/runs/:id/cotisations", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Etats des cotisations non autorise - demandez le droit a votre administrateur" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const slips = mine(db.payslips, req).filter(s => s.runId === run.id);
