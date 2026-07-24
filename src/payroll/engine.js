@@ -109,7 +109,8 @@ function computePayslip(input, configOverride) {
 
   /* 1) GAINS */
   const proratedBase = r0(baseSalary * (workedDays / standardDays));
-  add({ code: "1000", label: "Salaire de base", kind: "GAIN", base: baseSalary, rate: workedDays / standardDays, gain: proratedBase, cnps: true, impo: true });
+  const dailyRate = standardDays ? baseSalary / standardDays : baseSalary;
+  add({ code: "1000", label: "Salaire de base", kind: "GAIN", nombre: workedDays, base: Math.round(dailyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
   const senR = seniorityRate(seniorityYears, cfg);
   if (senR > 0) add({ code: "1040", label: "Prime d'ancienneté", kind: "GAIN", base: baseSalary, rate: senR, gain: r0(baseSalary * senR), cnps: true, impo: true });
   const ot = overtime || {};
@@ -189,7 +190,7 @@ function computePayslip(input, configOverride) {
       cnpsPatronal: pvidP + pfP + rpP, cfcPatronal: cfcP, fnePatronal: fneP,
       chargesPatronales: chargesPat, coutTotalEmployeur: BRUT + chargesPat,
     },
-    meta: { seniorityRate: senR, proratedBase, hourlyRate: r0(hourlyRate), cnpsBase, sni: r0(sni),
+    meta: { seniorityRate: senR, proratedBase, hourlyRate: r0(hourlyRate), cnpsBase, sni: r0(sni), workedDays, standardDays,
       leaveAccrued: cfg.leave.daysPerMonth,
       leaveDailyRate: r0(baseSalary / (cfg.standardMonthlyDays || 30)),
       leaveProvisionMonthly: r0((baseSalary / (cfg.standardMonthlyDays || 30)) * cfg.leave.daysPerMonth) },

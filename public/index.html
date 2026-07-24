@@ -2948,7 +2948,14 @@ function bulletinRenderTab() {
       <div id="loList" style="margin-top:8px"></div></div>`;
     loanRender(empId);
   } else {
-    box.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES DU MOIS (primes, heures supp., absences, acomptes)</b>
+    const joursVal = (els.find(e => e.type === "JOURS") || {}).days;
+    box.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">JOURS TRAVAILLÉS DU MOIS</b>
+      <div style="display:flex;gap:8px;align-items:end;margin:8px 0 12px;padding:8px;border:1px solid var(--line);border-radius:6px">
+        <div><label>Nombre de jours (défaut 30)</label><input id="beJours" type="number" min="0" max="31" step="0.5" value="${joursVal != null ? joursVal : 30}" style="max-width:120px" ${open ? "" : "disabled"}></div>
+        ${open ? `<button class="btn p sm" onclick="bulletinSetJours('${run.period}','${empId}')">💾 Enregistrer les jours</button>` : ""}
+        <small style="color:var(--muted)">Salaire de base = jours × taux journalier (Base ÷ 30). Renseignez ici les jours réellement travaillés.</small>
+      </div></div>
+      <div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES DU MOIS (primes, heures supp., absences, acomptes)</b>
       ${open ? `<form onsubmit="return bulletinAddEl(event,'${run.period}','${empId}')" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;margin-top:8px">
         <div><label>Type</label><select id="beType" onchange="beToggle()">
           <option value="PRIME">Prime (imposable)</option><option value="INDEMNITE">Indemnité (non imposable)</option>
@@ -2990,8 +2997,20 @@ async function bulletinAddEl(ev, period, empId) {
     const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els; bulletinRenderEls(els); beVal.value = ""; beLabel.value = ""; }
   catch (e) { beErr.textContent = e.message; beErr.classList.remove("hidden"); }
 }
-function bulletinRenderEls(els) {
+async function bulletinSetJours(period, empId) {
+  const days = Number(document.getElementById("beJours").value);
+  if (!(days >= 0)) return alert("Nombre de jours invalide.");
+  try {
+    const existing = (BULLETIN_CTX.els || []).filter(e => e.type === "JOURS");
+    for (const e of existing) await api("/payroll/elements/" + e.id, { method: "DELETE" });
+    await api("/payroll/elements", { method: "POST", body: JSON.stringify({ employeeId: empId, period, type: "JOURS", label: "Jours travaillés", days }) });
+    const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els;
+    alert("Jours travaillés enregistrés : " + days + " j. Recalculez le bulletin pour appliquer.");
+  } catch (e) { alert(e.message); }
+}
+function bulletinRenderEls(all) {
   const box = document.getElementById("beList"); if (!box) return;
+  const els = (all || []).filter(e => e.type !== "JOURS");
   box.innerHTML = els.length ? `<table><tr><th>Type</th><th>Libellé</th><th>Valeur</th><th></th></tr>
     ${els.map(e => `<tr><td>${esc(e.type)}</td><td>${esc(e.label)}</td>
       <td>${e.amount != null ? fCFA(e.amount) + " XAF" : e.hours != null ? e.hours + " h" : (e.days || 0) + " j"}</td>

@@ -135,7 +135,10 @@ function elementsToInput(emp, period, req) {
       otherDeductions.push({ code: "7010", label: `${ln.label || "Prêt"} (${diff + 1}/${ln.installments})`, amount: Number(ln.monthlyAmount) });
   }
   const cfg = configOf(req);
-  const workedDays = Math.max(0, (cfg.standardMonthlyDays || 30) - absenceDays);
+  const joursEl = els.find(e => e.type === "JOURS");
+  const stdDays = cfg.standardMonthlyDays || 30;
+  const workedDays = joursEl != null ? Math.max(0, Number(joursEl.days))
+    : Math.max(0, stdDays - absenceDays);
   return {
     baseSalary: struct.baseSalary,
     workedDays, standardDays: cfg.standardMonthlyDays || 30,
@@ -440,97 +443,133 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Bulletin_${(s.employeeName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
-  const doc = new PDFDocument({ margin: 28, size: "A4" });
+  const doc = new PDFDocument({ margin: 18, size: "A4" });
   doc.pipe(res);
   const t = s.result.totals, r = s.result;
-  const F = (n) => String(Math.round(n||0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  const C = (emp.contract) || {};
-  const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if(!h) return "";
-    const d = new Date(s.period + "-01"); let m=(d.getFullYear()-h.getFullYear())*12+(d.getMonth()-h.getMonth());
-    if (m < 0) m = 0;
-    return `${Math.floor(m/12)} an(s) et ${m%12} mois`; })();
-  const cum = (db.payCumuls||[]).find(c => (c.tenantId||"t1")===(s.tenantId||"t1") && c.employeeId===s.employeeId && c.year===s.period.slice(0,4));
-  let y = 30;
-  const L = (x,txt,opt={}) => { doc.text(txt==null?"":String(txt), x, y, opt); };
+  const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
+  const N3 = (n) => Number(n).toFixed(3).replace(/\B(?=(\d{3})+(?!\d))\./, "$&").replace(/(\d)(?=(\d{3})+,)/g, "$1").replace(".", ",");
+  const C = emp.contract || {};
+  const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if (!h) return "";
+    const d = new Date(s.period + "-01"); let m = (d.getFullYear()-h.getFullYear())*12 + (d.getMonth()-h.getMonth());
+    if (m < 0) m = 0; return `${Math.floor(m/12)} an(s) et ${m%12} mois`; })();
+  const cum = (db.payCumuls || []).find(c => (c.tenantId||"t1")===(s.tenantId||"t1") && c.employeeId===s.employeeId && c.year===s.period.slice(0,4));
+  const [yy, mm] = s.period.split("-"); const last = new Date(Number(yy), Number(mm), 0).getDate();
+  const dS = `01/${mm}/${yy.slice(2)}`, dE = `${String(last).padStart(2,"0")}/${mm}/${yy.slice(2)}`;
 
-  // ---- Header ----
-  doc.fontSize(13).font("Helvetica-Bold"); L(28, tenant.name); doc.font("Helvetica");
-  doc.fontSize(13).font("Helvetica-Bold"); L(360, "BULLETIN DE PAIE", {width:207,align:"right"}); doc.font("Helvetica");
-  y+=20; doc.fontSize(8);
-  L(28, `Période : ${s.period}`, {width:300}); L(360,`Payé par ${C.paymentMethod||"Virement"}`,{width:207,align:"right"});
-  y+=14;
-  // info grid (two columns)
-  const info = [
-    ["N° Contribuable", tenant.niu||"—", "Matricule", s.matricule||emp.matricule||"—"],
-    ["N° Employeur (CNPS)", tenant.cnpsEmployer||"—", "N° CNPS", emp.cnpsNumber||"—"],
-    ["Banque", emp.bankName||C.bankName||"—", "N° Compte", emp.bankAccount||C.bankIban||"—"],
-    ["Conv. collective", C.convention||emp.convention||"—", "Catégorie", C.category||"—"],
-    ["Salarié", s.employeeName, "Emploi", C.position||emp.position||"—"],
-    ["Date embauche", emp.hireDate||"—", "Ancienneté", yrs||"—"],
-    ["Sit. familiale", emp.maritalStatus||"—", "Nbre enfants", (emp.children!=null?emp.children:"—")],
-    ["Qualification", emp.qualification||"—", "Département", emp.department||s.department||"—"],
-    ["N° DIPE", emp.dipe||tenant.dipe||"—", "Jour/Mois", "30,00"],
-  ];
-  doc.fontSize(7.5);
-  for (const [k1,v1,k2,v2] of info) {
-    doc.fillColor("#666"); L(28,k1); L(300,k2);
-    doc.fillColor("#000"); doc.font("Helvetica-Bold"); L(120,v1,{width:170}); L(392,v2,{width:170}); doc.font("Helvetica");
-    y+=12;
+  doc.lineWidth(0.6).strokeColor("#000").fillColor("#000");
+  const T = (x, y, txt, o) => { o = o || {}; if (o.b) doc.font("Helvetica-Bold"); else doc.font("Helvetica");
+    doc.fontSize(o.s || 8).text(txt == null ? "" : String(txt), x, y, { width: o.w, align: o.a, lineBreak: false }); doc.font("Helvetica"); };
+  const BX = (x, y, w, h) => doc.rect(x, y, w, h).stroke();
+  const HL = (x1, x2, y) => doc.moveTo(x1, y).lineTo(x2, y).stroke();
+  const VL = (x, y1, y2) => doc.moveTo(x, y1).lineTo(x, y2).stroke();
+
+  /* ===== HEADER ===== */
+  BX(18, 18, 300, 110);
+  T(26, 26, tenant.name || "SOCIÉTÉ", { b: 1, s: 12 });
+  T(310, 20, "BULLETIN  DE  PAIE", { b: 1, s: 21, w: 270, a: "center" });
+  T(360, 58, "Période du", { b: 1 }); T(415, 58, dS, { b: 1 }); T(470, 58, "au", { b: 1 }); T(490, 58, dE, { b: 1 });
+  T(360, 70, "Paiement le", { b: 1 }); T(415, 70, dE); T(470, 70, "par", { b: 1 }); T(490, 70, C.paymentMethod || "Virement");
+  T(318, 86, "Banque", { b: 1 }); T(360, 86, emp.bankName || C.bankName || ""); T(430, 86, "N° Compte", { b: 1 }); T(480, 86, emp.bankAccount || C.bankIban || "");
+  // labels inside company box
+  T(26, 88, "N° Contribuable", { b: 1 }); T(110, 88, tenant.niu || "");
+  T(190, 88, "N° Employeur", { b: 1 }); T(255, 88, tenant.cnpsEmployer || "");
+  // employee box (right)
+  BX(310, 98, 267, 60);
+  T(318, 104, "Matricule", { b: 1 }); T(375, 104, s.matricule || "");
+  T(320, 128, `${emp.civility || ""}  ${(emp.firstName||"")} ${(emp.lastName||"")}`.trim(), { b: 1, s: 10, w: 250 });
+  // left info block
+  let iy = 168; const li = (l, v, l2, v2) => {
+    T(26, iy, l, { b: 1 }); T(120, iy, v); if (l2) { T(300, iy, l2, { b: 1 }); T(380, iy, v2); } iy += 12; };
+  li("Conv. coll.", C.convention || emp.convention || "", "Emploi", C.position || emp.position || "");
+  li("N° CNPS", emp.cnpsNumber || "", "Sit Fam", emp.maritalStatus || "");
+  li("Date Embauche", emp.hireDate || "", "Nbre Enfants", emp.children != null ? emp.children : "");
+  li("Ancienneté", yrs, "Qualification", emp.qualification || "");
+  li("N° DIPE", emp.dipe || tenant.dipe || "", "Département", emp.department || "");
+  li("Catégorie", C.category || "", "Jour/Mois", "30,00");
+
+  /* ===== MAIN TABLE ===== */
+  const X = { n: 18, des: 52, nb: 232, base: 288, txs: 348, gain: 392, rets: 452, txp: 508, retp: 540, end: 577 };
+  let TY = 250;                    // table top
+  const hEnd = 636;                // table bottom (fixed height)
+  // header (2 rows)
+  BX(X.n, TY, X.end - X.n, 22);
+  VL(X.des, TY, hEnd); VL(X.nb, TY, hEnd); VL(X.base, TY, hEnd);
+  VL(X.txs, TY, hEnd); VL(X.gain, TY, hEnd); VL(X.rets, TY, hEnd); VL(X.txp, TY, hEnd); VL(X.retp, TY, hEnd);
+  HL(X.txs, X.end, TY + 11);       // split under the two group headers
+  T(X.n, TY + 6, "N°", { b: 1, s: 7, w: X.des - X.n, a: "center" });
+  T(X.des, TY + 6, "Désignation", { b: 1, s: 7, w: X.nb - X.des, a: "center" });
+  T(X.nb, TY + 6, "Nombre", { b: 1, s: 7, w: X.base - X.nb, a: "center" });
+  T(X.base, TY + 6, "Base", { b: 1, s: 7, w: X.txs - X.base, a: "center" });
+  T(X.txs, TY + 1, "Part salariale", { b: 1, s: 7, w: X.txp - X.txs, a: "center" });
+  T(X.txp, TY + 1, "Part patronale", { b: 1, s: 7, w: X.end - X.txp, a: "center" });
+  T(X.txs, TY + 13, "Taux", { b: 1, s: 6.5, w: X.gain - X.txs, a: "center" });
+  T(X.gain, TY + 13, "Gain", { b: 1, s: 6.5, w: X.rets - X.gain, a: "center" });
+  T(X.rets, TY + 13, "Retenue", { b: 1, s: 6.5, w: X.txp - X.rets, a: "center" });
+  T(X.txp, TY + 13, "Taux", { b: 1, s: 6.5, w: X.retp - X.txp, a: "center" });
+  T(X.retp, TY + 13, "Retenue", { b: 1, s: 6.5, w: X.end - X.retp, a: "center" });
+  const SLBL = { "5000":"PENSION VIEILLESSE","5010":"ALLOCATIONS FAMILIALES","5020":"ACCIDENT DE TRAVAIL","5025":"IRPP1","5045":"CAC/IRPP 1","5050":"CREDIT FONCIER","5060":"CREDIT FONCIER PATR.","5070":"FNE","5080":"REDEVANCE CRTV","5090":"TAXE COMMUNALE" };
+  const dlbl = (l) => (SLBL[l.code] || l.label || "").toUpperCase();
+  let y = TY + 24;
+  const cell = (x, xe, v, al) => { if (v || v === 0) T(x + 1, y, v, { s: 7.5, w: xe - x - 2, a: al || "right" }); };
+  const gains = r.lines.filter(l => l.kind === "GAIN" || l.kind === "AVANTAGE");
+  for (const l of gains) {
+    if (!l.gain) continue;
+    T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" });
+    T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.nb - X.des - 4 });
+    if (l.nombre) cell(X.nb, X.base, Number(l.nombre).toFixed(3).replace(/\B(?=(\d{3})+(?!\d))(?=\d*\.)/g, " ").replace(".", ","));
+    if (l.base) cell(X.base, X.txs, F2(l.base));
+    cell(X.gain, X.rets, F(l.gain));
+    y += 12;
   }
-  y+=4;
-  // ---- Rubrique table ----
-  const X={num:28,des:56,nb:210,base:255,txs:312,gain:352,ret:418,txp:478,retp:512};
-  const th=(lbl,x,w,al="right")=>doc.fillColor("#000").text(lbl,x,y,{width:w,align:al});
-  doc.fontSize(7).font("Helvetica-Bold");
-  th("N°",X.num,26,"left"); th("Désignation",X.des,150,"left"); th("Nombre",X.nb,42); th("Base",X.base,52);
-  th("Taux",X.txs,38); th("Gain",X.gain,62); th("Retenue",X.ret,56); th("Tx pat",X.txp,32); th("Ret. pat",X.retp,43);
-  doc.font("Helvetica"); y+=10; doc.moveTo(28,y).lineTo(567,y).strokeColor("#999").lineWidth(0.5).stroke(); y+=3;
-  const rowLine=(l)=>{
-    doc.fontSize(7).fillColor("#000");
-    L(X.num,String(l.code).slice(0,7),{width:26}); L(X.des,l.label,{width:152});
-    if(l.hours) doc.text(F(l.hours),X.nb,y,{width:42,align:"right"});
-    if(l.base) doc.text(F(l.base),X.base,y,{width:52,align:"right"});
-    if(l.rate&&l.rate!==1&&l.kind!=="GAIN") doc.text((l.rate*100).toFixed(2),X.txs,y,{width:38,align:"right"});
-    if(l.gain) doc.text(F(l.gain),X.gain,y,{width:62,align:"right"});
-    if(l.retenue) doc.text(F(l.retenue),X.ret,y,{width:56,align:"right"});
-    if(l.employerRate) doc.text((l.employerRate*100).toFixed(2),X.txp,y,{width:32,align:"right"});
-    if(l.employer) doc.text(F(l.employer),X.retp,y,{width:43,align:"right"});
-    y+=10;
-  };
-  const gains=r.lines.filter(l=>l.kind==="GAIN"&&l.gain);
-  gains.forEach(rowLine);
-  doc.moveTo(28,y).lineTo(567,y).strokeColor("#ccc").stroke(); y+=2;
-  doc.font("Helvetica-Bold").fontSize(7.5); L(X.des,"Total Brut"); doc.text(F(t.brutTotal),X.gain,y,{width:62,align:"right"}); doc.font("Helvetica"); y+=12;
-  const cot=r.lines.filter(l=>l.kind==="COTIS"||l.kind==="IMPOT"||l.kind==="RETENUE");
-  cot.forEach(rowLine);
-  doc.moveTo(28,y).lineTo(567,y).strokeColor("#999").stroke(); y+=2;
-  const cotisPatSlip=(t.cnpsPatronal||0)+(t.cfcPatronal||0);
-  doc.font("Helvetica-Bold").fontSize(7.5); L(X.des,"Total Cotisations");
-  doc.text(F((t.cnpsSalarie||0)+(t.totalImpots||0)),X.ret,y,{width:56,align:"right"});
-  doc.text(F(cotisPatSlip),X.retp,y,{width:43,align:"right"}); doc.font("Helvetica"); y+=16;
+  y += 3; T(X.des, y, "Total Brut", { b: 1, s: 8, w: X.nb - X.des, a: "center" }); cell(X.gain, X.rets, F(t.brutTotal)); doc.font("Helvetica-Bold"); y += 14; doc.font("Helvetica");
+  const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
+  for (const l of cot) {
+    T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" });
+    T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.nb - X.des - 4 });
+    if (l.base) cell(X.base, X.txs, F2(l.base));
+    if (l.rate) cell(X.txs, X.gain, (l.rate * 100).toFixed(2));
+    if (l.retenue) cell(X.rets, X.txp, F(l.retenue));
+    if (l.employerRate) cell(X.txp, X.retp, (l.employerRate * 100).toFixed(2));
+    cell(X.retp, X.end, F(l.employer || 0));
+    y += 12;
+  }
+  y += 3; T(X.des, y, "Total Cotisations", { b: 1, s: 8, w: X.nb - X.des, a: "center" });
+  cell(X.rets, X.txp, F((t.cnpsSalarie||0) + (t.totalImpots||0))); cell(X.retp, X.end, F((t.cnpsPatronal||0) + (t.cfcPatronal||0)));
 
-  // ---- Summary band ----
-  const bandCols=[["Cumuls",28,60],["Salaire brut",92,70],["Salaire taxable",165,70],["Charges\nsalariales",240,55],["Charges\npatronales",298,55],["Avantages\nnature",356,50],["Heures\nsupp.",408,42],["Jours",452,34],["NET A PAYER",488,79]];
-  doc.rect(28,y,539,46).strokeColor("#999").stroke();
-  doc.fontSize(6.5).fillColor("#555");
-  bandCols.forEach(([lbl,x,w])=>doc.text(lbl.replace("\\n"," "),x,y+2,{width:w,align:x===28?"left":"right"}));
-  const bandRow=(name,yy,vals)=>{ doc.fillColor("#000").fontSize(7.5);
-    doc.text(name,28,yy,{width:60}); const xs=[92,165,240,298,356,408,452,488],ws=[70,70,55,55,50,42,34,79];
-    vals.forEach((v,i)=>doc.text(v,xs[i],yy,{width:ws[i],align:"right"})); };
-  bandRow("Période",y+16,[F(t.brutTotal),F(t.netImposable),F((t.cnpsSalarie||0)+(t.totalImpots||0)),F(t.chargesPatronales),F(t.avantagesNature||0),"0","30",F(t.netAPayer)]);
-  if(cum) bandRow("Année",y+30,[F(cum.brut),"—",F(cum.cnps+cum.irpp),"—","0","0","—",F(cum.net)]);
-  y+=54;
-  // NET emphasis
-  doc.font("Helvetica-Bold").fontSize(11).fillColor("#000");
-  L(360,`NET À PAYER : ${F(t.netAPayer)} XAF`,{width:207,align:"right"}); doc.font("Helvetica");
-  y+=22;
-  // ---- Footer: congés + signature + legal ----
-  doc.fontSize(7).fillColor("#000");
-  doc.rect(28,y,539,30).strokeColor("#ccc").stroke();
-  L(34,`Congés : acquis ${(r.meta&&r.meta.leaveAccrued)||2.5} j/mois · provision ${F((r.meta&&r.meta.leaveProvisionMonthly)||0)} XAF/mois`,{width:320}); L(400,"Signature",{width:160,align:"right"});
-  y+=36;
-  doc.fontSize(6.5).fillColor("#666");
-  L(28,"Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé.",{width:539,align:"center"});
+  /* ===== SUMMARY BAND ===== */
+  let by = 644; const bh = 34;
+  const bc = [["Cumuls",18,44],["Salaire brut",62,58],["Charges\nsalariales",120,52],["Charges\npatronales",172,52],["Avantages en\nnature",224,52],["Salaire taxable",276,58],["Jours\ntravaillées",334,44],["Heures\nsupplémentaires",378,58],["",436,0]];
+  BX(18, by, 418, bh);
+  const cxs = [18,62,120,172,224,276,334,378]; const cxe = [62,120,172,224,276,334,378,436];
+  cxs.slice(1).forEach(x => VL(x, by, by + bh));
+  VL(436, by, by + bh);
+  HL(18, 436, by + 12); HL(18, 436, by + 23);
+  const hd = [["Cumuls",18,44],["Salaire brut",62,58],["Charges salariales",120,52],["Charges patronales",172,52],["Avantages nature",224,52],["Salaire taxable",276,58],["Jours travaillées",334,44],["Heures supp.",378,58]];
+  hd.forEach(([lb,x,w]) => T(x, by + 2, lb, { b: 1, s: 5.5, w, a: x===18?"left":"right" }));
+  const band = (name, ry, vals) => { T(20, ry, name, { b: 1, s: 7 });
+    const xs=[62,120,172,224,276,334,378], ws=[58,52,52,52,58,44,58];
+    vals.forEach((v,i) => T(xs[i], ry, v, { s: 7, w: ws[i], a: "right" })); };
+  band("Période", by + 13, [F(t.brutTotal), F((t.cnpsSalarie||0)+(t.totalImpots||0)), F((t.cnpsPatronal||0)+(t.cfcPatronal||0)), F(t.avantagesNature||0), F(t.netImposable), (r.meta&&r.meta.workedDays)||30, 0]);
+  if (cum) band("Année", by + 24, [F(cum.brut), "", "", "", "", "", ""]);
+  // NET A PAYER box
+  BX(500, by, 77, bh);
+  T(500, by + 3, "NET A PAYER", { b: 1, s: 8, w: 77, a: "center" });
+  T(500, by + 18, F(t.netAPayer), { b: 1, s: 12, w: 77, a: "center" });
+
+  /* ===== CONGÉS + SIGNATURE ===== */
+  let cy = by + bh + 8;
+  BX(18, cy, 250, 34);
+  T(24, cy + 3, "Compteurs", { b: 1, s: 6.5 }); T(90, cy + 3, "Pris", { b: 1, s: 6.5 }); T(130, cy + 3, "Restant", { b: 1, s: 6.5 }); T(180, cy + 3, "Acquis C. Brut congés", { b: 1, s: 6 });
+  T(24, cy + 20, "Congés", { s: 7 }); T(90, cy + 20, "0", { s: 7 }); T(130, cy + 20, "0", { s: 7 });
+  T(180, cy + 20, F((r.meta && r.meta.leaveProvisionMonthly) || 0), { s: 7 });
+  BX(470, cy, 107, 44);
+  T(474, cy + 2, "Signature", { b: 1, s: 7 });
+  T(280, cy + 3, "Congés acquis : " + ((r.meta && r.meta.leaveAccrued) || 2.5) + " j/mois", { s: 7 });
+
+  /* ===== FOOTER ===== */
+  T(18, 812, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 500 });
+  T(520, 812, "TAKE CARE", { b: 1, s: 7 });
   doc.end();
 });
 
