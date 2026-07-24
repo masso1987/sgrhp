@@ -54,10 +54,10 @@ function render(eventKey, lang, vars = {}) {
   return { subject: fill(tpl["subject" + L] || tpl.subjectFr), body: fill(tpl["body" + L] || tpl.bodyFr) };
 }
 
-async function send(to, subject, text) {
+async function send(to, subject, text, attachments) {
   const t = build();
   if (!t) throw new Error("Configuration email désactivée ou incomplète");
-  return t.sendMail({ from: cfg().from || "SGRHP <no-reply@localhost>", to: Array.isArray(to) ? to.join(",") : to, subject, text });
+  return t.sendMail({ from: cfg().from || "SGRHP <no-reply@localhost>", to: Array.isArray(to) ? to.join(",") : to, subject, text, attachments });
 }
 async function trySend(to, subject, text) {
   try { if (!to || !to.length) return false; await send(to, subject, text); return true; }

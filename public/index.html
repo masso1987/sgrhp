@@ -2811,6 +2811,11 @@ async function saveTemplates() {
 /* ================================================================= */
 const fCFA = n => (Math.round(n || 0)).toLocaleString("fr-FR");
 function canRunPay() { return ME.role === "ADM" || (ME.permissions || []).includes("payroll.run"); }
+function payDownload(url, filename) {
+  fetch("/api" + url, { headers: { Authorization: "Bearer " + TOKEN } }).then(r => r.blob()).then(b => {
+    const u = URL.createObjectURL(b), a = document.createElement("a"); a.href = u; a.download = filename; a.click();
+  }).catch(e => alert("Téléchargement échoué"));
+}
 function hasRight(perm) { return ME.role === "ADM" || (ME.permissions || []).includes(perm); }
 function payStatusTag(s) {
   return ({ OPEN: '<span class="tag amber">Ouverte</span>',
@@ -2870,6 +2875,7 @@ async function payRunView(id) {
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">🔒 Clôturer la période</button>` : ""}
     ${hasRight("payroll.livre") ? `<button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>` : ""}
     ${hasRight("payroll.cotisations") ? `<button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button>` : ""}
+    ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">🏦 Ordre de virement</button>` : ""}
   </div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">SALARIÉS — par portefeuille (cliquez pour ouvrir le bulletin)</b>
     <input id="rosterSearch" placeholder="🔍 Salarié, matricule…" style="margin:6px 0;max-width:240px" oninput="payRenderRoster()">
@@ -2907,7 +2913,7 @@ async function bulletinView(runId, empId) {
     <small style="color:var(--muted)">${esc(rmeta.matricule || "")} · ${esc(run.period)}</small> ${rosterStatusTag(rmeta)}</h1>
   <div class="panel" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     ${open && canRunPay() ? `<button class="btn p" onclick="bulletinCompute('${runId}','${empId}')">⚙ Calculer ce bulletin</button>` : ""}
-    ${slip ? `<button class="btn ghost" onclick="payPdf('${slip.id}',0)">⬇ PDF</button><button class="btn ghost" onclick="payPdf('${slip.id}',1)">🖨</button>` : ""}
+    ${slip ? `<button class="btn ghost" onclick="payPdf('${slip.id}',0)">⬇ PDF</button><button class="btn ghost" onclick="payPdf('${slip.id}',1)">🖨</button><button class="btn ghost" onclick="bulletinEmail('${slip.id}')">✉️ Email</button>` : ""}
     ${slip && (ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit")) ? `<button class="btn ghost" onclick="payslipView('${slip.id}', true)">✏️ Corriger</button>` : ""}
     <span style="flex:1"></span>
     ${prev ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${prev}')">◀ Précédent</button>` : ""}
@@ -3015,6 +3021,10 @@ async function loanAdd(ev, empId) {
 async function loanDel(id, empId) {
   if (!confirm("Supprimer ce prêt ?")) return;
   try { await api("/payroll/loans/" + id, { method: "DELETE" }); loanRender(empId); } catch (e) { alert(e.message); }
+}
+async function bulletinEmail(slipId) {
+  try { const r = await api("/payroll/payslips/" + slipId + "/email", { method: "POST" }); alert("Bulletin envoyé à " + r.to); }
+  catch (e) { alert(e.message); }
 }
 async function bulletinCompute(runId, empId) {
   try { await api(`/payroll/runs/${runId}/employees/${empId}/compute`, { method: "POST" }); BULLETIN_TAB = "calcule"; bulletinView(runId, empId); }
@@ -3198,7 +3208,7 @@ function payPdf(id, print) {
 async function payLivre(id) {
   const { run, rows, totals } = await api(`/payroll/runs/${id}/livre`);
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
-  <h1 style="margin-top:10px">📖 Livre de paie — ${esc(run.period)}</h1>
+  <h1 style="margin-top:10px">📖 Livre de paie — ${esc(run.period)} <button class="btn ghost sm" style="float:right" onclick="payDownload('/payroll/runs/${id}/livre/export','Livre_paie_${run.period}.csv')">⬇ Excel/CSV</button></h1>
   <div class="panel"><table><tr><th>Matricule</th><th>Salarié</th><th style="text-align:right">Brut</th>
     <th style="text-align:right">Retenues</th><th style="text-align:right">Net</th><th style="text-align:right">Coût empl.</th></tr>
     ${rows.map(r => `<tr><td>${esc(r.matricule)}</td><td>${esc(r.employeeName)}</td>
@@ -3212,7 +3222,7 @@ async function payLivre(id) {
 async function payCotis(id) {
   const { run, lignes, totals } = await api(`/payroll/runs/${id}/cotisations`);
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
-  <h1 style="margin-top:10px">🏛 États des cotisations — ${esc(run.period)}</h1>
+  <h1 style="margin-top:10px">🏛 États des cotisations — ${esc(run.period)} <button class="btn ghost sm" style="float:right" onclick="payDownload('/payroll/runs/${id}/cotisations/export','Cotisations_${run.period}.csv')">⬇ Excel/CSV</button></h1>
   <div class="note">Base de déclaration CNPS et impôts (DIPE).</div>
   <div class="panel"><table><tr><th>Code</th><th>Cotisation</th><th style="text-align:right">Base</th>
     <th style="text-align:right">Part salariale</th><th style="text-align:right">Part patronale</th></tr>

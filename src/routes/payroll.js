@@ -16,6 +16,15 @@ for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
+function toCSV(rows) {
+  const esc = (c) => { const v = c == null ? "" : String(c); return /[";\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  return "\uFEFF" + rows.map(r => r.map(esc).join(";")).join("\r\n");
+}
+function sendCSV(res, name, rows) {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+  res.send(toCSV(rows));
+}
 function canRunPayroll(req) { return hasPayPerm(req, "payroll.run"); }
 function hasPayPerm(req, perm) {
   if (req.user.role === "ADM") return true;
@@ -595,6 +604,68 @@ router.put("/payslips/:id/lines", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, r
   save();
   audit(req.user, "PAYSLIP_EDITED", "Payslip", s.id, { employeeId: s.employeeId, period: s.period, mode: Array.isArray(req.body.lines) ? "full" : "override", lineCount: s.result.lines.length, closed });
   res.json(s);
+});
+
+/* ---------------- Exports (CSV / Excel-openable) ---------------- */
+router.get("/runs/:id/livre/export", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const rows = [["Matricule", "Nom", "Catégorie", "Brut", "CNPS sal.", "IRPP", "CAC", "CFC", "RAV", "TDL", "Autres retenues", "Total retenues", "Net à payer", "Charges patronales", "Coût employeur"]];
+  for (const s2 of mine(db.payslips, req).filter(x => x.runId === run.id)) {
+    const t = s2.result.totals;
+    rows.push([s2.matricule, s2.employeeName, s2.department, t.brutTotal, t.cnpsSalarie, t.irpp, t.cac, t.cfcSalarie, t.rav, t.tdl, t.autresRetenues, t.totalRetenues, t.netAPayer, t.chargesPatronales, t.coutTotalEmployeur]);
+  }
+  const tt = runTotals(run, req);
+  rows.push(["", "TOTAUX (" + tt.count + ")", "", tt.brut, "", "", "", "", "", "", "", "", tt.net, tt.charges, tt.cout]);
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "livre", format: "csv" });
+  sendCSV(res, `Livre_de_paie_${run.period}.csv`, rows);
+});
+router.get("/runs/:id/cotisations/export", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const agg = {};
+  for (const s2 of mine(db.payslips, req).filter(x => x.runId === run.id))
+    for (const l of s2.result.lines) {
+      if (l.kind !== "COTIS" && l.kind !== "IMPOT") continue;
+      const a = agg[l.code] || (agg[l.code] = { code: l.code, label: l.label, base: 0, sal: 0, pat: 0 });
+      a.base += l.base || 0; a.sal += l.retenue || 0; a.pat += l.employer || 0;
+    }
+  const rows = [["Code", "Cotisation", "Base cumulée", "Part salariale", "Part patronale"]];
+  for (const a of Object.values(agg)) rows.push([a.code, a.label, a.base, a.sal, a.pat]);
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "cotisations", format: "csv" });
+  sendCSV(res, `Etats_cotisations_${run.period}.csv`, rows);
+});
+// Ordre de virement — net salaries with bank details, for the bank.
+router.get("/runs/:id/virement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  if (!canRunPayroll(req)) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const rows = [["Matricule", "Bénéficiaire", "Banque", "N° Compte", "Montant net", "Devise", "Motif"]];
+  for (const s2 of mine(db.payslips, req).filter(x => x.runId === run.id)) {
+    const emp = mine(db.employees, req).find(e => e.id === s2.employeeId) || {};
+    const c = emp.contract || {};
+    rows.push([s2.matricule, s2.employeeName, emp.bankName || c.bankName || "", emp.bankAccount || c.bankIban || "", s2.result.totals.netAPayer, "XAF", `Salaire ${run.period}`]);
+  }
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "virement", format: "csv" });
+  sendCSV(res, `Ordre_de_virement_${run.period}.csv`, rows);
+});
+// Email a payslip summary to the employee.
+router.post("/payslips/:id/email", allow("ADM", "CD", "RJ", "GPF"), async (req, res) => {
+  const s2 = mine(db.payslips, req).find(x => x.id === req.params.id);
+  if (!s2) return res.status(404).json({ error: "Bulletin introuvable" });
+  const emp = mine(db.employees, req).find(e => e.id === s2.employeeId) || {};
+  if (!emp.email) return res.status(400).json({ error: "Aucune adresse email pour ce salarié" });
+  const t = s2.result.totals;
+  const text = `Bonjour ${s2.employeeName},\n\nVotre bulletin de paie ${s2.period} est disponible.\n` +
+    `Salaire brut : ${money(t.brutTotal)} XAF\nTotal retenues : ${money(t.totalRetenues)} XAF\nNet à payer : ${money(t.netAPayer)} XAF\n\nCordialement.`;
+  try {
+    await require("../mailer").send(emp.email, `Bulletin de paie ${s2.period}`, text);
+    s2.emailedAt = new Date().toISOString(); save();
+    audit(req.user, "EMAILED", "Payslip", s2.id, { to: emp.email, period: s2.period });
+    res.json({ ok: true, to: emp.email });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 /* ---------------- Prêts (loans with échéancier) ---------------- */
