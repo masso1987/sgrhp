@@ -308,6 +308,57 @@ router.post("/runs/:id/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, re
   res.json({ run, computed: n, totals: runTotals(run, req) });
 });
 
+// Per-employee roster for a run (status: PENDING / CALCULATED / CLOSED).
+router.get("/runs/:id/roster", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const byEmp = {}; mine(db.payslips, req).filter(s => s.runId === run.id).forEach(s => { byEmp[s.employeeId] = s; });
+  const roster = mine(db.employees, req)
+    .filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
+    .map(e => { const s = byEmp[e.id]; return {
+      employeeId: e.id, name: `${e.firstName} ${e.lastName}`, matricule: e.matricule || e.id.slice(-6),
+      portfolioId: e.portfolioId, category: (e.contract && e.contract.category) || "",
+      hasBase: baseSalaryOf(e, req) > 0, status: s ? s.status : "PENDING",
+      net: s ? s.result.totals.netAPayer : null, brut: s ? s.result.totals.brutTotal : null,
+      payslipId: s ? s.id : null, edited: s ? !!s.edited : false };
+    });
+  res.json({ run, roster, totals: runTotals(run, req) });
+});
+
+// Compute (or recompute) ONE employee's bulletin.
+router.post("/runs/:id/employees/:eid/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+  if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  if (run.status === "CLOSED") return res.status(409).json({ error: "Paie cloturee" });
+  const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
+  if (!emp) return res.status(404).json({ error: "Employe introuvable" });
+  if (!baseSalaryOf(emp, req)) return res.status(422).json({ error: "Salaire de base introuvable (grille ou structure de paie)" });
+  const { input, result } = computeFor(emp, run.period, req);
+  let s = mine(db.payslips, req).find(x => x.runId === run.id && x.employeeId === emp.id);
+  if (s) { s.input = input; s.result = result; s.status = "CALCULATED"; s.edited = false; s.recomputedAt = new Date().toISOString(); }
+  else { s = stamp({ id: id("slip"), runId: run.id, period: run.period, employeeId: emp.id,
+      employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || emp.id.slice(-6),
+      department: (emp.contract && emp.contract.category) || "", input, result,
+      status: "CALCULATED", generatedFile: null, createdAt: new Date().toISOString() }, req);
+    db.payslips.push(s); }
+  if (run.status === "OPEN") run.status = "CALCULATED";
+  run.count = mine(db.payslips, req).filter(x => x.runId === run.id).length;
+  save();
+  audit(req.user, "COMPUTED_ONE", "Payslip", s.id, { employeeId: emp.id, period: run.period });
+  res.json(s);
+});
+
+// Simulation: compute a preview for an employee WITHOUT saving anything.
+router.post("/simulate/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
+  if (!emp) return res.status(404).json({ error: "Employe introuvable" });
+  if (!baseSalaryOf(emp, req)) return res.status(422).json({ error: "Salaire de base introuvable" });
+  const period = (req.body && req.body.period) || new Date().toISOString().slice(0, 7);
+  const { input, result } = computeFor(emp, period, req);
+  res.json({ employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || "", period, input, result, simulation: true });
+});
+
 /** Close the period: lock payslips and roll year-to-date cumuls. */
 router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });

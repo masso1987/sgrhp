@@ -2846,53 +2846,149 @@ async function payCreateRun(ev) {
 
 /* ---- Single run ---- */
 let PAY_EMPS = null;
+let PAY_RUN = null, PAY_ROSTER = [], PAY_ROSTER_IDS = [], BULLETIN_TAB = "elements";
+let PAY_SLIPS = [], PAY_EMP_PF = {}, PAY_RUN_OPEN = true;
+function rosterStatusTag(r) {
+  const t = { PENDING: '<span class="tag amber">À calculer</span>', CALCULATED: '<span class="tag blue">Calculé</span>', CLOSED: '<span class="tag green">Clôturé ✓</span>' }[r.status] || r.status;
+  return t + (r.edited ? ' <span class="tag amber" title="corrigé">✎</span>' : "");
+}
 async function payRunView(id) {
-  const [data, emps] = await Promise.all([api("/payroll/runs/" + id), PAY_EMPS ? Promise.resolve(PAY_EMPS) : api("/employees")]);
-  PAY_EMPS = emps;
-  const { run, payslips, totals } = data;
-  const isAdm = canRunPay(), open = run.status !== "CLOSED";
+  const data = await api("/payroll/runs/" + id + "/roster");
+  PAY_RUN = data.run; PAY_ROSTER = data.roster; PAY_ROSTER_IDS = data.roster.map(r => r.employeeId);
+  const run = data.run, totals = data.totals, open = run.status !== "CLOSED";
   view.innerHTML = `<button class="btn ghost sm" onclick="payrollView()">← Retour</button>
   <h1 style="margin-top:10px">Paie ${esc(run.period)} ${payStatusTag(run.status)}</h1>
   <div class="panel" style="display:flex;gap:18px;flex-wrap:wrap">
-    <div><label>Effectif</label><div><b>${totals.count}</b></div></div>
+    <div><label>Effectif calculé</label><div><b>${totals.count}</b> / ${PAY_ROSTER.length}</div></div>
     <div><label>Brut total</label><div><b>${fCFA(totals.brut)}</b> XAF</div></div>
     <div><label>Net total</label><div><b>${fCFA(totals.net)}</b> XAF</div></div>
     <div><label>Charges patronales</label><div>${fCFA(totals.charges)} XAF</div></div>
     <div><label>Coût employeur</label><div><b>${fCFA(totals.cout)}</b> XAF</div></div>
   </div>
   <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
-    ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">⚙ Calculer la paie</button>` : ""}
+    ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">⚙ Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">🔒 Clôturer la période</button>` : ""}
     ${hasRight("payroll.livre") ? `<button class="btn ghost" onclick="payLivre('${run.id}')">📖 Livre de paie</button>` : ""}
     ${hasRight("payroll.cotisations") ? `<button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button>` : ""}
   </div>
-
-  ${open && (isAdm || ME.role === "GPF") ? payElementsForm(run) : ""}
-
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">BULLETINS — par portefeuille</b>
-    <input id="paySlipSearch" placeholder="🔍 Salarié, matricule…" style="margin:6px 0;max-width:240px" oninput="payRenderSlips()">
-    <div id="paySlipList"></div></div>`;
-  PAY_SLIPS = payslips; PAY_RUN_OPEN = run.status !== "CLOSED";
-  PAY_EMP_PF = {}; (PAY_EMPS || []).forEach(e => PAY_EMP_PF[e.id] = e.portfolioId);
-  payRenderSlips();
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">SALARIÉS — par portefeuille (cliquez pour ouvrir le bulletin)</b>
+    <input id="rosterSearch" placeholder="🔍 Salarié, matricule…" style="margin:6px 0;max-width:240px" oninput="payRenderRoster()">
+    <div id="rosterList"></div></div>`;
+  payRenderRoster();
 }
-let PAY_SLIPS = [], PAY_EMP_PF = {}, PAY_RUN_OPEN = true;
-function payRenderSlips() {
-  const q = ((document.getElementById("paySlipSearch") || {}).value || "").toLowerCase();
-  const list = (PAY_SLIPS || []).filter(s => !q || `${s.employeeName} ${s.matricule || ""}`.toLowerCase().includes(q));
-  const groups = {}; list.forEach(s => { const pf = PAY_EMP_PF[s.employeeId] || "—"; (groups[pf] = groups[pf] || []).push(s); });
-  const el = document.getElementById("paySlipList");
-  el.innerHTML = list.length ? Object.keys(groups).sort((a, b) => pfName(a).localeCompare(pfName(b))).map(pf => `
+function payRenderRoster() {
+  const q = ((document.getElementById("rosterSearch") || {}).value || "").toLowerCase();
+  const list = PAY_ROSTER.filter(r => !q || `${r.name} ${r.matricule}`.toLowerCase().includes(q));
+  const groups = {}; list.forEach(r => { (groups[r.portfolioId] = groups[r.portfolioId] || []).push(r); });
+  document.getElementById("rosterList").innerHTML = list.length ? Object.keys(groups).sort((a, b) => pfName(a).localeCompare(pfName(b))).map(pf => `
     <div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">📁 ${esc(pfName(pf))} — ${groups[pf].length}</b>
-    <table style="margin-top:4px"><tr><th>Matricule</th><th>Salarié</th><th>Brut</th><th>Retenues</th><th>Net</th><th></th></tr>
-    ${groups[pf].map(s => `<tr><td>${esc(s.matricule)}</td><td><b>${esc(s.employeeName)}</b></td>
-      <td>${fCFA(s.brut)}</td><td>${fCFA(s.retenues)}</td><td><b>${fCFA(s.net)}</b></td>
-      <td><button class="btn ghost sm" onclick="payslipView('${s.id}')">Détail</button>
-      <button class="btn p sm" onclick="payPdf('${s.id}',0)">⬇ PDF</button>
-      <button class="btn ghost sm" onclick="payPdf('${s.id}',1)">🖨</button></td></tr>`).join("")}
-    </table></div>`).join("") : `<div style="color:var(--muted);margin-top:8px">Pas encore calculée ou aucun résultat.</div>`;
+    <table style="margin-top:4px"><tr><th>Matricule</th><th>Salarié</th><th>Catégorie</th><th>Statut</th><th style="text-align:right">Net</th><th></th></tr>
+    ${groups[pf].map(r => `<tr>
+      <td>${esc(r.matricule)}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.category || "—")}</td>
+      <td>${rosterStatusTag(r)}</td><td style="text-align:right">${r.net != null ? "<b>" + fCFA(r.net) + "</b>" : "—"}</td>
+      <td><button class="btn ${r.status === "PENDING" ? "p" : "ghost"} sm" onclick="bulletinView('${PAY_RUN.id}','${r.employeeId}')">📋 Bulletin</button></td></tr>`).join("")}
+    </table></div>`).join("") : `<div style="color:var(--muted);margin-top:8px">Aucun salarié.</div>`;
 }
 
+/* ---- Per-employee bulletin screen (tabs, single compute, prev/next) ---- */
+async function bulletinView(runId, empId) {
+  const [emp, data] = await Promise.all([api("/employees/" + empId), api("/payroll/runs/" + runId + "/roster")]);
+  const run = data.run; PAY_ROSTER = data.roster; PAY_ROSTER_IDS = data.roster.map(r => r.employeeId);
+  const rmeta = data.roster.find(r => r.employeeId === empId) || {};
+  const idx = PAY_ROSTER_IDS.indexOf(empId);
+  const prev = idx > 0 ? PAY_ROSTER_IDS[idx - 1] : null, next = idx >= 0 && idx < PAY_ROSTER_IDS.length - 1 ? PAY_ROSTER_IDS[idx + 1] : null;
+  let slip = null; if (rmeta.payslipId) { try { slip = await api("/payroll/payslips/" + rmeta.payslipId); } catch {} }
+  const els = await api(`/payroll/elements?period=${run.period}&employeeId=${empId}`);
+  const open = run.status !== "CLOSED";
+  BULLETIN_CTX = { runId, empId, run, emp, slip, els, open };
+  const tab = (k, lbl) => `<button class="btn ${BULLETIN_TAB === k ? "p" : "ghost"} sm" onclick="BULLETIN_TAB='${k}';bulletinRenderTab()">${lbl}</button>`;
+  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${runId}')">☰ Liste des salariés</button>
+  <h1 style="margin-top:10px">Bulletin — ${esc(emp.firstName)} ${esc(emp.lastName)}
+    <small style="color:var(--muted)">${esc(rmeta.matricule || "")} · ${esc(run.period)}</small> ${rosterStatusTag(rmeta)}</h1>
+  <div class="panel" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    ${open && canRunPay() ? `<button class="btn p" onclick="bulletinCompute('${runId}','${empId}')">⚙ Calculer ce bulletin</button>` : ""}
+    ${slip ? `<button class="btn ghost" onclick="payPdf('${slip.id}',0)">⬇ PDF</button><button class="btn ghost" onclick="payPdf('${slip.id}',1)">🖨</button>` : ""}
+    ${slip && (ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit")) ? `<button class="btn ghost" onclick="payslipView('${slip.id}', true)">✏️ Corriger</button>` : ""}
+    <span style="flex:1"></span>
+    ${prev ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${prev}')">◀ Précédent</button>` : ""}
+    ${next ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${next}')">Suivant ▶</button>` : ""}
+  </div>
+  <div class="panel" style="display:flex;gap:6px">${tab("elements", "Éléments variables")}${tab("structure", "Structure de paie")}${tab("calcule", "Bulletin calculé")}</div>
+  <div id="bulletinTab"></div>`;
+  bulletinRenderTab();
+}
+let BULLETIN_CTX = {};
+function bulletinRenderTab() {
+  const { runId, empId, run, emp, slip, els, open } = BULLETIN_CTX;
+  const box = document.getElementById("bulletinTab"); if (!box) return;
+  if (BULLETIN_TAB === "structure") {
+    const sal = emp.salary || {};
+    box.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">STRUCTURE DE PAIE (rubriques fixes récurrentes)</b>
+      <table style="margin-top:6px"><tr><th>Élément</th><th style="text-align:right">Montant mensuel</th></tr>
+      ${Object.keys(sal).length ? Object.entries(sal).map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right"><b>${fCFA(v)}</b> XAF</td></tr>`).join("") : '<tr><td colspan="2">Aucune — définie dans le dossier employé.</td></tr>'}
+      </table></div>`;
+  } else if (BULLETIN_TAB === "calcule") {
+    box.innerHTML = slip ? bulletinCalcule(slip) : `<div class="panel" style="color:var(--muted)">Pas encore calculé. Cliquez « ⚙ Calculer ce bulletin ».</div>`;
+  } else {
+    box.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES DU MOIS (primes, heures supp., absences, acomptes)</b>
+      ${open ? `<form onsubmit="return bulletinAddEl(event,'${run.period}','${empId}')" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;margin-top:8px">
+        <div><label>Type</label><select id="beType" onchange="beToggle()">
+          <option value="PRIME">Prime (imposable)</option><option value="INDEMNITE">Indemnité (non imposable)</option>
+          <option value="HS20">Heures supp. +20%</option><option value="HS30">Heures supp. +30%</option><option value="HS40">Heures supp. +40%</option>
+          <option value="NUIT">Heures de nuit +50%</option><option value="ABSENCE">Absence (jours)</option>
+          <option value="ACOMPTE">Acompte</option><option value="PRET">Remboursement prêt</option></select></div>
+        <div><label>Libellé</label><input id="beLabel" placeholder="ex. Prime de rendement" style="min-width:160px"></div>
+        <div><label id="beValLbl">Montant (XAF)</label><input id="beVal" type="number" min="0" style="max-width:130px"></div>
+        <button class="btn p sm">+ Ajouter</button></form>
+        <div class="err hidden" id="beErr" style="margin-top:6px"></div>` : '<div class="note" style="margin-top:6px">Période clôturée — lecture seule.</div>'}
+      <div id="beList" style="margin-top:8px"></div></div>`;
+    bulletinRenderEls(els);
+  }
+}
+function bulletinCalcule(slip) {
+  const t = slip.result.totals;
+  const line = l => `<tr><td>${esc(l.code)}${l.manual ? " ✎" : ""}</td><td>${esc(l.label)}</td>
+    <td style="text-align:right">${l.base ? fCFA(l.base) : ""}</td><td style="text-align:right">${l.rate && l.rate !== 1 ? (l.rate * 100).toFixed(2) + "%" : ""}</td>
+    <td style="text-align:right;color:var(--green)">${l.gain ? fCFA(l.gain) : ""}</td>
+    <td style="text-align:right;color:var(--red)">${l.retenue ? fCFA(l.retenue) : ""}</td>
+    <td style="text-align:right;color:var(--muted)">${l.employer ? fCFA(l.employer) : ""}</td></tr>`;
+  return `<div class="panel"><table><tr><th>Code</th><th>Rubrique</th><th style="text-align:right">Base</th><th style="text-align:right">Taux</th>
+    <th style="text-align:right">Gain</th><th style="text-align:right">Retenue</th><th style="text-align:right">Patronal</th></tr>
+    ${slip.result.lines.filter(l => l.gain || l.retenue || l.employer).map(line).join("")}</table></div>
+  <div class="panel" style="display:flex;gap:24px;flex-wrap:wrap">
+    <div><label>Salaire brut</label><div><b>${fCFA(t.brutTotal)}</b> XAF</div></div>
+    <div><label>Total retenues</label><div>${fCFA(t.totalRetenues)} XAF</div></div>
+    <div><label>Net à payer</label><div style="font-size:18px;color:var(--green)"><b>${fCFA(t.netAPayer)}</b> XAF</div></div>
+    <div><label>Coût employeur</label><div>${fCFA(t.coutTotalEmployeur)} XAF</div></div></div>`;
+}
+function beToggle() { const t = beType.value, l = document.getElementById("beValLbl");
+  l.textContent = ["HS20","HS30","HS40","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)"; }
+async function bulletinAddEl(ev, period, empId) {
+  ev.preventDefault(); const t = beType.value;
+  const body = { employeeId: empId, period, type: t, label: beLabel.value || beType.selectedOptions[0].text };
+  const v = Number(beVal.value || 0);
+  if (["HS20","HS30","HS40","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
+  try { await api("/payroll/elements", { method: "POST", body: JSON.stringify(body) });
+    const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els; bulletinRenderEls(els); beVal.value = ""; beLabel.value = ""; }
+  catch (e) { beErr.textContent = e.message; beErr.classList.remove("hidden"); }
+}
+function bulletinRenderEls(els) {
+  const box = document.getElementById("beList"); if (!box) return;
+  box.innerHTML = els.length ? `<table><tr><th>Type</th><th>Libellé</th><th>Valeur</th><th></th></tr>
+    ${els.map(e => `<tr><td>${esc(e.type)}</td><td>${esc(e.label)}</td>
+      <td>${e.amount != null ? fCFA(e.amount) + " XAF" : e.hours != null ? e.hours + " h" : (e.days || 0) + " j"}</td>
+      <td>${BULLETIN_CTX.open ? `<button class="btn ghost sm" onclick="bulletinDelEl('${e.id}')">✕</button>` : ""}</td></tr>`).join("")}</table>`
+    : '<small style="color:var(--muted)">Aucun élément variable ce mois.</small>';
+}
+async function bulletinDelEl(id) {
+  try { await api("/payroll/elements/" + id, { method: "DELETE" });
+    const { run, empId } = BULLETIN_CTX; const els = await api(`/payroll/elements?period=${run.period}&employeeId=${empId}`);
+    BULLETIN_CTX.els = els; bulletinRenderEls(els); } catch (e) { alert(e.message); }
+}
+async function bulletinCompute(runId, empId) {
+  try { await api(`/payroll/runs/${runId}/employees/${empId}/compute`, { method: "POST" }); BULLETIN_TAB = "calcule"; bulletinView(runId, empId); }
+  catch (e) { alert(e.message); }
+}
 function payElementsForm(run) {
   return `<div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES — ${esc(run.period)}</b>
   <form onsubmit="return payAddElement(event,'${run.period}')" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
