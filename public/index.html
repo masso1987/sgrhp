@@ -3193,11 +3193,12 @@ async function payCotis(id) {
 
 /* ================= Paramètres paie (config + rubriques) ============= */
 async function payconfigView() {
-  const [cfg, rubs] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques")]);
+  const [cfg, rubs, models] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques"), api("/payroll/models")]);
+  PAY_MODELS = models;
   const num = (path, val) => `<input type="number" step="any" data-cfg="${path}" value="${val}" style="max-width:110px">`;
   view.innerHTML = `<h1>⚙️ Paramètres paie</h1>
   <div class="note">Barèmes et taux (Cameroun) — modifiables. Ils s'appliquent au prochain calcul de paie.</div>
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">CNPS</b>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">🏛 CAISSE CNPS (retraite / prestations familiales / accident du travail)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>Plafond mensuel</label>${num("cnps.ceiling", cfg.cnps.ceiling)}</div>
       <div><label>PVID salarié</label>${num("cnps.pvidEmployee", cfg.cnps.pvidEmployee)}</div>
@@ -3205,7 +3206,7 @@ async function payconfigView() {
       <div><label>Prestations familiales (emp.)</label>${num("cnps.familyEmployer", cfg.cnps.familyEmployer)}</div>
       <div><label>Risques prof. (emp.)</label>${num("cnps.workAccidentEmployer", cfg.cnps.workAccidentEmployer)}</div>
     </div></div>
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">IMPÔTS & AUTRES</b>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">🏛 IMPÔTS & AUTRES CAISSES (Trésor · Crédit Foncier · FNE)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>IRPP — frais pro (abattement)</label>${num("irpp.fraisProRate", cfg.irpp.fraisProRate)}</div>
       <div><label>IRPP — abattement annuel</label>${num("irpp.annualAbatement", cfg.irpp.annualAbatement)}</div>
@@ -3214,16 +3215,23 @@ async function payconfigView() {
       <div><label>CFC employeur</label>${num("cfc.employer", cfg.cfc.employer)}</div>
       <div><label>FNE employeur</label>${num("fne.employer", cfg.fne.employer)}</div>
     </div>
-    <div style="margin-top:10px"><label>Barème IRPP (JSON, tranches annuelles)</label>
-      <textarea id="cfgIrppBr" style="width:100%;height:70px;font-family:monospace;font-size:12px">${esc(JSON.stringify(cfg.irpp.brackets))}</textarea></div>
-    <div style="margin-top:8px"><label>Barème RAV (JSON)</label>
-      <textarea id="cfgRav" style="width:100%;height:60px;font-family:monospace;font-size:12px">${esc(JSON.stringify(cfg.rav))}</textarea></div>
-    <div style="margin-top:8px"><label>Barème TDL (JSON)</label>
-      <textarea id="cfgTdl" style="width:100%;height:60px;font-family:monospace;font-size:12px">${esc(JSON.stringify(cfg.tdl))}</textarea></div>
+    <div class="grid3" style="margin-top:12px">
+      <div><label>Barème IRPP (tranche → taux)</label>${barTable("irpp", cfg.irpp.brackets)}</div>
+      <div><label>Barème RAV / CRTV (base → montant)</label>${barTable("rav", cfg.rav)}</div>
+      <div><label>Barème TDL / taxe communale (base → montant)</label>${barTable("tdl", cfg.tdl)}</div>
+    </div>
   </div>
   <div class="panel"><button class="btn p" onclick="paySaveConfig()">💾 Enregistrer les paramètres</button>
     <span class="err hidden" id="cfgErr" style="margin-left:10px"></span>
     <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>
+
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">📄 BULLETINS MODÈLES (${models.length})</b>
+    <div style="margin:8px 0"><button class="btn p sm" onclick="modelModal()">+ Créer un modèle</button></div>
+    <table><tr><th>Code</th><th>Libellé</th><th>Type</th><th>Heures/mois</th><th>Rubriques</th><th></th></tr>
+    ${models.map(m => `<tr><td><b>${esc(m.code)}</b></td><td>${esc(m.label)}</td><td>${esc(m.type||"Mensuel")}</td>
+      <td>${m.monthlyHours||173.33}</td><td>${(m.lines||[]).length}</td>
+      <td><button class="btn ghost sm" onclick='modelModal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>✏️</button></td></tr>`).join("")}
+    </table></div>
 
   <div class="panel"><b style="font-size:12px;color:var(--muted)">RUBRIQUES DE PAIE (${rubs.length})</b>
     <div style="margin:8px 0;display:flex;gap:8px;align-items:center">
@@ -3292,6 +3300,59 @@ async function rubSave(id, needForce) {
     else { rmErr.textContent = e.message; rmErr.classList.remove("hidden"); }
   }
 }
+let PAY_MODELS = [];
+function barTable(kind, rows) {
+  const vf = kind === "irpp" ? "rate" : "amount";
+  return `<table data-bar="${kind}" style="font-size:12px"><tr><th>Jusqu'à (∞ = vide)</th><th>${kind === "irpp" ? "Taux" : "Montant"}</th><th></th></tr>
+    ${(rows || []).map(r => barRow(kind, r, vf)).join("")}</table>
+    <button class="btn ghost sm" style="margin-top:4px" onclick="barAdd('${kind}')">+ ligne</button>`;
+}
+function barRow(kind, r, vf) {
+  const up = (r.upTo == null || r.upTo >= 1e11) ? "" : r.upTo;
+  return `<tr><td><input type="number" step="any" data-up value="${up}" placeholder="∞" style="margin:0;max-width:110px;padding:2px"></td>
+    <td><input type="number" step="any" data-val value="${r[vf] != null ? r[vf] : ""}" style="margin:0;max-width:90px;padding:2px"></td>
+    <td><button class="btn ghost sm" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+}
+function barAdd(kind) {
+  const vf = kind === "irpp" ? "rate" : "amount";
+  document.querySelector(`table[data-bar="${kind}"]`).insertAdjacentHTML("beforeend", barRow(kind, {}, vf));
+}
+function barRead(kind) {
+  const vf = kind === "irpp" ? "rate" : "amount";
+  const rows = [...document.querySelectorAll(`table[data-bar="${kind}"] tr`)].slice(1);
+  return rows.map(tr => {
+    const up = tr.querySelector("[data-up]").value, val = Number(tr.querySelector("[data-val]").value) || 0;
+    const o = { upTo: up === "" ? 1e12 : Number(up) }; o[vf] = val; return o;
+  }).filter(o => o[vf] || o.upTo < 1e11).sort((a, b) => a.upTo - b.upTo);
+}
+function modelModal(m) {
+  const isEdit = !!m; m = m || { type: "Mensuel", monthlyHours: 173.33, lines: [] };
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="max-width:460px"><b>${isEdit ? "Modifier" : "Créer"} un bulletin modèle</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Code</label><input id="mmCode" value="${esc(m.code || "")}" ${isEdit ? "disabled" : ""}></div>
+      <div><label>Libellé</label><input id="mmLabel" value="${esc(m.label || "")}"></div>
+      <div><label>Type</label><select id="mmType"><option ${m.type==="Mensuel"?"selected":""}>Mensuel</option><option ${m.type==="Horaire"?"selected":""}>Horaire</option></select></div>
+      <div><label>Heures / mois</label><input id="mmHours" type="number" step="any" value="${m.monthlyHours || 173.33}"></div>
+    </div>
+    <div style="margin-top:8px"><label>Rubriques par défaut (codes séparés par virgule)</label>
+      <input id="mmLines" value="${esc((m.lines || []).map(l => l.code).join(", "))}" placeholder="1000, 3510, 5000…"></div>
+    <div class="err hidden" id="mmErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="saveModel('${isEdit ? m.id : ""}')">Enregistrer</button></div></div>`;
+  bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function saveModel(id) {
+  const lines = mmLines.value.split(",").map(c => c.trim()).filter(Boolean).map(code => ({ code, auto: true }));
+  const body = { code: mmCode.value.trim(), label: mmLabel.value.trim(), type: mmType.value, monthlyHours: Number(mmHours.value) || 173.33, lines };
+  try {
+    if (id) await api("/payroll/models/" + id, { method: "PUT", body: JSON.stringify(body) });
+    else await api("/payroll/models", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector(".modal-bg").remove(); payconfigView();
+  } catch (e) { mmErr.textContent = e.message; mmErr.classList.remove("hidden"); }
+}
 async function paySaveConfig() {
   const body = {};
   view.querySelectorAll("input[data-cfg]").forEach(i => {
@@ -3299,12 +3360,10 @@ async function paySaveConfig() {
     for (let k = 0; k < path.length - 1; k++) o = o[path[k]] = o[path[k]] || {};
     o[path[path.length - 1]] = Number(i.value);
   });
-  try {
-    body.irpp = body.irpp || {};
-    body.irpp.brackets = JSON.parse(cfgIrppBr.value);
-    body.rav = JSON.parse(cfgRav.value);
-    body.tdl = JSON.parse(cfgTdl.value);
-  } catch (e) { cfgErr.textContent = "JSON invalide : " + e.message; cfgErr.classList.remove("hidden"); return; }
+  body.irpp = body.irpp || {};
+  body.irpp.brackets = barRead("irpp");
+  body.rav = barRead("rav");
+  body.tdl = barRead("tdl");
   try {
     await api("/payroll/config", { method: "PUT", body: JSON.stringify(body) });
     cfgErr.classList.add("hidden"); cfgOk.textContent = "Enregistré ✓";

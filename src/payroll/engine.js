@@ -38,7 +38,7 @@ const DEFAULT_CONFIG = {
       { upTo: 166667, rate: 0.10 },
       { upTo: 250000, rate: 0.15 },
       { upTo: 416667, rate: 0.25 },
-      { upTo: Infinity, rate: 0.35 },
+      { upTo: 1e12, rate: 0.35 },
     ],
     cacRate: 0.10,            // 5045 CAC = 10% de l'IRPP
   },
@@ -51,13 +51,13 @@ const DEFAULT_CONFIG = {
     { upTo: 50000, amount: 0 }, { upTo: 100000, amount: 750 }, { upTo: 200000, amount: 1950 },
     { upTo: 300000, amount: 3250 }, { upTo: 400000, amount: 4550 }, { upTo: 500000, amount: 5850 },
     { upTo: 600000, amount: 7150 }, { upTo: 700000, amount: 8450 }, { upTo: 800000, amount: 9750 },
-    { upTo: 900000, amount: 11050 }, { upTo: 1000000, amount: 12350 }, { upTo: Infinity, amount: 13000 },
+    { upTo: 900000, amount: 11050 }, { upTo: 1000000, amount: 12350 }, { upTo: 1e12, amount: 13000 },
   ],
   // TDL — Taxe communale (^^TAXCOM), by bracket on SALBASE
   tdl: [
     { upTo: 62000, amount: 0 }, { upTo: 75000, amount: 250 }, { upTo: 100000, amount: 500 },
     { upTo: 125000, amount: 750 }, { upTo: 150000, amount: 1000 }, { upTo: 200000, amount: 1250 },
-    { upTo: 250000, amount: 1500 }, { upTo: 300000, amount: 2000 }, { upTo: Infinity, amount: 2250 },
+    { upTo: 250000, amount: 1500 }, { upTo: 300000, amount: 2000 }, { upTo: 1e12, amount: 2250 },
   ],
 
   overtime: { tier1Rate: 0.20, tier2Rate: 0.30, tier3Rate: 0.40, nightRate: 0.50 },
