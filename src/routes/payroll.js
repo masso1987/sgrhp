@@ -450,6 +450,8 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
   const N3 = (n) => Number(n).toFixed(3).replace(/\B(?=(\d{3})+(?!\d))\./, "$&").replace(/(\d)(?=(\d{3})+,)/g, "$1").replace(".", ",");
   const C = emp.contract || {};
+  const MS = { Single: "Célibataire", Married: "Marié(e)", Divorced: "Divorcé(e)", Widowed: "Veuf(ve)" };
+  const fdate = (d) => { if (!d) return ""; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : d; };
   const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if (!h) return "";
     const d = new Date(s.period + "-01"); let m = (d.getFullYear()-h.getFullYear())*12 + (d.getMonth()-h.getMonth());
     if (m < 0) m = 0; return `${Math.floor(m/12)} an(s) et ${m%12} mois`; })();
@@ -482,8 +484,8 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   let iy = 168; const li = (l, v, l2, v2) => {
     T(26, iy, l, { b: 1 }); T(120, iy, v); if (l2) { T(300, iy, l2, { b: 1 }); T(380, iy, v2); } iy += 12; };
   li("Conv. coll.", C.convention || emp.convention || "", "Emploi", C.position || emp.position || "");
-  li("N° CNPS", emp.cnpsNumber || "", "Sit Fam", emp.maritalStatus || "");
-  li("Date Embauche", emp.hireDate || "", "Nbre Enfants", emp.children != null ? emp.children : "");
+  li("N° CNPS", emp.cnpsNumber || "", "Sit Fam", MS[emp.maritalStatus] || emp.maritalStatus || "");
+  li("Date Embauche", fdate(emp.hireDate), "Nbre Enfants", emp.children != null ? emp.children : "");
   li("Ancienneté", yrs, "Qualification", emp.qualification || "");
   li("N° DIPE", emp.dipe || tenant.dipe || "", "Département", emp.department || "");
   li("Catégorie", C.category || "", "Jour/Mois", "30,00");

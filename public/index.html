@@ -1177,7 +1177,7 @@ async function portfolios() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0">
         <select id="newRubSel" style="margin:0;min-width:340px">
           <option value="">— choisir une rubrique du catalogue de paie —</option>
-          ${(rubs || []).filter(r => (r.sens || "GAIN") === "GAIN").sort((a,b)=>String(a.code).localeCompare(String(b.code))).map(r => `<option value="${esc(String(r.code))}" data-label="${esc(r.label)}">${esc(String(r.code))} — ${esc(r.label)}</option>`).join("")}
+          ${(rubs || []).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code))).map(r => `<option value="${esc(String(r.code))}" data-label="${esc(r.label)}">${esc(String(r.code))} — ${esc(r.label)}${r.family?` (${esc(r.family)})`:""}</option>`).join("")}
         </select>
         <button class="btn p sm" onclick="rubCreate('${pf.id}')">+ Allouer au portefeuille</button></div>
       <div class="grid2" style="margin-top:4px">${sels.length ? sels.map(el => `
