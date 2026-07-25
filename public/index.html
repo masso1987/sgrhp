@@ -957,6 +957,8 @@ async function empForm(edit) {
   window._CTYPES = ctypes; window._CNVS = cnvs;
   const myPfs = ME.role === "GPF" ? PFS.filter(p => (me.portfolioIds || []).includes(p.id)) : PFS;
   window._MYPFS = myPfs;
+  window._SELS = sels;
+  window._EDIT_SALARY = (edit && edit.salary) ? edit.salary : null;
   if (!myPfs.length) return view.innerHTML = `<h1>Nouveau dossier employé</h1>
     <div class="note">No portfolio is linked to your account yet. Ask the administrator to link you to
     at least one portfolio (Users screen → 🔗 Gérer).</div>`;
@@ -990,12 +992,8 @@ async function empForm(edit) {
     <label>Personne à contacter en cas d'urgence</label>
     <div class="grid2"><input id="fEmgName" placeholder="Nom"><input id="fEmgTel" placeholder="Téléphone"></div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
-      <label>Éléments de salaire <span class="tag gray">cochez puis saisissez les montants (gérés par l'administrateur)</span></label>
-      ${sels.map(s => `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-        <label class="chk" style="flex:1;padding:2px"><input type="checkbox" data-selname="${esc(s.name)}"
-          onchange="this.closest('div').querySelector('[data-selamt]').classList.toggle('hidden', !this.checked)">
-          <span>${esc(s.name)}</span></label>
-        <input data-selamt="${esc(s.name)}" type="number" placeholder="Montant F CFA" class="hidden" style="max-width:170px;margin:0"></div>`).join("")}
+      <label>Éléments de salaire <span class="tag gray">rubriques du portefeuille — décochez celles qui ne s'appliquent pas, puis saisissez les montants</span></label>
+      <div id="salElsBox"></div>
     </div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
       <label>Informations paie <span class="tag gray">figurent sur le bulletin de paie</span></label>
@@ -1029,10 +1027,7 @@ async function empForm(edit) {
     if (c.category) fCat.value = c.category; if (c.step) fStep.value = c.step;
     const ft = (window._CTYPES.find(t => t.name === fCt.value) || {}).fixedTerm;
     fEndWrap.classList.toggle("hidden", !ft); if (c.endDate) fEnd.value = c.endDate;
-    if (edit.salary) Object.entries(edit.salary).forEach(([name, amt]) => {
-      const cb = view.querySelector(`[data-selname="${name}"]`);
-      if (cb) { cb.checked = true; const a = view.querySelector(`[data-selamt="${name}"]`); if (a) { a.classList.remove("hidden"); a.value = amt; } }
-    });
+    // salary rubriques rendered by renderSalEls (portfolio-scoped)
   }
 }
 async function empEdit(id) { const e = await api("/employees/" + id); empForm(e); }
@@ -1052,15 +1047,25 @@ function syncCnv() {
   const rows = (cnv?.grid || []).filter(g => g.baseSalary >= 0);
   fCat.innerHTML = '<option value="">— sélectionner —</option>' + rows.map(g =>
     `<option value="${esc(g.category)}">${esc(g.category)} — base ${Number(g.baseSalary).toLocaleString("fr-FR")} F CFA</option>`).join("");
-  // pre-check the salary elements (rubriques) allocated to this portfolio
-  if (pf && Array.isArray(pf.salaryElements) && pf.salaryElements.length) {
-    view.querySelectorAll("[data-selname]").forEach(cb => {
-      if (pf.salaryElements.includes(cb.dataset.selname)) {
-        cb.checked = true;
-        const a = view.querySelector(`[data-selamt="${cb.dataset.selname}"]`); if (a) a.classList.remove("hidden");
-      }
-    });
-  }
+  // render the salary rubriques allocated to this portfolio (portfolio-scoped)
+  renderSalEls(fPf.value, window._EDIT_SALARY);
+}
+function renderSalEls(pfId, existingSalary) {
+  const box = document.getElementById("salElsBox"); if (!box) return;
+  const pf = (window._MYPFS || []).find(p => p.id === pfId);
+  const names = new Set((pf && Array.isArray(pf.salaryElements)) ? pf.salaryElements : []);
+  if (existingSalary) Object.keys(existingSalary).forEach(n => names.add(n));
+  const list = (window._SELS || []).filter(x => names.has(x.name));
+  if (!list.length) { box.innerHTML = '<small style="color:var(--muted)">Aucune rubrique allouée à ce portefeuille. Ajoutez-en dans Config \u203a Portefeuilles \u2192 Rubriques de salaire.</small>'; return; }
+  box.innerHTML = list.map(x => {
+    const has = existingSalary ? (existingSalary[x.name] != null) : true;
+    const amt = (existingSalary && existingSalary[x.name] != null) ? existingSalary[x.name] : "";
+    return `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+      <label class="chk" style="flex:1;padding:2px"><input type="checkbox" data-selname="${esc(x.name)}" ${has ? "checked" : ""}
+        onchange="this.closest('div').querySelector('[data-selamt]').classList.toggle('hidden', !this.checked)">
+        <span>${esc(x.name)}${x.rubriqueCode ? ` <span class="tag gray">rub. ${esc(x.rubriqueCode)}</span>` : ""}</span></label>
+      <input data-selamt="${esc(x.name)}" type="number" placeholder="Montant F CFA" value="${amt}" class="${has ? "" : "hidden"}" style="max-width:170px;margin:0"></div>`;
+  }).join("");
 }
 async function empSave(editId) {
   try {
@@ -1079,7 +1084,8 @@ async function empSave(editId) {
         paymentMethod: fPay.value, startDate: fHire.value,
         endDate: (window._CTYPES.find(t=>t.name===fCt.value)||{}).fixedTerm ? fEnd.value : null },
       salary: Object.fromEntries([...view.querySelectorAll("[data-selname]")].filter(c => c.checked)
-        .map(c => [c.dataset.selname, view.querySelector(`[data-selamt="${c.dataset.selname}"]`).value])) };
+        .map(c => [c.dataset.selname, view.querySelector(`[data-selamt="${c.dataset.selname}"]`).value])
+        .filter(([n, v]) => v !== "" && v != null)) };
     const e = editId
       ? await api("/employees/" + editId, { method: "PUT", body: JSON.stringify(_payload) })
       : await api("/employees", { method: "POST", body: JSON.stringify(_payload) });
@@ -1167,17 +1173,39 @@ async function portfolios() {
     <button class="btn p" style="margin-top:10px" onclick="pfSave('${pf.id}')">Enregistrer la configuration</button>
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:10px">
       <b style="font-size:12px;color:var(--muted)">💵 RUBRIQUES DE SALAIRE ALLOUÉES À CE PORTEFEUILLE</b>
-      <div class="note" style="margin-top:6px">Ces éléments seront pré-cochés à la création d'un employé de ce portefeuille.</div>
-      <div class="grid2" style="margin-top:8px">${sels.map(el => `
-        <label class="chk"><input type="checkbox" data-pfsel="${esc(el.name)}" ${(pf.salaryElements || []).includes(el.name) ? "checked" : ""}>
-          <span>${esc(el.name)}${el.rubriqueCode ? ` <span class="tag gray">rub. ${esc(el.rubriqueCode)}</span>` : ""}</span></label>`).join("")}</div>
-      <button class="btn p sm" style="margin-top:8px" onclick="pfSelSave('${pf.id}')">Enregistrer les rubriques du portefeuille</button>
+      <div class="note" style="margin-top:6px">Cochez les rubriques allouées à ce portefeuille (proposées à la création d'un employé), puis « Enregistrer ». Créez-en de nouvelles ci-dessous, ou retirez-les du catalogue avec 🗑.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0">
+        <input id="newRubName" placeholder="Nouvelle rubrique (ex. Prime de rendement)" style="margin:0;min-width:230px">
+        <input id="newRubCode" placeholder="Code Paie (opt.)" style="margin:0;max-width:150px">
+        <button class="btn p sm" onclick="rubCreate('${pf.id}')">+ Créer et allouer</button></div>
+      <div class="grid2" style="margin-top:4px">${sels.length ? sels.map(el => `
+        <div style="display:flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:3px 8px">
+          <label class="chk" style="flex:1;padding:0"><input type="checkbox" data-pfsel="${esc(el.name)}" ${(pf.salaryElements || []).includes(el.name) ? "checked" : ""}>
+            <span>${esc(el.name)}${el.rubriqueCode ? ` <span class="tag gray">rub. ${esc(el.rubriqueCode)}</span>` : ""}</span></label>
+          <button class="btn ghost sm" title="Supprimer du catalogue" onclick="rubDelete('${el.id}')" style="color:var(--red);padding:2px 7px">🗑</button></div>`).join("") : '<small style="color:var(--muted)">Aucune rubrique dans le catalogue. Créez-en une ci-dessus.</small>'}</div>
+      <button class="btn p sm" style="margin-top:10px" onclick="pfSelSave('${pf.id}')">Enregistrer les rubriques du portefeuille</button>
     </div></div>`;
 }
 async function pfSelSave(id) {
   const elements = [...view.querySelectorAll("[data-pfsel]")].filter(c => c.checked).map(c => c.dataset.pfsel);
   try { await api(`/portfolios/${id}/salary-elements`, { method: "PUT", body: JSON.stringify({ elements }) });
     alert("Rubriques du portefeuille enregistrées."); } catch (e) { alert(e.message); }
+}
+async function rubCreate(pfId) {
+  const name = (document.getElementById("newRubName").value || "").trim();
+  if (!name) return alert("Nom de la rubrique requis.");
+  const code = (document.getElementById("newRubCode").value || "").trim();
+  try {
+    await api("/config/salary-elements", { method: "POST", body: JSON.stringify({ name, rubriqueCode: code || null }) });
+    const elements = [...view.querySelectorAll("[data-pfsel]")].filter(c => c.checked).map(c => c.dataset.pfsel);
+    if (!elements.includes(name)) elements.push(name);
+    await api(`/portfolios/${pfId}/salary-elements`, { method: "PUT", body: JSON.stringify({ elements }) });
+    portfolios();
+  } catch (e) { alert(e.message); }
+}
+async function rubDelete(id) {
+  if (!confirm("Supprimer cette rubrique du catalogue ? Elle sera retirée de tous les portefeuilles.")) return;
+  try { await api("/config/salary-elements/" + id, { method: "DELETE" }); portfolios(); } catch (e) { alert(e.message); }
 }
 async function pfCnvSave(id) {
   try { await api(`/portfolios/${id}/convention`, { method: "PUT", body: JSON.stringify({ conventionId: pfCnv.value }) });
