@@ -78,10 +78,10 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 <div id="login">
   <div style="text-align:center"><img data-brand-logo style="max-height:46px;display:none;margin-bottom:6px"></div><h1 data-brand-name style="text-align:center">◆ SGRHP</h1>
   <p data-brand-tag style="text-align:center;color:var(--muted);margin-bottom:16px">Cible RH Emploi S.A.</p>
-  <label>Email</label><input id="lEmail" value="gpf@cible-rh.ci">
-  <label>Mot de passe</label><input id="lPass" type="password" value="demo123">
+  <label>Email</label><input id="lEmail" value="gpf@cible-rh.ci" onkeydown="if(event.key==='Enter')doLogin()">
+  <label>Mot de passe</label><input id="lPass" type="password" value="demo123" onkeydown="if(event.key==='Enter')doLogin()">
   <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
-    <input id="lTotp" inputmode="numeric" maxlength="6" placeholder="123456"></div>
+    <input id="lTotp" inputmode="numeric" maxlength="6" placeholder="123456" onkeydown="if(event.key==='Enter')doLogin()"></div>
   <div class="err hidden" id="lErr"></div>
   <button class="btn p" style="width:100%" onclick="doLogin()">Se connecter</button>
 
