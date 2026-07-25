@@ -1144,7 +1144,7 @@ async function dl(empId, fileId, name) {
 
 /* ---------- Portfolio config (ADM) ---------- */
 async function portfolios() {
-  const [pfs, types, cnvs, sels] = await Promise.all([api("/portfolios"), api("/portfolios/doc-types"), api("/config/conventions"), api("/config/salary-elements")]);
+  const [pfs, types, cnvs, sels, rubs] = await Promise.all([api("/portfolios"), api("/portfolios/doc-types"), api("/config/conventions"), api("/config/salary-elements"), api("/payroll/rubriques").catch(() => [])]);
   PFS = pfs;
   const sel = window._pfSel || pfs[0].id;
   const pf = pfs.find(p => p.id === sel) || pfs[0];
@@ -1173,11 +1173,13 @@ async function portfolios() {
     <button class="btn p" style="margin-top:10px" onclick="pfSave('${pf.id}')">Enregistrer la configuration</button>
     <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:10px">
       <b style="font-size:12px;color:var(--muted)">💵 RUBRIQUES DE SALAIRE ALLOUÉES À CE PORTEFEUILLE</b>
-      <div class="note" style="margin-top:6px">Cochez les rubriques allouées à ce portefeuille (proposées à la création d'un employé), puis « Enregistrer ». Créez-en de nouvelles ci-dessous, ou retirez-les du catalogue avec 🗑.</div>
+      <div class="note" style="margin-top:6px">Cochez les rubriques allouées à ce portefeuille (proposées à la création d'un employé), puis « Enregistrer ». Ajoutez une rubrique depuis le catalogue de paie ci-dessous, ou retirez-la du catalogue avec 🗑.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0">
-        <input id="newRubName" placeholder="Nouvelle rubrique (ex. Prime de rendement)" style="margin:0;min-width:230px">
-        <input id="newRubCode" placeholder="Code Paie (opt.)" style="margin:0;max-width:150px">
-        <button class="btn p sm" onclick="rubCreate('${pf.id}')">+ Créer et allouer</button></div>
+        <select id="newRubSel" style="margin:0;min-width:340px">
+          <option value="">— choisir une rubrique du catalogue de paie —</option>
+          ${(rubs || []).filter(r => (r.sens || "GAIN") === "GAIN").sort((a,b)=>String(a.code).localeCompare(String(b.code))).map(r => `<option value="${esc(String(r.code))}" data-label="${esc(r.label)}">${esc(String(r.code))} — ${esc(r.label)}</option>`).join("")}
+        </select>
+        <button class="btn p sm" onclick="rubCreate('${pf.id}')">+ Allouer au portefeuille</button></div>
       <div class="grid2" style="margin-top:4px">${sels.length ? sels.map(el => `
         <div style="display:flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:3px 8px">
           <label class="chk" style="flex:1;padding:0"><input type="checkbox" data-pfsel="${esc(el.name)}" ${(pf.salaryElements || []).includes(el.name) ? "checked" : ""}>
@@ -1192,11 +1194,20 @@ async function pfSelSave(id) {
     alert("Rubriques du portefeuille enregistrées."); } catch (e) { alert(e.message); }
 }
 async function rubCreate(pfId) {
-  const name = (document.getElementById("newRubName").value || "").trim();
-  if (!name) return alert("Nom de la rubrique requis.");
-  const code = (document.getElementById("newRubCode").value || "").trim();
+  const selEl = document.getElementById("newRubSel");
+  let name, code;
+  if (selEl) {
+    code = selEl.value;
+    if (!code) return alert("Choisissez une rubrique dans le catalogue.");
+    name = (selEl.selectedOptions[0] && selEl.selectedOptions[0].dataset.label) || code;
+  } else {
+    name = (document.getElementById("newRubName").value || "").trim();
+    if (!name) return alert("Nom de la rubrique requis.");
+    code = (document.getElementById("newRubCode").value || "").trim();
+  }
   try {
-    await api("/config/salary-elements", { method: "POST", body: JSON.stringify({ name, rubriqueCode: code || null }) });
+    try { await api("/config/salary-elements", { method: "POST", body: JSON.stringify({ name, rubriqueCode: code || null }) }); }
+    catch (e) { if (!/exist/i.test(e.message)) throw e; }
     const elements = [...view.querySelectorAll("[data-pfsel]")].filter(c => c.checked).map(c => c.dataset.pfsel);
     if (!elements.includes(name)) elements.push(name);
     await api(`/portfolios/${pfId}/salary-elements`, { method: "PUT", body: JSON.stringify({ elements }) });
