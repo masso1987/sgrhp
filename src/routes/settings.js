@@ -46,6 +46,7 @@ const DEFAULTS = {
       bodyEn: "The 48h deadline is exceeded for \"{{title}}\" ({{elapsed}}h).\n\n— SGRHP" },
   },
   branding: {
+    theme: "emerald",
     appName: "SGRHP",
     tagline: "Cible RH Emploi S.A.",
     logo: "",                       // small data-URL, optional
@@ -189,6 +190,11 @@ router.put("/branding", allow("ADM"), (req, res) => {
   const s = settings();
   const b = req.body || {};
   const before = JSON.parse(JSON.stringify(s.branding));
+  if (b.theme !== undefined) {
+    if (!["navy", "indigo", "emerald", "dark", "custom"].includes(b.theme))
+      return res.status(400).json({ error: "Thème inconnu" });
+    s.branding.theme = b.theme;
+  }
   if (b.appName !== undefined) s.branding.appName = String(b.appName).slice(0, 40) || "SGRHP";
   if (b.tagline !== undefined) s.branding.tagline = String(b.tagline).slice(0, 80);
   if (b.logo !== undefined) {

@@ -4,16 +4,16 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SGRHP — Cible RH Emploi S.A.</title>
 <style>
-:root{--primary:#1e3a5f;--accent:#e8833a;--bg:#f4f6f9;--border:#e2e8f0;--muted:#6b7280;
+:root{--primary:#065f46;--accent:#10b981;--bg:#f5f8f7;--border:#e3e8e6;--muted:#6b7280;--text:#1f2937;--nav-active-bg:#ecfdf5;--topbar-bg:#065f46;--sidebar-bg:#ffffff;--sidebar-border:#e3e8e6;--nav-color:#6b7280;--nav-active-color:#065f46;--nav-active-border:#10b981;
 --green:#16a34a;--red:#dc2626;--amber:#d97706;--green-bg:#dcfce7;--red-bg:#fee2e2;--amber-bg:#fef3c7}
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,sans-serif}
-body{background:var(--bg);color:#1f2937;font-size:14px}
-.topbar{background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px;position:fixed;top:0;left:0;right:0;z-index:50}
+body{background:var(--bg);color:var(--text);font-size:14px}
+.topbar{background:var(--topbar-bg);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px;position:fixed;top:0;left:0;right:0;z-index:50}
 .logo{font-weight:700}.logo .b{background:var(--accent);font-size:10px;padding:2px 8px;border-radius:10px;margin-left:8px}
 .layout{display:flex;padding-top:54px;min-height:100vh}
-.sidebar{width:210px;background:#fff;border-right:1px solid var(--border);position:fixed;top:54px;bottom:0;padding:10px 0}
-.nav{padding:10px 18px;cursor:pointer;color:var(--muted);font-weight:500;border-left:3px solid transparent}
-.nav:hover{background:var(--bg)}.nav.active{color:var(--primary);border-left-color:var(--accent);background:#eef2f7;font-weight:600}
+.sidebar{width:210px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);position:fixed;top:54px;bottom:0;padding:10px 0}
+.nav{padding:10px 18px;cursor:pointer;color:var(--nav-color);font-weight:500;border-left:3px solid transparent}
+.nav:hover{background:var(--nav-active-bg)}.nav.active{color:var(--nav-active-color);border-left-color:var(--nav-active-border);background:var(--nav-active-bg);font-weight:600}
 .main{margin-left:210px;padding:22px;flex:1}
 h1{font-size:19px;margin-bottom:14px}
 .panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
@@ -47,6 +47,29 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px}
 .card .kpi{font-size:24px;font-weight:700}
 .card .lbl{color:var(--muted);font-size:12px;margin-top:2px}
+
+.menu-btn{display:none;background:none;border:none;color:#fff;font-size:22px;cursor:pointer;margin-right:12px;line-height:1;padding:0}
+.sb-backdrop{display:none;position:fixed;inset:54px 0 0 0;background:rgba(15,23,42,.45);z-index:40}
+.sb-backdrop.show{display:block}
+@media(max-width:820px){
+  .topbar{padding:0 12px}
+  .menu-btn{display:inline-block}
+  .logo .b{display:none}
+  .sidebar{transform:translateX(-100%);transition:transform .22s ease;z-index:55;box-shadow:2px 0 14px rgba(0,0,0,.12)}
+  .sidebar.open{transform:none}
+  .main{margin-left:0;padding:14px}
+  .panel{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+  .modal{width:100%;max-width:96vw}
+  h1{font-size:17px}
+  #langSel{margin-right:4px}
+}
+@media(max-width:480px){
+  .topbar{height:50px}.layout{padding-top:50px}.sidebar{top:50px}.sb-backdrop{inset:50px 0 0 0}
+  #who{display:none}
+  .btn{padding:6px 11px}
+}
 </style>
 </head>
 <body>
@@ -76,11 +99,12 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 </div>
 
 <div id="app" class="hidden">
-<div class="topbar"><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>SGRHP</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
+<div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">☰</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>SGRHP</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
   <div style="font-size:13px"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="margin:0 10px 0 0;padding:4px 8px;border-radius:6px;border:none;font-size:12px;cursor:pointer">
       <option value="fr">FR</option><option value="en">EN</option></select><span id="bell" style="cursor:pointer;margin-right:10px" onclick="showNotifs()">🔔</span><span id="who"></span> &nbsp;<button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
 <div class="layout">
+  <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
   <div class="sidebar" id="nav"></div>
   <div class="main" id="view"></div>
 </div>
@@ -586,19 +610,53 @@ function shade(hex, pct) {
     r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
     return "#"+(0x1000000+r*0x10000+g*0x100+b).toString(16).slice(1); } catch { return hex; }
 }
+const THEMES = {
+  navy:   {"--primary":"#1e3a5f","--accent":"#e8833a","--bg":"#f4f6f9","--border":"#e2e8f0","--text":"#1f2937","--topbar-bg":"#1e3a5f","--sidebar-bg":"#ffffff","--sidebar-border":"#e2e8f0","--nav-color":"#6b7280","--nav-active-color":"#1e3a5f","--nav-active-bg":"#eef2f7","--nav-active-border":"#e8833a"},
+  indigo: {"--primary":"#4338ca","--accent":"#6366f1","--bg":"#f8fafc","--border":"#e5e7eb","--text":"#1f2937","--topbar-bg":"#4338ca","--sidebar-bg":"#ffffff","--sidebar-border":"#e5e7eb","--nav-color":"#64748b","--nav-active-color":"#4338ca","--nav-active-bg":"#eef2ff","--nav-active-border":"#6366f1"},
+  emerald:{"--primary":"#065f46","--accent":"#10b981","--bg":"#f5f8f7","--border":"#e3e8e6","--text":"#1f2937","--topbar-bg":"#065f46","--sidebar-bg":"#ffffff","--sidebar-border":"#e3e8e6","--nav-color":"#6b7280","--nav-active-color":"#065f46","--nav-active-bg":"#ecfdf5","--nav-active-border":"#10b981"},
+  dark:   {"--primary":"#1d4ed8","--accent":"#3b82f6","--bg":"#f1f5f9","--border":"#e2e8f0","--text":"#1f2937","--topbar-bg":"#0f172a","--sidebar-bg":"#0f172a","--sidebar-border":"#1e293b","--nav-color":"#94a3b8","--nav-active-color":"#ffffff","--nav-active-bg":"#1e293b","--nav-active-border":"#3b82f6"}
+};
+const THEME_META = { emerald:["Emerald","#065f46","#10b981","#ffffff"], navy:["Navy & Amber","#1e3a5f","#e8833a","#ffffff"], indigo:["Indigo SaaS","#4338ca","#6366f1","#ffffff"], dark:["Dark sidebar","#0f172a","#3b82f6","#0f172a"] };
 function applyBranding(b) {
   if (!b) return; BRANDING = b;
-  const r = document.documentElement.style, c = b.colors || {};
-  if (c.primary) { r.setProperty("--primary", c.primary); r.setProperty("--primary-light", shade(c.primary, 18)); }
-  if (c.accent) r.setProperty("--accent", c.accent);
-  if (c.bg) r.setProperty("--bg", c.bg);
-  if (c.text) r.setProperty("--text", c.text);
-  document.querySelectorAll(".sidebar").forEach(s => { if (c.sidebar) s.style.background = c.sidebar; });
+  const r = document.documentElement.style, key = b.theme || "emerald";
+  if (key === "custom") {
+    const base = THEMES.emerald; for (const k in base) r.setProperty(k, base[k]);
+    const c = b.colors || {};
+    if (c.primary) { r.setProperty("--primary", c.primary); r.setProperty("--primary-light", shade(c.primary, 18)); r.setProperty("--topbar-bg", c.primary); r.setProperty("--nav-active-color", c.primary); }
+    if (c.accent) { r.setProperty("--accent", c.accent); r.setProperty("--nav-active-border", c.accent); }
+    if (c.bg) r.setProperty("--bg", c.bg);
+    if (c.text) r.setProperty("--text", c.text);
+    if (c.sidebar) r.setProperty("--sidebar-bg", c.sidebar);
+  } else {
+    const th = THEMES[key] || THEMES.emerald; for (const k in th) r.setProperty(k, th[k]);
+    r.setProperty("--primary-light", shade(th["--primary"], 18));
+  }
   document.querySelectorAll("[data-brand-name]").forEach(e => e.textContent = b.appName || "SGRHP");
   document.querySelectorAll("[data-brand-tag]").forEach(e => e.textContent = b.tagline || "");
   document.querySelectorAll("[data-brand-logo]").forEach(e => {
     if (b.logo) { e.src = b.logo; e.style.display = "inline-block"; } else { e.style.display = "none"; } });
   document.body.classList.toggle("compact", b.density === "compact");
+}
+function themePresetRow(active) {
+  active = active || "emerald";
+  const order = ["emerald","navy","indigo","dark"];
+  return `<div style="margin:8px 0 4px"><label>Thème de l'application (appliqué à toute l'organisation)</label>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:5px">
+   ${order.map(k => { const m = THEME_META[k]; return `<div data-theme-card="${k}" onclick="saveThemePreset('${k}')" title="${m[0]}"
+       style="cursor:pointer;border:2px solid ${k===active?'var(--accent)':'var(--border)'};border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px">
+       <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;border:1px solid var(--border)">
+         <div style="width:20px;background:${m[3]}"></div><div style="flex:1;background:${m[1]}"></div><div style="width:16px;background:${m[2]}"></div></div>
+       <div style="font-size:12px;font-weight:600">${m[0]}${k===active?' &check;':''}</div></div>`; }).join("")}
+   </div>
+   <p style="font-size:11px;color:var(--muted);margin:5px 0 0">Astuce : pour des couleurs sur mesure, réglez les champs ci-dessous puis « Enregistrer l'apparence » (passe en thème « Personnalisé »).</p></div>`;
+}
+async function saveThemePreset(key) {
+  try {
+    const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify({ theme: key }) });
+    applyBranding(b);
+    document.querySelectorAll("[data-theme-card]").forEach(c => { c.style.borderColor = (c.dataset.themeCard === key) ? "var(--accent)" : "var(--border)"; });
+  } catch (e) { alert(e.message); }
 }
 function applySectionColor(k) {
   if (!BRANDING) return;
@@ -832,8 +890,11 @@ function startAccessPolling() {
     } catch (e) {}
   }, 20000);
 }
+function toggleSidebar(){var n=document.getElementById('nav'),b=document.getElementById('sbBackdrop');var o=n.classList.toggle('open');if(b)b.classList.toggle('show',o);}
+function closeSidebar(){var n=document.getElementById('nav'),b=document.getElementById('sbBackdrop');if(n)n.classList.remove('open');if(b)b.classList.remove('show');}
 function go(k) {
   window.CURRENT_VIEW = k;
+  closeSidebar();
   applySectionColor(k);
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
   ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, none }[k] || none)();
@@ -2284,6 +2345,7 @@ async function paramsView() {
 
   <div class="panel" style="margin-top:16px"><b>🎨 Apparence & image de marque</b>
     <p style="font-size:12px;color:var(--muted);margin:6px 0">Personnalisez le nom, le logo, les couleurs et la densité de l'interface. L'aperçu est immédiat.</p>
+    ${themePresetRow(s.branding.theme)}
     <div class="grid2">
       <div><label>Nom de l'application</label><input id="bName" value="${(s.branding.appName||'')}"></div>
       <div><label>Sous-titre</label><input id="bTag" value="${(s.branding.tagline||'')}"></div>
@@ -2346,7 +2408,7 @@ function collectBranding() {
     const on = view.querySelector(`input[data-secon="${i.dataset.seccol}"]`).checked;
     sectionColors[i.dataset.seccol] = on ? i.value : "";
   });
-  const body = { appName: bName.value, tagline: bTag.value, colors, sectionColors, density: bDensity.value };
+  const body = { appName: bName.value, tagline: bTag.value, colors, sectionColors, density: bDensity.value, theme: "custom" };
   if (_logoData !== undefined) body.logo = _logoData;
   return body;
 }
