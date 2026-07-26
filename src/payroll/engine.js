@@ -114,20 +114,20 @@ function computePayslip(input, configOverride) {
   const senR = seniorityRate(seniorityYears, cfg);
   if (senR > 0) add({ code: "1040", label: "Prime d'ancienneté", kind: "GAIN", base: baseSalary, rate: senR, gain: r0(baseSalary * senR), cnps: true, impo: true });
   const ot = overtime || {};
-  const otL = (h, rate, code, label) => { if (h) add({ code, label, kind: "GAIN", base: r0(hourlyRate), rate: 1 + rate, gain: r0(h * hourlyRate * (1 + rate)), hours: h, cnps: true, impo: true }); };
+  const otL = (h, rate, code, label) => { if (h) add({ code, label, kind: "GAIN", nombre: h, base: r0(hourlyRate), rate: 1 + rate, gain: r0(h * hourlyRate * (1 + rate)), hours: h, cnps: true, impo: true }); };
   otL(ot.tier1, cfg.overtime.tier1Rate, "1081", "Heures supp. (+20%)");
   otL(ot.tier2, cfg.overtime.tier2Rate, "1082", "Heures supp. (+30%)");
   otL(ot.tier3, cfg.overtime.tier3Rate, "1083", "Heures supp. (+40%)");
   otL(ot.night, cfg.overtime.nightRate, "1084", "Heures de nuit (+50%)");
-  for (const g of gains) if (g && g.amount) add({ code: g.code || "2000", label: g.label || "Prime", kind: "GAIN", base: g.amount, rate: 1, gain: r0(g.amount), cnps: g.cnps !== false, impo: g.impo !== false });
-  for (const n of nonTaxable) if (n && n.amount) add({ code: n.code || "3000", label: n.label || "Indemnité", kind: "GAIN", base: n.amount, rate: 1, gain: r0(n.amount), cnps: false, impo: false });
+  for (const g of gains) if (g && g.amount) add({ code: g.code || "2000", label: g.label || "Prime", kind: "GAIN", nombre: 1, base: g.amount, rate: 1, gain: r0(g.amount), cnps: g.cnps !== false, impo: g.impo !== false });
+  for (const n of nonTaxable) if (n && n.amount) add({ code: n.code || "3000", label: n.label || "Indemnité", kind: "GAIN", nombre: 1, base: n.amount, rate: 1, gain: r0(n.amount), cnps: false, impo: false });
 
   // Transport allowance with exemption cap: excess over cap is imposable (never cotisable)
   let transportTaxable = 0;
   if (transport && transport.amount) {
     const amt = r0(transport.amount);
     transportTaxable = Math.max(0, amt - (cfg.transportExemptionCap || 0));
-    add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", base: amt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
+    add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: 1, base: amt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
   }
 
   // Avantages en nature: valued benefit — taxable (and optionally cotisable) but NOT
@@ -138,7 +138,7 @@ function computePayslip(input, configOverride) {
     if (!a || !a.amount) continue;
     const amt = r0(a.amount);
     add({ code: a.code || "4000", label: a.label || "Avantage en nature", kind: "AVANTAGE",
-      base: amt, rate: 1, gain: amt, avantage: true, cnps: !!a.cnps, impo: a.impo !== false });
+      nombre: 1, base: amt, rate: 1, gain: amt, avantage: true, cnps: !!a.cnps, impo: a.impo !== false });
     avTotal += amt; if (a.impo !== false) avImpo += amt; if (a.cnps) avCnps += amt;
   }
 

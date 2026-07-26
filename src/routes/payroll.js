@@ -434,17 +434,8 @@ router.get("/payslips/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 });
 
 /* PDF bulletin de paie */
-router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
-  const s = mine(db.payslips, req).find(x => x.id === req.params.id);
-  if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
-  const emp = mine(db.employees, req).find(e => e.id === s.employeeId) || {};
-  const tenant = (db.tenants || []).find(t => t.id === (s.tenantId || "t1")) || { name: "SGRHP" };
-  audit(req.user, req.query.print === "1" ? "PRINTED" : "DOWNLOADED", "Payslip", s.id, { employeeId: s.employeeId, period: s.period });
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="Bulletin_${(s.employeeName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
+function payslipDoc(s, emp, tenant) {
   const doc = new PDFDocument({ margin: 18, size: "A4" });
-  doc.pipe(res);
   const t = s.result.totals, r = s.result;
   const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
@@ -452,6 +443,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   const C = emp.contract || {};
   const MS = { Single: "Célibataire", Married: "Marié(e)", Divorced: "Divorcé(e)", Widowed: "Veuf(ve)" };
   const fdate = (d) => { if (!d) return ""; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : d; };
+  const shortConv = (n) => { if (!n) return ""; const stop = new Set(["convention","conventions","collective","collectives","nationale","interprofessionnelle","de","du","des","la","le","les","l","d"]); const w = String(n).replace(/[''\u2019]/g, " ").split(/\s+/).filter(Boolean); while (w.length && stop.has(w[0].toLowerCase())) w.shift(); const o = w.join(" ") || String(n); return o.charAt(0).toUpperCase() + o.slice(1); };
   const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if (!h) return "";
     const d = new Date(s.period + "-01"); let m = (d.getFullYear()-h.getFullYear())*12 + (d.getMonth()-h.getMonth());
     if (m < 0) m = 0; return `${Math.floor(m/12)} an(s) et ${m%12} mois`; })();
@@ -483,7 +475,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   // left info block
   let iy = 168; const li = (l, v, l2, v2) => {
     T(26, iy, l, { b: 1 }); T(120, iy, v); if (l2) { T(300, iy, l2, { b: 1 }); T(380, iy, v2); } iy += 12; };
-  li("Conv. coll.", C.convention || emp.convention || "", "Emploi", C.position || emp.position || "");
+  li("Conv. coll.", shortConv(C.convention || emp.convention), "Emploi", C.position || emp.position || "");
   li("N° CNPS", emp.cnpsNumber || "", "Sit Fam", MS[emp.maritalStatus] || emp.maritalStatus || "");
   li("Date Embauche", fdate(emp.hireDate), "Nbre Enfants", emp.children != null ? emp.children : "");
   li("Ancienneté", yrs, "Qualification", emp.qualification || "");
@@ -572,7 +564,30 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   /* ===== FOOTER ===== */
   T(18, 812, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 500 });
   T(520, 812, "TAKE CARE", { b: 1, s: 7 });
-  doc.end();
+  return doc;
+}
+function payslipBuffer(s, emp, tenant) {
+  return new Promise((resolve, reject) => {
+    const doc = payslipDoc(s, emp, tenant);
+    const chunks = [];
+    doc.on("data", c => chunks.push(c));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    doc.end();
+  });
+}
+
+router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.payslips, req).find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
+  const emp = mine(db.employees, req).find(e => e.id === s.employeeId) || {};
+  const tenant = (db.tenants || []).find(t => t.id === (s.tenantId || "t1")) || { name: "SGRHP" };
+  audit(req.user, req.query.print === "1" ? "PRINTED" : "DOWNLOADED", "Payslip", s.id, { employeeId: s.employeeId, period: s.period });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Bulletin_${(s.employeeName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
+  const doc = payslipDoc(s, emp, tenant);
+  doc.pipe(res); doc.end();
 });
 
 /* ===================== LIVRE DE PAIE ========================== */
@@ -693,20 +708,58 @@ router.get("/runs/:id/virement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => 
   sendCSV(res, `Ordre_de_virement_${run.period}.csv`, rows);
 });
 // Email a payslip summary to the employee.
+async function sendPayslipEmail(s2, req) {
+  const emp = mine(db.employees, req).find(e => e.id === s2.employeeId) || {};
+  if (!emp.email) throw new Error("Aucune adresse email pour " + (s2.employeeName || "ce salarié"));
+  const tenant = (db.tenants || []).find(t => t.id === (s2.tenantId || "t1")) || { name: "SGRHP" };
+  const t = s2.result.totals;
+  const ref = String(s2.id || "").toUpperCase();
+  const today = new Date().toISOString().slice(0, 10);
+  const body =
+    `Bonjour ${s2.employeeName},\n\n` +
+    `Veuillez trouver ci-joint votre bulletin de paie pour la période ${s2.period}.\n\n` +
+    `Salaire brut   : ${money(t.brutTotal)} XAF\n` +
+    `Total retenues : ${money(t.totalRetenues)} XAF\n` +
+    `Net à payer    : ${money(t.netAPayer)} XAF\n\n` +
+    `Cordialement,\nLe service RH — ${tenant.name}\n\n` +
+    `----------------------------------------------------------------------\n` +
+    `AUTHENTICITÉ : Ce message et le bulletin ci-joint (PDF) ont été générés\n` +
+    `automatiquement par le système RH & Paie de ${tenant.name} (SGRHP).\n` +
+    `Référence du document : ${ref}\n` +
+    `Émis le : ${today}\n` +
+    `Ceci est une communication officielle. Pour toute vérification, contactez\n` +
+    `le service RH de ${tenant.name}. Ne communiquez ce bulletin à personne.`;
+  const pdf = await payslipBuffer(s2, emp, tenant);
+  const filename = `Bulletin_${String(s2.employeeName || "").replace(/[^\w]/g, "_")}_${s2.period}.pdf`;
+  await require("../mailer").send(emp.email, `Bulletin de paie ${s2.period} — ${tenant.name}`, body,
+    [{ filename, content: pdf, contentType: "application/pdf" }]);
+  s2.emailedAt = new Date().toISOString(); save();
+  audit(req.user, "EMAILED", "Payslip", s2.id, { to: emp.email, period: s2.period });
+  return emp.email;
+}
+
 router.post("/payslips/:id/email", allow("ADM", "CD", "RJ", "GPF"), async (req, res) => {
   const s2 = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s2) return res.status(404).json({ error: "Bulletin introuvable" });
-  const emp = mine(db.employees, req).find(e => e.id === s2.employeeId) || {};
-  if (!emp.email) return res.status(400).json({ error: "Aucune adresse email pour ce salarié" });
-  const t = s2.result.totals;
-  const text = `Bonjour ${s2.employeeName},\n\nVotre bulletin de paie ${s2.period} est disponible.\n` +
-    `Salaire brut : ${money(t.brutTotal)} XAF\nTotal retenues : ${money(t.totalRetenues)} XAF\nNet à payer : ${money(t.netAPayer)} XAF\n\nCordialement.`;
-  try {
-    await require("../mailer").send(emp.email, `Bulletin de paie ${s2.period}`, text);
-    s2.emailedAt = new Date().toISOString(); save();
-    audit(req.user, "EMAILED", "Payslip", s2.id, { to: emp.email, period: s2.period });
-    res.json({ ok: true, to: emp.email });
-  } catch (e) { res.status(400).json({ error: e.message }); }
+  try { const to = await sendPayslipEmail(s2, req); res.json({ ok: true, to }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// Bulk: email every computed payslip of a run (optionally filtered to one portfolio).
+router.post("/runs/:id/email-portfolio", allow("ADM", "CD", "RJ", "GPF"), async (req, res) => {
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const pfId = (req.body && req.body.portfolioId) || null;
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  const slips = mine(db.payslips, req).filter(x => x.runId === run.id &&
+    (!pfId || (empById[x.employeeId] && empById[x.employeeId].portfolioId === pfId)));
+  let sent = 0; const errors = [];
+  for (const s2 of slips) {
+    try { await sendPayslipEmail(s2, req); sent++; }
+    catch (e) { errors.push(`${s2.employeeName}: ${e.message}`); }
+  }
+  audit(req.user, "EMAILED_BULK", "PayRun", run.id, { portfolioId: pfId, sent, failed: errors.length });
+  res.json({ ok: true, sent, failed: errors.length, errors: errors.slice(0, 25) });
 });
 
 /* ---------------- Prêts (loans with échéancier) ---------------- */

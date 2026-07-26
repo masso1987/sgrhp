@@ -986,8 +986,9 @@ async function empForm(edit) {
       <div><label>Numéro CNI</label><input id="fCni"></div>
       <div><label>Validité CNI</label><input id="fCniExp" type="date"></div>
       <div><label>Numéro CNPS</label><input id="fCnps"></div></div>
-    <div class="grid2">
+    <div class="grid3">
       <div><label>Téléphone</label><input id="fPhone"></div>
+      <div><label>Email (envoi du bulletin)</label><input id="fEmail" type="email" placeholder="salarie@exemple.com"></div>
       <div><label>Mode de paiement</label><select id="fPay"><option>TRANSFER</option><option>CHEQUE</option><option>CASH</option><option>ORANGE_MONEY</option><option>MOMO</option></select></div></div>
     <label>Personne à contacter en cas d'urgence</label>
     <div class="grid2"><input id="fEmgName" placeholder="Nom"><input id="fEmgTel" placeholder="Téléphone"></div>
@@ -1018,7 +1019,7 @@ async function empForm(edit) {
     fHire.value = edit.hireDate || ""; fBirth.value = edit.birthDate || ""; fBp.value = edit.birthPlace || "";
     if (edit.maritalStatus) fMs.value = edit.maritalStatus;
     fCni.value = edit.cniNumber || ""; fCniExp.value = edit.cniExpiry || ""; fCnps.value = edit.cnpsNumber || "";
-    fPhone.value = edit.phone || ""; fEmgName.value = edit.emergencyName || ""; fEmgTel.value = edit.emergencyPhone || "";
+    fPhone.value = edit.phone || ""; fEmail.value = edit.email || ""; fEmgName.value = edit.emergencyName || ""; fEmgTel.value = edit.emergencyPhone || "";
     fMat.value = edit.matricule || ""; fPos.value = edit.position || (edit.contract && edit.contract.position) || "";
     fQual.value = edit.qualification || ""; fDept.value = edit.department || ""; fChild.value = edit.children != null ? edit.children : "";
     fDipe.value = edit.dipe || ""; fBank.value = edit.bankName || ""; fAcct.value = edit.bankAccount || "";
@@ -1079,7 +1080,7 @@ async function empSave(editId) {
       children: fChild.value !== "" ? Number(fChild.value) : undefined, dipe: fDipe.value || undefined,
       bankName: fBank.value || undefined, bankAccount: fAcct.value || undefined,
       emergencyName: fEmgName.value, emergencyPhone: fEmgTel.value,
-      emergencyContact: [fEmgName.value, fEmgTel.value].filter(Boolean).join(" — "),
+      emergencyContact: [fEmgName.value, fEmgTel.value].filter(Boolean).join(" — "), email: fEmail.value,
       contract: { type: fCt.value, category: fCat.value || undefined, step: fStep.value || undefined,
         paymentMethod: fPay.value, startDate: fHire.value,
         endDate: (window._CTYPES.find(t=>t.name===fCt.value)||{}).fixedTerm ? fEnd.value : null },
@@ -2960,6 +2961,7 @@ function rosterStatusTag(r) {
   return t + (r.edited ? ' <span class="tag amber" title="corrigé">✎</span>' : "");
 }
 async function payRunView(id) {
+  if (!PFS || !PFS.length) { try { PFS = await api("/portfolios"); } catch {} }
   const data = await api("/payroll/runs/" + id + "/roster");
   PAY_RUN = data.run; PAY_ROSTER = data.roster; PAY_ROSTER_IDS = data.roster.map(r => r.employeeId);
   const run = data.run, totals = data.totals, open = run.status !== "CLOSED";
@@ -2979,11 +2981,25 @@ async function payRunView(id) {
     ${hasRight("payroll.cotisations") ? `<button class="btn ghost" onclick="payCotis('${run.id}')">🏛 États des cotisations</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">🏦 Ordre de virement</button>` : ""}
     ${hasRight("payroll.compta") ? `<button class="btn ghost" onclick="payJournal('${run.id}')">🧾 Passation comptable</button>` : ""}
+    ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
+      <select id="emailPf" style="max-width:210px;margin:0"><option value="">📧 Tous les portefeuilles</option>${(PFS || []).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+      <button class="btn ghost" onclick="payEmailPortfolio('${run.id}')">📧 Envoyer les bulletins</button>` : ""}
   </div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">SALARIÉS — par portefeuille (cliquez pour ouvrir le bulletin)</b>
     <input id="rosterSearch" placeholder="🔍 Salarié, matricule…" style="margin:6px 0;max-width:240px" oninput="payRenderRoster()">
     <div id="rosterList"></div></div>`;
   payRenderRoster();
+}
+async function payEmailPortfolio(runId) {
+  const pf = (document.getElementById("emailPf") || {}).value || "";
+  const label = pf ? pfName(pf) : "tous les portefeuilles";
+  if (!confirm(`Envoyer les bulletins de paie par email à ${label} ?\n\nSeuls les salariés ayant une adresse email renseignée seront servis. Chaque email contient le bulletin en PDF.`)) return;
+  try {
+    const r = await api(`/payroll/runs/${runId}/email-portfolio`, { method: "POST", body: JSON.stringify({ portfolioId: pf || undefined }) });
+    let msg = `✅ ${r.sent} bulletin(s) envoyé(s) par email.`;
+    if (r.failed) msg += `\n\n⚠️ ${r.failed} non envoyé(s) :\n` + (r.errors || []).join("\n");
+    alert(msg);
+  } catch (e) { alert(e.message); }
 }
 function payRenderRoster() {
   const q = ((document.getElementById("rosterSearch") || {}).value || "").toLowerCase();
