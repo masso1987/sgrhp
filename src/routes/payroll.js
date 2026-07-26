@@ -464,7 +464,7 @@ function payslipDoc(s, emp, tenant) {
   T(310, 20, "BULLETIN  DE  PAIE", { b: 1, s: 21, w: 270, a: "center" });
   T(360, 58, "Période du", { b: 1 }); T(415, 58, dS, { b: 1 }); T(470, 58, "au", { b: 1 }); T(490, 58, dE, { b: 1 });
   T(360, 70, "Paiement le", { b: 1 }); T(415, 70, dE); T(470, 70, "par", { b: 1 }); T(490, 70, C.paymentMethod || "Virement");
-  T(318, 86, "Banque", { b: 1 }); T(360, 86, emp.bankName || C.bankName || ""); T(430, 86, "N° Compte", { b: 1 }); T(480, 86, emp.bankAccount || C.bankIban || "");
+  T(318, 86, "Banque", { b: 1 }); T(358, 86, String(emp.bankName || C.bankName || "").slice(0, 20), { s: 7 }); T(445, 87, "N° Compte", { b: 1, s: 7 }); T(490, 87, emp.bankAccount || C.bankIban || "", { s: 7 });
   // labels inside company box
   T(26, 88, "N° Contribuable", { b: 1 }); T(110, 88, tenant.niu || "");
   T(190, 88, "N° Employeur", { b: 1 }); T(255, 88, tenant.cnpsEmployer || "");
@@ -472,10 +472,14 @@ function payslipDoc(s, emp, tenant) {
   BX(310, 98, 267, 60);
   T(318, 104, "Matricule", { b: 1 }); T(375, 104, s.matricule || "");
   T(320, 128, `${emp.civility || ""}  ${(emp.firstName||"")} ${(emp.lastName||"")}`.trim(), { b: 1, s: 10, w: 250 });
+  // resolve convention name from the employee's portfolio
+  const _pf = (db.portfolios || []).find(p => p.id === emp.portfolioId);
+  const _conv = _pf ? (db.conventions || []).find(c => c.id === _pf.conventionId) : null;
+  const convName = C.convention || emp.convention || (_conv && _conv.name) || "";
   // left info block
   let iy = 168; const li = (l, v, l2, v2) => {
     T(26, iy, l, { b: 1 }); T(120, iy, v); if (l2) { T(300, iy, l2, { b: 1 }); T(380, iy, v2); } iy += 12; };
-  li("Conv. coll.", shortConv(C.convention || emp.convention), "Emploi", C.position || emp.position || "");
+  li("Conv. coll.", shortConv(convName), "Emploi", C.position || emp.position || "");
   li("N° CNPS", emp.cnpsNumber || "", "Sit Fam", MS[emp.maritalStatus] || emp.maritalStatus || "");
   li("Date Embauche", fdate(emp.hireDate), "Nbre Enfants", emp.children != null ? emp.children : "");
   li("Ancienneté", yrs, "Qualification", emp.qualification || "");
