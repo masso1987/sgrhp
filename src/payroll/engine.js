@@ -110,6 +110,8 @@ function computePayslip(input, configOverride) {
   /* 1) GAINS */
   const proratedBase = r0(baseSalary * (workedDays / standardDays));
   const dailyRate = standardDays ? baseSalary / standardDays : baseSalary;
+  const PRORATA = (standardDays && workedDays < standardDays) ? workedDays / standardDays : 1;
+  const r3 = (x) => Math.round(x * 1000) / 1000;
   add({ code: "1000", label: "Salaire de base", kind: "GAIN", nombre: workedDays, base: Math.round(dailyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
   const senR = seniorityRate(seniorityYears, cfg);
   if (senR > 0) add({ code: "1040", label: "Prime d'ancienneté", kind: "GAIN", base: baseSalary, rate: senR, gain: r0(baseSalary * senR), cnps: true, impo: true });
@@ -119,15 +121,17 @@ function computePayslip(input, configOverride) {
   otL(ot.tier2, cfg.overtime.tier2Rate, "1082", "Heures supp. (+30%)");
   otL(ot.tier3, cfg.overtime.tier3Rate, "1083", "Heures supp. (+40%)");
   otL(ot.night, cfg.overtime.nightRate, "1084", "Heures de nuit (+50%)");
-  for (const g of gains) if (g && g.amount) add({ code: g.code || "2000", label: g.label || "Prime", kind: "GAIN", nombre: 1, base: g.amount, rate: 1, gain: r0(g.amount), cnps: g.cnps !== false, impo: g.impo !== false });
+  for (const g of gains) if (g && g.amount) { const pr = (g.prorate && PRORATA < 1) ? PRORATA : 1; add({ code: g.code || "2000", label: g.label || "Prime", kind: "GAIN", nombre: pr === 1 ? 1 : r3(pr), base: g.amount, rate: 1, gain: r0(g.amount * pr), cnps: g.cnps !== false, impo: g.impo !== false }); }
   for (const n of nonTaxable) if (n && n.amount) add({ code: n.code || "3000", label: n.label || "Indemnité", kind: "GAIN", nombre: 1, base: n.amount, rate: 1, gain: r0(n.amount), cnps: false, impo: false });
 
   // Transport allowance with exemption cap: excess over cap is imposable (never cotisable)
   let transportTaxable = 0;
   if (transport && transport.amount) {
-    const amt = r0(transport.amount);
+    const fullAmt = r0(transport.amount);
+    const pr = (transport.prorate && PRORATA < 1) ? PRORATA : 1;
+    const amt = r0(fullAmt * pr);
     transportTaxable = Math.max(0, amt - (cfg.transportExemptionCap || 0));
-    add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: 1, base: amt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
+    add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: pr === 1 ? 1 : r3(pr), base: fullAmt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
   }
 
   // Avantages en nature: valued benefit — taxable (and optionally cotisable) but NOT

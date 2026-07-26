@@ -95,8 +95,8 @@ function structureToInput(emp, req) {
     if (!amount) continue;
     const code = el.rubriqueCode || TAG_RUB[el.tag] || null; const rub = code ? rubOf(code) : null;
     if (code === "1000" || el.tag === "salary_base") { baseSalary = amount; continue; }
-    if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount }; continue; }
-    gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount,
+    if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount, prorate: true }; continue; }
+    gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount, prorate: true,
       cnps: rub ? !!rub.cnps : true, impo: rub ? !!rub.impo : true });
   }
   if (!baseSalary) baseSalary = baseSalaryOf(emp, req); // fallback to the salary grid
