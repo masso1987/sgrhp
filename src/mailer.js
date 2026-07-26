@@ -31,10 +31,16 @@ function build() {
         auth: { user: m.smtpLogin, pass: m.smtpPassword } }; break; }
     case "smtp":
     default: { const s = c.smtp || {};
-      t = { host: s.host, port: Number(s.port) || 587, secure: !!s.secure,
-        auth: s.user ? { user: s.user, pass: s.password } : undefined }; }
+      const port = Number(s.port) || 587;
+      // 465 => implicit TLS (SMTPS); 587/25 => STARTTLS. Derive from port so it
+      // can't be misconfigured; fall back to the explicit flag for other ports.
+      const secure = port === 465 ? true : (port === 587 || port === 25 ? false : !!s.secure);
+      t = { host: s.host, port, secure,
+        auth: s.user ? { user: s.user, pass: s.password } : undefined };
+      if (!secure && port !== 25) t.requireTLS = true;
+    }
   }
-  t.connectionTimeout = 10000; t.greetingTimeout = 10000;
+  t.connectionTimeout = 20000; t.greetingTimeout = 20000; t.socketTimeout = 25000;
   transport = nodemailer.createTransport(t); signature = sig;
   return transport;
 }
