@@ -10,6 +10,17 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 const { computePayslip } = require("../payroll/engine");
+const crypto = require("crypto");
+function verifySecret() {
+  const st = db.settings = db.settings || {};
+  if (!st.verifySecret) { st.verifySecret = crypto.randomBytes(24).toString("hex"); try { save(); } catch (e) {} }
+  return st.verifySecret;
+}
+function payslipSig(s) {
+  const tt = (s.result && s.result.totals) || {};
+  const data = [s.id, s.employeeName, s.period, Math.round(tt.netAPayer || 0)].join("|");
+  return crypto.createHmac("sha256", verifySecret()).update(data).digest("hex").slice(0, 16);
+}
 
 /* Ensure collections exist (defensive for older stores). */
 for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans"])
@@ -565,6 +576,19 @@ function payslipDoc(s, emp, tenant) {
   T(474, cy + 2, "Signature", { b: 1, s: 7 });
   T(280, cy + 3, "Congés acquis : " + ((r.meta && r.meta.leaveAccrued) || 2.5) + " j/mois", { s: 7 });
 
+  // Authenticity QR — scans to the public /verify page; vector-drawn so it is synchronous
+  try {
+    const QR = require("qrcode");
+    const base = process.env.PUBLIC_URL || "";
+    const url = `${base}/verify/${s.id}?h=${payslipSig(s)}`;
+    const m = QR.create(url, { errorCorrectionLevel: "M" }).modules;
+    const nn = m.size, bits = m.data, qsz = 42, qx = 414, qy = cy - 2, csz = qsz / nn;
+    doc.fillColor("#000");
+    for (let rr = 0; rr < nn; rr++) for (let cc = 0; cc < nn; cc++) if (bits[rr * nn + cc]) doc.rect(qx + cc * csz, qy + rr * csz, csz + 0.4, csz + 0.4).fill();
+    doc.fillColor("#000");
+    T(qx - 6, qy + qsz + 1, "Scannez pour vérifier l'authenticité", { s: 4.5, w: 66 });
+  } catch (e) {}
+
   /* ===== FOOTER ===== */
   T(18, 812, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 500 });
   T(520, 812, "TAKE CARE", { b: 1, s: 7 });
@@ -858,3 +882,4 @@ router.get("/runs/:id/journal/export", allow("ADM", "CD", "RJ", "GPF"), (req, re
 });
 
 module.exports = router;
+module.exports.payslipSig = payslipSig;

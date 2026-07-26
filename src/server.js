@@ -39,6 +39,22 @@ app.get("/api/branding", (req, res) => {
   res.json(s.branding);
 });
 
+// Public payslip authenticity check (scanned from the QR on the bulletin) — no auth.
+app.get("/verify/:id", (req, res) => {
+  const { db } = require("./store");
+  const payroll = require("./routes/payroll");
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const s = (db.payslips || []).find(x => x.id === req.params.id);
+  const tenant = s && (db.tenants || []).find(t => t.id === (s.tenantId || "t1"));
+  const valid = s && payroll.payslipSig && payroll.payslipSig(s) === req.query.h;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  const wrap = (inner) => `<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Verification du bulletin</title></head><body style="font-family:system-ui,-apple-system,sans-serif;background:#f5f8f7;margin:0;padding:40px 16px"><div style="max-width:520px;margin:0 auto">${inner}<p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:18px">Verification SGRHP</p></div></body></html>`;
+  if (!valid) return res.send(wrap(`<div style="border:2px solid #dc2626;border-radius:12px;padding:24px;background:#fff"><h1 style="color:#b91c1c;margin:0 0 8px">Bulletin non authentifie</h1><p style="color:#374151">Ce document n'a pas pu etre verifie. Il a peut-etre ete modifie ou ne provient pas de ce systeme.</p></div>`));
+  const tot = s.result.totals;
+  const row = (k, v) => `<tr><td style="padding:6px 0;color:#6b7280">${k}</td><td style="padding:6px 0;text-align:right"><b>${v}</b></td></tr>`;
+  res.send(wrap(`<div style="border:2px solid #10b981;border-radius:12px;padding:24px;background:#fff"><h1 style="color:#065f46;margin:0 0 8px">Bulletin authentique</h1><p style="color:#374151;margin:0 0 12px">Emis par <b>${esc(tenant ? tenant.name : "")}</b> via le systeme RH &amp; Paie (SGRHP).</p><table style="width:100%;border-top:1px solid #e5e7eb;font-size:15px">${row("Salarie", esc(s.employeeName))}${row("Matricule", esc(s.matricule || "-"))}${row("Periode", esc(s.period))}${row("Net a payer", Math.round(tot.netAPayer).toLocaleString("fr-FR") + " XAF")}${row("Reference", esc(String(s.id).toUpperCase()))}</table></div>`));
+});
+
 app.get("/health", (req, res) => {
   const store = require("./store");
   res.json({ status: store.lastError ? "degraded" : "ok",
