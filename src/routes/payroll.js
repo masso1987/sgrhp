@@ -207,6 +207,26 @@ router.post("/rubriques", allow("ADM"), (req, res) => {
   res.status(201).json(r);
 });
 
+router.post("/rubriques/import-catalogue", allow("ADM"), (req, res) => {
+  const { CATALOGUE } = require("../payroll/seed");
+  const have = new Set(mine(db.payRubriques, req).map(r => r.code));
+  let added = 0;
+  for (const r of CATALOGUE) {
+    if (have.has(r.code)) continue;
+    db.payRubriques.push(stamp({
+      id: id("rub"), code: r.code, label: r.label, family: r.family,
+      formula: r.formula, base: r.base || null, nombre: r.nombre || null,
+      taux: r.taux != null ? r.taux : null, tauxPat: r.tauxPat != null ? r.tauxPat : null,
+      cnps: !!r.cnps, impo: !!r.impo, sens: r.sens || "GAIN",
+      active: true, system: true, createdAt: new Date().toISOString(),
+    }, req));
+    added++;
+  }
+  if (added) save();
+  audit(req.user, "IMPORTED", "PayRubrique", "catalogue", { added });
+  res.json({ ok: true, added, total: mine(db.payRubriques, req).length });
+});
+
 router.put("/rubriques/:id", allow("ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Rubrique introuvable" });

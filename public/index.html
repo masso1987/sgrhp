@@ -3452,6 +3452,7 @@ async function payconfigView() {
   <div class="panel"><b style="font-size:12px;color:var(--muted)">RUBRIQUES DE PAIE (${rubs.length})</b>
     <div style="margin:8px 0;display:flex;gap:8px;align-items:center">
       <button class="btn p sm" onclick="rubModal()">+ Créer une rubrique</button>
+      <button class="btn ghost sm" onclick="rubImportCatalogue()">⬇ Importer le catalogue Sage (163)</button>
       <input id="rubSearch" placeholder="🔍 Rechercher (code ou libellé)…" style="max-width:320px;margin:0" oninput="rubRender(this.value)">
     </div>
     <div class="note" style="margin-bottom:8px">Les rubriques sont votre baseline modifiable. ⚠️ Une rubrique déjà utilisée
@@ -3460,6 +3461,12 @@ async function payconfigView() {
   PAY_RUBS = rubs; rubRender("");
 }
 let PAY_RUBS = [];
+async function rubImportCatalogue() {
+  if (!confirm("Importer le catalogue Sage complet (163 rubriques) ?\n\nLes rubriques déjà présentes ne seront pas dupliquées.")) return;
+  try { const r = await api("/payroll/rubriques/import-catalogue", { method: "POST" });
+    alert(`${r.added} rubrique(s) ajoutée(s). Total dans le catalogue : ${r.total}.`); payconfigView(); }
+  catch (e) { alert(e.message); }
+}
 function rubRender(q) {
   q = (q || "").toLowerCase();
   const list = PAY_RUBS.filter(r => !q || (r.code + " " + r.label).toLowerCase().includes(q));
