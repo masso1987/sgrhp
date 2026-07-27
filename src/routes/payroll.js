@@ -748,6 +748,198 @@ router.get("/runs/:id/cotisations/export", allow("ADM", "CD", "RJ", "GPF", "UI")
   audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "cotisations", format: "csv" });
   sendCSV(res, `Etats_cotisations_${run.period}.csv`, rows);
 });
+
+/* ============ LIVRE DE PAIE & ÉTAT DES COTISATIONS — PDF / Excel ============ */
+function _sexOf(e) { const c = (e && e.civility) || ""; return (c === "Mme" || c === "Mlle") ? "F" : "H"; }
+function _slipsOfRun(run, req) {
+  return mine(db.payslips, req).filter(x => x.runId === run.id)
+    .sort((a, b) => String(a.matricule || "").localeCompare(String(b.matricule || "")));
+}
+function _tenantOf(run) { return (db.tenants || []).find(t => t.id === (run.tenantId || "t1")) || { name: "SGRHP" }; }
+const _NF = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+function cotisData(run, req) {
+  const slips = _slipsOfRun(run, req);
+  const empById = {}; mine(db.employees, req).forEach(e => empById[e.id] = e);
+  const order = [], agg = {};
+  for (const s of slips) {
+    const sex = _sexOf(empById[s.employeeId]);
+    for (const l of s.result.lines) {
+      if (l.kind !== "COTIS" && l.kind !== "IMPOT") continue;
+      let a = agg[l.code];
+      if (!a) { a = agg[l.code] = { code: l.code, label: l.label, rateSal: 0, ratePat: 0, base: 0, sal: 0, pat: 0, seen: {}, nH: 0, nF: 0 }; order.push(l.code); }
+      if (l.rate) a.rateSal = l.rate;
+      if (l.employerRate) a.ratePat = l.employerRate;
+      a.base += l.base || 0; a.sal += l.retenue || 0; a.pat += l.employer || 0;
+      if (((l.retenue || 0) > 0 || (l.employer || 0) > 0) && !a.seen[s.employeeId]) { a.seen[s.employeeId] = 1; if (sex === "F") a.nF++; else a.nH++; }
+    }
+  }
+  return order.map(c => { const a = agg[c]; return {
+    code: a.code, label: a.label, rateSal: a.rateSal, ratePat: a.ratePat, rateGlobal: a.rateSal + a.ratePat,
+    base: Math.round(a.base), sal: Math.round(a.sal), pat: Math.round(a.pat), global: Math.round(a.sal + a.pat), nH: a.nH, nF: a.nF }; });
+}
+
+function livreData(run, req) {
+  const slips = _slipsOfRun(run, req);
+  const empById = {}; mine(db.employees, req).forEach(e => empById[e.id] = e);
+  const cols = slips.map(s => { const e = empById[s.employeeId] || {}; return { matricule: s.matricule || "", civ: e.civility || "", name: s.employeeName || "", slip: s }; });
+  const gainCodes = [], cotisCodes = [], gLbl = {}, cLbl = {};
+  for (const s of slips) for (const l of s.result.lines) {
+    if (l.kind === "GAIN" || l.kind === "AVANTAGE") { if (!(l.code in gLbl)) { gLbl[l.code] = l.label; gainCodes.push(l.code); } }
+    else if ((l.kind === "COTIS" || l.kind === "IMPOT") && (l.retenue || 0) > 0) { if (!(l.code in cLbl)) { cLbl[l.code] = l.label; cotisCodes.push(l.code); } }
+  }
+  gainCodes.sort(); cotisCodes.sort();
+  const gainOf = (slip, code) => { const l = slip.result.lines.find(x => x.code === code && (x.kind === "GAIN" || x.kind === "AVANTAGE")); return l ? Math.round(l.gain || 0) : 0; };
+  const cotisOf = (slip, code) => { const l = slip.result.lines.find(x => x.code === code && (x.kind === "COTIS" || x.kind === "IMPOT")); return l ? Math.round(l.retenue || 0) : 0; };
+  const brut = (slip) => Math.round(slip.result.totals.brutTotal || 0);
+  const totCot = (slip) => Math.round((slip.result.totals.cnpsSalarie || 0) + (slip.result.totals.totalImpots || 0));
+  return { cols, gainCodes, cotisCodes, gLbl, cLbl, gainOf, cotisOf, brut, totCot };
+}
+
+const _SUMMARY = [
+  ["Présence", s => (s.result.meta && s.result.meta.workedDays) || 30],
+  ["Brut", s => Math.round(s.result.totals.brutTotal || 0)],
+  ["Cotisations salariales", s => Math.round((s.result.totals.cnpsSalarie || 0) + (s.result.totals.totalImpots || 0))],
+  ["Cotisations patronales", s => Math.round(s.result.totals.chargesPatronales || 0)],
+  ["Net à payer", s => Math.round(s.result.totals.netAPayer || 0)],
+  ["Net imposable", s => Math.round(s.result.totals.netImposable || 0)],
+  ["Avantages en nature", s => Math.round(s.result.totals.avantagesNature || 0)],
+  ["Coût total", s => Math.round(s.result.totals.coutTotalEmployeur || 0)],
+  ["ETP", () => 1],
+];
+
+/* ---- Livre de paie : Excel (matrice) ---- */
+router.get("/runs/:id/livre/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const XLSX = require("xlsx");
+  const D = livreData(run, req), C = D.cols;
+  const aoa = [];
+  aoa.push(["Code", "Rubrique", ...C.map(c => c.matricule)]);
+  aoa.push(["", "", ...C.map(c => `${c.civ} ${c.name}`.trim())]);
+  for (const code of D.gainCodes) aoa.push([code, D.gLbl[code], ...C.map(c => D.gainOf(c.slip, code) || "")]);
+  aoa.push(["", "TOTAL BRUT", ...C.map(c => D.brut(c.slip))]);
+  for (const code of D.cotisCodes) aoa.push([code, D.cLbl[code], ...C.map(c => D.cotisOf(c.slip, code) || "")]);
+  aoa.push(["", "TOTAL COTISATION", ...C.map(c => D.totCot(c.slip))]);
+  aoa.push([]);
+  for (const [lbl, fn] of _SUMMARY) aoa.push(["", lbl, ...C.map(c => fn(c.slip))]);
+  aoa.push(["", "Nombre de salariés", C.length]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Livre de paie");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "livre", format: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Livre_de_paie_${run.period}.xlsx"`);
+  res.send(buf);
+});
+
+/* ---- Livre de paie : PDF (matrice, colonnes paginées) ---- */
+router.get("/runs/:id/livre/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const D = livreData(run, req), tenant = _tenantOf(run);
+  const doc = new PDFDocument({ margin: 18, size: "A4", layout: "landscape" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Livre_de_paie_${run.period}.pdf"`);
+  doc.pipe(res);
+  const PER = 8, groups = [];
+  for (let i = 0; i < D.cols.length; i += PER) groups.push(D.cols.slice(i, i + PER));
+  if (!groups.length) groups.push([]);
+  groups.forEach((grp, gi) => {
+    if (gi > 0) doc.addPage();
+    const labelW = 150, colW = 78, x0 = 20; let y = 20;
+    doc.font("Helvetica-Bold").fontSize(13).fillColor("#000").text(`Livre de paie  —  ${run.period}`, x0, y);
+    doc.font("Helvetica").fontSize(8).text(`${tenant.name || ""}   ·   Page ${gi + 1}/${groups.length}`, x0, y + 16);
+    y = 46;
+    const colX = (i) => x0 + labelW + i * colW;
+    const T = (x, yy, txt, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 7).fillColor(o.c || "#000").text(txt == null ? "" : String(txt), x, yy, { width: o.w, align: o.a, lineBreak: false }); };
+    // header
+    doc.rect(x0, y, labelW + grp.length * colW, 22).fillAndStroke("#e6efe9", "#000");
+    T(x0 + 3, y + 2, "Rubriques", { b: 1, s: 8 });
+    grp.forEach((c, i) => { T(colX(i) + 2, y + 2, c.matricule, { b: 1, s: 6.5, w: colW - 4 }); T(colX(i) + 2, y + 11, `${c.civ} ${c.name}`.trim(), { s: 5.5, w: colW - 4 }); });
+    y += 22;
+    const rowH = 10;
+    const row = (code, label, vals, hl) => {
+      if (hl) doc.rect(x0, y, labelW + grp.length * colW, rowH).fill("#fdf6c8");
+      doc.fillColor("#000");
+      if (code) T(x0 + 2, y + 1.5, code, { s: 6.5, w: 26 });
+      T(x0 + 30, y + 1.5, label, { b: !!hl, s: hl ? 7 : 6.5, w: labelW - 32 });
+      vals.forEach((v, i) => T(colX(i), y + 1.5, v === 0 || v === "" ? "" : _NF(v), { b: !!hl, s: 6.5, w: colW - 3, a: "right" }));
+      y += rowH;
+    };
+    for (const code of D.gainCodes) row(code, D.gLbl[code], grp.map(c => D.gainOf(c.slip, code)));
+    row("", "Total Brut", grp.map(c => D.brut(c.slip)), true);
+    for (const code of D.cotisCodes) row(code, D.cLbl[code], grp.map(c => D.cotisOf(c.slip, code)));
+    row("", "Total Cotisation", grp.map(c => D.totCot(c.slip)), true);
+    y += 4;
+    for (const [lbl, fn] of _SUMMARY) row("", lbl, grp.map(c => fn(c.slip)));
+    // grid verticals
+    doc.lineWidth(0.4).strokeColor("#999");
+    for (let i = 0; i <= grp.length; i++) doc.moveTo(colX(i - 1) + labelW + colW - (i === 0 ? colW : 0), 46).lineTo(colX(i - 1) + labelW + colW - (i === 0 ? colW : 0), y).stroke();
+    doc.moveTo(x0, 46).lineTo(x0, y).stroke(); doc.moveTo(x0 + labelW, 46).lineTo(x0 + labelW, y).stroke();
+    doc.rect(x0, 46, labelW + grp.length * colW, y - 46).stroke();
+  });
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "livre", format: "pdf" });
+  doc.end();
+});
+
+/* ---- État des cotisations : Excel ---- */
+router.get("/runs/:id/cotisations/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const XLSX = require("xlsx");
+  const lignes = cotisData(run, req);
+  const aoa = [["Code", "Intitulé rubrique", "Taux salarial", "Taux patronal", "Taux global", "Assiette", "Montant salarial", "Montant patronal", "Montant global", "Nb hommes", "Nb femmes"]];
+  for (const l of lignes) aoa.push([l.code, l.label, +(l.rateSal * 100).toFixed(2), +(l.ratePat * 100).toFixed(2), +(l.rateGlobal * 100).toFixed(2), l.base, l.sal, l.pat, l.global, l.nH, l.nF]);
+  const tot = lignes.reduce((o, l) => { o.sal += l.sal; o.pat += l.pat; o.g += l.global; return o; }, { sal: 0, pat: 0, g: 0 });
+  aoa.push([]); aoa.push(["", "TOTAUX", "", "", "", "", tot.sal, tot.pat, tot.g, "", ""]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Cotisations");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "cotisations", format: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Etat_cotisations_${run.period}.xlsx"`);
+  res.send(buf);
+});
+
+/* ---- État des cotisations : PDF ---- */
+router.get("/runs/:id/cotisations/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Non autorisé" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const lignes = cotisData(run, req), tenant = _tenantOf(run);
+  const doc = new PDFDocument({ margin: 24, size: "A4", layout: "landscape" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Etat_cotisations_${run.period}.pdf"`);
+  doc.pipe(res);
+  doc.font("Helvetica-Bold").fontSize(14).fillColor("#000").text(`État des cotisations  —  ${run.period}`, { align: "center" });
+  doc.font("Helvetica").fontSize(9).text(`${tenant.name || ""}   ·   Base de déclaration CNPS & impôts (DIPE)`, { align: "center" });
+  doc.moveDown(0.6);
+  const cols = [["Code", 34, "left"], ["Intitulé rubrique", 170, "left"], ["Tx sal.", 42, "right"], ["Tx pat.", 42, "right"], ["Tx glob.", 44, "right"], ["Assiette", 88, "right"], ["M. salarial", 78, "right"], ["M. patronal", 78, "right"], ["M. global", 78, "right"], ["H", 30, "right"], ["F", 30, "right"]];
+  const x0 = 24; let x = x0; const xs = cols.map(c => { const cx = x; x += c[1]; return cx; }); const totW = x - x0;
+  let y = doc.y;
+  const T = (cx, yy, txt, w, al, b, sz) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 8).text(txt == null ? "" : String(txt), cx + 2, yy, { width: w - 4, align: al, lineBreak: false });
+  doc.rect(x0, y, totW, 16).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
+  cols.forEach((c, i) => T(xs[i], y + 4, c[0], c[1], c[2], true, 7.5));
+  y += 16;
+  const pct = (v) => (v * 100).toFixed(2).replace(".", ",");
+  for (const l of lignes) {
+    const cells = [l.code, l.label, l.rateSal ? pct(l.rateSal) : "", l.ratePat ? pct(l.ratePat) : "", pct(l.rateGlobal), _NF(l.base), _NF(l.sal), _NF(l.pat), _NF(l.global), l.nH, l.nF];
+    cells.forEach((v, i) => T(xs[i], y + 2, v, cols[i][1], cols[i][2], false, 7.5));
+    doc.lineWidth(0.3).strokeColor("#ccc").moveTo(x0, y + 12).lineTo(x0 + totW, y + 12).stroke();
+    y += 13;
+    if (y > 560) { doc.addPage(); y = 40; }
+  }
+  const tot = lignes.reduce((o, l) => { o.sal += l.sal; o.pat += l.pat; o.g += l.global; return o; }, { sal: 0, pat: 0, g: 0 });
+  y += 2; doc.lineWidth(0.6).strokeColor("#000").moveTo(x0, y).lineTo(x0 + totW, y).stroke(); y += 3;
+  T(xs[1], y, "TOTAUX", cols[1][1], "left", true); T(xs[6], y, _NF(tot.sal), cols[6][1], "right", true); T(xs[7], y, _NF(tot.pat), cols[7][1], "right", true); T(xs[8], y, _NF(tot.g), cols[8][1], "right", true);
+  doc.rect(x0, doc.y, totW, 0);
+  audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "cotisations", format: "pdf" });
+  doc.end();
+});
 // Ordre de virement — net salaries with bank details, for the bank.
 router.get("/runs/:id/virement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Non autorisé" });

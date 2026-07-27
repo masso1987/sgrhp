@@ -3365,7 +3365,7 @@ function payPdf(id, print) {
 async function payLivre(id) {
   const { run, rows, totals } = await api(`/payroll/runs/${id}/livre`);
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
-  <h1 style="margin-top:10px">📖 Livre de paie — ${esc(run.period)} <button class="btn ghost sm" style="float:right" onclick="payDownload('/payroll/runs/${id}/livre/export','Livre_paie_${run.period}.csv')">⬇ Excel/CSV</button></h1>
+  <h1 style="margin-top:10px">📖 Livre de paie — ${esc(run.period)} <span style="float:right"><button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/livre/pdf','Livre_de_paie_${run.period}.pdf')">⬇ PDF</button> <button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/livre/excel','Livre_de_paie_${run.period}.xlsx')">⬇ Excel</button></span></h1>
   <div class="panel"><table><tr><th>Matricule</th><th>Salarié</th><th style="text-align:right">Brut</th>
     <th style="text-align:right">Retenues</th><th style="text-align:right">Net</th><th style="text-align:right">Coût empl.</th></tr>
     ${rows.map(r => `<tr><td>${esc(r.matricule)}</td><td>${esc(r.employeeName)}</td>
@@ -3379,7 +3379,7 @@ async function payLivre(id) {
 async function payCotis(id) {
   const { run, lignes, totals } = await api(`/payroll/runs/${id}/cotisations`);
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
-  <h1 style="margin-top:10px">🏛 États des cotisations — ${esc(run.period)} <button class="btn ghost sm" style="float:right" onclick="payDownload('/payroll/runs/${id}/cotisations/export','Cotisations_${run.period}.csv')">⬇ Excel/CSV</button></h1>
+  <h1 style="margin-top:10px">🏛 États des cotisations — ${esc(run.period)} <span style="float:right"><button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/cotisations/pdf','Etat_cotisations_${run.period}.pdf')">⬇ PDF</button> <button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/cotisations/excel','Etat_cotisations_${run.period}.xlsx')">⬇ Excel</button></span></h1>
   <div class="note">Base de déclaration CNPS et impôts (DIPE).</div>
   <div class="panel"><table><tr><th>Code</th><th>Cotisation</th><th style="text-align:right">Base</th>
     <th style="text-align:right">Part salariale</th><th style="text-align:right">Part patronale</th></tr>
