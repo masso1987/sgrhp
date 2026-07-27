@@ -508,6 +508,8 @@ function payslipDoc(s, emp, tenant) {
   BX(X.n, TY, X.end - X.n, 22);
   VL(X.des, TY, hEnd); VL(X.nb, TY, hEnd); VL(X.base, TY, hEnd);
   VL(X.txs, TY, hEnd); VL(X.gain, TY, hEnd); VL(X.rets, TY, hEnd); VL(X.txp, TY, hEnd); VL(X.retp, TY, hEnd);
+  VL(X.n, TY, hEnd); VL(X.end, TY, hEnd); // left & right table borders (full height)
+  HL(X.n, X.end, hEnd);                   // bottom border of the table
   HL(X.txs, X.end, TY + 11);       // split under the two group headers
   T(X.n, TY + 6, "N°", { b: 1, s: 7, w: X.des - X.n, a: "center" });
   T(X.des, TY + 6, "Désignation", { b: 1, s: 7, w: X.nb - X.des, a: "center" });
