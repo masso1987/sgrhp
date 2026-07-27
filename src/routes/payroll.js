@@ -534,6 +534,7 @@ function payslipDoc(s, emp, tenant) {
     cell(X.gain, X.rets, F(l.gain));
     y += 12;
   }
+  HL(X.gain, X.rets, y + 1);
   y += 3; T(X.des, y, "Total Brut", { b: 1, s: 8, w: X.nb - X.des, a: "center" }); cell(X.gain, X.rets, F(t.brutTotal)); doc.font("Helvetica-Bold"); y += 14; doc.font("Helvetica");
   const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
   for (const l of cot) {
@@ -546,6 +547,7 @@ function payslipDoc(s, emp, tenant) {
     cell(X.retp, X.end, F(l.employer || 0));
     y += 12;
   }
+  HL(X.rets, X.txp, y + 1); HL(X.retp, X.end, y + 1);
   y += 3; T(X.des, y, "Total Cotisations", { b: 1, s: 8, w: X.nb - X.des, a: "center" });
   cell(X.rets, X.txp, F((t.cnpsSalarie||0) + (t.totalImpots||0))); cell(X.retp, X.end, F((t.cnpsPatronal||0) + (t.cfcPatronal||0)));
 
