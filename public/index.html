@@ -963,7 +963,7 @@ async function empForm(edit) {
     <div class="note">No portfolio is linked to your account yet. Ask the administrator to link you to
     at least one portfolio (Users screen → 🔗 Gérer).</div>`;
   view.innerHTML = `<h1>${edit ? "Modifier le dossier employé" : "Nouveau dossier employé"}</h1><div class="panel" style="max-width:720px">
-    <div class="grid2"><div><label>Prénom</label><input id="fFirst"></div><div><label>Nom</label><input id="fLast"></div></div>
+    <div class="grid3"><div><label>Civilité</label><select id="fCiv"><option value=""></option><option>M</option><option>Mme</option><option>Mlle</option></select></div><div><label>Prénom</label><input id="fFirst"></div><div><label>Nom</label><input id="fLast"></div></div>
     <div class="grid3">
       <div><label>Portefeuille ${ME.role === "GPF" ? '<span class="tag gray">vos portefeuilles rattachés</span>' : ""}</label>
       <select id="fPf" onchange="syncCnv()">${myPfs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
@@ -1014,7 +1014,7 @@ async function empForm(edit) {
     <button class="btn ghost" onclick="employees()">Annuler</button></div>`;
   syncCnv();
   if (edit) {
-    fFirst.value = edit.firstName || ""; fLast.value = edit.lastName || "";
+    if (edit.civility) fCiv.value = edit.civility; fFirst.value = edit.firstName || ""; fLast.value = edit.lastName || "";
     if (edit.portfolioId) fPf.value = edit.portfolioId; syncCnv();
     fHire.value = edit.hireDate || ""; fBirth.value = edit.birthDate || ""; fBp.value = edit.birthPlace || "";
     if (edit.maritalStatus) fMs.value = edit.maritalStatus;
@@ -1071,7 +1071,7 @@ function renderSalEls(pfId, existingSalary) {
 async function empSave(editId) {
   try {
     const _payload = {
-      firstName: fFirst.value, lastName: fLast.value, portfolioId: fPf.value,
+      civility: fCiv.value, firstName: fFirst.value, lastName: fLast.value, portfolioId: fPf.value,
       hireDate: fHire.value, birthDate: fBirth.value, birthPlace: fBp.value,
       maritalStatus: fMs.value, cniNumber: fCni.value, cniExpiry: fCniExp.value,
       cnpsNumber: fCnps.value, phone: fPhone.value,
@@ -2391,6 +2391,19 @@ async function paramsView() {
       <div><label>Nom de l'application</label><input id="bName" value="${(s.branding.appName||'')}"></div>
       <div><label>Sous-titre</label><input id="bTag" value="${(s.branding.tagline||'')}"></div>
     </div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
+      <b style="font-size:12px;color:var(--muted)">SOCIÉTÉ — EN-TÊTE DU BULLETIN DE PAIE</b>
+      <p style="font-size:11px;color:var(--muted);margin:4px 0">Ces informations s'impriment dans l'encadré en haut à gauche du bulletin de paie.</p>
+      <div class="grid2" style="margin-top:4px">
+        <div><label>Raison sociale (nom complet)</label><input id="coName" value="${esc((s.branding.company||{}).name||'')}"></div>
+        <div><label>Adresse</label><input id="coAddr" value="${esc((s.branding.company||{}).address||'')}"></div>
+        <div><label>Ville</label><input id="coCity" value="${esc((s.branding.company||{}).city||'')}"></div>
+        <div><label>N° Contribuable (NIU)</label><input id="coNiu" value="${esc((s.branding.company||{}).niu||'')}"></div>
+        <div><label>N° Employeur (CNPS)</label><input id="coEmp" value="${esc((s.branding.company||{}).employerNo||'')}"></div>
+        <div><label>N° DIPE</label><input id="coDipe" value="${esc((s.branding.company||{}).dipe||'')}"></div>
+      </div>
+      <button class="btn p sm" style="margin-top:8px" onclick="saveCompany()">Enregistrer la société</button>
+    </div>
     <label>Logo (PNG/JPEG/SVG, max ~200 Ko)</label>
     <div style="display:flex;gap:10px;align-items:center">
       <img id="bLogoPrev" src="${s.branding.logo||''}" style="height:34px;${s.branding.logo?'':'display:none'}">
@@ -2456,6 +2469,12 @@ function collectBranding() {
 function previewBranding() {
   const b = collectBranding();
   applyBranding({ ...BRANDING, ...b, logo: _logoData !== undefined ? _logoData : (BRANDING&&BRANDING.logo) });
+}
+async function saveCompany() {
+  const cg = (id) => (document.getElementById(id) || {}).value || "";
+  const company = { name: cg("coName"), address: cg("coAddr"), city: cg("coCity"), niu: cg("coNiu"), employerNo: cg("coEmp"), dipe: cg("coDipe") };
+  try { const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify({ company }) }); applyBranding(b); alert("Coordonnées de la société enregistrées."); }
+  catch (e) { alert(e.message); }
 }
 async function saveBranding() {
   try { const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify(collectBranding()) });

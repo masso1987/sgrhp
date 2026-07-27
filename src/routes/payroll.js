@@ -471,14 +471,17 @@ function payslipDoc(s, emp, tenant) {
 
   /* ===== HEADER ===== */
   BX(18, 18, 300, 110);
-  T(26, 26, tenant.name || "SOCIÉTÉ", { b: 1, s: 12 });
+  const CO = (db.settings && db.settings.branding && db.settings.branding.company) || {};
+  T(26, 24, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 10, w: 288 });
+  if (CO.address) T(26, 39, CO.address, { s: 8, w: 288 });
+  if (CO.city) T(26, 50, CO.city, { s: 8, w: 288 });
   T(310, 20, "BULLETIN  DE  PAIE", { b: 1, s: 21, w: 270, a: "center" });
   T(360, 58, "Période du", { b: 1 }); T(415, 58, dS, { b: 1 }); T(470, 58, "au", { b: 1 }); T(490, 58, dE, { b: 1 });
   T(360, 70, "Paiement le", { b: 1 }); T(415, 70, dE); T(470, 70, "par", { b: 1 }); T(490, 70, C.paymentMethod || "Virement");
   T(318, 86, "Banque", { b: 1 }); T(358, 86, String(emp.bankName || C.bankName || "").slice(0, 20), { s: 7 }); T(445, 87, "N° Compte", { b: 1, s: 7 }); T(490, 87, emp.bankAccount || C.bankIban || "", { s: 7 });
   // labels inside company box
-  T(26, 88, "N° Contribuable", { b: 1 }); T(110, 88, tenant.niu || "");
-  T(190, 88, "N° Employeur", { b: 1 }); T(255, 88, tenant.cnpsEmployer || "");
+  T(26, 88, "N° Contribuable", { b: 1 }); T(110, 88, CO.niu || tenant.niu || "");
+  T(190, 88, "N° Employeur", { b: 1 }); T(255, 88, CO.employerNo || tenant.cnpsEmployer || "");
   // employee box (right)
   BX(310, 98, 267, 60);
   T(318, 104, "Matricule", { b: 1 }); T(375, 104, s.matricule || "");
@@ -494,7 +497,7 @@ function payslipDoc(s, emp, tenant) {
   li("N° CNPS", emp.cnpsNumber || "", "Sit Fam", MS[emp.maritalStatus] || emp.maritalStatus || "");
   li("Date Embauche", fdate(emp.hireDate), "Nbre Enfants", emp.children != null ? emp.children : "");
   li("Ancienneté", yrs, "Qualification", emp.qualification || "");
-  li("N° DIPE", emp.dipe || tenant.dipe || "", "Département", emp.department || "");
+  li("N° DIPE", emp.dipe || CO.dipe || tenant.dipe || "", "Département", emp.department || "");
   li("Catégorie", C.category || "", "Jour/Mois", "30,00");
 
   /* ===== MAIN TABLE ===== */
