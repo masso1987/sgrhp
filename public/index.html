@@ -835,6 +835,8 @@ const NAV = [
   { k: "generated", label: "🖨 Documents générés", roles: ["GPF","CD","RJ","UI","ADM"] },
   { k: "payroll", label: "💵 Paie", roles: ["ADM","CD","RJ","GPF"], module: "payroll" },
   { k: "payconfig", label: "⚙️ Paramètres paie", roles: ["ADM"], module: "payroll" },
+  { k: "billing", label: "🧾 Facturation", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing" },
+  { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"] },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"] },
   { k: "params", label: "🔧 Paramètres", roles: ["ADM"] },
@@ -898,7 +900,7 @@ function go(k) {
   closeSidebar();
   applySectionColor(k);
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -3592,6 +3594,248 @@ async function paySaveConfig() {
     cfgErr.classList.add("hidden"); cfgOk.textContent = "Enregistré ✓";
     setTimeout(() => cfgOk.textContent = "", 2500);
   } catch (e) { cfgErr.textContent = e.message; cfgErr.classList.remove("hidden"); }
+}
+
+
+/* ================= Module Facturation ================= */
+let BILL_CTR = [];
+async function billingView() {
+  const [contracts, sheets] = await Promise.all([api("/billing/contracts"), api("/billing/sheets")]);
+  BILL_CTR = contracts;
+  const period = window._billPeriod || new Date().toISOString().slice(0, 7);
+  view.innerHTML = `<h1>🧾 Facturation — fiches (annexes)
+    <span style="float:right;display:flex;gap:6px">
+      <button class="btn ghost sm" onclick="billingRecap()">📊 Récap mensuel</button>
+      ${ME.role === "ADM" ? `<button class="btn ghost sm" onclick="go('billingcfg')">⚙️ Clients &amp; composants</button>` : ""}
+    </span></h1>
+  <div class="panel" style="max-width:680px"><b>Nouvelle fiche</b>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
+      <div><label>Client</label><select id="nfClient" style="min-width:200px;margin:0">
+        ${contracts.length ? contracts.map(c => `<option value="${c.id}">${esc(c.clientName)} — ${c.billingType}</option>`).join("") : '<option value="">— aucun client configuré —</option>'}</select></div>
+      <div><label>Période</label><input id="nfPeriod" type="month" value="${period}" style="margin:0"></div>
+      <button class="btn p sm" onclick="billingCreateSheet()">+ Créer la fiche</button></div>
+    <div class="err hidden" id="nfErr" style="margin-top:6px"></div>
+    ${contracts.length ? "" : '<div class="note" style="margin-top:8px">Configurez d\'abord un client dans « ⚙️ Clients &amp; composants ».</div>'}</div>
+  <div class="panel"><table><tr><th>Client</th><th>Période</th><th>N°</th><th style="text-align:right">HT</th>
+    <th style="text-align:right">TVA</th><th style="text-align:right">TTC</th><th>Statut</th><th></th></tr>
+    ${sheets.length ? sheets.map(s => `<tr>
+      <td><b>${esc(s.client)}</b></td><td>${esc(s.period)}</td><td>${esc(s.number || "")}</td>
+      <td style="text-align:right">${fCFA(s.HT)}</td><td style="text-align:right">${fCFA(s.TVA)}</td>
+      <td style="text-align:right"><b>${fCFA(s.TTC)}</b></td>
+      <td>${s.status === "validated" ? '<span class="tag green">Validée ✓</span>' : '<span class="tag amber">Brouillon</span>'}</td>
+      <td><button class="btn ghost sm" onclick="billingSheetOpen('${s.id}')">📋 Ouvrir</button></td></tr>`).join("")
+      : '<tr><td colspan="8" style="color:var(--muted)">Aucune fiche.</td></tr>'}
+  </table></div>`;
+}
+async function billingCreateSheet() {
+  const contractId = nfClient.value, period = nfPeriod.value;
+  if (!contractId) { nfErr.textContent = "Aucun client."; nfErr.classList.remove("hidden"); return; }
+  try { const s = await api("/billing/sheets", { method: "POST", body: JSON.stringify({ contractId, period }) });
+    billingSheetOpen(s.id); } catch (e) { nfErr.textContent = e.message; nfErr.classList.remove("hidden"); }
+}
+
+let BILL_SHEET = null;
+async function billingSheetOpen(id) {
+  const s = await api("/billing/sheets/" + id); BILL_SHEET = s;
+  const c = s.contract, t = s.computed.totals, open = s.status !== "validated";
+  const type = (c.billingType || "MAD").toUpperCase();
+  view.innerHTML = `<button class="btn ghost sm" onclick="billingView()">← Fiches</button>
+  <h1 style="margin-top:10px">Annexe — ${esc(c.clientName)} · ${esc(s.period)}
+    <small style="color:var(--muted)">${esc(s.number || "")} · ${esc(type)}</small>
+    ${s.status === "validated" ? '<span class="tag green">Validée ✓</span>' : '<span class="tag amber">Brouillon</span>'}</h1>
+  <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    ${open ? `<button class="btn p sm" onclick="billingSaveLines()">💾 Enregistrer &amp; calculer</button>
+      <button class="btn ghost sm" onclick="billingAddLine()">+ Ligne</button>
+      ${type === "MAD" ? `<button class="btn ghost sm" onclick="billingImportPaie()">👥 Importer depuis la Paie</button>` : ""}
+      <button class="btn ghost sm" onclick="billingCarry()">↻ Reprendre mois préc.</button>` : ""}
+    <span style="flex:1"></span>
+    <b>HT ${fCFA(t.HT)} · TVA ${fCFA(t.TVA)} · <span style="color:var(--green)">TTC ${fCFA(t.TTC)}</span></b>
+    ${ME.role !== "UI" ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "✓ Valider"}</button>` : ""}
+  </div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">SAISIE DES LIGNES</b>
+    <div style="overflow-x:auto"><table id="billLines" style="margin-top:6px">${billLinesTable(s, type, open)}</table></div></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">ANNEXE CALCULÉE (regroupée par poste)</b>
+    <div style="overflow-x:auto">${billAnnexe(s, type)}</div></div>`;
+}
+function billLinesTable(s, type, open) {
+  const dis = open ? "" : "disabled";
+  const rows = (s.lines || []).map((l, i) => {
+    if (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
+      return `<tr data-i="${i}">
+        <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:150px;margin:0"></td>
+        <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:110px;margin:0"></td>
+        <td><input type="number" value="${l.salaireBase || 0}" data-f="salaireBase" ${dis} style="max-width:110px;margin:0"></td>
+        <td><input type="number" value="${l.jours != null ? l.jours : 30}" data-f="jours" ${dis} style="max-width:60px;margin:0"></td>
+        <td><input type="number" value="${l.years || 0}" data-f="years" ${dis} style="max-width:55px;margin:0"></td>
+        <td><input type="number" value="${l.primes || 0}" data-f="primes" ${dis} style="max-width:100px;margin:0"></td>
+        <td><input type="number" value="${l.horsCharges || 0}" data-f="horsCharges" ${dis} style="max-width:100px;margin:0"></td>
+        <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
+    if (type === "RECAP")
+      return `<tr data-i="${i}">
+        <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:180px;margin:0"></td>
+        <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:140px;margin:0"></td>
+        <td><input type="number" value="${l.montantHT || 0}" data-f="montantHT" ${dis} style="max-width:130px;margin:0"></td>
+        <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
+    // PRESTATION / TONNAGE
+    return `<tr data-i="${i}">
+      <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:160px;margin:0"></td>
+      <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:120px;margin:0"></td>
+      <td><input type="number" value="${l.quantite || 0}" data-f="quantite" ${dis} style="max-width:90px;margin:0"></td>
+      <td><input type="number" value="${l.pu || 0}" data-f="pu" ${dis} style="max-width:110px;margin:0"></td>
+      <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
+  }).join("");
+  const head = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
+    ? "<tr><th>Nom</th><th>Poste</th><th>Salaire base</th><th>Jours</th><th>Années</th><th>Primes</th><th>Hors-charges</th><th></th></tr>"
+    : type === "RECAP" ? "<tr><th>Libellé</th><th>Poste</th><th>Montant HT</th><th></th></tr>"
+    : "<tr><th>Libellé</th><th>Poste</th><th>Quantité</th><th>Prix unitaire</th><th></th></tr>";
+  return head + (rows || `<tr><td colspan="8" style="color:var(--muted)">Aucune ligne — cliquez « + Ligne ».</td></tr>`);
+}
+function billAnnexe(s, type) {
+  const g = s.computed.groups, t = s.computed.totals;
+  const mad = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT");
+  const cols = mad ? ["basePorata", "brut", "conges", "charges", "fraisGestion", "HT", "TVA", "TTC"] : ["HT", "TVA", "TTC"];
+  const head = mad ? "<th>Salarié</th><th class='r'>Base</th><th class='r'>Brut</th><th class='r'>Congés</th><th class='r'>Charges</th><th class='r'>Frais gest.</th><th class='r'>HT</th><th class='r'>TVA</th><th class='r'>TTC</th>"
+    : "<th>Libellé</th><th class='r'>HT</th><th class='r'>TVA</th><th class='r'>TTC</th>";
+  let body = "";
+  for (const poste of Object.keys(g).sort()) {
+    body += `<tr style="background:var(--nav-active-bg)"><td colspan="${cols.length + 1}"><b>${esc(poste)}</b></td></tr>`;
+    for (const l of g[poste]) body += `<tr><td>${esc(l.name || "")}</td>${cols.map(k => `<td class='r'>${fCFA(l[k] || 0)}</td>`).join("")}</tr>`;
+  }
+  body += `<tr style="font-weight:bold;border-top:2px solid #999"><td>TOTAL GÉNÉRAL (${t.count})</td>${cols.map(k => `<td class='r'>${["HT", "TVA", "TTC"].includes(k) ? fCFA(t[k]) : ""}</td>`).join("")}</tr>`;
+  return `<style>#billAnx td.r,#billAnx th.r{text-align:right}</style><table id="billAnx"><tr>${head}</tr>${body}</table>`;
+}
+function billingCollectLines() {
+  return [...document.querySelectorAll("#billLines tr[data-i]")].map(tr => {
+    const o = { id: (BILL_SHEET.lines[Number(tr.dataset.i)] || {}).id };
+    tr.querySelectorAll("[data-f]").forEach(inp => { const f = inp.dataset.f;
+      o[f] = inp.type === "number" ? Number(inp.value || 0) : inp.value; });
+    return o;
+  });
+}
+async function billingSaveLines() {
+  try { const s = await api("/billing/sheets/" + BILL_SHEET.id, { method: "PUT", body: JSON.stringify({ lines: billingCollectLines() }) });
+    BILL_SHEET = s; billingSheetOpen(s.id); } catch (e) { alert(e.message); }
+}
+function billingAddLine() { BILL_SHEET.lines = billingCollectLines(); BILL_SHEET.lines.push({ jours: 30 }); rerenderBillLines(); }
+function billingDelLine(i) { const ls = billingCollectLines(); ls.splice(i, 1); BILL_SHEET.lines = ls; rerenderBillLines(); }
+function rerenderBillLines() { const type = (BILL_SHEET.contract.billingType || "MAD").toUpperCase();
+  document.getElementById("billLines").innerHTML = billLinesTable(BILL_SHEET, type, true); }
+async function billingValidate() {
+  try { await api("/billing/sheets/" + BILL_SHEET.id + "/validate", { method: "POST" }); billingSheetOpen(BILL_SHEET.id); } catch (e) { alert(e.message); }
+}
+async function billingCarry() {
+  if (!confirm("Reprendre les lignes du mois précédent ? (remplace les lignes actuelles)")) return;
+  try { const s = await api("/billing/sheets/" + BILL_SHEET.id + "/carry-forward", { method: "POST" }); BILL_SHEET = s; billingSheetOpen(s.id); } catch (e) { alert(e.message); }
+}
+async function billingImportPaie() {
+  const pfs = await api("/portfolios").catch(() => []);
+  const pf = prompt("Portefeuille à importer (laisser vide = tous) :\n" + pfs.map(p => "• " + p.name).join("\n") + "\n\nNom exact ou vide :", "");
+  const match = pf ? (pfs.find(p => p.name.toLowerCase() === pf.toLowerCase()) || {}).id : null;
+  try { const s = await api("/billing/sheets/" + BILL_SHEET.id + "/import-payroll", { method: "POST", body: JSON.stringify({ portfolioId: match }) });
+    BILL_SHEET = s; billingSheetOpen(s.id); } catch (e) { alert(e.message); }
+}
+async function billingRecap() {
+  const period = window._billPeriod || new Date().toISOString().slice(0, 7);
+  const r = await api("/billing/recap?period=" + period);
+  view.innerHTML = `<button class="btn ghost sm" onclick="billingView()">← Fiches</button>
+  <h1 style="margin-top:10px">📊 Récapitulatif mensuel
+    <input type="month" value="${period}" onchange="window._billPeriod=this.value;billingRecap()" style="max-width:160px;float:right;margin:0"></h1>
+  <div class="cards">
+    <div class="card"><div class="kpi">${r.totals.count}</div><div class="lbl">Factures</div></div>
+    <div class="card"><div class="kpi">${fCFA(r.totals.HT)}</div><div class="lbl">Σ HT</div></div>
+    <div class="card"><div class="kpi">${fCFA(r.totals.TVA)}</div><div class="lbl">Σ TVA</div></div>
+    <div class="card"><div class="kpi">${fCFA(r.totals.TTC)}</div><div class="lbl">Σ TTC</div></div></div>
+  <div class="panel"><table><tr><th>Source / Client</th><th>N°</th><th>Période</th><th style="text-align:right">HT</th>
+    <th style="text-align:right">TVA</th><th style="text-align:right">TTC</th><th>Statut</th></tr>
+    ${r.rows.map(x => `<tr><td><b>${esc(x.source)}</b></td><td>${esc(x.number || "")}</td><td>${esc(x.date)}</td>
+      <td style="text-align:right">${fCFA(x.HT)}</td><td style="text-align:right">${fCFA(x.TVA)}</td>
+      <td style="text-align:right"><b>${fCFA(x.TTC)}</b></td>
+      <td>${x.status === "validated" ? '<span class="tag green">Validée</span>' : '<span class="tag amber">Brouillon</span>'}</td></tr>`).join("")}
+    <tr style="font-weight:bold;border-top:2px solid #999"><td colspan="3">TOTAUX</td>
+      <td style="text-align:right">${fCFA(r.totals.HT)}</td><td style="text-align:right">${fCFA(r.totals.TVA)}</td>
+      <td style="text-align:right">${fCFA(r.totals.TTC)}</td><td></td></tr>
+  </table></div>`;
+}
+
+/* ---- Config : clients (contrats) + composants ---- */
+async function billingCfgView() {
+  const [contracts, comps] = await Promise.all([api("/billing/contracts"), api("/billing/components")]);
+  view.innerHTML = `<button class="btn ghost sm" onclick="billingView()">← Fiches</button>
+  <h1 style="margin-top:10px">⚙️ Clients &amp; composants</h1>
+  <div class="panel"><b>Clients (contrats)</b> <button class="btn p sm" style="float:right" onclick="billingContractModal()">+ Nouveau client</button>
+    <table style="margin-top:8px"><tr><th>Client</th><th>Code</th><th>Type</th><th>TVA</th><th>Frais gest.</th><th>Congés</th><th></th></tr>
+    ${contracts.map(c => `<tr><td><b>${esc(c.clientName)}</b></td><td>${esc(c.clientCode || "")}</td><td>${esc(c.billingType)}</td>
+      <td>${c.tvaExonere ? "exonérée" : ((c.rates.tva * 100).toFixed(2) + " %")}</td>
+      <td>${(c.rates.fraisGestion * 100).toFixed(0)} %</td><td>÷${c.rates.congesDivisor}</td>
+      <td><button class="btn ghost sm" onclick='billingContractModal(${JSON.stringify(c.id)})'>✏️</button></td></tr>`).join("") || '<tr><td colspan="7" style="color:var(--muted)">Aucun client.</td></tr>'}
+    </table></div>
+  <div class="panel"><b>Catalogue des composants (${comps.length})</b>
+    <div class="note" style="margin-top:6px">Primes (dans le brut) · Hors-charges (après charges) · Prestation · Retenues. Activez-les par client.</div>
+    <table style="margin-top:6px"><tr><th>Code</th><th>Libellé</th><th>Saisie</th><th>Formule</th><th>Étape</th><th>Taux</th></tr>
+    ${comps.map(c => `<tr><td>${esc(c.code)}</td><td>${esc(c.label)}</td><td>${esc(c.inputMode)}</td>
+      <td>${esc(c.formula)}</td><td>${esc(c.stage)}</td><td>${c.taux != null ? (c.taux) : ""}</td></tr>`).join("")}
+    </table></div>`;
+}
+async function billingContractModal(cid) {
+  const comps = await api("/billing/components");
+  const c = cid ? await api("/billing/contracts/" + cid) : { rates: {}, clientBlock: {}, bankBlock: {}, components: [], billingType: "MAD", prorate: "base", anciennete: true };
+  const R = Object.assign({ chargesPatronales: 0.162, tva: 0.1925, fraisGestion: 0.10, congesDivisor: 16, ir: 0, ancienneteRate: 0.02, margeCRH: 0, finContrat: 0 }, c.rates || {});
+  const active = new Set((c.components || []).map(x => x.code));
+  const modal = document.createElement("div"); modal.className = "modal-bg";
+  const pct = (v) => (v * 100);
+  modal.innerHTML = `<div class="modal" style="width:640px">
+    <h3 style="margin:0 0 8px">${cid ? "Modifier" : "Nouveau"} client</h3>
+    <div class="scroll" style="max-height:65vh">
+      <div class="grid2">
+        <div><label>Nom du client</label><input id="ccName" value="${esc(c.clientName || "")}"></div>
+        <div><label>Code (préfixe n°)</label><input id="ccCode" value="${esc(c.clientCode || "")}"></div>
+        <div><label>Type de facturation</label><select id="ccType">${["MAD", "PRESTATION", "TONNAGE", "RECAP", "PORTAGE", "CONSULTANT"].map(t => `<option ${c.billingType === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+        <div><label>Format numéro</label><input id="ccNum" value="${esc(c.numberFormat || "CLIENT/AAAA/MM/####")}"></div>
+      </div>
+      <b style="font-size:12px;color:var(--muted)">TAUX &amp; RÈGLES</b>
+      <div class="grid3" style="margin-top:4px">
+        <div><label>Charges patronales %</label><input id="rCharges" type="number" step="0.1" value="${pct(R.chargesPatronales)}"></div>
+        <div><label>Frais de gestion %</label><input id="rFrais" type="number" step="0.1" value="${pct(R.fraisGestion)}"></div>
+        <div><label>TVA %</label><input id="rTva" type="number" step="0.01" value="${pct(R.tva)}"></div>
+        <div><label>Diviseur congés</label><input id="rConges" type="number" value="${R.congesDivisor}"></div>
+        <div><label>IR retenue %</label><input id="rIr" type="number" step="0.1" value="${pct(R.ir)}"></div>
+        <div><label>Marge CRH %</label><input id="rMarge" type="number" step="0.1" value="${pct(R.margeCRH)}"></div>
+      </div>
+      <div class="grid3" style="margin-top:4px">
+        <div><label>Proratisation</label><select id="ccProrate"><option value="base" ${c.prorate === "base" ? "selected" : ""}>Base seule</option><option value="base+primes" ${c.prorate === "base+primes" ? "selected" : ""}>Base + primes</option></select></div>
+        <div><label>Ancienneté auto</label><select id="ccAnc"><option value="1" ${c.anciennete !== false ? "selected" : ""}>Oui</option><option value="0" ${c.anciennete === false ? "selected" : ""}>Non</option></select></div>
+        <div><label>TVA exonérée</label><select id="ccExo"><option value="0" ${!c.tvaExonere ? "selected" : ""}>Non</option><option value="1" ${c.tvaExonere ? "selected" : ""}>Oui</option></select></div>
+        <div><label>Provision fin (0=off)</label><input id="rFin" type="number" value="${R.finContrat || 0}"></div>
+      </div>
+      <b style="font-size:12px;color:var(--muted)">COMPOSANTS ACTIFS</b>
+      <div class="grid2" style="margin-top:4px">${comps.map(cp => `<label class="chk"><input type="checkbox" data-comp="${cp.code}" ${active.has(cp.code) ? "checked" : ""}><span>${esc(cp.label)} <span class="tag gray">${cp.stage}</span></span></label>`).join("")}</div>
+      <b style="font-size:12px;color:var(--muted)">BLOC CLIENT (facture)</b>
+      <div class="grid2" style="margin-top:4px">
+        <div><label>Adresse</label><input id="cbAddr" value="${esc((c.clientBlock || {}).adresse || "")}"></div>
+        <div><label>NIU</label><input id="cbNiu" value="${esc((c.clientBlock || {}).niu || "")}"></div>
+        <div><label>RCCM</label><input id="cbRccm" value="${esc((c.clientBlock || {}).rccm || "")}"></div>
+        <div><label>Banque (bloc)</label><input id="cbBank" value="${esc((c.bankBlock || {}).banque || "")}"></div>
+      </div>
+    </div>
+    <div class="err hidden" id="ccErr"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingSaveContract('${cid || ""}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(modal);
+}
+async function billingSaveContract(cid) {
+  const comps = await api("/billing/components");
+  const g = (id) => (document.getElementById(id) || {}).value;
+  const activeCodes = [...document.querySelectorAll("[data-comp]")].filter(x => x.checked).map(x => x.dataset.comp);
+  const components = comps.filter(c => activeCodes.includes(c.code)).map(c => Object.assign({}, c, { active: true }));
+  const body = { clientName: g("ccName"), clientCode: g("ccCode"), billingType: g("ccType"), numberFormat: g("ccNum"),
+    prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1",
+    rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
+      congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
+    components, clientBlock: { adresse: g("cbAddr"), niu: g("cbNiu"), rccm: g("cbRccm") }, bankBlock: { banque: g("cbBank") } };
+  try { if (cid) await api("/billing/contracts/" + cid, { method: "PUT", body: JSON.stringify(body) });
+    else await api("/billing/contracts", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector(".modal-bg").remove(); billingCfgView(); }
+  catch (e) { const el = document.getElementById("ccErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
 
 </script>

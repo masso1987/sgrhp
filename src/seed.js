@@ -32,6 +32,7 @@ const CNI = "V";
 function seedTenantData(tid) {
   const has = (coll) => (db[coll] || []).some(x => (x.tenantId || "t1") === tid);
   try { require("./payroll/seed").seedPayroll(tid); } catch (e) { console.error("payroll seed:", e.message); }
+  try { require("./billing/seed").seedBilling(tid); } catch (e) { console.error("billing seed:", e.message); }
 
   if (!has("referentials")) {
     const R = [
