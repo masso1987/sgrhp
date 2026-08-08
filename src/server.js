@@ -12,7 +12,7 @@ app.disable("x-powered-by");
 // logs key on the real client, not on the proxy's address.
 app.set("trust proxy", Number(process.env.TRUST_PROXY || 1));
 app.use(helmet({ contentSecurityPolicy: false }));   // CSP tuned per deployment
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "30mb" }));
 
 // Brute-force protection on authentication (§8.2)
 const LOGIN_MAX = process.env.LOGIN_LIMIT === undefined ? 20 : Number(process.env.LOGIN_LIMIT);

@@ -3646,6 +3646,7 @@ async function billingSheetOpen(id) {
   <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     ${open ? `<button class="btn p sm" onclick="billingSaveLines()">💾 Enregistrer &amp; calculer</button>
       <button class="btn ghost sm" onclick="billingAddLine()">+ Ligne</button>
+      <button class="btn ghost sm" onclick="billingImportExcel()">📥 Importer Excel</button>
       ${type === "MAD" ? `<button class="btn ghost sm" onclick="billingImportPaie()">👥 Importer depuis la Paie</button>` : ""}
       <button class="btn ghost sm" onclick="billingCarry()">↻ Reprendre mois préc.</button>` : ""}
     <span style="flex:1"></span>
@@ -3836,6 +3837,73 @@ async function billingSaveContract(cid) {
     else await api("/billing/contracts", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); billingCfgView(); }
   catch (e) { const el = document.getElementById("ccErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+
+
+/* ---- Import Excel (F1) : upload → mapping colonnes → lignes ---- */
+function billingImportExcel() {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".xlsx,.xls";
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    const b64 = await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(String(rd.result).split(",")[1]); rd.readAsDataURL(f); });
+    window._billFile = b64;
+    try { const p = await api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: b64 }) }); billingMapModal(p); }
+    catch (e) { alert(e.message); }
+  };
+  inp.click();
+}
+async function billingReparse(sheet) {
+  try { const p = await api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: window._billFile, sheet }) }); billingMapModal(p, true); }
+  catch (e) { alert(e.message); }
+}
+function billingMapModal(p, replace) {
+  const comps = (BILL_SHEET.contract.components || []).filter(c => ["PRIME", "HORS_CHARGE"].includes(c.stage));
+  const opts = (sel) => `<option value="">—</option>` + p.headers.map(h => `<option value="${h.index}" ${String(sel) === String(h.index) ? "selected" : ""}>${esc(h.label)}</option>`).join("");
+  const guess = (kw) => { const h = p.headers.find(x => (x.label || "").toLowerCase().includes(kw)); return h ? h.index : ""; };
+  const html = `<div class="modal" style="width:620px"><h3 style="margin:0 0 4px">Import Excel — mapper les colonnes</h3>
+    <div class="note">Feuille détectée : en-tête à la ligne ${p.headerRow + 1} · ${p.rowCount} ligne(s) de données. Associez chaque champ à sa colonne.</div>
+    <div style="display:flex;gap:8px;align-items:end;margin:6px 0">
+      <div><label>Feuille</label><select id="imSheet" onchange="billingReparse(this.value)">${p.sheets.map(sn => `<option ${sn === p.sheet ? "selected" : ""}>${esc(sn)}</option>`).join("")}</select></div>
+      <div><label>Ligne d'en-tête</label><input id="imHeader" type="number" value="${p.headerRow}" style="max-width:80px"></div>
+      <div><label>Mode</label><select id="imMode"><option value="replace">Remplacer les lignes</option><option value="append">Ajouter</option></select></div>
+    </div>
+    <div class="scroll" style="max-height:52vh">
+      <b style="font-size:12px;color:var(--muted)">CHAMPS DE BASE</b>
+      <div class="grid2" style="margin-top:4px">
+        <div><label>Nom / ressource</label><select data-map="name">${opts(guess("nom"))}</select></div>
+        <div><label>Poste</label><select data-map="poste">${opts(guess("poste"))}</select></div>
+        <div><label>Salaire de base</label><select data-map="salaireBase">${opts(guess("base"))}</select></div>
+        <div><label>Jours travaillés</label><select data-map="jours">${opts(guess("jr"))}</select></div>
+        <div><label>Date d'embauche (→ ancienneté)</label><select data-map="hireDate">${opts(guess("embauche"))}</select></div>
+        <div><label>Années d'ancienneté (si pas de date)</label><select data-map="years">${opts("")}</select></div>
+      </div>
+      ${BILL_SHEET.contract.billingType === "RECAP" ? `<div class="grid2"><div><label>Montant HT (Récap)</label><select data-map="montantHT">${opts(guess("ht"))}</select></div></div>` : ""}
+      ${["PRESTATION", "TONNAGE"].includes(BILL_SHEET.contract.billingType) ? `<div class="grid2"><div><label>Quantité</label><select data-map="quantite">${opts(guess("quant"))}</select></div><div><label>Prix unitaire</label><select data-map="pu">${opts(guess("prix"))}</select></div></div>` : ""}
+      <b style="font-size:12px;color:var(--muted)">COMPOSANTS (primes / hors-charges actifs sur ce client)</b>
+      ${comps.length ? `<div class="grid2" style="margin-top:4px">${comps.map(c => `<div><label>${esc(c.label)} <span class="tag gray">${c.stage}</span></label><select data-comp="${c.code}">${opts("")}</select></div>`).join("")}</div>`
+        : '<div class="note">Aucun composant actif — ajoutez-les au contrat pour importer les primes. Sinon, mappez « Primes (agrégé) » ci-dessous.</div>'}
+      <div class="grid2" style="margin-top:6px">
+        <div><label>Primes (colonne agrégée, optionnel)</label><select data-map="primes">${opts("")}</select></div>
+        <div><label>Hors-charges (agrégé, optionnel)</label><select data-map="horsCharges">${opts("")}</select></div>
+      </div>
+    </div>
+    <div class="err hidden" id="imErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingDoImport()">Importer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  let bg = document.querySelector(".modal-bg");
+  if (replace && bg) bg.innerHTML = html; else { bg = document.createElement("div"); bg.className = "modal-bg"; bg.innerHTML = html; document.body.appendChild(bg); }
+  window._imSheet = p.sheet;
+}
+async function billingDoImport() {
+  const mapping = { components: {} };
+  document.querySelectorAll("[data-map]").forEach(s => { mapping[s.dataset.map] = s.value === "" ? null : Number(s.value); });
+  document.querySelectorAll("[data-comp]").forEach(s => { if (s.value !== "") mapping.components[s.dataset.comp] = Number(s.value); });
+  const body = { data: window._billFile, sheet: (document.getElementById("imSheet") || {}).value || window._imSheet,
+    headerRow: Number((document.getElementById("imHeader") || {}).value || 0), mapping, mode: (document.getElementById("imMode") || {}).value };
+  try { const s = await api("/billing/sheets/" + BILL_SHEET.id + "/import-excel", { method: "POST", body: JSON.stringify(body) });
+    BILL_SHEET = s; document.querySelector(".modal-bg").remove(); billingSheetOpen(s.id);
+    alert((s.lines || []).length + " ligne(s) importée(s)."); }
+  catch (e) { const el = document.getElementById("imErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
 
 </script>

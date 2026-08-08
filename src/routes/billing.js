@@ -205,5 +205,57 @@ router.get("/recap", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
 /* ---- defaults (rates + montant en lettres util) ---- */
 router.get("/defaults", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => res.json({ rates: DEFAULT_RATES }));
 
+/* ============================ IMPORT EXCEL (F1) ============================ */
+function _wb(base64) { const XLSX = require("xlsx"); return XLSX.read(Buffer.from(base64, "base64"), { type: "buffer", cellDates: true }); }
+function _matrix(wb, name) { const XLSX = require("xlsx"); const ws = wb.Sheets[name] || wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" }); }
+function _detectHeader(m) { let best = 0, bs = -1; for (let i = 0; i < Math.min(m.length, 20); i++) { const sc = (m[i] || []).filter(c => typeof c === "string" && c.trim().length > 1).length; if (sc > bs) { bs = sc; best = i; } } return best; }
+const _n = (v) => typeof v === "number" ? v : Number(String(v == null ? "" : v).replace(/[^0-9.\-]/g, "")) || 0;
+
+router.post("/import/parse", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  try {
+    const { data, sheet } = req.body || {};
+    if (!data) return res.status(400).json({ error: "Fichier manquant" });
+    const wb = _wb(data); const name = sheet || wb.SheetNames[0];
+    const m = _matrix(wb, name); const hr = _detectHeader(m);
+    const headers = (m[hr] || []).map((h, i) => ({ index: i, label: String(h == null ? "" : h).trim() || ("Col " + (i + 1)) }));
+    res.json({ sheets: wb.SheetNames, sheet: name, headerRow: hr, headers, sample: m.slice(hr + 1, hr + 4), rowCount: Math.max(0, m.length - hr - 1) });
+  } catch (e) { res.status(400).json({ error: "Lecture du fichier Excel impossible : " + e.message }); }
+});
+
+router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  if (s.status === "validated") return res.status(409).json({ error: "Fiche validée — lecture seule" });
+  const contract = contractOf(req, s.contractId) || {};
+  try {
+    const { data, sheet, headerRow, mapping, mode } = req.body || {};
+    if (!data || !mapping) return res.status(400).json({ error: "Fichier ou mapping manquant" });
+    const wb = _wb(data); const m = _matrix(wb, sheet || wb.SheetNames[0]); const hr = Number(headerRow) || 0;
+    const at = (row, key) => { const c = mapping[key]; return (c === null || c === "" || c === undefined) ? undefined : row[Number(c)]; };
+    const compMap = mapping.components || {};
+    const out = [];
+    for (let i = hr + 1; i < m.length; i++) {
+      const row = m[i]; if (!row || row.every(c => c === "" || c == null)) continue;
+      const name = String(at(row, "name") == null ? "" : at(row, "name")).trim();
+      const sal = _n(at(row, "salaireBase"));
+      if (!name && !sal) continue;
+      const components = {};
+      for (const [code, ci] of Object.entries(compMap)) { if (ci === "" || ci == null) continue; const val = _n(row[Number(ci)]); if (val) components[code] = { montant: val }; }
+      let years = _n(at(row, "years"));
+      const hv = at(row, "hireDate");
+      if (hv) { const hd = hv instanceof Date ? hv : (/\d{4}/.test(String(hv)) ? new Date(hv) : null);
+        if (hd && !isNaN(hd)) { const d = new Date(s.period + "-01"); let mo = (d.getFullYear() - hd.getFullYear()) * 12 + (d.getMonth() - hd.getMonth()); years = mo < 0 ? 0 : Math.floor(mo / 12); } }
+      out.push({ id: id("bln"), name, poste: String(at(row, "poste") == null ? "" : at(row, "poste")).trim(),
+        salaireBase: sal, jours: _n(at(row, "jours")) || 30, years, primes: _n(at(row, "primes")), horsCharges: _n(at(row, "horsCharges")),
+        montantHT: _n(at(row, "montantHT")), quantite: _n(at(row, "quantite")), pu: _n(at(row, "pu")), components });
+    }
+    s.lines = (mode === "append") ? (s.lines || []).concat(out) : out;
+    if (contract.id) { contract.columnMapping = { sheet, headerRow: hr, mapping }; }
+    save();
+    audit(req.user, "IMPORTED", "BillingSheet", s.id, { from: "excel", lines: out.length });
+    res.json(withCompute(s, req));
+  } catch (e) { res.status(400).json({ error: "Import Excel : " + e.message }); }
+});
+
 module.exports = router;
 module.exports.enLettres = enLettres;
