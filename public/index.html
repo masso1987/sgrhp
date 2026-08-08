@@ -3652,6 +3652,10 @@ async function billingSheetOpen(id) {
     <span style="flex:1"></span>
     <b>HT ${fCFA(t.HT)} · TVA ${fCFA(t.TVA)} · <span style="color:var(--green)">TTC ${fCFA(t.TTC)}</span></b>
     ${ME.role !== "UI" ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "✓ Valider"}</button>` : ""}
+    <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/pdf','Annexe_${s.period}.pdf')">⬇ Annexe PDF</button>
+    <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/excel','Annexe_${s.period}.xlsx')">⬇ Annexe Excel</button>
+    <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/invoice/pdf','Facture_${s.period}.pdf')">⬇ Facture PDF</button>
+    <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/invoice/excel','Facture_${s.period}.xlsx')">⬇ Facture Excel</button>
   </div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">SAISIE DES LIGNES</b>
     <div style="overflow-x:auto"><table id="billLines" style="margin-top:6px">${billLinesTable(s, type, open)}</table></div></div>
@@ -3792,6 +3796,7 @@ async function billingContractModal(cid) {
         <div><label>Code (préfixe n°)</label><input id="ccCode" value="${esc(c.clientCode || "")}"></div>
         <div><label>Type de facturation</label><select id="ccType">${["MAD", "PRESTATION", "TONNAGE", "RECAP", "PORTAGE", "CONSULTANT"].map(t => `<option ${c.billingType === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>
         <div><label>Format numéro</label><input id="ccNum" value="${esc(c.numberFormat || "CLIENT/AAAA/MM/####")}"></div>
+        <div><label>Style de facture</label><select id="ccStyle"><option value="lines" ${c.invoiceStyle!=="proforma"?"selected":""}>Par salarié (lignes)</option><option value="proforma" ${c.invoiceStyle==="proforma"?"selected":""}>Proforma (agrégé)</option></select></div>
       </div>
       <b style="font-size:12px;color:var(--muted)">TAUX &amp; RÈGLES</b>
       <div class="grid3" style="margin-top:4px">
@@ -3829,7 +3834,7 @@ async function billingSaveContract(cid) {
   const activeCodes = [...document.querySelectorAll("[data-comp]")].filter(x => x.checked).map(x => x.dataset.comp);
   const components = comps.filter(c => activeCodes.includes(c.code)).map(c => Object.assign({}, c, { active: true }));
   const body = { clientName: g("ccName"), clientCode: g("ccCode"), billingType: g("ccType"), numberFormat: g("ccNum"),
-    prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1",
+    prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1", invoiceStyle: g("ccStyle"),
     rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
       congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
     components, clientBlock: { adresse: g("cbAddr"), niu: g("cbNiu"), rccm: g("cbRccm") }, bankBlock: { banque: g("cbBank") } };

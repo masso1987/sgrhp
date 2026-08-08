@@ -9,6 +9,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 const { computeSheet, DEFAULT_RATES } = require("../billing/engine");
+const PDFDocument = require("pdfkit");
 
 for (const k of ["billingContracts", "billingComponents", "billingSheets"]) if (!db[k]) db[k] = [];
 
@@ -89,7 +90,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
   const c = stamp({ id: id("bctr"), clientCode: b.clientCode || b.clientName.slice(0, 8).toUpperCase().replace(/[^A-Z0-9]/g, ""),
     clientName: b.clientName, billingType: b.billingType || "MAD",
     clientBlock: b.clientBlock || {}, bankBlock: b.bankBlock || {},
-    numberFormat: b.numberFormat || "CLIENT/AAAA/MM/####",
+    numberFormat: b.numberFormat || "CLIENT/AAAA/MM/####", invoiceStyle: b.invoiceStyle || "lines",
     prorate: b.prorate || "base", anciennete: b.anciennete !== false, tvaExonere: !!b.tvaExonere,
     rates: Object.assign({}, DEFAULT_RATES, b.rates || {}),
     components: Array.isArray(b.components) ? b.components : [],
@@ -101,7 +102,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
 router.put("/contracts/:id", allow("ADM"), (req, res) => {
   const c = contractOf(req, req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping"])
+  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping"])
     if (b[k] !== undefined) c[k] = b[k];
   if (b.rates) c.rates = Object.assign({}, DEFAULT_RATES, c.rates || {}, b.rates);
   save(); audit(req.user, "UPDATED", "BillingContract", c.id, {}); res.json(c);
@@ -255,6 +256,122 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
     audit(req.user, "IMPORTED", "BillingSheet", s.id, { from: "excel", lines: out.length });
     res.json(withCompute(s, req));
   } catch (e) { res.status(400).json({ error: "Import Excel : " + e.message }); }
+});
+
+/* ==================== ANNEXE & FACTURE (PDF / Excel) ==================== */
+const _NF = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+function _company() { const b = (db.settings && db.settings.branding) || {}; return Object.assign({ name: b.appName || "CIBLE RH EMPLOI" }, b.company || {}); }
+function _proformaLines(s, computed, contract) {
+  const L = computed.lines; const sum = (k) => L.reduce((a, l) => a + (l.raw[k] || 0), 0);
+  const out = [["SALAIRES BRUTS", Math.round(sum("brut"))], ["PROVISION CONGÉS", Math.round(sum("conges"))]];
+  if (sum("fin") > 0) out.push(["PROVISION FIN DE CONTRAT", Math.round(sum("fin"))]);
+  out.push(["CHARGES PATRONALES", Math.round(sum("charges"))]);
+  for (const c of (contract.components || []).filter(c => c.stage === "HORS_CHARGE" && c.active)) {
+    let t = 0; for (const ln of s.lines) t += Number(((ln.components || {})[c.code] || {}).montant || 0);
+    if (t) out.push([String(c.label).toUpperCase(), Math.round(t)]);
+  }
+  out.push(["FRAIS DE GESTION", Math.round(sum("fraisGestion"))]);
+  return out;
+}
+function _drawHeader(doc, co, client, title) {
+  doc.font("Helvetica-Bold").fontSize(15).text(title, 24, 22);
+  doc.font("Helvetica").fontSize(8);
+  doc.font("Helvetica-Bold").fontSize(11).text(co.name || "CIBLE RH EMPLOI", 24, 46);
+  doc.font("Helvetica").fontSize(8);
+  if (co.address) doc.text(co.address, 24, 62);
+  if (co.city) doc.text(co.city, 24, 73);
+  if (co.rccm || co.niu) doc.text(`RCCM : ${co.rccm || ""}   ·   NIU : ${co.niu || ""}`, 24, 84);
+  // client block (right)
+  const cb = client || {};
+  doc.font("Helvetica-Bold").fontSize(9).text("ADRESSÉE À :", 360, 46);
+  doc.font("Helvetica").fontSize(9);
+  if (cb.name) doc.text(cb.name, 360, 60); if (cb.adresse) doc.text(cb.adresse, 360, 72);
+  if (cb.rccm) doc.text("RCCM : " + cb.rccm, 360, 84); if (cb.niu) doc.text("NIU : " + cb.niu, 360, 95);
+}
+
+router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const D = withCompute(s, req); const co = _company();
+  const doc = new PDFDocument({ margin: 20, size: "A4", layout: "landscape" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Annexe_${(D.contract.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
+  doc.pipe(res);
+  _drawHeader(doc, co, D.contract.clientBlock, `ANNEXE — ${D.contract.clientName} · ${s.period}`);
+  const cols = [["N°", 26], ["Salarié", 150], ["Poste", 110], ["Base", 70], ["Brut", 72], ["Congés", 62], ["Charges", 66], ["Frais gest.", 66], ["HT", 76], ["TVA", 66], ["TTC", 80]];
+  const x0 = 20; let x = x0; const xs = cols.map(c => { const cx = x; x += c[1]; return cx; }); const W = x - x0;
+  let y = 118; const T = (cx, yy, v, w, al, b, sz) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 7.5).text(v == null ? "" : String(v), cx + 2, yy, { width: w - 4, align: al || "left", lineBreak: false });
+  doc.rect(x0, y, W, 15).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
+  cols.forEach((c, i) => T(xs[i], y + 3.5, c[0], c[1], i < 3 ? "left" : "right", true, 7)); y += 15;
+  let n = 0;
+  for (const poste of Object.keys(D.computed.groups).sort()) {
+    doc.rect(x0, y, W, 12).fill("#ecfdf5"); doc.fillColor("#000"); T(xs[1], y + 2.5, poste, 300, "left", true, 7.5); y += 12;
+    for (const l of D.computed.groups[poste]) {
+      n++; const vals = [n, l.name, l.poste, l.basePorata, l.brut, l.conges, l.charges, l.fraisGestion, l.HT, l.TVA, l.TTC];
+      vals.forEach((v, i) => T(xs[i], y + 2, i >= 3 ? _NF(v) : v, cols[i][1], i < 3 ? "left" : "right", false, 7));
+      doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 11).lineTo(x0 + W, y + 11).stroke(); y += 11.5;
+      if (y > 560) { doc.addPage({ margin: 20, size: "A4", layout: "landscape" }); y = 40; }
+    }
+  }
+  const t = D.computed.totals; y += 2; doc.lineWidth(0.7).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 3;
+  T(xs[1], y, `TOTAL GÉNÉRAL (${t.count})`, 300, "left", true); [["HT", 8], ["TVA", 9], ["TTC", 10]].forEach(([k, i]) => T(xs[i], y, _NF(t[k]), cols[i][1], "right", true));
+  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe", format: "pdf" }); doc.end();
+});
+
+router.get("/sheets/:id/annexe/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const D = withCompute(s, req); const XLSX = require("xlsx");
+  const aoa = [["N°", "Salarié", "Poste", "Base", "Brut", "Congés", "Charges", "Frais gestion", "HT", "TVA", "TTC"]]; let n = 0;
+  for (const poste of Object.keys(D.computed.groups).sort()) { aoa.push([poste]); for (const l of D.computed.groups[poste]) aoa.push([++n, l.name, l.poste, l.basePorata, l.brut, l.conges, l.charges, l.fraisGestion, l.HT, l.TVA, l.TTC]); }
+  const t = D.computed.totals; aoa.push([]); aoa.push(["", "TOTAL GÉNÉRAL", "", "", "", "", "", "", t.HT, t.TVA, t.TTC]);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Annexe");
+  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe", format: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Annexe_${s.period}.xlsx"`); res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+});
+
+router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const D = withCompute(s, req); const co = _company(); const c = D.contract; const t = D.computed.totals; const style = c.invoiceStyle || "lines";
+  const doc = new PDFDocument({ margin: 28, size: "A4" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Facture_${(c.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
+  doc.pipe(res);
+  _drawHeader(doc, co, c.clientBlock, "FACTURE / PROFORMA");
+  doc.font("Helvetica-Bold").fontSize(9).text("N° " + (s.number || ""), 360, 118); doc.font("Helvetica").fontSize(9).text("Date : " + s.period, 360, 130);
+  doc.font("Helvetica-Bold").fontSize(9).text(`Objet : Mise à disposition — ${s.period}`, 28, 118);
+  let y = 150; const x0 = 28, W = 539;
+  const T = (cx, yy, v, w, al, b) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(9).text(v == null ? "" : String(v), cx + 3, yy, { width: w - 6, align: al || "left", lineBreak: false });
+  if (style === "proforma") {
+    const rows = _proformaLines(s, D.computed, c);
+    doc.rect(x0, y, W, 16).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
+    T(x0, y + 4, "DESCRIPTION", 380, "left", true); T(x0 + 380, y + 4, "MONTANT HT", W - 380, "right", true); y += 16;
+    for (const [lbl, amt] of rows) { T(x0, y + 3, lbl, 380, "left"); T(x0 + 380, y + 3, _NF(amt), W - 380, "right"); doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 14).lineTo(x0 + W, y + 14).stroke(); y += 15; }
+  } else {
+    const cols = [["#", 26], ["Désignation", 300], ["Qté", 40], ["Montant HT", 173]];
+    const xs = []; let x = x0; cols.forEach(cc => { xs.push(x); x += cc[1]; });
+    doc.rect(x0, y, W, 16).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
+    cols.forEach((cc, i) => T(xs[i], y + 4, cc[0], cc[1], i === 3 ? "right" : "left", true)); y += 16;
+    let n = 0; for (const l of D.computed.lines) { n++; T(xs[0], y + 3, n, 26); T(xs[1], y + 3, `${l.name}${l.poste ? " — " + l.poste : ""}`, 300); T(xs[2], y + 3, 1, 40, "center"); T(xs[3], y + 3, _NF(l.HT), 173, "right"); doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 14).lineTo(x0 + W, y + 14).stroke(); y += 15; if (y > 720) { doc.addPage(); y = 40; } }
+  }
+  y += 6; doc.lineWidth(0.6).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 5;
+  const tot = (lbl, v, b) => { T(x0 + 300, y, lbl, 120, "right", b); T(x0 + 420, y, _NF(v) + " FCFA", W - 420, "right", b); y += 15; };
+  tot("Total HT", t.HT, true); tot(c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA); tot("TOTAL TTC", t.TTC, true);
+  y += 8; doc.font("Helvetica-Oblique").fontSize(9).text("Arrêtée la présente facture à la somme de : " + enLettres(t.TTC) + " francs CFA.", x0, y, { width: W });
+  y = doc.y + 14; const bk = c.bankBlock || {}; if (bk.banque) { doc.font("Helvetica-Bold").fontSize(9).text("Coordonnées bancaires", x0, y); doc.font("Helvetica").fontSize(9).text(`${bk.banque}   ${bk.compte || ""}`, x0, y + 12); }
+  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "facture", format: "pdf", style }); doc.end();
+});
+
+router.get("/sheets/:id/invoice/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const D = withCompute(s, req); const c = D.contract; const t = D.computed.totals; const XLSX = require("xlsx"); const style = c.invoiceStyle || "lines";
+  const aoa = [[_company().name], [c.clientName], ["Facture N°", s.number, "Période", s.period], []];
+  if (style === "proforma") { aoa.push(["Description", "Montant HT"]); for (const [lbl, amt] of _proformaLines(s, D.computed, c)) aoa.push([lbl, amt]); }
+  else { aoa.push(["#", "Désignation", "Qté", "Montant HT"]); let n = 0; for (const l of D.computed.lines) aoa.push([++n, `${l.name}${l.poste ? " — " + l.poste : ""}`, 1, l.HT]); }
+  aoa.push([]); aoa.push(["", "", "Total HT", t.HT]); aoa.push(["", "", c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA]); aoa.push(["", "", "TOTAL TTC", t.TTC]);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Facture");
+  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "facture", format: "xlsx", style });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Facture_${s.period}.xlsx"`); res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
 module.exports = router;
