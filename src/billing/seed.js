@@ -29,6 +29,28 @@ const COMPONENTS = [
   { code: "TONNAGE",  label: "Tonnage (qté × coût/T)",     inputMode: "quantite", formula: "QTE_PU", stage: "PRESTATION", order: 41 },
   // RETENUES — déduites du net
   { code: "RET_DIV",  label: "Retenue diverse",         inputMode: "montant", formula: "FIXE", stage: "RETENUE", order: 50 },
+  // HORS-CHARGES — libellés étendus (annexes Barry & assimilés)
+  { code: "ASSURANCE",     label: "Assurance",                   inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 35 },
+  { code: "ASSUR_ACC",     label: "Assurance accident",          inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 36 },
+  { code: "DEPLACEMENT",   label: "Déplacement",                 inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 37 },
+  { code: "FRAIS_MISSION", label: "Frais de mission",            inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 38 },
+  { code: "VISITE_MED",    label: "Visite médicale",             inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 39 },
+  { code: "MEDICAL",       label: "Visite médicale (LG)",        inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 40 },
+  { code: "ADMIN",         label: "Charges administratives",     inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 41 },
+  // GAINS / INDEMNITÉS — modèles multi-pays (LG & assimilés), saisis au montant
+  { code: "BASIC",          label: "Salaire de base (Basic)",       inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 60 },
+  { code: "RATION",         label: "Ration",                        inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 61 },
+  { code: "SALISSURE",      label: "Prime de salissure",            inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 62 },
+  { code: "ASSIDUITY",      label: "Prime d'assiduité",             inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 63 },
+  { code: "LODGING",        label: "Indemnité de logement (Lodging)", inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 64 },
+  { code: "TRANSPORTATION", label: "Indemnité de transport (Transportation)", inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 65 },
+  { code: "REPRESENTATION", label: "Indemnité de représentation",   inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 66 },
+  { code: "INTERESSEMENT",  label: "Intéressement",                 inputMode: "montant", formula: "FIXE", stage: "PRIME", order: 67 },
+  // PROVISIONS / AVANCES (LG)
+  { code: "PROV_13E",       label: "Provision 13e mois",            inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 70 },
+  { code: "SENIORITY",      label: "Prime d'ancienneté (saisie)",   inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 71 },
+  { code: "ADVANCE",        label: "Avance automatique",            inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 72 },
+  { code: "PAID_LEAVES",    label: "Congés payés (provision)",      inputMode: "montant", formula: "FIXE", stage: "HORS_CHARGE", order: 73 },
 ];
 
 function seedBilling(tid) {

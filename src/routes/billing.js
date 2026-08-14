@@ -83,6 +83,27 @@ router.delete("/components/:id", allow("ADM"), (req, res) => {
   if (!c) return res.status(404).json({ error: "Introuvable" });
   db.billingComponents.splice(db.billingComponents.indexOf(c), 1); save(); res.json({ ok: true });
 });
+// Import en masse (export Odoo / collage CSV). Upsert par code.
+router.post("/components/import", allow("ADM"), (req, res) => {
+  const items = Array.isArray(req.body.items) ? req.body.items : (Array.isArray(req.body) ? req.body : []);
+  if (!items.length) return res.status(400).json({ error: "Aucun composant à importer" });
+  let created = 0, updated = 0; const errors = [];
+  for (const it of items) {
+    const code = String(it.code || "").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+    if (!code) { errors.push("ligne sans code"); continue; }
+    const rec = { label: it.label || code, inputMode: it.inputMode || "montant", formula: it.formula || "FIXE",
+      stage: String(it.stage || "PRIME").toUpperCase(),
+      taux: it.taux != null && it.taux !== "" ? Number(it.taux) : null,
+      diviseur: it.diviseur != null && it.diviseur !== "" ? Number(it.diviseur) : null,
+      forfait: it.forfait != null && it.forfait !== "" ? Number(it.forfait) : null,
+      order: it.order != null && it.order !== "" ? Number(it.order) : 99 };
+    const existing = mine(db.billingComponents, req).find(c => c.code === code);
+    if (existing) { Object.assign(existing, rec); updated++; }
+    else { db.billingComponents.push(stamp(Object.assign({ id: id("bcmp"), code: code, active: true, createdAt: new Date().toISOString() }, rec), req)); created++; }
+  }
+  save(); audit(req.user, "IMPORTED", "BillingComponent", "-", { created, updated });
+  res.json({ ok: true, created, updated, errors });
+});
 
 /* ============================ CONTRACTS ============================ */
 router.get("/contracts", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) =>

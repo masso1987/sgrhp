@@ -3786,10 +3786,15 @@ async function billingCfgView() {
       <td><button class="btn ghost sm" onclick='billingContractModal(${JSON.stringify(c.id)})'>✏️</button></td></tr>`).join("") || '<tr><td colspan="7" style="color:var(--muted)">Aucun client.</td></tr>'}
     </table></div>
   <div class="panel"><b>Catalogue des composants (${comps.length})</b>
-    <div class="note" style="margin-top:6px">Primes (dans le brut) · Hors-charges (après charges) · Prestation · Retenues. Activez-les par client.</div>
-    <table style="margin-top:6px"><tr><th>Code</th><th>Libellé</th><th>Saisie</th><th>Formule</th><th>Étape</th><th>Taux</th></tr>
-    ${comps.map(c => `<tr><td>${esc(c.code)}</td><td>${esc(c.label)}</td><td>${esc(c.inputMode)}</td>
-      <td>${esc(c.formula)}</td><td>${esc(c.stage)}</td><td>${c.taux != null ? (c.taux) : ""}</td></tr>`).join("")}
+    <span style="float:right;display:flex;gap:6px">
+      <button class="btn ghost sm" onclick="billingCompImport()">⬆ Importer (Odoo/CSV)</button>
+      <button class="btn p sm" onclick="billingCompModal()">+ Composant</button></span>
+    <div class="note" style="margin-top:6px">Catalogue partagé : primes (dans le brut) · hors-charges (après charges) · prestation · retenues. Créez-les ici une fois, puis activez-les par client. Les codes doivent correspondre à ceux utilisés dans les formules d'annexe.</div>
+    <table style="margin-top:6px"><tr><th>Code</th><th>Libellé</th><th>Saisie</th><th>Formule</th><th>Étape</th><th>Taux</th><th></th></tr>
+    ${comps.map(c => `<tr><td><code>${esc(c.code)}</code></td><td>${esc(c.label)}</td><td>${esc(c.inputMode)}</td>
+      <td>${esc(c.formula)}</td><td><span class="tag gray">${esc(c.stage)}</span></td><td>${c.taux != null ? (c.taux) : ""}</td>
+      <td style="white-space:nowrap"><button class="btn ghost sm" onclick='billingCompModal(${JSON.stringify(c.id)})'>✏️</button>
+        <button class="btn ghost sm" style="color:var(--red)" onclick='billingCompDel(${JSON.stringify(c.id)},${JSON.stringify(c.code)})'>🗑</button></td></tr>`).join("")}
     </table></div>`;
 }
 async function billingContractModal(cid) {
@@ -4047,6 +4052,67 @@ async function billingSaveHeader(id) {
   const g = (x) => (document.getElementById(x) || {}).value || "";
   try { const s = await api("/billing/sheets/" + id, { method: "PUT", body: JSON.stringify({ objet: g("hObjet"), bonCommande: g("hPO"), vendeur: g("hVend"), conditionsPaiement: g("hCond"), dateEcheance: g("hEch") }) });
     BILL_SHEET = s; alert("En-tête enregistré."); } catch (e) { alert(e.message); }
+}
+
+
+/* ---- Catalogue composants : CRUD + import (Odoo/CSV) ---- */
+async function billingCompModal(id) {
+  const c = id ? (await api("/billing/components")).find(x => x.id === id) : { code: "", label: "", inputMode: "montant", formula: "FIXE", stage: "PRIME", taux: "", diviseur: "" };
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  const opt = (v, cur) => `<option ${v === cur ? "selected" : ""}>${v}</option>`;
+  bg.innerHTML = `<div class="modal" style="width:520px"><h3 style="margin:0 0 8px">${id ? "Modifier" : "Nouveau"} composant</h3>
+    <div class="grid2">
+      <div><label>Code (majuscules)</label><input id="cpCode" value="${esc(c.code || "")}" ${id ? "disabled" : ""} placeholder="ex. IND_TRANS"></div>
+      <div><label>Libellé</label><input id="cpLabel" value="${esc(c.label || "")}"></div>
+      <div><label>Étape (stage)</label><select id="cpStage">${["PRIME", "HORS_CHARGE", "PRESTATION", "RETENUE"].map(v => opt(v, c.stage)).join("")}</select></div>
+      <div><label>Mode de saisie</label><select id="cpMode">${["montant", "heures", "quantite"].map(v => opt(v, c.inputMode)).join("")}</select></div>
+      <div><label>Formule</label><select id="cpFormula">${["FIXE", "PCT_BASE", "BASE_DIV_TAUX", "FORFAIT", "QTE_PU"].map(v => opt(v, c.formula)).join("")}</select></div>
+      <div><label>Taux (optionnel)</label><input id="cpTaux" value="${c.taux != null ? c.taux : ""}" placeholder="ex. 1.2"></div>
+      <div><label>Diviseur (HS)</label><input id="cpDiv" value="${c.diviseur != null ? c.diviseur : ""}" placeholder="ex. 173.33"></div>
+    </div>
+    <div class="note" style="margin-top:6px">Étape : <b>PRIME</b> entre dans le brut · <b>HORS_CHARGE</b> après charges · <b>PRESTATION</b> composant HT direct · <b>RETENUE</b> déduit du net.</div>
+    <div class="err hidden" id="cpErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingCompSave('${id || ""}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function billingCompSave(id) {
+  const g = (x) => (document.getElementById(x) || {}).value;
+  const body = { code: g("cpCode"), label: g("cpLabel"), stage: g("cpStage"), inputMode: g("cpMode"), formula: g("cpFormula"),
+    taux: g("cpTaux") === "" ? null : Number(g("cpTaux")), diviseur: g("cpDiv") === "" ? null : Number(g("cpDiv")) };
+  try { if (id) await api("/billing/components/" + id, { method: "PUT", body: JSON.stringify(body) });
+    else await api("/billing/components", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector(".modal-bg").remove(); billingCfgView(); }
+  catch (e) { const el = document.getElementById("cpErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+async function billingCompDel(id, code) {
+  if (!confirm("Supprimer le composant " + code + " ? (les formules d'annexe qui l'utilisent renverront 0)")) return;
+  try { await api("/billing/components/" + id, { method: "DELETE" }); billingCfgView(); } catch (e) { alert(e.message); }
+}
+function billingCompImport() {
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="width:640px"><h3 style="margin:0 0 6px">Importer des composants</h3>
+    <div class="note">Collez un export (Odoo / Excel / CSV). Une ligne par composant. Colonnes : <code>code, libellé, étape, saisie, formule, taux</code> — séparées par <b>tabulation, ; ou ,</b>. L'entête est optionnelle. Upsert par code (met à jour si le code existe).</div>
+    <textarea id="cpImp" style="width:100%;height:200px;margin-top:6px;font-family:monospace;font-size:12px" placeholder="IND_TRANS&#9;Indemnité de transport&#9;PRIME&#9;montant&#9;FIXE&#10;HS120&#9;Heures supp 120%&#9;PRIME&#9;heures&#9;BASE_DIV_TAUX&#9;1.2"></textarea>
+    <div class="err hidden" id="cpImpErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingCompImportRun()">Importer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function billingCompImportRun() {
+  const raw = (document.getElementById("cpImp") || {}).value || "";
+  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const items = [];
+  for (const ln of lines) {
+    const parts = ln.split(/\t|;|,/).map(x => x.trim());
+    const code = (parts[0] || "").toUpperCase();
+    if (!code || code === "CODE") continue; // skip header
+    items.push({ code, label: parts[1] || code, stage: parts[2] || "PRIME", inputMode: parts[3] || "montant", formula: parts[4] || "FIXE", taux: parts[5] || "" });
+  }
+  if (!items.length) { const el = document.getElementById("cpImpErr"); el.textContent = "Rien à importer."; el.classList.remove("hidden"); return; }
+  try { const r = await api("/billing/components/import", { method: "POST", body: JSON.stringify({ items }) });
+    document.querySelector(".modal-bg").remove(); alert(`Import terminé : ${r.created} créé(s), ${r.updated} mis à jour.`); billingCfgView(); }
+  catch (e) { const el = document.getElementById("cpImpErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
 
 </script>
