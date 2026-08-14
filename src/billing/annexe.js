@@ -32,10 +32,11 @@ function computeRow(line, template, contract) {
   const scope = lineScope(line, contract);
   const row = { _name: line.name || "", _poste: line.poste || "", _cat: line.cat || "", cells: {} };
   for (const col of template.columns || []) {
-    if (col.source === "field") { row.cells[col.key] = { name: line.name || "", poste: line.poste || "", cat: line.cat || "", jours: scope.JOURS }[col.field] != null ? { name: line.name, poste: line.poste, cat: line.cat, jours: scope.JOURS }[col.field] : ""; continue; }
-    const val = r2(evalFormula(col.expr != null && col.expr !== "" ? col.expr : col.key, scope));
-    scope[col.key] = val;            // available to later columns
-    row.cells[col.key] = val;
+    if (col.source === "field") { const fv = line[col.field]; row.cells[col.key] = fv != null ? fv : (col.field === "jours" ? scope.JOURS : ""); continue; }
+    const raw = evalFormula(col.expr != null && col.expr !== "" ? col.expr : col.key, scope);
+    const shown = r2(raw);
+    scope[col.key] = template.roundMode === "rounded" ? shown : raw; // per-template rounding mode
+    row.cells[col.key] = shown;
   }
   return row;
 }

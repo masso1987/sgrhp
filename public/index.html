@@ -3657,6 +3657,15 @@ async function billingSheetOpen(id) {
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/invoice/pdf','Facture_${s.period}.pdf')">⬇ Facture PDF</button>
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/invoice/excel','Facture_${s.period}.xlsx')">⬇ Facture Excel</button>
   </div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">EN-TÊTE DU DOCUMENT</b>
+    <div class="grid3" style="margin-top:6px">
+      <div><label>Objet</label><input id="hObjet" value="${esc(s.objet||'')}"></div>
+      <div><label>Bon de commande</label><input id="hPO" value="${esc(s.bonCommande||'')}"></div>
+      <div><label>Vendeur</label><input id="hVend" value="${esc(s.vendeur||'')}"></div>
+      <div><label>Conditions de paiement</label><input id="hCond" value="${esc(s.conditionsPaiement||'')}"></div>
+      <div><label>Date d'échéance</label><input id="hEch" type="date" value="${esc(s.dateEcheance||'')}"></div>
+    </div>
+    ${open ? `<button class="btn ghost sm" style="margin-top:6px" onclick="billingSaveHeader('${s.id}')">💾 Enregistrer l'en-tête</button>` : ""}</div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">SAISIE DES LIGNES</b>
     <div style="overflow-x:auto"><table id="billLines" style="margin-top:6px">${billLinesTable(s, type, open)}</table></div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">ANNEXE CALCULÉE (regroupée par poste)</b>
@@ -3817,6 +3826,8 @@ async function billingContractModal(cid) {
         <div><label>IS (retenue) activé</label><select id="ccIs"><option value="0" ${!c.isEnabled?"selected":""}>Non</option><option value="1" ${c.isEnabled?"selected":""}>Oui</option></select></div>
         <div><label>Taux IS %</label><input id="ccIsRate" type="number" step="0.1" value="${((c.isRate!=null?c.isRate:0.022)*100)}"></div>
         <div><label>Préfixe n° facture</label><input id="ccSeq" value="${esc(c.invoiceSeqPrefix||"029")}"></div>
+        <div><label>Journal (compta)</label><input id="ccJournal" value="${esc(c.journalId||"")}" placeholder="ex. SOLEVO PRESTATIONS"></div>
+        <div><label>Compte GL par défaut</label><input id="ccAcct2" value="${esc(c.defaultAccount||"701100")}"></div>
       </div>
       <b style="font-size:12px;color:var(--muted)">COMPOSANTS ACTIFS</b>
       <div class="grid2" style="margin-top:4px">${comps.map(cp => `<label class="chk"><input type="checkbox" data-comp="${cp.code}" ${active.has(cp.code) ? "checked" : ""}><span>${esc(cp.label)} <span class="tag gray">${cp.stage}</span></span></label>`).join("")}</div>
@@ -3843,7 +3854,7 @@ async function billingSaveContract(cid) {
     rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
       congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
     components, clientBlock: { adresse: g("cbAddr"), niu: g("cbNiu"), rccm: g("cbRccm") }, bankBlock: { banque: g("cbBank") },
-    isEnabled: g("ccIs") === "1", isRate: (+g("ccIsRate") || 0) / 100, invoiceSeqPrefix: g("ccSeq") };
+    isEnabled: g("ccIs") === "1", isRate: (+g("ccIsRate") || 0) / 100, invoiceSeqPrefix: g("ccSeq"), journalId: g("ccJournal"), defaultAccount: g("ccAcct2") };
   try { if (cid) await api("/billing/contracts/" + cid, { method: "PUT", body: JSON.stringify(body) });
     else await api("/billing/contracts", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); billingCfgView(); }
@@ -3947,6 +3958,8 @@ async function billingTplModal(id) {
         <div><label>TVA %</label><input id="tpTva" type="number" step="0.01" value="${((t.taxes || {}).tva || 0) * 100}"></div>
         <div><label>IS % (retenue)</label><input id="tpIs" type="number" step="0.1" value="${((t.taxes || {}).is || 0) * 100}"></div>
         <div><label>Signatures (séparées par ;)</label><input id="tpSig" value="${esc((t.signatures || []).join("; "))}"></div>
+        <div><label>Arrondis</label><select id="tpRound"><option value="unrounded" ${t.roundMode!=="rounded"?"selected":""}>Intermédiaires non arrondis</option><option value="rounded" ${t.roundMode==="rounded"?"selected":""}>Chaque colonne arrondie</option></select></div>
+        <div><label>Établi par</label><input id="tpEtabli" value="${esc(t.etabliPar||"")}"></div>
       </div>
       <b style="font-size:12px;color:var(--muted)">COLONNES</b>
       <div class="note" style="margin:4px 0">Source « champ » = nom/poste/cat. Sinon <b>formule</b> sur : <code>BASE, JOURS, PRES</code>, les codes composants (<code>IND_TRANS, HS120…</code>), les valeurs cascade (<code>BRUT, CONGES, CHARGES, FRAIS, HT</code>) et les <b>clés d'autres colonnes</b> (ex. <code>GROSS / 12</code>). Opérateurs + − × ÷ ( ).</div>
@@ -3978,7 +3991,7 @@ async function billingTplSave(id) {
   const g = (x) => (document.getElementById(x) || {}).value;
   const body = { title: g("tpTitle"), code: g("tpCode"), groupBy: g("tpGroup") || null,
     taxes: { tva: Number(g("tpTva")) / 100, is: Number(g("tpIs")) / 100 },
-    signatures: g("tpSig").split(";").map(x => x.trim()).filter(Boolean), columns: BILL_TPL_COLS };
+    signatures: g("tpSig").split(";").map(x => x.trim()).filter(Boolean), roundMode: g("tpRound"), etabliPar: g("tpEtabli"), columns: BILL_TPL_COLS };
   try { if (id) await api("/billing/annexe-templates/" + id, { method: "PUT", body: JSON.stringify(body) });
     else await api("/billing/annexe-templates", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); billingTemplatesView(); }
@@ -4027,6 +4040,13 @@ async function billingDuplicate(id, period) {
 function billTplDownloadX(sheetId) {
   const tid = (document.getElementById("billTplSel") || {}).value; if (!tid) return;
   payDownload(`/billing/sheets/${sheetId}/annexe-template/excel?templateId=${tid}`, `Annexe_${sheetId}.xlsx`);
+}
+
+
+async function billingSaveHeader(id) {
+  const g = (x) => (document.getElementById(x) || {}).value || "";
+  try { const s = await api("/billing/sheets/" + id, { method: "PUT", body: JSON.stringify({ objet: g("hObjet"), bonCommande: g("hPO"), vendeur: g("hVend"), conditionsPaiement: g("hCond"), dateEcheance: g("hEch") }) });
+    BILL_SHEET = s; alert("En-tête enregistré."); } catch (e) { alert(e.message); }
 }
 
 </script>

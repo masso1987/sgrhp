@@ -87,6 +87,67 @@ function seedBilling(tid) {
         { key: "TOTAL_TTC", expr: "MONTANT_HT + TVA", label: "TOTAL TTC", w: 76, bold: true },
       ], createdAt: new Date().toISOString() });
   }
+  if (!(db.billingAnnexeTemplates || []).some(t => (t.tenantId || "t1") === tid && t.code === "BARRY")) {
+    db.billingAnnexeTemplates.push({ id: id("batpl"), tenantId: tid, code: "BARRY",
+      title: "ANNEXE DE FACTURATION DU PERSONNEL : BARRY CALLEBAUT", groupBy: null, roundMode: "unrounded",
+      taxes: { tva: 0.1925, is: 0.022 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"], system: true,
+      columns: [
+        { key: "MAT", source: "field", field: "matricule", label: "MAT", align: "left", w: 55 },
+        { key: "CNPS", source: "field", field: "cnps", label: "CNPS", align: "left", w: 80 },
+        { key: "NOMS", source: "field", field: "name", label: "NOMS ET PRENOMS", align: "left", w: 140 },
+        { key: "POSTE", source: "field", field: "poste", label: "POSTE", align: "left", w: 120 },
+        { key: "JRS", expr: "JOURS", label: "JRS", w: 40 },
+        { key: "SAL_BRUT", expr: "BASE", label: "SAL BRUT", w: 66 },
+        { key: "ALLOC_CONGE", expr: "SAL_BRUT / 12", label: "ALLOC CONGE", w: 62 },
+        { key: "CHARGES", expr: "(SAL_BRUT + ALLOC_CONGE) * 0.162", label: "CHARGES 16,2%", w: 66 },
+        { key: "ASSURANCE", expr: "ASSURANCE", label: "ASSURANCE", w: 60 },
+        { key: "ASSUR_ACC", expr: "ASSUR_ACC", label: "ASSUR. ACC.", w: 60 },
+        { key: "DEPLACEMENT", expr: "DEPLACEMENT", label: "DEPLACEMENT", w: 66 },
+        { key: "FRAIS_MISSION", expr: "FRAIS_MISSION", label: "FRAIS MISSION", w: 66 },
+        { key: "VISITE_MED", expr: "VISITE_MED", label: "VISITE MED.", w: 60 },
+        { key: "TOTAL_A", expr: "SAL_BRUT + ALLOC_CONGE + CHARGES + ASSURANCE + ASSUR_ACC + DEPLACEMENT + FRAIS_MISSION + VISITE_MED", label: "TOTAL A", w: 70, bold: true },
+        { key: "FRAIS_GEST", expr: "TOTAL_A * 0.10", label: "FRAIS GEST. 10%", w: 66 },
+        { key: "TOTAL_HT", expr: "TOTAL_A + FRAIS_GEST", label: "TOTAL HT", w: 70, bold: true },
+        { key: "RET_IS", expr: "TOTAL_HT * 0.022", label: "RET. IS 2,2%", w: 62 },
+        { key: "NET_PERC", expr: "TOTAL_HT - RET_IS", label: "NET A PERC.", w: 66 },
+        { key: "TVA", expr: "TOTAL_HT * 0.1925", label: "TVA 19,25%", w: 62 },
+        { key: "TOTAL_B", expr: "TOTAL_HT + TVA", label: "TOTAL B", w: 76, bold: true },
+      ], createdAt: new Date().toISOString() });
+  }
+  if (!(db.billingAnnexeTemplates || []).some(t => (t.tenantId || "t1") === tid && t.code === "LG")) {
+    db.billingAnnexeTemplates.push({ id: id("batpl"), tenantId: tid, code: "LG",
+      title: "Annexe Mensuelle - LG", groupBy: "poste", etabliPar: "Administrator", roundMode: "rounded",
+      taxes: { tva: 0.1925, is: 0 }, signatures: [], system: true,
+      columns: [
+        { key: "REF", source: "field", field: "ref", label: "REF.", align: "left", w: 70 },
+        { key: "EMPLOYE", source: "field", field: "name", label: "EMPLOYE", align: "left", w: 130 },
+        { key: "CAT", source: "field", field: "cat", label: "CAT", align: "left", w: 36 },
+        { key: "BASIC", expr: "BASIC", label: "BASIC", w: 58 },
+        { key: "RATION", expr: "RATION", label: "RATION", w: 52 },
+        { key: "SALISSURE", expr: "SALISSURE", label: "SALISSURE", w: 58 },
+        { key: "ASSIDUITY", expr: "ASSIDUITY", label: "ASSIDUITY", w: 55 },
+        { key: "LODGING", expr: "LODGING", label: "LODGING", w: 55 },
+        { key: "TRANSPORTATION", expr: "TRANSPORTATION", label: "TRANSPORTATION", w: 66 },
+        { key: "REPRESENTATION", expr: "REPRESENTATION", label: "REPRESENTATION", w: 66 },
+        { key: "INTERESSEMENT", expr: "INTERESSEMENT", label: "INTERESSEMENT", w: 60 },
+        { key: "SALAIRE_BRUT", expr: "BASIC + RATION + SALISSURE + ASSIDUITY + LODGING + TRANSPORTATION + REPRESENTATION + INTERESSEMENT", label: "SALAIRE BRUT", w: 66, bold: true },
+        { key: "PROV_13E", expr: "PROV_13E", label: "PROV.13E", w: 55 },
+        { key: "SENIORITY", expr: "SENIORITY", label: "SENIORITY", w: 55 },
+        { key: "ADVANCE", expr: "ADVANCE", label: "AUTOMATIC ADVANCE", w: 66 },
+        { key: "PAID_LEAVES", expr: "PAID_LEAVES", label: "PAID LEAVES", w: 60 },
+        { key: "SOUS_TOTAL_1", expr: "SALAIRE_BRUT + PROV_13E + SENIORITY + ADVANCE + PAID_LEAVES", label: "SOUS-TOTAL 1", w: 66, bold: true },
+        { key: "CHARGES", expr: "SOUS_TOTAL_1 * 0.162", label: "CHARGES 16,20%", w: 62 },
+        { key: "ASSURANCE", expr: "ASSURANCE", label: "ASSURANCE", w: 58 },
+        { key: "MEDICAL", expr: "MEDICAL", label: "MEDICAL VISIT", w: 60 },
+        { key: "TOTAL_CHARGES", expr: "SOUS_TOTAL_1 + CHARGES + ASSURANCE + MEDICAL", label: "TOTAL CHARGES", w: 66 },
+        { key: "FRAIS_GESTION", expr: "TOTAL_CHARGES * 0.10", label: "FRAIS GESTION", w: 62 },
+        { key: "ADMIN", expr: "ADMIN", label: "ADMIN. CHARGES", w: 60 },
+        { key: "SOUS_TOTAL_2", expr: "TOTAL_CHARGES + FRAIS_GESTION + ADMIN", label: "SOUS-TOTAL 2", w: 66, bold: true },
+        { key: "MONTANT_HT", expr: "SOUS_TOTAL_2", label: "MONTANT HT", w: 66, bold: true },
+        { key: "TVA", expr: "MONTANT_HT * 0.1925", label: "TVA", w: 58 },
+        { key: "MONTANT_TTC", expr: "MONTANT_HT + TVA", label: "MONTANT TTC", w: 70, bold: true },
+      ], createdAt: new Date().toISOString() });
+  }
   save();
 }
 

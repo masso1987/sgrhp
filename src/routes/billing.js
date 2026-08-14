@@ -98,6 +98,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
     clientBlock: b.clientBlock || {}, bankBlock: b.bankBlock || {},
     numberFormat: b.numberFormat || "CLIENT/AAAA/MM/####", invoiceStyle: b.invoiceStyle || "lines",
     isEnabled: !!b.isEnabled, isRate: b.isRate != null ? Number(b.isRate) : 0.022, invoiceSeqPrefix: b.invoiceSeqPrefix || "029",
+    journalId: b.journalId || "", defaultAccount: b.defaultAccount || "701100", conditionsPaiement: b.conditionsPaiement || "Immédiat", vendeur: b.vendeur || "",
     prorate: b.prorate || "base", anciennete: b.anciennete !== false, tvaExonere: !!b.tvaExonere,
     rates: Object.assign({}, DEFAULT_RATES, b.rates || {}),
     components: Array.isArray(b.components) ? b.components : [],
@@ -109,7 +110,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
 router.put("/contracts/:id", allow("ADM"), (req, res) => {
   const c = contractOf(req, req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix"])
+  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix", "journalId", "defaultAccount", "conditionsPaiement", "vendeur"])
     if (b[k] !== undefined) c[k] = b[k];
   if (b.rates) c.rates = Object.assign({}, DEFAULT_RATES, c.rates || {}, b.rates);
   save(); audit(req.user, "UPDATED", "BillingContract", c.id, {}); res.json(c);
@@ -148,7 +149,9 @@ router.post("/sheets", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const number = (contract.numberFormat || "CLIENT/AAAA/MM/####")
     .replace("CLIENT", contract.clientCode || "CLI").replace("AAAA", yy).replace("MM", mm).replace(/#+/, String(seq).padStart(4, "0"));
   const sheet = stamp({ id: id("bsht"), contractId: contract.id, period: b.period, number,
-    status: "draft", stage: "devis", lines: Array.isArray(b.lines) ? b.lines : [], createdAt: new Date().toISOString() }, req);
+    status: "draft", stage: "devis", objet: b.objet || "", bonCommande: b.bonCommande || "", vendeur: b.vendeur || "",
+    conditionsPaiement: b.conditionsPaiement || (contract.conditionsPaiement || "Immédiat"), dateEcheance: b.dateEcheance || "",
+    lines: Array.isArray(b.lines) ? b.lines : [], createdAt: new Date().toISOString() }, req);
   db.billingSheets.push(sheet); save();
   audit(req.user, "CREATED", "BillingSheet", sheet.id, { client: contract.clientName, period: b.period });
   res.status(201).json(withCompute(sheet, req));
@@ -158,6 +161,7 @@ router.put("/sheets/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (!s) return res.status(404).json({ error: "Fiche introuvable" });
   if (s.status === "validated") return res.status(409).json({ error: "Fiche validée — lecture seule" });
   if (Array.isArray(req.body.lines)) s.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("bln") }, l));
+  for (const k of ["objet", "bonCommande", "conditionsPaiement", "vendeur", "dateEcheance"]) if (req.body[k] !== undefined) s[k] = req.body[k];
   save(); audit(req.user, "UPDATED", "BillingSheet", s.id, { lines: s.lines.length }); res.json(withCompute(s, req));
 });
 router.post("/sheets/:id/validate", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
@@ -345,7 +349,9 @@ router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (re
   doc.pipe(res);
   _drawHeader(doc, co, c.clientBlock, "FACTURE / PROFORMA");
   doc.font("Helvetica-Bold").fontSize(9).text("N° " + (s.number || ""), 360, 118); doc.font("Helvetica").fontSize(9).text("Date : " + s.period, 360, 130);
-  doc.font("Helvetica-Bold").fontSize(9).text(`Objet : Mise à disposition — ${s.period}`, 28, 118);
+  doc.font("Helvetica-Bold").fontSize(9).text(`Objet : ${s.objet || "Mise à disposition — " + s.period}`, 28, 118);
+  if (s.bonCommande) doc.font("Helvetica").fontSize(8).text("Bon de commande : " + s.bonCommande, 28, 130);
+  if (s.invoiceNumber) doc.font("Helvetica-Bold").fontSize(9).text("Facture N° " + s.invoiceNumber, 360, 142);
   let y = 150; const x0 = 28, W = 539;
   const T = (cx, yy, v, w, al, b) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(9).text(v == null ? "" : String(v), cx + 3, yy, { width: w - 6, align: al || "left", lineBreak: false });
   if (style === "proforma") {
@@ -397,14 +403,14 @@ router.post("/annexe-templates", allow("ADM"), (req, res) => {
   if (!b.title) return res.status(400).json({ error: "Titre obligatoire" });
   const t = stamp({ id: id("batpl"), code: b.code || b.title.slice(0, 16).toUpperCase().replace(/[^A-Z0-9]/g, "_"),
     title: b.title, contractId: b.contractId || null, groupBy: b.groupBy || null,
-    taxes: b.taxes || { tva: 0.1925, is: 0 }, signatures: b.signatures || [], etabliPar: b.etabliPar || "",
+    taxes: b.taxes || { tva: 0.1925, is: 0 }, signatures: b.signatures || [], etabliPar: b.etabliPar || "", roundMode: b.roundMode || "unrounded",
     columns: Array.isArray(b.columns) ? b.columns : [], createdAt: new Date().toISOString() }, req);
   db.billingAnnexeTemplates.push(t); save();
   audit(req.user, "CREATED", "BillingAnnexeTemplate", t.id, { title: t.title }); res.status(201).json(t);
 });
 router.put("/annexe-templates/:id", allow("ADM"), (req, res) => {
   const t = tplOf(req, req.params.id); if (!t) return res.status(404).json({ error: "Modèle introuvable" });
-  for (const k of ["title", "code", "contractId", "groupBy", "taxes", "signatures", "etabliPar", "columns"])
+  for (const k of ["title", "code", "contractId", "groupBy", "taxes", "signatures", "etabliPar", "roundMode", "columns"])
     if (req.body[k] !== undefined) t[k] = req.body[k];
   save(); audit(req.user, "UPDATED", "BillingAnnexeTemplate", t.id, {}); res.json(t);
 });
