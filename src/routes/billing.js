@@ -49,6 +49,11 @@ const contractOf = (req, cid) => mine(db.billingContracts, req).find(c => c.id =
 function withCompute(sheet, req) {
   const contract = contractOf(req, sheet.contractId) || { billingType: "MAD", rates: {} };
   const computed = computeSheet(sheet, contract);
+  const isRate = contract.isEnabled ? Number(contract.isRate || (contract.rates || {}).is || 0) : 0;
+  const t = computed.totals;
+  t.IS = Math.round((t.HT || 0) * isRate);       // retenue à la source
+  t.netAPerc = (t.HT || 0) - t.IS;               // net à percevoir (HT - IS)
+  t.totalDu = (t.HT || 0) + (t.TVA || 0) - t.IS; // montant dû = HT + TVA - IS
   return Object.assign({}, sheet, { computed, contract });
 }
 
@@ -92,6 +97,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
     clientName: b.clientName, billingType: b.billingType || "MAD",
     clientBlock: b.clientBlock || {}, bankBlock: b.bankBlock || {},
     numberFormat: b.numberFormat || "CLIENT/AAAA/MM/####", invoiceStyle: b.invoiceStyle || "lines",
+    isEnabled: !!b.isEnabled, isRate: b.isRate != null ? Number(b.isRate) : 0.022, invoiceSeqPrefix: b.invoiceSeqPrefix || "029",
     prorate: b.prorate || "base", anciennete: b.anciennete !== false, tvaExonere: !!b.tvaExonere,
     rates: Object.assign({}, DEFAULT_RATES, b.rates || {}),
     components: Array.isArray(b.components) ? b.components : [],
@@ -103,7 +109,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
 router.put("/contracts/:id", allow("ADM"), (req, res) => {
   const c = contractOf(req, req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping"])
+  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix"])
     if (b[k] !== undefined) c[k] = b[k];
   if (b.rates) c.rates = Object.assign({}, DEFAULT_RATES, c.rates || {}, b.rates);
   save(); audit(req.user, "UPDATED", "BillingContract", c.id, {}); res.json(c);
@@ -142,7 +148,7 @@ router.post("/sheets", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const number = (contract.numberFormat || "CLIENT/AAAA/MM/####")
     .replace("CLIENT", contract.clientCode || "CLI").replace("AAAA", yy).replace("MM", mm).replace(/#+/, String(seq).padStart(4, "0"));
   const sheet = stamp({ id: id("bsht"), contractId: contract.id, period: b.period, number,
-    status: "draft", lines: Array.isArray(b.lines) ? b.lines : [], createdAt: new Date().toISOString() }, req);
+    status: "draft", stage: "devis", lines: Array.isArray(b.lines) ? b.lines : [], createdAt: new Date().toISOString() }, req);
   db.billingSheets.push(sheet); save();
   audit(req.user, "CREATED", "BillingSheet", sheet.id, { client: contract.clientName, period: b.period });
   res.status(201).json(withCompute(sheet, req));
@@ -356,7 +362,9 @@ router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (re
   }
   y += 6; doc.lineWidth(0.6).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 5;
   const tot = (lbl, v, b) => { T(x0 + 300, y, lbl, 120, "right", b); T(x0 + 420, y, _NF(v) + " FCFA", W - 420, "right", b); y += 15; };
-  tot("Total HT", t.HT, true); tot(c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA); tot("TOTAL TTC", t.TTC, true);
+  tot("Total HT", t.HT, true); tot(c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA);
+  if (t.IS) tot("IS (retenue)", -t.IS);
+  tot(t.IS ? "TOTAL À PAYER" : "TOTAL TTC", t.IS ? t.totalDu : t.TTC, true);
   y += 8; doc.font("Helvetica-Oblique").fontSize(9).text("Arrêtée la présente facture à la somme de : " + enLettres(t.TTC) + " francs CFA.", x0, y, { width: W });
   y = doc.y + 14; const bk = c.bankBlock || {}; if (bk.banque) { doc.font("Helvetica-Bold").fontSize(9).text("Coordonnées bancaires", x0, y); doc.font("Helvetica").fontSize(9).text(`${bk.banque}   ${bk.compte || ""}`, x0, y + 12); }
   audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "facture", format: "pdf", style }); doc.end();
@@ -368,7 +376,9 @@ router.get("/sheets/:id/invoice/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (
   const aoa = [[_company().name], [c.clientName], ["Facture N°", s.number, "Période", s.period], []];
   if (style === "proforma") { aoa.push(["Description", "Montant HT"]); for (const [lbl, amt] of _proformaLines(s, D.computed, c)) aoa.push([lbl, amt]); }
   else { aoa.push(["#", "Désignation", "Qté", "Montant HT"]); let n = 0; for (const l of D.computed.lines) aoa.push([++n, `${l.name}${l.poste ? " — " + l.poste : ""}`, 1, l.HT]); }
-  aoa.push([]); aoa.push(["", "", "Total HT", t.HT]); aoa.push(["", "", c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA]); aoa.push(["", "", "TOTAL TTC", t.TTC]);
+  aoa.push([]); aoa.push(["", "", "Total HT", t.HT]); aoa.push(["", "", c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA]);
+  if (t.IS) aoa.push(["", "", "IS (retenue)", -t.IS]);
+  aoa.push(["", "", t.IS ? "TOTAL À PAYER" : "TOTAL TTC", t.IS ? t.totalDu : t.TTC]);
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Facture");
   audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "facture", format: "xlsx", style });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -448,6 +458,63 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
   totalRow(A.total, "TOTAL GÉNÉRAL (" + A.count + ")");
   if ((t.signatures || []).length) { y = Math.min(y + 24, 560); const sw = W / t.signatures.length; t.signatures.forEach((sig, i) => doc.font("Helvetica-Bold").fontSize(8).text(sig, x0 + i * sw, y, { width: sw, align: "center" })); }
   audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe-template", format: "pdf" }); doc.end();
+});
+
+/* ==================== CYCLE DE VIE + DUPLICATION ==================== */
+router.post("/sheets/:id/stage", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  if (s.posted && (req.body || {}).to !== "unpost") return res.status(409).json({ error: "Facture comptabilisée — verrouillée" });
+  const order = ["devis", "commande", "facture"]; s.stage = s.stage || "devis";
+  const to = (req.body || {}).to;
+  if (to === "back") { const i = order.indexOf(s.stage); if (i > 0) s.stage = order[i - 1]; s.posted = false; }
+  else if (order.includes(to)) {
+    s.stage = to;
+    if (to === "facture" && !s.invoiceNumber) {
+      const contract = contractOf(req, s.contractId) || {}; const [yy, mm] = s.period.split("-");
+      const seq = mine(db.billingSheets, req).filter(x => x.invoiceNumber && x.period.slice(0, 4) === yy).length + 1;
+      s.invoiceNumber = `${contract.invoiceSeqPrefix || "029"}/${yy}/${mm}/${String(seq).padStart(5, "0")}`;
+    }
+  } else if (to === "post") { if (s.stage === "facture") s.posted = true; }
+  else if (to === "unpost") { s.posted = false; }
+  save(); audit(req.user, "STAGE", "BillingSheet", s.id, { stage: s.stage, posted: !!s.posted });
+  res.json({ ok: true, stage: s.stage, posted: !!s.posted, invoiceNumber: s.invoiceNumber || null });
+});
+
+router.post("/sheets/:id/duplicate", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const period = (req.body || {}).period;
+  if (!/^\d{4}-\d{2}$/.test(period || "")) return res.status(400).json({ error: "Période AAAA-MM requise" });
+  const contract = contractOf(req, s.contractId) || {};
+  if (mine(db.billingSheets, req).some(x => x.contractId === s.contractId && x.period === period))
+    return res.status(409).json({ error: "Une fiche existe déjà pour ce client et cette période" });
+  const [yy, mm] = period.split("-");
+  const seq = mine(db.billingSheets, req).filter(x => x.period === period).length + 1;
+  const number = (contract.numberFormat || "CLIENT/AAAA/MM/####")
+    .replace("CLIENT", contract.clientCode || "CLI").replace("AAAA", yy).replace("MM", mm).replace(/#+/, String(seq).padStart(4, "0"));
+  const copy = stamp({ id: id("bsht"), contractId: s.contractId, period, number, status: "draft", stage: "devis",
+    lines: (s.lines || []).map(l => Object.assign({}, l, { id: id("bln") })), createdAt: new Date().toISOString() }, req);
+  db.billingSheets.push(copy); save();
+  audit(req.user, "DUPLICATED", "BillingSheet", copy.id, { from: s.id, period });
+  res.status(201).json(withCompute(copy, req));
+});
+
+/* Template-driven annexe — Excel */
+router.get("/sheets/:id/annexe-template/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const t = tplOf(req, req.query.templateId); if (!t) return res.status(400).json({ error: "Modèle d'annexe requis" });
+  const contract = contractOf(req, s.contractId) || { billingType: "MAD", rates: {} };
+  const A = computeAnnexe(t, s.lines || [], contract); const XLSX = require("xlsx"); const cols = t.columns || [];
+  const rowVals = (r) => cols.map(c => r.cells[c.key]);
+  const aoa = [cols.map(c => c.label || c.key)];
+  if (A.groups) { for (const g of Object.keys(A.groups).sort()) { aoa.push([g]); for (const r of A.groups[g]) aoa.push(rowVals(r)); aoa.push(cols.map((c, i) => i === 0 ? ("TOTAL " + g) : (c.source !== "field" ? A.groupTotals[g][c.key] : ""))); } }
+  else { for (const r of A.rows) aoa.push(rowVals(r)); }
+  aoa.push(cols.map((c, i) => i === 0 ? "TOTAL GÉNÉRAL" : (c.source !== "field" ? A.total[c.key] : "")));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Annexe");
+  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe-template", format: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="Annexe_${s.period}.xlsx"`); res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
 module.exports = router;

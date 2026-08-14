@@ -65,6 +65,28 @@ function seedBilling(tid) {
         { key: "TOTAL_TTC", expr: "TOTAL_HT + TVA", label: "TOTAL TTC", w: 76, bold: true },
       ], createdAt: new Date().toISOString() });
   }
+  if (!(db.billingAnnexeTemplates || []).some(t => (t.tenantId || "t1") === tid && t.code === "CIMPOR_PRESTATION")) {
+    db.billingAnnexeTemplates.push({ id: id("batpl"), tenantId: tid, code: "CIMPOR_PRESTATION",
+      title: "ANNEXE DE FACTURATION : CIMPOR PRESTATION", groupBy: "poste",
+      taxes: { tva: 0.1925, is: 0 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"], system: true,
+      columns: [
+        { key: "NOMS", source: "field", field: "name", label: "NOMS ET PRENOMS", align: "left", w: 150 },
+        { key: "POSITION", source: "field", field: "poste", label: "POSITION", align: "left", w: 110 },
+        { key: "SALAIRES_NETS", expr: "SALAIRES_NETS", label: "SALAIRES NETS", w: 66 },
+        { key: "JOURS", expr: "JOURS", label: "JOURS", w: 44 },
+        { key: "COUT_MENSUEL", expr: "COUT_MENSUEL", label: "COÛT MENSUEL", w: 70 },
+        { key: "HS120", expr: "HS120", label: "HS120", w: 52 },
+        { key: "HS130", expr: "HS130", label: "HS130", w: 52 },
+        { key: "HS_FERIE", expr: "HS_FERIE", label: "HS FÉRIÉ", w: 55 },
+        { key: "PANIER_NUIT", expr: "PANIER_NUIT", label: "PANIER NUIT", w: 60 },
+        { key: "REMB_TRANSP", expr: "REMB_TRANSP", label: "REMB.TRANSP", w: 62 },
+        { key: "COUT_HT", expr: "COUT_MENSUEL * JOURS / 30 + HS120 + HS130 + HS_FERIE + PANIER_NUIT + REMB_TRANSP", label: "COÛT HT", w: 70, bold: true },
+        { key: "FG", expr: "COUT_HT * 0.10", label: "FG 10%", w: 60 },
+        { key: "MONTANT_HT", expr: "COUT_HT + FG", label: "MONTANT HT", w: 72, bold: true },
+        { key: "TVA", expr: "MONTANT_HT * 0.1925", label: "TVA", w: 62 },
+        { key: "TOTAL_TTC", expr: "MONTANT_HT + TVA", label: "TOTAL TTC", w: 76, bold: true },
+      ], createdAt: new Date().toISOString() });
+  }
   save();
 }
 

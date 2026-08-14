@@ -3650,7 +3650,7 @@ async function billingSheetOpen(id) {
       ${type === "MAD" ? `<button class="btn ghost sm" onclick="billingImportPaie()">👥 Importer depuis la Paie</button>` : ""}
       <button class="btn ghost sm" onclick="billingCarry()">↻ Reprendre mois préc.</button>` : ""}
     <span style="flex:1"></span>
-    <b>HT ${fCFA(t.HT)} · TVA ${fCFA(t.TVA)} · <span style="color:var(--green)">TTC ${fCFA(t.TTC)}</span></b>
+    <b>HT ${fCFA(t.HT)} · TVA ${fCFA(t.TVA)}${t.IS?` · IS -${fCFA(t.IS)}`:""} · <span style="color:var(--green)">${t.IS?"À payer "+fCFA(t.totalDu):"TTC "+fCFA(t.TTC)}</span></b>
     ${ME.role !== "UI" ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "✓ Valider"}</button>` : ""}
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/pdf','Annexe_${s.period}.pdf')">⬇ Annexe PDF</button>
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/excel','Annexe_${s.period}.xlsx')">⬇ Annexe Excel</button>
@@ -3814,6 +3814,9 @@ async function billingContractModal(cid) {
         <div><label>Ancienneté auto</label><select id="ccAnc"><option value="1" ${c.anciennete !== false ? "selected" : ""}>Oui</option><option value="0" ${c.anciennete === false ? "selected" : ""}>Non</option></select></div>
         <div><label>TVA exonérée</label><select id="ccExo"><option value="0" ${!c.tvaExonere ? "selected" : ""}>Non</option><option value="1" ${c.tvaExonere ? "selected" : ""}>Oui</option></select></div>
         <div><label>Provision fin (0=off)</label><input id="rFin" type="number" value="${R.finContrat || 0}"></div>
+        <div><label>IS (retenue) activé</label><select id="ccIs"><option value="0" ${!c.isEnabled?"selected":""}>Non</option><option value="1" ${c.isEnabled?"selected":""}>Oui</option></select></div>
+        <div><label>Taux IS %</label><input id="ccIsRate" type="number" step="0.1" value="${((c.isRate!=null?c.isRate:0.022)*100)}"></div>
+        <div><label>Préfixe n° facture</label><input id="ccSeq" value="${esc(c.invoiceSeqPrefix||"029")}"></div>
       </div>
       <b style="font-size:12px;color:var(--muted)">COMPOSANTS ACTIFS</b>
       <div class="grid2" style="margin-top:4px">${comps.map(cp => `<label class="chk"><input type="checkbox" data-comp="${cp.code}" ${active.has(cp.code) ? "checked" : ""}><span>${esc(cp.label)} <span class="tag gray">${cp.stage}</span></span></label>`).join("")}</div>
@@ -3839,7 +3842,8 @@ async function billingSaveContract(cid) {
     prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1", invoiceStyle: g("ccStyle"),
     rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
       congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
-    components, clientBlock: { adresse: g("cbAddr"), niu: g("cbNiu"), rccm: g("cbRccm") }, bankBlock: { banque: g("cbBank") } };
+    components, clientBlock: { adresse: g("cbAddr"), niu: g("cbNiu"), rccm: g("cbRccm") }, bankBlock: { banque: g("cbBank") },
+    isEnabled: g("ccIs") === "1", isRate: (+g("ccIsRate") || 0) / 100, invoiceSeqPrefix: g("ccSeq") };
   try { if (cid) await api("/billing/contracts/" + cid, { method: "PUT", body: JSON.stringify(body) });
     else await api("/billing/contracts", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); billingCfgView(); }
@@ -3991,11 +3995,38 @@ async function billTplLoad(sheetId) {
   box.innerHTML = `<b style="font-size:12px;color:var(--muted)">ANNEXE PAR MODÈLE CONFIGURABLE</b>
     <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
       <select id="billTplSel" style="min-width:280px;margin:0">${tpls.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("")}</select>
-      <button class="btn ghost sm" onclick="billTplDownload('${sheetId}')">⬇ Annexe (modèle) PDF</button></div>`;
+      <button class="btn ghost sm" onclick="billTplDownload('${sheetId}')">⬇ Annexe (modèle) PDF</button>
+      <button class="btn ghost sm" onclick="billTplDownloadX('${sheetId}')">⬇ Excel</button></div>`;
 }
 function billTplDownload(sheetId) {
   const tid = (document.getElementById("billTplSel") || {}).value; if (!tid) return;
   payDownload(`/billing/sheets/${sheetId}/annexe-template/pdf?templateId=${tid}`, `Annexe_${sheetId}.pdf`);
+}
+
+
+/* ---- Facturation V2 : cycle de vie + duplication ---- */
+function billStageBar(s) {
+  const order = ["devis", "commande", "facture"]; const st = s.stage || "devis"; const i = order.indexOf(st);
+  const lbl = { devis: "Devis", commande: "Commande", facture: "Facture" };
+  let h = `<span class="tag ${st === "facture" ? "green" : "amber"}">${lbl[st]}${s.posted ? " · Comptabilisé 🔒" : ""}${s.invoiceNumber ? " · " + esc(s.invoiceNumber) : ""}</span>`;
+  if (!s.posted) {
+    if (i > 0) h += `<button class="btn ghost sm" onclick="billingStage('${s.id}','back')">◀</button>`;
+    if (i < 2) h += `<button class="btn p sm" onclick="billingStage('${s.id}','${order[i + 1]}')">→ ${lbl[order[i + 1]]}</button>`;
+    if (st === "facture") h += `<button class="btn sm" style="background:var(--green);color:#fff" onclick="billingStage('${s.id}','post')">🔒 Comptabiliser</button>`;
+  } else h += `<button class="btn ghost sm" onclick="billingStage('${s.id}','unpost')">Rouvrir</button>`;
+  return h;
+}
+async function billingStage(id, to) { try { await api("/billing/sheets/" + id + "/stage", { method: "POST", body: JSON.stringify({ to }) }); billingSheetOpen(id); } catch (e) { alert(e.message); } }
+async function billingDuplicate(id, period) {
+  const [yy, mm] = period.split("-"); const nd = new Date(Number(yy), Number(mm), 1);
+  const np = nd.getFullYear() + "-" + String(nd.getMonth() + 1).padStart(2, "0");
+  const per = prompt("Dupliquer cette fiche vers quelle période (AAAA-MM) ?", np); if (!per) return;
+  try { const s = await api("/billing/sheets/" + id + "/duplicate", { method: "POST", body: JSON.stringify({ period: per }) }); billingSheetOpen(s.id); }
+  catch (e) { alert(e.message); }
+}
+function billTplDownloadX(sheetId) {
+  const tid = (document.getElementById("billTplSel") || {}).value; if (!tid) return;
+  payDownload(`/billing/sheets/${sheetId}/annexe-template/excel?templateId=${tid}`, `Annexe_${sheetId}.xlsx`);
 }
 
 </script>
