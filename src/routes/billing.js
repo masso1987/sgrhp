@@ -9,6 +9,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 const { computeSheet, DEFAULT_RATES } = require("../billing/engine");
+const { computeAnnexe } = require("../billing/annexe");
 const PDFDocument = require("pdfkit");
 
 for (const k of ["billingContracts", "billingComponents", "billingSheets"]) if (!db[k]) db[k] = [];
@@ -372,6 +373,81 @@ router.get("/sheets/:id/invoice/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (
   audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "facture", format: "xlsx", style });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="Facture_${s.period}.xlsx"`); res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+});
+
+/* ==================== ANNEXE TEMPLATES (configurable) ==================== */
+const tplOf = (req, id) => mine(db.billingAnnexeTemplates, req).find(t => t.id === id);
+router.get("/annexe-templates", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) =>
+  res.json(mine(db.billingAnnexeTemplates, req).slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""))));
+router.get("/annexe-templates/:id", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const t = tplOf(req, req.params.id); if (!t) return res.status(404).json({ error: "Modèle introuvable" }); res.json(t);
+});
+router.post("/annexe-templates", allow("ADM"), (req, res) => {
+  const b = req.body || {};
+  if (!b.title) return res.status(400).json({ error: "Titre obligatoire" });
+  const t = stamp({ id: id("batpl"), code: b.code || b.title.slice(0, 16).toUpperCase().replace(/[^A-Z0-9]/g, "_"),
+    title: b.title, contractId: b.contractId || null, groupBy: b.groupBy || null,
+    taxes: b.taxes || { tva: 0.1925, is: 0 }, signatures: b.signatures || [], etabliPar: b.etabliPar || "",
+    columns: Array.isArray(b.columns) ? b.columns : [], createdAt: new Date().toISOString() }, req);
+  db.billingAnnexeTemplates.push(t); save();
+  audit(req.user, "CREATED", "BillingAnnexeTemplate", t.id, { title: t.title }); res.status(201).json(t);
+});
+router.put("/annexe-templates/:id", allow("ADM"), (req, res) => {
+  const t = tplOf(req, req.params.id); if (!t) return res.status(404).json({ error: "Modèle introuvable" });
+  for (const k of ["title", "code", "contractId", "groupBy", "taxes", "signatures", "etabliPar", "columns"])
+    if (req.body[k] !== undefined) t[k] = req.body[k];
+  save(); audit(req.user, "UPDATED", "BillingAnnexeTemplate", t.id, {}); res.json(t);
+});
+router.delete("/annexe-templates/:id", allow("ADM"), (req, res) => {
+  const t = tplOf(req, req.params.id); if (!t) return res.status(404).json({ error: "Modèle introuvable" });
+  db.billingAnnexeTemplates.splice(db.billingAnnexeTemplates.indexOf(t), 1); save(); res.json({ ok: true });
+});
+router.post("/annexe-templates/:id/duplicate", allow("ADM"), (req, res) => {
+  const t = tplOf(req, req.params.id); if (!t) return res.status(404).json({ error: "Modèle introuvable" });
+  const copy = stamp(Object.assign(JSON.parse(JSON.stringify(t)), { id: id("batpl"), code: (t.code || "TPL") + "_COPY",
+    title: t.title + " (copie)", system: false, createdAt: new Date().toISOString() }), req);
+  db.billingAnnexeTemplates.push(copy); save(); res.status(201).json(copy);
+});
+
+// Compute a sheet's annexe through a template (JSON)
+router.get("/sheets/:id/annexe-render", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const t = tplOf(req, req.query.templateId); if (!t) return res.status(400).json({ error: "Modèle d'annexe requis" });
+  const contract = contractOf(req, s.contractId) || { billingType: "MAD", rates: {} };
+  res.json(computeAnnexe(t, s.lines || [], contract));
+});
+
+// Template-driven annexe PDF (configurable columns, grouping, signatures)
+router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
+  const t = tplOf(req, req.query.templateId); if (!t) return res.status(400).json({ error: "Modèle d'annexe requis" });
+  const contract = contractOf(req, s.contractId) || { billingType: "MAD", rates: {} };
+  const A = computeAnnexe(t, s.lines || [], contract); const co = _company();
+  const doc = new PDFDocument({ margin: 16, size: "A4", layout: "landscape" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Annexe_${(contract.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
+  doc.pipe(res);
+  _drawHeader(doc, co, contract.clientBlock, t.title || "ANNEXE DE FACTURATION");
+  doc.font("Helvetica").fontSize(8).text(`Client : ${contract.clientName || ""}   ·   Période : ${s.period}`, 24, 104);
+  const cols = t.columns || [];
+  let total = 0; cols.forEach(c => total += (c.w || 60));
+  const avail = 810; const scale = total > avail ? avail / total : 1;
+  const x0 = 16; const xs = []; let x = x0; cols.forEach(c => { xs.push(x); x += (c.w || 60) * scale; }); const W = x - x0;
+  let y = 120;
+  const T = (cx, yy, v, w, al, b, sz) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 6.5).fillColor("#000").text(v == null ? "" : String(v), cx + 1, yy, { width: w - 2, align: al || "right", lineBreak: false });
+  const headRow = () => { doc.rect(x0, y, W, 14).fillAndStroke("#7a1420", "#000"); cols.forEach((c, i) => doc.font("Helvetica-Bold").fontSize(6).fillColor("#fff").text(c.label || c.key, xs[i] + 1, y + 3.5, { width: (c.w || 60) * scale - 2, align: c.align === "left" ? "left" : "right", lineBreak: false })); doc.fillColor("#000"); y += 14; };
+  headRow();
+  const drawRow = (row, bold, bg) => { if (bg) { doc.rect(x0, y, W, 10).fill(bg); doc.fillColor("#000"); }
+    cols.forEach((c, i) => { const v = c.source === "field" ? row.cells[c.key] : _NF(row.cells[c.key]); T(xs[i], y + 1.5, v, (c.w || 60) * scale, c.align === "left" ? "left" : "right", bold || c.bold); });
+    doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 10).lineTo(x0 + W, y + 10).stroke(); y += 10.5;
+    if (y > 555) { doc.addPage({ margin: 16, size: "A4", layout: "landscape" }); y = 30; headRow(); } };
+  const totalRow = (cells, label) => { doc.lineWidth(0.6).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 1.5;
+    cols.forEach((c, i) => { let v = ""; if (i === 0) v = label; else if (c.source !== "field" && cells[c.key] != null) v = _NF(cells[c.key]); T(xs[i], y + 1.5, v, (c.w || 60) * scale, i === 0 ? "left" : "right", true); }); y += 12; };
+  if (A.groups) { for (const g of Object.keys(A.groups).sort()) { for (const r of A.groups[g]) drawRow(r); totalRow(A.groupTotals[g], "TOTAL " + g.toUpperCase()); } }
+  else { for (const r of A.rows) drawRow(r); }
+  totalRow(A.total, "TOTAL GÉNÉRAL (" + A.count + ")");
+  if ((t.signatures || []).length) { y = Math.min(y + 24, 560); const sw = W / t.signatures.length; t.signatures.forEach((sig, i) => doc.font("Helvetica-Bold").fontSize(8).text(sig, x0 + i * sw, y, { width: sw, align: "center" })); }
+  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe-template", format: "pdf" }); doc.end();
 });
 
 module.exports = router;

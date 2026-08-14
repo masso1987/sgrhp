@@ -32,13 +32,40 @@ const COMPONENTS = [
 ];
 
 function seedBilling(tid) {
-  for (const k of ["billingContracts", "billingComponents", "billingSheets"]) if (!db[k]) db[k] = [];
+  for (const k of ["billingContracts", "billingComponents", "billingSheets", "billingAnnexeTemplates"]) if (!db[k]) db[k] = [];
   const has = (db.billingComponents || []).some(c => (c.tenantId || "t1") === tid);
   if (!has) {
     for (const c of COMPONENTS)
       db.billingComponents.push({ id: id("bcmp"), tenantId: tid, ...c, active: true, system: true, createdAt: new Date().toISOString() });
     save();
   }
+  // Example annexe template (configurable) — CIMPOR MAD
+  if (!(db.billingAnnexeTemplates || []).some(t => (t.tenantId || "t1") === tid && t.code === "CIMPOR_MAD")) {
+    db.billingAnnexeTemplates.push({ id: id("batpl"), tenantId: tid, code: "CIMPOR_MAD",
+      title: "ANNEXE DE FACTURATION : CIMPOR MAD", groupBy: null,
+      taxes: { tva: 0.1925, is: 0 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"],
+      etabliPar: "", system: true,
+      columns: [
+        { key: "NOMS", source: "field", field: "name", label: "NOMS ET PRENOMS", align: "left", w: 150 },
+        { key: "POSITION", source: "field", field: "poste", label: "POSITION", align: "left", w: 100 },
+        { key: "PRES", expr: "PRES", label: "PRÉS.", w: 40 },
+        { key: "BASICS", expr: "BASE", label: "BASICS", w: 66 },
+        { key: "TRANSP", expr: "IND_TRANS", label: "TRANSP.", w: 60 },
+        { key: "LOGEM", expr: "IND_LOG", label: "LOGEM.", w: 60 },
+        { key: "SALIS", expr: "SALIS", label: "SALIS.", w: 55 },
+        { key: "RISQUE", expr: "RISQUE", label: "RISQUE", w: 55 },
+        { key: "RESP", expr: "RESP", label: "RESP.", w: 55 },
+        { key: "HS120", expr: "HS120", label: "HS120", w: 50 },
+        { key: "GROSS", expr: "BASICS + TRANSP + LOGEM + SALIS + RISQUE + RESP + HS120", label: "GROSS", w: 70, bold: true },
+        { key: "PROV_CG", expr: "GROSS / 12", label: "PROV.CG", w: 60 },
+        { key: "CH_PAT", expr: "(GROSS + PROV_CG) * 0.162", label: "CH.PAT", w: 60 },
+        { key: "FG", expr: "(GROSS + PROV_CG + CH_PAT) * 0.10", label: "FG 10%", w: 60 },
+        { key: "TOTAL_HT", expr: "GROSS + PROV_CG + CH_PAT + FG", label: "TOTAL HT", w: 72, bold: true },
+        { key: "TVA", expr: "TOTAL_HT * 0.1925", label: "TVA", w: 62 },
+        { key: "TOTAL_TTC", expr: "TOTAL_HT + TVA", label: "TOTAL TTC", w: 76, bold: true },
+      ], createdAt: new Date().toISOString() });
+  }
+  save();
 }
 
 module.exports = { seedBilling, COMPONENTS };

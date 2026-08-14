@@ -33,6 +33,7 @@ const COLLECTIONS = {
   bulletinModels: "bulletin_models", payRuns: "pay_runs", payslips: "payslips",
   payElements: "pay_elements", payCumuls: "pay_cumuls", payLoans: "pay_loans",
   billingContracts: "billing_contracts", billingComponents: "billing_components", billingSheets: "billing_sheets",
+  billingAnnexeTemplates: "billing_annexe_templates",
 };
 
 let pool;

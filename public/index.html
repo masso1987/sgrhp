@@ -3660,7 +3660,9 @@ async function billingSheetOpen(id) {
   <div class="panel"><b style="font-size:12px;color:var(--muted)">SAISIE DES LIGNES</b>
     <div style="overflow-x:auto"><table id="billLines" style="margin-top:6px">${billLinesTable(s, type, open)}</table></div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">ANNEXE CALCULÉE (regroupée par poste)</b>
-    <div style="overflow-x:auto">${billAnnexe(s, type)}</div></div>`;
+    <div style="overflow-x:auto">${billAnnexe(s, type)}</div></div>
+  <div class="panel" id="billTplBox"><small style="color:var(--muted)">Chargement des modèles d'annexe…</small></div>`;
+  billTplLoad(s.id);
 }
 function billLinesTable(s, type, open) {
   const dis = open ? "" : "disabled";
@@ -3766,7 +3768,7 @@ async function billingRecap() {
 async function billingCfgView() {
   const [contracts, comps] = await Promise.all([api("/billing/contracts"), api("/billing/components")]);
   view.innerHTML = `<button class="btn ghost sm" onclick="billingView()">← Fiches</button>
-  <h1 style="margin-top:10px">⚙️ Clients &amp; composants</h1>
+  <h1 style="margin-top:10px">⚙️ Clients &amp; composants <button class="btn ghost sm" style="float:right" onclick="billingTemplatesView()">🧩 Modèles d'annexe</button></h1>
   <div class="panel"><b>Clients (contrats)</b> <button class="btn p sm" style="float:right" onclick="billingContractModal()">+ Nouveau client</button>
     <table style="margin-top:8px"><tr><th>Client</th><th>Code</th><th>Type</th><th>TVA</th><th>Frais gest.</th><th>Congés</th><th></th></tr>
     ${contracts.map(c => `<tr><td><b>${esc(c.clientName)}</b></td><td>${esc(c.clientCode || "")}</td><td>${esc(c.billingType)}</td>
@@ -3909,6 +3911,91 @@ async function billingDoImport() {
     BILL_SHEET = s; document.querySelector(".modal-bg").remove(); billingSheetOpen(s.id);
     alert((s.lines || []).length + " ligne(s) importée(s)."); }
   catch (e) { const el = document.getElementById("imErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+
+
+/* ---- Modèles d'annexe (configurables) ---- */
+async function billingTemplatesView() {
+  const tpls = await api("/billing/annexe-templates");
+  view.innerHTML = `<button class="btn ghost sm" onclick="billingCfgView()">← Config</button>
+  <h1 style="margin-top:10px">🧩 Modèles d'annexe <button class="btn p sm" style="float:right" onclick="billingTplModal()">+ Nouveau modèle</button></h1>
+  <div class="note">Chaque modèle définit les <b>colonnes</b> (par formule), le regroupement, les taxes et les signatures d'une annexe cliente. Une annexe = configuration.</div>
+  <div class="panel"><table><tr><th>Titre</th><th>Code</th><th>Colonnes</th><th>Groupement</th><th></th></tr>
+    ${tpls.length ? tpls.map(t => `<tr><td><b>${esc(t.title)}</b></td><td>${esc(t.code || "")}</td>
+      <td>${(t.columns || []).length}</td><td>${t.groupBy === "poste" ? "Par poste" : "Aucun"}</td>
+      <td><button class="btn ghost sm" onclick="billingTplModal('${t.id}')">✏️</button>
+        <button class="btn ghost sm" onclick="billingTplDup('${t.id}')">⧉</button>
+        <button class="btn ghost sm" style="color:var(--red)" onclick="billingTplDel('${t.id}')">🗑</button></td></tr>`).join("")
+      : '<tr><td colspan="5" style="color:var(--muted)">Aucun modèle — créez-en un ou dupliquez CIMPOR MAD.</td></tr>'}
+  </table></div>`;
+}
+let BILL_TPL_COLS = [];
+async function billingTplModal(id) {
+  const t = id ? await api("/billing/annexe-templates/" + id) : { title: "", code: "", groupBy: null, taxes: { tva: 0.1925, is: 0 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"], columns: [] };
+  BILL_TPL_COLS = JSON.parse(JSON.stringify(t.columns || []));
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="width:760px"><h3 style="margin:0 0 6px">${id ? "Modifier" : "Nouveau"} modèle d'annexe</h3>
+    <div class="scroll" style="max-height:66vh">
+      <div class="grid3">
+        <div><label>Titre (en-tête)</label><input id="tpTitle" value="${esc(t.title || "")}"></div>
+        <div><label>Code</label><input id="tpCode" value="${esc(t.code || "")}"></div>
+        <div><label>Groupement</label><select id="tpGroup"><option value="">Aucun</option><option value="poste" ${t.groupBy === "poste" ? "selected" : ""}>Par poste (sous-totaux)</option></select></div>
+        <div><label>TVA %</label><input id="tpTva" type="number" step="0.01" value="${((t.taxes || {}).tva || 0) * 100}"></div>
+        <div><label>IS % (retenue)</label><input id="tpIs" type="number" step="0.1" value="${((t.taxes || {}).is || 0) * 100}"></div>
+        <div><label>Signatures (séparées par ;)</label><input id="tpSig" value="${esc((t.signatures || []).join("; "))}"></div>
+      </div>
+      <b style="font-size:12px;color:var(--muted)">COLONNES</b>
+      <div class="note" style="margin:4px 0">Source « champ » = nom/poste/cat. Sinon <b>formule</b> sur : <code>BASE, JOURS, PRES</code>, les codes composants (<code>IND_TRANS, HS120…</code>), les valeurs cascade (<code>BRUT, CONGES, CHARGES, FRAIS, HT</code>) et les <b>clés d'autres colonnes</b> (ex. <code>GROSS / 12</code>). Opérateurs + − × ÷ ( ).</div>
+      <div id="tpCols"></div>
+      <button class="btn ghost sm" style="margin-top:6px" onclick="billingTplAddCol()">+ Colonne</button>
+    </div>
+    <div class="err hidden" id="tpErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingTplSave('${id || ""}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg); billingTplRenderCols();
+}
+function billingTplRenderCols() {
+  const box = document.getElementById("tpCols");
+  box.innerHTML = `<table><tr><th>Libellé</th><th>Clé</th><th>Source</th><th>Champ / Formule</th><th>Align</th><th>L.</th><th>G</th><th></th></tr>
+    ${BILL_TPL_COLS.map((c, i) => `<tr>
+      <td><input value="${esc(c.label || "")}" oninput="BILL_TPL_COLS[${i}].label=this.value" style="min-width:110px;margin:0"></td>
+      <td><input value="${esc(c.key || "")}" oninput="BILL_TPL_COLS[${i}].key=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'_')" style="max-width:90px;margin:0"></td>
+      <td><select onchange="BILL_TPL_COLS[${i}].source=this.value;billingTplRenderCols()" style="margin:0"><option value="" ${c.source!=="field"?"selected":""}>formule</option><option value="field" ${c.source==="field"?"selected":""}>champ</option></select></td>
+      <td>${c.source === "field"
+        ? `<select onchange="BILL_TPL_COLS[${i}].field=this.value" style="margin:0"><option value="name" ${c.field==="name"?"selected":""}>nom</option><option value="poste" ${c.field==="poste"?"selected":""}>poste</option><option value="cat" ${c.field==="cat"?"selected":""}>catégorie</option><option value="jours" ${c.field==="jours"?"selected":""}>jours</option></select>`
+        : `<input value="${esc(c.expr || "")}" oninput="BILL_TPL_COLS[${i}].expr=this.value" placeholder="ex. GROSS / 12" style="min-width:170px;margin:0">`}</td>
+      <td><select onchange="BILL_TPL_COLS[${i}].align=this.value" style="margin:0"><option value="right" ${c.align!=="left"?"selected":""}>droite</option><option value="left" ${c.align==="left"?"selected":""}>gauche</option></select></td>
+      <td><input type="number" value="${c.w || 60}" oninput="BILL_TPL_COLS[${i}].w=Number(this.value)" style="max-width:50px;margin:0"></td>
+      <td><input type="checkbox" ${c.bold?"checked":""} onchange="BILL_TPL_COLS[${i}].bold=this.checked" title="gras"></td>
+      <td><button class="btn ghost sm" onclick="BILL_TPL_COLS.splice(${i},1);billingTplRenderCols()">✕</button></td></tr>`).join("")}</table>`;
+}
+function billingTplAddCol() { BILL_TPL_COLS.push({ key: "COL" + (BILL_TPL_COLS.length + 1), label: "", source: "", expr: "", align: "right", w: 60 }); billingTplRenderCols(); }
+async function billingTplSave(id) {
+  const g = (x) => (document.getElementById(x) || {}).value;
+  const body = { title: g("tpTitle"), code: g("tpCode"), groupBy: g("tpGroup") || null,
+    taxes: { tva: Number(g("tpTva")) / 100, is: Number(g("tpIs")) / 100 },
+    signatures: g("tpSig").split(";").map(x => x.trim()).filter(Boolean), columns: BILL_TPL_COLS };
+  try { if (id) await api("/billing/annexe-templates/" + id, { method: "PUT", body: JSON.stringify(body) });
+    else await api("/billing/annexe-templates", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector(".modal-bg").remove(); billingTemplatesView(); }
+  catch (e) { const el = document.getElementById("tpErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+async function billingTplDup(id) { try { await api("/billing/annexe-templates/" + id + "/duplicate", { method: "POST" }); billingTemplatesView(); } catch (e) { alert(e.message); } }
+async function billingTplDel(id) { if (!confirm("Supprimer ce modèle ?")) return; try { await api("/billing/annexe-templates/" + id, { method: "DELETE" }); billingTemplatesView(); } catch (e) { alert(e.message); } }
+
+/* ---- Contrôle « Annexe (modèle) » sur la fiche ---- */
+async function billTplLoad(sheetId) {
+  const box = document.getElementById("billTplBox"); if (!box) return;
+  const tpls = await api("/billing/annexe-templates").catch(() => []);
+  if (!tpls.length) { box.innerHTML = '<small style="color:var(--muted)">Aucun modèle d\'annexe — créez-en un dans ⚙️ Config facturation → 🧩 Modèles d\'annexe.</small>'; return; }
+  box.innerHTML = `<b style="font-size:12px;color:var(--muted)">ANNEXE PAR MODÈLE CONFIGURABLE</b>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+      <select id="billTplSel" style="min-width:280px;margin:0">${tpls.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("")}</select>
+      <button class="btn ghost sm" onclick="billTplDownload('${sheetId}')">⬇ Annexe (modèle) PDF</button></div>`;
+}
+function billTplDownload(sheetId) {
+  const tid = (document.getElementById("billTplSel") || {}).value; if (!tid) return;
+  payDownload(`/billing/sheets/${sheetId}/annexe-template/pdf?templateId=${tid}`, `Annexe_${sheetId}.pdf`);
 }
 
 </script>

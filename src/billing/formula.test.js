@@ -1,0 +1,14 @@
+const { evalFormula } = require("./formula");
+let f = 0; const chk = (n, g, e) => { const ok = Math.abs(g - e) < 1e-6; if (!ok) f++; console.log(`${ok?"✓":"✗"} ${n}: ${g} (attendu ${e})`); };
+const sc = { BASE: 193293, TRANSP: 39000, LOGEM: 92037, SALIS: 20000, RISQUE: 25000, RESP: 50000 };
+chk("addition composants (GROSS)", evalFormula("BASE + TRANSP + LOGEM + SALIS + RISQUE + RESP", sc), 419330);
+sc.GROSS = 419330;
+chk("division (PROV_CG)", Math.round(evalFormula("GROSS / 12", sc)), 34944);
+sc.PROV_CG = 34944;
+chk("parenthèses + %", Math.round(evalFormula("(GROSS + PROV_CG) * 0.162", sc)), 73592);
+chk("priorité * avant +", evalFormula("2 + 3 * 4", {}), 14);
+chk("unaire moins", evalFormula("-5 + 10", {}), 5);
+chk("variable inconnue = 0", evalFormula("MYSTERE + 100", {}), 100);
+chk("division par zéro = 0", evalFormula("100 / 0", {}), 0);
+console.log(`\n${f===0?"PASS":"FAIL"} — ${7-f}/7`);
+process.exit(f?1:0);
