@@ -4048,11 +4048,19 @@ async function billingContractModal(cid) {
       <div class="grid2" id="lfKnown">${LF_KNOWN.map(f => `<label class="chk"><input type="checkbox" onchange="billLFToggle('${f.key}')" ${BILL_LINE_FIELDS.some(x => x.key === f.key) ? "checked" : ""}><span>${esc(f.label)} <span class="tag gray">${f.type}</span></span></label>`).join("")}</div>
       <div id="lfCustom" style="margin-top:4px"></div>
       <button class="btn ghost sm" style="margin-top:4px" onclick="billLFAddCustom()">+ Champ personnalisé</button>
-      <b style="font-size:12px;color:var(--muted)">BLOC CLIENT (facture)</b>
-      <div class="grid2" style="margin-top:4px">
+      <b style="font-size:12px;color:var(--muted)">INFOS CLIENT (destinataire — impression)</b>
+      <div class="note" style="margin:2px 0 4px">Ces informations s'impriment dans le bloc destinataire de la facture et de l'annexe (comme le bloc Cible RH).</div>
+      <div class="grid3" style="margin-top:4px">
+        <div><label>Raison sociale (2e ligne)</label><input id="cbName2" value="${esc((c.clientBlock || {}).name2 || "")}"></div>
         <div><label>Adresse</label><input id="cbAddr" value="${esc((c.clientBlock || {}).adresse || "")}"></div>
-        <div><label>NIU</label><input id="cbNiu" value="${esc((c.clientBlock || {}).niu || "")}"></div>
+        <div><label>Ville</label><input id="cbCity" value="${esc((c.clientBlock || {}).ville || "")}"></div>
+        <div><label>Pays</label><input id="cbPays" value="${esc((c.clientBlock || {}).pays || "")}"></div>
+        <div><label>Boîte postale</label><input id="cbBP" value="${esc((c.clientBlock || {}).bp || "")}"></div>
         <div><label>RCCM</label><input id="cbRccm" value="${esc((c.clientBlock || {}).rccm || "")}"></div>
+        <div><label>NIU / N° contribuable</label><input id="cbNiu" value="${esc((c.clientBlock || {}).niu || "")}"></div>
+        <div><label>N° TVA</label><input id="cbTva" value="${esc((c.clientBlock || {}).nTva || "")}"></div>
+        <div><label>Téléphone</label><input id="cbTel" value="${esc((c.clientBlock || {}).tel || "")}"></div>
+        <div><label>Email</label><input id="cbEmail" value="${esc((c.clientBlock || {}).email || "")}"></div>
         <div><label>Banque (bloc)</label><input id="cbBank" value="${esc((c.bankBlock || {}).banque || "")}"></div>
       </div>
     </div>
@@ -4070,7 +4078,7 @@ async function billingSaveContract(cid) {
     prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1", invoiceStyle: g("ccStyle"),
     rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
       congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
-    components, clientBlock: { adresse: g("cbAddr"), niu: g("cbNiu"), rccm: g("cbRccm") }, bankBlock: { banque: g("cbBank") },
+    components, clientBlock: { name2: g("cbName2"), adresse: g("cbAddr"), ville: g("cbCity"), pays: g("cbPays"), bp: g("cbBP"), rccm: g("cbRccm"), niu: g("cbNiu"), nTva: g("cbTva"), tel: g("cbTel"), email: g("cbEmail") }, bankBlock: { banque: g("cbBank") },
     isEnabled: g("ccIs") === "1", isRate: (+g("ccIsRate") || 0) / 100, invoiceSeqPrefix: g("ccSeq"), journalId: g("ccJournal"), defaultAccount: g("ccAcct2"), lineFields: BILL_LINE_FIELDS };
   try { if (cid) await api("/billing/contracts/" + cid, { method: "PUT", body: JSON.stringify(body) });
     else await api("/billing/contracts", { method: "POST", body: JSON.stringify(body) });
@@ -4192,6 +4200,7 @@ async function billingTplModal(id) {
   const t = id ? await api("/billing/annexe-templates/" + id) : { title: "", code: "", groupBy: null, taxes: { tva: 0.1925, is: 0 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"], columns: [] };
   const _comps = await api("/billing/components").catch(() => []);
   BILL_TPL_COLS = JSON.parse(JSON.stringify(t.columns || []));
+  const r = t.report || {};
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal" style="width:760px"><h3 style="margin:0 0 6px">${id ? "Modifier" : "Nouveau"} modèle d'annexe</h3>
     <div class="scroll" style="max-height:66vh">
@@ -4204,6 +4213,18 @@ async function billingTplModal(id) {
         <div><label>Signatures (séparées par ;)</label><input id="tpSig" value="${esc((t.signatures || []).join("; "))}"></div>
         <div><label>Arrondis</label><select id="tpRound"><option value="unrounded" ${t.roundMode!=="rounded"?"selected":""}>Intermédiaires non arrondis</option><option value="rounded" ${t.roundMode==="rounded"?"selected":""}>Chaque colonne arrondie</option></select></div>
         <div><label>Établi par</label><input id="tpEtabli" value="${esc(t.etabliPar||"")}"></div>
+      </div>
+      <b style="font-size:12px;color:var(--muted)">AFFICHAGE DU RAPPORT (annexe)</b>
+      <div class="grid3" style="margin-top:4px">
+        <div><label>Orientation</label><select id="tpOrient"><option value="landscape" ${r.orientation!=="portrait"?"selected":""}>Paysage</option><option value="portrait" ${r.orientation==="portrait"?"selected":""}>Portrait</option></select></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin:6px 0 2px">
+        <label class="chk"><input type="checkbox" id="tpRHeader" ${r.showHeader!==false?"checked":""}><span>En-tête (papier)</span></label>
+        <label class="chk"><input type="checkbox" id="tpRClient" ${r.showClientBlock!==false?"checked":""}><span>Bloc client</span></label>
+        <label class="chk"><input type="checkbox" id="tpRTitle" ${r.showTitle!==false?"checked":""}><span>Titre</span></label>
+        <label class="chk"><input type="checkbox" id="tpRPeriod" ${r.showPeriod!==false?"checked":""}><span>Ligne période</span></label>
+        <label class="chk"><input type="checkbox" id="tpRTotals" ${r.showTotals!==false?"checked":""}><span>Totaux</span></label>
+        <label class="chk"><input type="checkbox" id="tpRSign" ${r.showSignatures!==false?"checked":""}><span>Signatures</span></label>
       </div>
       <b style="font-size:12px;color:var(--muted)">COLONNES</b>
       <details style="margin:4px 0"><summary style="cursor:pointer;font-size:12px;color:var(--nav-active-color)">💡 Aide formules — cliquez pour les jetons disponibles</summary>
@@ -4242,9 +4263,11 @@ function billingTplRenderCols() {
 function billingTplAddCol() { BILL_TPL_COLS.push({ key: "COL" + (BILL_TPL_COLS.length + 1), label: "", source: "", expr: "", align: "right", w: 60 }); billingTplRenderCols(); }
 async function billingTplSave(id) {
   const g = (x) => (document.getElementById(x) || {}).value;
+  const ck = (x) => !!(document.getElementById(x) || {}).checked;
   const body = { title: g("tpTitle"), code: g("tpCode"), groupBy: g("tpGroup") || null,
     taxes: { tva: Number(g("tpTva")) / 100, is: Number(g("tpIs")) / 100 },
-    signatures: g("tpSig").split(";").map(x => x.trim()).filter(Boolean), roundMode: g("tpRound"), etabliPar: g("tpEtabli"), columns: BILL_TPL_COLS };
+    signatures: g("tpSig").split(";").map(x => x.trim()).filter(Boolean), roundMode: g("tpRound"), etabliPar: g("tpEtabli"),
+    report: { orientation: g("tpOrient"), showHeader: ck("tpRHeader"), showClientBlock: ck("tpRClient"), showTitle: ck("tpRTitle"), showPeriod: ck("tpRPeriod"), showTotals: ck("tpRTotals"), showSignatures: ck("tpRSign") }, columns: BILL_TPL_COLS };
   try { if (id) await api("/billing/annexe-templates/" + id, { method: "PUT", body: JSON.stringify(body) });
     else await api("/billing/annexe-templates", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); billingTemplatesView(); }
