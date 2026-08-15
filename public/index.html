@@ -3667,7 +3667,7 @@ async function billingSheetOpen(id) {
     </div>
     ${open ? `<button class="btn ghost sm" style="margin-top:6px" onclick="billingSaveHeader('${s.id}')">💾 Enregistrer l'en-tête</button>` : ""}</div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">SAISIE DES LIGNES</b>
-    <div style="overflow-x:auto"><table id="billLines" style="margin-top:6px">${billLinesTable(s, type, open)}</table></div></div>
+    <div id="billLines" style="margin-top:6px">${billLinesList(s, open)}</div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">ANNEXE CALCULÉE (regroupée par poste)</b>
     <div style="overflow-x:auto">${billAnnexe(s, type)}</div></div>
   <div class="panel" id="billTplBox"><small style="color:var(--muted)">Chargement des modèles d'annexe…</small></div>`;
@@ -3750,14 +3750,89 @@ function billingCollectLines() {
     return o;
   });
 }
-async function billingSaveLines() {
-  try { const s = await api("/billing/sheets/" + BILL_SHEET.id, { method: "PUT", body: JSON.stringify({ lines: billingCollectLines() }) });
-    BILL_SHEET = s; billingSheetOpen(s.id); } catch (e) { alert(e.message); }
+async function billPutLines() {
+  const s = await api("/billing/sheets/" + BILL_SHEET.id, { method: "PUT", body: JSON.stringify({ lines: BILL_SHEET.lines || [] }) });
+  BILL_SHEET = s; billingSheetOpen(s.id);
 }
-function billingAddLine() { BILL_SHEET.lines = billingCollectLines(); BILL_SHEET.lines.push({ jours: 30 }); rerenderBillLines(); }
-function billingDelLine(i) { const ls = billingCollectLines(); ls.splice(i, 1); BILL_SHEET.lines = ls; rerenderBillLines(); }
-function rerenderBillLines() { const type = (BILL_SHEET.contract.billingType || "MAD").toUpperCase();
-  document.getElementById("billLines").innerHTML = billLinesTable(BILL_SHEET, type, true); }
+async function billingSaveLines() { try { await billPutLines(); } catch (e) { alert(e.message); } }
+function billingAddLine() { (BILL_SHEET.lines = BILL_SHEET.lines || []).push({ jours: 30 }); billLineForm(BILL_SHEET.lines.length - 1); }
+async function billingDelLine(i) { if (!confirm("Supprimer cette ligne ?")) return; BILL_SHEET.lines.splice(i, 1); try { await billPutLines(); } catch (e) { alert(e.message); } }
+function rerenderBillLines() { const el = document.getElementById("billLines"); if (el) el.innerHTML = billLinesList(BILL_SHEET, true); }
+
+/* ===== SAISIE DES LIGNES : liste + formulaire par ligne (style Odoo) ===== */
+function billLineComputed(id) { for (const g of Object.values((BILL_SHEET.computed || {}).groups || {})) for (const cl of g) if (cl.id === id) return cl; return null; }
+function billLinesList(s, open) {
+  const rows = (s.lines || []).map((l, i) => {
+    const cp = billLineComputed(l.id);
+    return `<tr>
+      <td><b>${esc(l.name || "(sans nom)")}</b></td>
+      <td>${esc(l.poste || "")}</td>
+      <td class="r">${l.jours != null ? l.jours : 30}</td>
+      <td class="r">${cp ? fCFA(cp.HT || 0) : "—"}</td>
+      <td class="r">${cp ? fCFA(cp.TTC || 0) : "—"}</td>
+      <td style="white-space:nowrap">${open ? `<button class="btn ghost sm" onclick="billLineForm(${i})">✏️ Ouvrir</button> <button class="btn ghost sm" style="color:var(--red)" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
+  }).join("");
+  return `<style>#billLines td.r,#billLines th.r{text-align:right}</style>
+    <table><tr><th>Nom</th><th>Poste</th><th class="r">Jours</th><th class="r">HT</th><th class="r">TTC</th><th></th></tr>
+    ${rows || `<tr><td colspan="6" style="color:var(--muted)">Aucune ligne — cliquez « + Ligne ».</td></tr>`}</table>`;
+}
+let BILL_LINE_EDIT = null, BILL_LINE_IDX = -1;
+function billLineSetField(key, type, val) { BILL_LINE_EDIT[key] = type === "number" ? Number(val || 0) : val; }
+function billLineSetComp(code, key, val) { const c = BILL_LINE_EDIT.components = BILL_LINE_EDIT.components || {}; const n = Number(val || 0); if (n) c[code] = { [key]: n }; else delete c[code]; }
+function billIdField(f) { const t = f.type === "date" ? "date" : (f.type === "number" ? "number" : "text"); const v = BILL_LINE_EDIT[f.key] != null ? BILL_LINE_EDIT[f.key] : ""; return `<div class="lf-row"><label>${esc(f.label)}</label><input type="${t}" value="${esc(String(v))}" oninput="billLineSetField('${esc(f.key)}','${f.type}',this.value)"></div>`; }
+function billNumField(key, label) { const v = BILL_LINE_EDIT[key] != null ? BILL_LINE_EDIT[key] : (key === "jours" ? 30 : 0); return `<div class="lf-row"><label>${label}</label><input type="number" value="${v}" oninput="billLineSetField('${key}','number',this.value)"></div>`; }
+function billCompField(c) { const key = c.inputMode === "heures" ? "heures" : (c.inputMode === "quantite" ? "quantite" : "montant"); const v = ((BILL_LINE_EDIT.components || {})[c.code] || {})[key] || ""; const sfx = key === "heures" ? " (h)" : key === "quantite" ? " (qté)" : ""; return `<div class="lf-row"><label>${esc(c.label)}${sfx}</label><input type="number" value="${v}" oninput="billLineSetComp('${c.code}','${key}',this.value)"></div>`; }
+function billTab(el, name) { const m = el.closest(".modal"); m.querySelectorAll(".bl-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name)); m.querySelectorAll(".bl-pane").forEach(p => p.classList.toggle("active", p.dataset.tab === name)); }
+function billLineForm(i) {
+  BILL_LINE_IDX = i; BILL_LINE_EDIT = JSON.parse(JSON.stringify(BILL_SHEET.lines[i] || { jours: 30 }));
+  const c = BILL_SHEET.contract, type = (c.billingType || "MAD").toUpperCase();
+  const lf = (c.lineFields && c.lineFields.length) ? c.lineFields : [{ key: "poste", label: "Poste", type: "text" }];
+  const byStage = (ss) => (c.components || []).filter(x => x.active !== false && ss.includes(x.stage)).slice().sort((a, b) => (a.order || 99) - (b.order || 99));
+  const primes = byStage(["PRIME"]), hc = byStage(["HORS_CHARGE", "RETENUE"]), prest = byStage(["PRESTATION"]);
+  const cp = billLineComputed(BILL_LINE_EDIT.id);
+  const ro = (lab, v) => `<div class="bl-ro"><span>${lab}</span><b>${cp ? fCFA(v || 0) : "—"}</b></div>`;
+  const grid = (inner) => `<div class="bl-grid">${inner}</div>`;
+  const tabs = [];
+  if (type === "RECAP") tabs.push(["Montant", grid(billNumField("montantHT", "Montant HT"))]);
+  else if (type === "PRESTATION" || type === "TONNAGE") tabs.push(["Prestation", grid(prest.length ? prest.map(billCompField).join("") : billNumField("quantite", "Quantité") + billNumField("pu", "Prix unitaire"))]);
+  else {
+    tabs.push(["Éléments salariaux", grid(billNumField("salaireBase", "Salaire de base") + primes.map(billCompField).join(""))]);
+    if (hc.length) tabs.push(["Divers & hors-charges", grid(hc.map(billCompField).join(""))]);
+    tabs.push(["Congés & ancienneté", grid(billNumField("years", "Années d'ancienneté")) + `<div style="margin-top:8px">${ro("Provision congés", cp && cp.conges)}${ro("Fin de contrat", cp && cp.fin)}</div>`]);
+  }
+  tabs.push(["Charges & Totaux", `${ro("Salaire brut", cp && cp.brut)}${ro("Charges patronales", cp && cp.charges)}${ro("Frais de gestion", cp && cp.fraisGestion)}${ro("Total HT", cp && cp.HT)}${ro("TVA", cp && cp.TVA)}${ro("Total TTC", cp && cp.TTC)}`]);
+  const bar = tabs.map((t, k) => `<div class="bl-tab ${k === 0 ? "active" : ""}" data-tab="t${k}" onclick="billTab(this,'t${k}')">${t[0]}</div>`).join("");
+  const panes = tabs.map((t, k) => `<div class="bl-pane ${k === 0 ? "active" : ""}" data-tab="t${k}">${t[1]}</div>`).join("");
+  const period = BILL_SHEET.period || "";
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal bl-form" style="width:740px">
+    <style>.bl-form label{font-size:11px;color:var(--muted)}.bl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 22px}.lf-row{display:flex;flex-direction:column;gap:2px}.lf-row input{margin:0}.bl-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--nav-active-bg,#e6efe9);margin:12px 0 10px}.bl-tab{padding:6px 12px;cursor:pointer;border-radius:6px 6px 0 0;font-size:13px}.bl-tab.active{background:var(--nav-active-bg,#e6efe9);font-weight:bold}.bl-pane{display:none}.bl-pane.active{display:block}.bl-ro{display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px dashed #e3e3e3}</style>
+    <h3 style="margin:0 0 2px">${esc(BILL_LINE_EDIT.name || "Nouvelle ligne")}</h3>
+    <div class="note" style="margin-bottom:8px">${esc(c.clientName || "")} · ${type} · période ${esc(period)}</div>
+    <div class="scroll" style="max-height:66vh">
+      <div class="bl-grid">
+        <div class="lf-row"><label>Nom / ressource</label><input value="${esc(BILL_LINE_EDIT.name || "")}" oninput="billLineSetField('name','text',this.value)"></div>
+        ${lf.map(billIdField).join("")}
+        ${type === "MAD" || type === "PORTAGE" || type === "CONSULTANT" ? billNumField("jours", "Nbre jr de travail") : ""}
+      </div>
+      <div class="bl-tabs">${bar}</div>
+      ${panes}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn p" onclick="billLineFormSave()">💾 Enregistrer</button>
+      <button class="btn ghost" onclick="billLineFormCancel()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function billLineFormSave() {
+  BILL_SHEET.lines[BILL_LINE_IDX] = BILL_LINE_EDIT;
+  try { const s = await api("/billing/sheets/" + BILL_SHEET.id, { method: "PUT", body: JSON.stringify({ lines: BILL_SHEET.lines }) });
+    BILL_SHEET = s; const bg = document.querySelector(".modal-bg"); if (bg) bg.remove(); billingSheetOpen(s.id); }
+  catch (e) { alert(e.message); }
+}
+function billLineFormCancel() {
+  const l = BILL_SHEET.lines[BILL_LINE_IDX];
+  if (l && !l.id && !l.name) BILL_SHEET.lines.splice(BILL_LINE_IDX, 1);
+  const bg = document.querySelector(".modal-bg"); if (bg) bg.remove(); rerenderBillLines();
+}
 async function billingValidate() {
   try { await api("/billing/sheets/" + BILL_SHEET.id + "/validate", { method: "POST" }); billingSheetOpen(BILL_SHEET.id); } catch (e) { alert(e.message); }
 }
