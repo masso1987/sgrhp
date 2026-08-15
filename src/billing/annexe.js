@@ -29,6 +29,21 @@ function lineScope(line, contract) {
   // aggregate helpers
   scope.PRIMES = Number(line.primes) || 0;
   scope.HORSCHARGES = Number(line.horsCharges) || 0;
+  // friendly aliases so hand-typed formulas resolve (only if not already a component/column)
+  const raw = c.raw || {};
+  const AL = {
+    GROSS: scope.BRUT, GROSSPAY: scope.BRUT, SALAIREBRUT: scope.BRUT, SALAIRE_BRUT: scope.BRUT, SALBRUT: scope.BRUT, BRUTCONTRACTUEL: scope.BRUT, SALAIREBRUTPAYE: scope.BRUT,
+    TVA: scope.TVA_CASC, TTC: scope.TTC_CASC, TOTALTTC: scope.TTC_CASC, TOTAL_TTC: scope.TTC_CASC,
+    TOTALHT: scope.HT, TOTAL_HT: scope.HT, THT: scope.HT, MONTANTHT: scope.HT, MONTANT_HT: scope.HT,
+    FRAISGESTION: scope.FRAIS, FRAIS_GESTION: scope.FRAIS, FG: scope.FRAIS, MGMT: scope.FRAIS, MANAGEMENT: scope.FRAIS,
+    PROVCG: scope.CONGES, PROV_CG: scope.CONGES, PROVCONGES: scope.CONGES, LEAVES: scope.CONGES, CONGE: scope.CONGES, ALLOCCONGES: scope.CONGES,
+    CHPAT: scope.CHARGES, CH_PAT: scope.CHARGES, CHARGE: scope.CHARGES, CHARGESPATRONALES: scope.CHARGES,
+    NET: raw.netAPayer || 0, NETAPAYER: raw.netAPayer || 0, NETPERC: raw.netAPayer || 0, SALAIRENET: raw.netAPayer || 0,
+    IR: raw.IR || 0, IS: raw.IR || 0,
+    SOUSTOTAL: raw.sousTotal || 0, SOUS_TOTAL: raw.sousTotal || 0, TOTAL2: raw.total2 || 0,
+    ANCIENNETE: raw.anciennete || 0, PRESENCE: scope.JOURS, PRESENCES: scope.JOURS, NBJOURS: scope.JOURS, NJ: scope.JOURS,
+  };
+  for (const [k, v] of Object.entries(AL)) if (scope[k] == null) scope[k] = Number(v) || 0;
   return scope;
 }
 
@@ -36,7 +51,13 @@ function computeRow(line, template, contract) {
   const scope = lineScope(line, contract);
   const row = { _name: line.name || "", _poste: line.poste || "", _cat: line.cat || "", cells: {} };
   for (const col of template.columns || []) {
-    if (col.source === "field") { const fv = line[col.field]; row.cells[col.key] = fv != null ? fv : (col.field === "jours" ? scope.JOURS : ""); continue; }
+    if (col.source === "field") {
+      const ALIAS = { cat: "categorie", categorie: "cat", position: "poste", poste: "position", mat: "matricule", matricule: "mat", noms: "name", nom: "name" };
+      let fv = line[col.field];
+      if (fv == null && ALIAS[col.field] != null) fv = line[ALIAS[col.field]];
+      row.cells[col.key] = fv != null ? fv : (col.field === "jours" ? scope.JOURS : "");
+      continue;
+    }
     const raw = evalFormula(col.expr != null && col.expr !== "" ? col.expr : col.key, scope);
     const shown = r2(raw);
     scope[col.key] = template.roundMode === "rounded" ? shown : raw; // per-template rounding mode

@@ -18,7 +18,7 @@ function evalFormula(expr, scope) {
   function parsePrimary() {
     skip(); const start = i;
     if (/[0-9.]/.test(s[i])) { while (i < s.length && /[0-9._]/.test(s[i])) i++; return Number(s.slice(start, i).replace(/_/g, "")) || 0; }
-    if (/[A-Za-z_]/.test(s[i])) { while (i < s.length && /[A-Za-z0-9_]/.test(s[i])) i++; const name = s.slice(start, i); const v = sc[name]; return typeof v === "number" ? v : (v == null ? 0 : Number(v) || 0); }
+    if (/[A-Za-z_]/.test(s[i])) { while (i < s.length && /[A-Za-z0-9_]/.test(s[i])) i++; const name = s.slice(start, i); let v = sc[name]; if (v === undefined) v = sc[name.toUpperCase()]; return typeof v === "number" ? v : (v == null ? 0 : Number(v) || 0); }
     i++; return 0;
   }
   const r = parseExpr();
