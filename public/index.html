@@ -3675,16 +3675,19 @@ async function billingSheetOpen(id) {
 }
 function billLinesTable(s, type, open) {
   const dis = open ? "" : "disabled";
+  const madComps = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
+    ? (s.contract.components || []).filter(c => c.active !== false && ["PRIME", "HORS_CHARGE", "RETENUE"].includes(c.stage)).slice().sort((a, b) => (a.order || 99) - (b.order || 99))
+    : [];
   const rows = (s.lines || []).map((l, i) => {
     if (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
       return `<tr data-i="${i}">
         <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:150px;margin:0"></td>
         <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:110px;margin:0"></td>
-        <td><input type="number" value="${l.salaireBase || 0}" data-f="salaireBase" ${dis} style="max-width:110px;margin:0"></td>
-        <td><input type="number" value="${l.jours != null ? l.jours : 30}" data-f="jours" ${dis} style="max-width:60px;margin:0"></td>
-        <td><input type="number" value="${l.years || 0}" data-f="years" ${dis} style="max-width:55px;margin:0"></td>
-        <td><input type="number" value="${l.primes || 0}" data-f="primes" ${dis} style="max-width:100px;margin:0"></td>
-        <td><input type="number" value="${l.horsCharges || 0}" data-f="horsCharges" ${dis} style="max-width:100px;margin:0"></td>
+        <td><input type="number" value="${l.salaireBase || 0}" data-f="salaireBase" ${dis} style="max-width:100px;margin:0"></td>
+        <td><input type="number" value="${l.jours != null ? l.jours : 30}" data-f="jours" ${dis} style="max-width:55px;margin:0"></td>
+        <td><input type="number" value="${l.years || 0}" data-f="years" ${dis} style="max-width:50px;margin:0"></td>
+        ${madComps.map(c => billCompTd(l, c, dis)).join("")}
+        ${madComps.length ? "" : `<td><input type="number" value="${l.primes || 0}" data-f="primes" ${dis} style="max-width:100px;margin:0"></td><td><input type="number" value="${l.horsCharges || 0}" data-f="horsCharges" ${dis} style="max-width:100px;margin:0"></td>`}
         <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
     if (type === "RECAP")
       return `<tr data-i="${i}">
@@ -3701,10 +3704,10 @@ function billLinesTable(s, type, open) {
       <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
   }).join("");
   const head = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
-    ? "<tr><th>Nom</th><th>Poste</th><th>Salaire base</th><th>Jours</th><th>Années</th><th>Primes</th><th>Hors-charges</th><th></th></tr>"
+    ? `<tr><th>Nom</th><th>Poste</th><th>Sal. base</th><th>Jours</th><th>Anc.</th>${madComps.map(c => `<th title="${esc(c.label || c.code)}">${esc(c.code)}${c.inputMode === "heures" ? " (h)" : c.inputMode === "quantite" ? " (q)" : ""}</th>`).join("")}${madComps.length ? "" : "<th>Primes</th><th>Hors-charges</th>"}<th></th></tr>`
     : type === "RECAP" ? "<tr><th>Libellé</th><th>Poste</th><th>Montant HT</th><th></th></tr>"
     : "<tr><th>Libellé</th><th>Poste</th><th>Quantité</th><th>Prix unitaire</th><th></th></tr>";
-  return head + (rows || `<tr><td colspan="8" style="color:var(--muted)">Aucune ligne — cliquez « + Ligne ».</td></tr>`);
+  return head + (rows || `<tr><td colspan="24" style="color:var(--muted)">Aucune ligne — cliquez « + Ligne ».</td></tr>`);
 }
 function billAnnexe(s, type) {
   const g = s.computed.groups, t = s.computed.totals;
@@ -3720,11 +3723,21 @@ function billAnnexe(s, type) {
   body += `<tr style="font-weight:bold;border-top:2px solid #999"><td>TOTAL GÉNÉRAL (${t.count})</td>${cols.map(k => `<td class='r'>${["HT", "TVA", "TTC"].includes(k) ? fCFA(t[k]) : ""}</td>`).join("")}</tr>`;
   return `<style>#billAnx td.r,#billAnx th.r{text-align:right}</style><table id="billAnx"><tr>${head}</tr>${body}</table>`;
 }
+function billCompTd(l, c, dis) {
+  const key = c.inputMode === "heures" ? "heures" : (c.inputMode === "quantite" ? "quantite" : "montant");
+  const v = ((l.components || {})[c.code] || {})[key] || 0;
+  return `<td><input type="number" value="${v}" data-comp="${esc(c.code)}" data-ckey="${key}" ${dis} style="max-width:88px;margin:0" title="${esc(c.label || c.code)}"></td>`;
+}
 function billingCollectLines() {
   return [...document.querySelectorAll("#billLines tr[data-i]")].map(tr => {
-    const o = { id: (BILL_SHEET.lines[Number(tr.dataset.i)] || {}).id };
+    const src = BILL_SHEET.lines[Number(tr.dataset.i)] || {};
+    const o = { id: src.id };
     tr.querySelectorAll("[data-f]").forEach(inp => { const f = inp.dataset.f;
       o[f] = inp.type === "number" ? Number(inp.value || 0) : inp.value; });
+    const comps = {};
+    tr.querySelectorAll("[data-comp]").forEach(inp => { const code = inp.dataset.comp, k = inp.dataset.ckey;
+      const val = Number(inp.value || 0); if (val) (comps[code] = comps[code] || {})[k] = val; });
+    if (Object.keys(comps).length) o.components = comps;
     return o;
   });
 }
