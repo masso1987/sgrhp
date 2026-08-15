@@ -4321,19 +4321,25 @@ function billTplFieldOpts(cur) {
 }
 function billingTplRenderCols() {
   const box = document.getElementById("tpCols");
-  box.innerHTML = `<table><tr><th style="width:20px"></th><th>Libellé</th><th>Clé</th><th>Source</th><th>Champ / Formule</th><th>Align</th><th>L.</th><th>G</th><th></th></tr>
-    ${BILL_TPL_COLS.map((c, i) => `<tr ondragover="event.preventDefault()" ondrop="billingTplDrop(${i})">
-      <td draggable="true" ondragstart="billingTplDrag(${i})" title="Glisser pour réordonner" style="cursor:grab;color:var(--muted);text-align:center;user-select:none">⣿</td>
-      <td><input value="${esc(c.label || "")}" oninput="BILL_TPL_COLS[${i}].label=this.value" style="min-width:110px;margin:0"></td>
-      <td><input value="${esc(c.key || "")}" oninput="BILL_TPL_COLS[${i}].key=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'_')" style="max-width:90px;margin:0"></td>
-      <td><select onchange="BILL_TPL_COLS[${i}].source=this.value;billingTplRenderCols()" style="margin:0"><option value="" ${c.source!=="field"?"selected":""}>formule</option><option value="field" ${c.source==="field"?"selected":""}>champ</option></select></td>
-      <td>${c.source === "field"
-        ? `<select onchange="BILL_TPL_COLS[${i}].field=this.value" style="margin:0">${billTplFieldOpts(c.field)}</select>`
-        : `<input value="${esc(c.expr || "")}" oninput="BILL_TPL_COLS[${i}].expr=this.value" placeholder="ex. GROSS / 12" style="min-width:170px;margin:0">`}</td>
-      <td><select onchange="BILL_TPL_COLS[${i}].align=this.value" style="margin:0"><option value="right" ${c.align!=="left"?"selected":""}>droite</option><option value="left" ${c.align==="left"?"selected":""}>gauche</option></select></td>
-      <td><input type="number" value="${c.w || 60}" oninput="BILL_TPL_COLS[${i}].w=Number(this.value)" style="max-width:50px;margin:0"></td>
-      <td><input type="checkbox" ${c.bold?"checked":""} onchange="BILL_TPL_COLS[${i}].bold=this.checked" title="gras"></td>
-      <td><button class="btn ghost sm" onclick="BILL_TPL_COLS.splice(${i},1);billingTplRenderCols()">✕</button></td></tr>`).join("")}</table>`;
+  box.innerHTML = BILL_TPL_COLS.map((c, i) => `
+    <div class="tplcol" ondragover="event.preventDefault()" ondrop="billingTplDrop(${i})" style="border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:8px;background:var(--sidebar-bg)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span draggable="true" ondragstart="billingTplDrag(${i})" title="Glisser pour réordonner" style="cursor:grab;color:var(--muted);user-select:none;font-size:15px">⣿</span>
+        <b style="font-size:11px;color:var(--muted);width:22px">#${i + 1}</b>
+        <input value="${esc(c.label || "")}" oninput="BILL_TPL_COLS[${i}].label=this.value" placeholder="Libellé de la colonne (ex. Total HT)" style="flex:1;margin:0;font-weight:600">
+        <button class="btn ghost sm" style="color:var(--red)" onclick="BILL_TPL_COLS.splice(${i},1);billingTplRenderCols()" title="Supprimer la colonne">✕</button>
+      </div>
+      <div class="grid3">
+        <div><label>Clé (identifiant)</label><input value="${esc(c.key || "")}" oninput="BILL_TPL_COLS[${i}].key=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'_')" placeholder="ex. TOTAL_HT"></div>
+        <div><label>Type de contenu</label><select onchange="BILL_TPL_COLS[${i}].source=this.value;billingTplRenderCols()"><option value="" ${c.source!=="field"?"selected":""}>Formule (calcul)</option><option value="field" ${c.source==="field"?"selected":""}>Champ (info)</option></select></div>
+        <div style="grid-column:span 2">${c.source === "field"
+          ? `<label>Champ à afficher</label><select onchange="BILL_TPL_COLS[${i}].field=this.value">${billTplFieldOpts(c.field)}</select>`
+          : `<label>Formule</label><input value="${esc(c.expr || "")}" oninput="BILL_TPL_COLS[${i}].expr=this.value" placeholder="ex. BASE / 12  ou  (SAL_BRUT + ALLOC) * 0.162">`}</div>
+        <div><label>Alignement</label><select onchange="BILL_TPL_COLS[${i}].align=this.value"><option value="right" ${c.align!=="left"?"selected":""}>Droite</option><option value="left" ${c.align==="left"?"selected":""}>Gauche</option></select></div>
+        <div><label>Largeur (px)</label><input type="number" value="${c.w || 60}" oninput="BILL_TPL_COLS[${i}].w=Number(this.value)"></div>
+        <div><label>Style</label><label class="chk" style="margin-top:6px"><input type="checkbox" ${c.bold?"checked":""} onchange="BILL_TPL_COLS[${i}].bold=this.checked"><span>Gras</span></label></div>
+      </div>
+    </div>`).join("") || '<div class="note">Aucune colonne — cliquez « + Colonne » pour en ajouter.</div>';
 }
 function billingTplAddCol() { BILL_TPL_COLS.push({ key: "COL" + (BILL_TPL_COLS.length + 1), label: "", source: "", expr: "", align: "right", w: 60 }); billingTplRenderCols(); }
 let _tplDragI = null;
