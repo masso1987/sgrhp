@@ -3981,6 +3981,7 @@ async function billingRecap() {
 /* ---- Config : clients (contrats) + composants ---- */
 async function billingCfgView() {
   const [contracts, comps] = await Promise.all([api("/billing/contracts"), api("/billing/components")]);
+  await billLoadFieldCatalog();
   view.innerHTML = `<button class="btn ghost sm" onclick="billingView()">← Fiches</button>
   <h1 style="margin-top:10px">⚙️ Clients &amp; composants <button class="btn ghost sm" style="float:right" onclick="billingTemplatesView()">🧩 Modèles d'annexe</button></h1>
   <div class="panel"><b>Clients (contrats)</b> <button class="btn p sm" style="float:right" onclick="billingContractModal()">+ Nouveau client</button>
@@ -4001,8 +4002,42 @@ async function billingCfgView() {
       <td>${esc(c.formula)}</td><td><span class="tag gray">${esc(c.stage)}</span></td><td>${c.taux != null ? (c.taux) : ""}</td>
       <td style="white-space:nowrap"><button class="btn ghost sm" onclick='billingCompModal(${JSON.stringify(c.id)})'>✏️</button>
         <button class="btn ghost sm" style="color:var(--red)" onclick='billingCompDel(${JSON.stringify(c.id)},${JSON.stringify(c.code)})'>🗑</button></td></tr>`).join("")}
+    </table></div>
+  <div class="panel"><b>Champs de ligne (catalogue)</b> <button class="btn p sm" style="float:right" onclick="billLFDefModal()">+ Champ</button>
+    <div class="note" style="margin-top:6px">La liste « Champ à afficher » des modèles d'annexe, les cases « Champs de la ligne » des clients et les champs d'identité de l'import proviennent d'ici.</div>
+    <table style="margin-top:6px"><tr><th>Clé</th><th>Libellé</th><th>Type</th><th></th></tr>
+    ${(window.BILL_LF_DEFS || []).map(f => `<tr><td><code>${esc(f.key)}</code></td><td>${esc(f.label)}</td><td><span class="tag gray">${esc(f.type)}</span></td>
+      <td style="white-space:nowrap"><button class="btn ghost sm" onclick='billLFDefModal(${JSON.stringify(f.id)})'>✏️</button>
+        <button class="btn ghost sm" style="color:var(--red)" onclick='billLFDefDel(${JSON.stringify(f.id)})'>🗑</button></td></tr>`).join("")}
     </table></div>`;
 }
+async function billLoadFieldCatalog() {
+  try { const r = await api("/billing/line-fields"); if (Array.isArray(r) && r.length) { window.BILL_LF_DEFS = r; LF_KNOWN = r.map(f => ({ key: f.key, label: f.label, type: f.type })); } } catch (e) {}
+}
+function billLFDefModal(id) {
+  const f = id ? (window.BILL_LF_DEFS || []).find(x => x.id === id) : { key: "", label: "", type: "text" };
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  const opt = (v) => `<option value="${v}" ${f.type === v ? "selected" : ""}>${v}</option>`;
+  bg.innerHTML = `<div class="modal" style="width:440px"><h3 style="margin:0 0 8px">${id ? "Modifier" : "Nouveau"} champ de ligne</h3>
+    <div class="grid2">
+      <div><label>Clé (identifiant)</label><input id="lfdKey" value="${esc(f.key || "")}" ${id ? "disabled" : ""} placeholder="ex. centre_cout"></div>
+      <div><label>Libellé</label><input id="lfdLabel" value="${esc(f.label || "")}"></div>
+      <div><label>Type</label><select id="lfdType">${["text", "date", "number"].map(opt).join("")}</select></div>
+    </div>
+    <div class="err hidden" id="lfdErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billLFDefSave('${id || ""}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function billLFDefSave(id) {
+  const g = (x) => (document.getElementById(x) || {}).value;
+  const body = { key: g("lfdKey"), label: g("lfdLabel"), type: g("lfdType") };
+  try { if (id) await api("/billing/line-fields/" + id, { method: "PUT", body: JSON.stringify(body) });
+    else await api("/billing/line-fields", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector(".modal-bg").remove(); billingCfgView(); }
+  catch (e) { const el = document.getElementById("lfdErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+async function billLFDefDel(id) { if (!confirm("Supprimer ce champ du catalogue ?")) return; try { await api("/billing/line-fields/" + id, { method: "DELETE" }); billingCfgView(); } catch (e) { alert(e.message); } }
 async function billingContractModal(cid) {
   const comps = await api("/billing/components");
   const c = cid ? await api("/billing/contracts/" + cid) : { rates: {}, clientBlock: {}, bankBlock: {}, components: [], billingType: "MAD", prorate: "base", anciennete: true };
@@ -4094,7 +4129,7 @@ function billingImportExcel() {
     const f = inp.files[0]; if (!f) return;
     const b64 = await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(String(rd.result).split(",")[1]); rd.readAsDataURL(f); });
     window._billFile = b64;
-    try { const [p, allc, tpls] = await Promise.all([api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: b64 }) }), api("/billing/components").catch(() => []), api("/billing/annexe-templates").catch(() => [])]); window._IMP_COMPS = allc; window._IMP_TPLS = tpls; window._IMP_TPLSEL = undefined; billingMapModal(p); }
+    try { const [p, allc, tpls] = await Promise.all([api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: b64 }) }), api("/billing/components").catch(() => []), api("/billing/annexe-templates").catch(() => [])]); await billLoadFieldCatalog(); window._IMP_COMPS = allc; window._IMP_TPLS = tpls; window._IMP_TPLSEL = undefined; billingMapModal(p); }
     catch (e) { alert(e.message); }
   };
   inp.click();
@@ -4260,6 +4295,7 @@ async function billingTemplatesView() {
 }
 let BILL_TPL_COLS = [];
 async function billingTplModal(id) {
+  await billLoadFieldCatalog();
   const t = id ? await api("/billing/annexe-templates/" + id) : { title: "", code: "", groupBy: null, taxes: { tva: 0.1925, is: 0 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"], columns: [] };
   const _comps = await api("/billing/components").catch(() => []);
   let _tflds = [];
@@ -4472,7 +4508,7 @@ async function billingCompImportRun() {
 
 
 /* ---- Champs de ligne configurables par client ---- */
-const LF_KNOWN = [
+let LF_KNOWN = [
   { key: "poste", label: "Poste occupé", type: "text" },
   { key: "matricule", label: "Matricule", type: "text" },
   { key: "categorie", label: "Cat\u00e9gorie", type: "text" },

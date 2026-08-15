@@ -105,6 +105,39 @@ router.post("/components/import", allow("ADM"), (req, res) => {
   res.json({ ok: true, created, updated, errors });
 });
 
+/* ==================== CATALOGUE DES CHAMPS DE LIGNE ==================== */
+const DEFAULT_LINE_FIELDS = [
+  { key: "poste", label: "Poste occupé", type: "text" },
+  { key: "matricule", label: "Matricule", type: "text" },
+  { key: "categorie", label: "Catégorie", type: "text" },
+  { key: "dateNaissance", label: "Date de naissance", type: "date" },
+  { key: "dateEmbauche", label: "Date d'embauche", type: "date" },
+  { key: "dateFin", label: "Date de fin", type: "date" },
+  { key: "cnps", label: "N° CNPS", type: "text" },
+  { key: "ref", label: "Référence", type: "text" },
+];
+router.get("/line-fields", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  let list = mine(db.billingLineFields, req);
+  if (!list.length) { for (const f of DEFAULT_LINE_FIELDS) db.billingLineFields.push(stamp({ id: id("blf"), key: f.key, label: f.label, type: f.type, createdAt: new Date().toISOString() }, req)); save(); list = mine(db.billingLineFields, req); }
+  res.json(list.slice().sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || "")));
+});
+router.post("/line-fields", allow("ADM"), (req, res) => {
+  const b = req.body || {}; const key = String(b.key || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  if (!key || !b.label) return res.status(400).json({ error: "Clé et libellé obligatoires" });
+  if (mine(db.billingLineFields, req).some(f => f.key === key)) return res.status(409).json({ error: "Cette clé existe déjà" });
+  const f = stamp({ id: id("blf"), key, label: b.label, type: ["text", "date", "number"].includes(b.type) ? b.type : "text", createdAt: new Date().toISOString() }, req);
+  db.billingLineFields.push(f); save(); audit(req.user, "CREATED", "BillingLineField", f.id, { key }); res.status(201).json(f);
+});
+router.put("/line-fields/:id", allow("ADM"), (req, res) => {
+  const f = mine(db.billingLineFields, req).find(x => x.id === req.params.id); if (!f) return res.status(404).json({ error: "Introuvable" });
+  for (const k of ["label", "type"]) if (req.body[k] !== undefined) f[k] = req.body[k];
+  save(); res.json(f);
+});
+router.delete("/line-fields/:id", allow("ADM"), (req, res) => {
+  const f = mine(db.billingLineFields, req).find(x => x.id === req.params.id); if (!f) return res.status(404).json({ error: "Introuvable" });
+  db.billingLineFields.splice(db.billingLineFields.indexOf(f), 1); save(); res.json({ ok: true });
+});
+
 /* ============================ CONTRACTS ============================ */
 router.get("/contracts", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) =>
   res.json(mine(db.billingContracts, req).slice().sort((a, b) => (a.clientName || "").localeCompare(b.clientName || ""))));
