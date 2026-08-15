@@ -4139,14 +4139,22 @@ function billMapRenderFields() {
   let fieldKeys = [], compCodes = [], usesCascade = true, usesJours = true;
   if (tpl) {
     const codeSet = new Set(allComps.map(c => c.code));
-    const fset = new Set(), cset = new Set(); usesCascade = false; usesJours = false;
+    const colKeys = new Set((tpl.columns || []).map(c => c.key));
+    const fset = new Set(), cset = new Set(); const labelByCode = {}; usesCascade = false; usesJours = false;
     for (const c of (tpl.columns || [])) {
       if (c.source === "field") { if (c.field && c.field !== "name") { if (c.field === "jours") usesJours = true; else fset.add(c.field); } continue; }
-      const expr = (c.expr != null && c.expr !== "") ? c.expr : c.key;
-      const toks = String(expr).match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-      for (const tk of toks) { if (codeSet.has(tk)) cset.add(tk); else if (tk === "JOURS") { usesJours = true; usesCascade = true; } else if (CASC.has(tk)) usesCascade = true; }
+      const expr = String((c.expr != null && c.expr !== "") ? c.expr : c.key).trim();
+      const idents = expr.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+      const single = /^[A-Za-z_][A-Za-z0-9_]*$/.test(expr);
+      for (const tk of idents) { if (tk === "JOURS") { usesJours = true; usesCascade = true; } else if (CASC.has(tk)) usesCascade = true; }
+      if (single) {
+        const id = expr; const refsOtherCol = colKeys.has(id) && id !== c.key;
+        if (!CASC.has(id) && id !== "JOURS" && !refsOtherCol) { cset.add(id); labelByCode[id] = c.label || (allComps.find(x => x.code === id) || {}).label || id; }
+      } else {
+        for (const tk of idents) if (codeSet.has(tk)) { cset.add(tk); if (!labelByCode[tk]) labelByCode[tk] = (allComps.find(x => x.code === tk) || {}).label || tk; }
+      }
     }
-    fieldKeys = [...fset]; compCodes = [...cset]; if (usesCascade) usesJours = true;
+    fieldKeys = [...fset]; compCodes = [...cset]; window._IMP_LABELS = labelByCode; if (usesCascade) usesJours = true;
   } else {
     fieldKeys = [...LF_KNOWN.map(f => f.key), ...((BILL_SHEET.contract.lineFields || []).filter(f => f.custom).map(f => f.key))];
     compCodes = allComps.filter(c => ["PRIME", "HORS_CHARGE", "RETENUE", "PRESTATION"].includes(c.stage)).map(c => c.code);
@@ -4156,7 +4164,7 @@ function billMapRenderFields() {
   const allFldDefs = [...LF_KNOWN, ...((BILL_SHEET.contract.lineFields) || [])];
   const fLabel = (k) => { const f = allFldDefs.find(x => x.key === k); return f ? f.label : k; };
   const fType = (k) => { const f = allFldDefs.find(x => x.key === k); return f ? f.type : "text"; };
-  const cObj = (code) => allComps.find(c => c.code === code) || { code, label: code, stage: "" };
+  const cObj = (code) => { const base = allComps.find(c => c.code === code) || { code, label: code, stage: "" }; const lbl = (window._IMP_LABELS || {})[code]; return lbl ? Object.assign({}, base, { label: lbl }) : base; };
   const bt = (BILL_SHEET.contract.billingType || "MAD").toUpperCase();
   let h = `<b style="font-size:12px;color:var(--muted)">CHAMPS DE BASE</b><div class="grid2" style="margin-top:4px">`;
   h += `<div><label>Nom / ressource</label><select data-map="name">${opts(guessKw("nom"))}</select></div>`;
