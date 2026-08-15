@@ -4094,17 +4094,17 @@ function billingImportExcel() {
     const f = inp.files[0]; if (!f) return;
     const b64 = await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(String(rd.result).split(",")[1]); rd.readAsDataURL(f); });
     window._billFile = b64;
-    try { const p = await api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: b64 }) }); billingMapModal(p); }
+    try { const [p, allc] = await Promise.all([api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: b64 }) }), api("/billing/components").catch(() => [])]); window._IMP_COMPS = allc; billingMapModal(p); }
     catch (e) { alert(e.message); }
   };
   inp.click();
 }
 async function billingReparse(sheet) {
-  try { const p = await api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: window._billFile, sheet }) }); billingMapModal(p, true); }
+  try { const p = await api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: window._billFile, sheet }) }); if (!window._IMP_COMPS) window._IMP_COMPS = await api("/billing/components").catch(() => []); billingMapModal(p, true); }
   catch (e) { alert(e.message); }
 }
 function billingMapModal(p, replace) {
-  const comps = (BILL_SHEET.contract.components || []).filter(c => ["PRIME", "HORS_CHARGE", "RETENUE"].includes(c.stage));
+  const comps = ((window._IMP_COMPS && window._IMP_COMPS.length) ? window._IMP_COMPS : (BILL_SHEET.contract.components || [])).filter(c => ["PRIME", "HORS_CHARGE", "RETENUE", "PRESTATION"].includes(c.stage)).slice().sort((a, b) => (a.order || 99) - (b.order || 99));
   const opts = (sel) => `<option value="">—</option>` + p.headers.map(h => `<option value="${h.index}" ${String(sel) === String(h.index) ? "selected" : ""}>${esc(h.label)}</option>`).join("");
   const guess = (kw) => { const h = p.headers.find(x => (x.label || "").toLowerCase().includes(kw)); return h ? h.index : ""; };
   const norm = (x) => String(x == null ? "" : x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -4148,8 +4148,8 @@ function billingMapModal(p, replace) {
       </div>
       ${BILL_SHEET.contract.billingType === "RECAP" ? `<div class="grid2"><div><label>Montant HT (Récap)</label><select data-map="montantHT">${opts(guess("ht"))}</select></div></div>` : ""}
       ${["PRESTATION", "TONNAGE"].includes(BILL_SHEET.contract.billingType) ? `<div class="grid2"><div><label>Quantité</label><select data-map="quantite">${opts(guess("quant"))}</select></div><div><label>Prix unitaire</label><select data-map="pu">${opts(guess("prix"))}</select></div></div>` : ""}
-      ${(BILL_SHEET.contract.lineFields || []).length ? `<b style="font-size:12px;color:var(--muted)">CHAMPS D'IDENTITÉ (ANNEXE)</b>
-      <div class="grid2" style="margin-top:4px">${(BILL_SHEET.contract.lineFields).map(f => `<div><label>${esc(f.label)} <span class="tag gray">${f.type}</span></label><select data-field="${esc(f.key)}">${opts(guessField(f))}</select></div>`).join("")}</div>` : ""}
+      ${(() => { const idf = [...LF_KNOWN, ...((BILL_SHEET.contract.lineFields || []).filter(f => f.custom))]; return `<b style="font-size:12px;color:var(--muted)">CHAMPS D'IDENTITÉ (ANNEXE)</b>
+      <div class="grid2" style="margin-top:4px">${idf.map(f => `<div><label>${esc(f.label)} <span class="tag gray">${f.type}</span></label><select data-field="${esc(f.key)}">${opts(guessField(f))}</select></div>`).join("")}</div>`; })()}
       <b style="font-size:12px;color:var(--muted)">COMPOSANTS (primes / hors-charges actifs sur ce client)</b>
       ${comps.length ? `<div class="grid2" style="margin-top:4px">${comps.map(c => `<div><label>${esc(c.label)} <span class="tag gray">${c.stage}</span></label><select data-comp="${c.code}">${opts(guessComp(c))}</select></div>`).join("")}</div>`
         : '<div class="note">Aucun composant actif — ajoutez-les au contrat pour importer les primes. Sinon, mappez « Primes (agrégé) » ci-dessous.</div>'}

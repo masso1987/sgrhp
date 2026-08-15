@@ -300,7 +300,15 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
       out.push(rec);
     }
     s.lines = (mode === "append") ? (s.lines || []).concat(out) : out;
-    if (contract.id) { contract.columnMapping = { sheet, headerRow: hr, mapping }; }
+    if (contract.id) {
+      contract.columnMapping = { sheet, headerRow: hr, mapping };
+      const active = new Set((contract.components || []).map(c => c.code));
+      const cat = {}; for (const c of (db.billingComponents || [])) if ((c.tenantId || "t1") === (contract.tenantId || "t1")) cat[c.code] = c;
+      for (const code of Object.keys(compMap)) { if (compMap[code] === "" || compMap[code] == null) continue; if (!active.has(code) && cat[code]) { contract.components = contract.components || []; contract.components.push(Object.assign({}, cat[code], { active: true })); active.add(code); } }
+      const KNOWN = { poste: ["Poste occupé", "text"], matricule: ["Matricule", "text"], categorie: ["Catégorie", "text"], dateNaissance: ["Date de naissance", "date"], dateEmbauche: ["Date d'embauche", "date"], dateFin: ["Date de fin", "date"], cnps: ["N° CNPS", "text"], ref: ["Référence", "text"] };
+      const lfset = new Set((contract.lineFields || []).map(f => f.key));
+      for (const key of Object.keys(fieldMap)) { if (fieldMap[key] === "" || fieldMap[key] == null) continue; if (!lfset.has(key) && KNOWN[key]) { contract.lineFields = contract.lineFields || []; contract.lineFields.push({ key, label: KNOWN[key][0], type: KNOWN[key][1] }); lfset.add(key); } }
+    }
     save();
     audit(req.user, "IMPORTED", "BillingSheet", s.id, { from: "excel", lines: out.length });
     res.json(withCompute(s, req));
