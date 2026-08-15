@@ -13,6 +13,11 @@ body{background:var(--bg);color:var(--text);font-size:14px}
 .layout{display:flex;padding-top:54px;min-height:100vh}
 .sidebar{width:210px;background:var(--sidebar-bg);border-right:1px solid var(--sidebar-border);position:fixed;top:54px;bottom:0;padding:10px 0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
 .nav{padding:10px 18px;cursor:pointer;color:var(--nav-color);font-weight:500;border-left:3px solid transparent}
+.modbar{display:flex;gap:3px;align-items:center;flex:1;justify-content:center;overflow-x:auto;margin:0 12px}
+.modtab{padding:6px 13px;border-radius:8px;color:#ffffffcc;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.modtab:hover{background:#ffffff22}.modtab.active{background:#fff;color:var(--nav-active-color);font-weight:600}
+.modbar-m{display:none}.modtab-m{padding:5px 10px;border-radius:6px;font-size:12px;background:var(--nav-active-bg);color:var(--nav-active-color);cursor:pointer;white-space:nowrap}.modtab-m.active{background:var(--nav-active-border);color:#fff}
+.sb-modtitle{padding:8px 16px 2px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .nav:hover{background:var(--nav-active-bg)}.nav.active{color:var(--nav-active-color);border-left-color:var(--nav-active-border);background:var(--nav-active-bg);font-weight:600}
 .main{margin-left:210px;padding:22px;flex:1}
 h1{font-size:19px;margin-bottom:14px}
@@ -68,6 +73,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 }
 @media(max-width:480px){
   .topbar{height:50px}.layout{padding-top:50px}.sidebar{top:50px}.sb-backdrop{inset:50px 0 0 0}
+  .modbar{display:none}.modbar-m{display:flex;flex-wrap:wrap;gap:5px;padding:9px 10px;border-bottom:1px solid var(--border)}
   #who{display:none}
   .btn{padding:6px 11px}
 }
@@ -101,6 +107,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 
 <div id="app" class="hidden">
 <div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">☰</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>SGRHP</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
+  <div class="modbar" id="modbar"></div>
   <div style="font-size:13px"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="margin:0 10px 0 0;padding:4px 8px;border-radius:6px;border:none;font-size:12px;cursor:pointer">
       <option value="fr">FR</option><option value="en">EN</option></select><span id="bell" style="cursor:pointer;margin-right:10px" onclick="showNotifs()">🔔</span><span id="who"></span> &nbsp;<button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
@@ -823,29 +830,39 @@ async function confirm2fa() {
 function logout() { sessionStorage.clear(); TOKEN = null; ME = null; location.href = "/"; }
 
 const NAV = [
-  { k: "tenants", label: "🏢 Tenants (plateforme)", roles: ["SADM"] },
-  { k: "dash", label: "▦ Tableau de bord", roles: ["GPF","CD","RJ","UI","ADM"] },
-  { k: "employees", label: "👥 Employés", roles: ["GPF","CD","RJ","ADM"] },
-  { k: "dataio", label: "⇅ Import / Export", roles: ["GPF","CD","RJ","ADM"] },
-  { k: "queue", label: "✓ File de validation", roles: ["CD","RJ"] },
-  { k: "fiches", label: "📋 Fiches de poste", roles: ["GPF","CD","RJ","ADM"] },
-  { k: "grid", label: "💰 Grille salariale", roles: ["GPF","CD","ADM"] },
-  { k: "career", label: "📈 Career & Perf.", roles: ["GPF","CD","RJ","ADM"] },
-  { k: "reports", label: "📊 Reports & KPIs", roles: ["CD","RJ","ADM"] },
-  { k: "generated", label: "🖨 Documents générés", roles: ["GPF","CD","RJ","UI","ADM"] },
-  { k: "payroll", label: "💵 Paie", roles: ["ADM","CD","RJ","GPF"], module: "payroll" },
-  { k: "payconfig", label: "⚙️ Paramètres paie", roles: ["ADM"], module: "payroll" },
-  { k: "billing", label: "🧾 Facturation", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing" },
-  { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing" },
-  { k: "templates", label: "📄 Modèles", roles: ["ADM"] },
-  { k: "settings", label: "🛠 Référentiels", roles: ["ADM"] },
-  { k: "params", label: "🔧 Paramètres", roles: ["ADM"] },
-  { k: "mailtpl", label: "✉️ Notifications email", roles: ["ADM"] },
-  { k: "account", label: "👤 Mon compte", roles: ["GPF","CD","RJ","UI","ADM"] },
-  { k: "portfolios", label: "⚙ Config. portefeuilles", roles: ["ADM"] },
-  { k: "users", label: "🔐 Utilisateurs", roles: ["ADM"] },
-  { k: "audit", label: "🕘 Journal d'audit", roles: ["CD","RJ","ADM","SADM"] },
+  { k: "tenants", label: "🏢 Tenants (plateforme)", roles: ["SADM"], grp: "plateforme" },
+  { k: "dash", label: "▦ Tableau de bord", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
+  { k: "employees", label: "👥 Employés", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "dataio", label: "⇅ Import / Export", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "queue", label: "✓ File de validation", roles: ["CD","RJ"], grp: "principal" },
+  { k: "fiches", label: "📋 Fiches de poste", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
+  { k: "grid", label: "💰 Grille salariale", roles: ["GPF","CD","ADM"], grp: "rh" },
+  { k: "career", label: "📈 Career & Perf.", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
+  { k: "reports", label: "📊 Reports & KPIs", roles: ["CD","RJ","ADM"], grp: "rapports" },
+  { k: "generated", label: "🖨 Documents générés", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
+  { k: "payroll", label: "💵 Paie", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
+  { k: "payconfig", label: "⚙️ Paramètres paie", roles: ["ADM"], module: "payroll", grp: "paie" },
+  { k: "billing", label: "🧾 Facturation", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
+  { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
+  { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
+  { k: "settings", label: "🛠 Référentiels", roles: ["ADM"], grp: "admin" },
+  { k: "params", label: "🔧 Paramètres", roles: ["ADM"], grp: "admin" },
+  { k: "mailtpl", label: "✉️ Notifications email", roles: ["ADM"], grp: "admin" },
+  { k: "account", label: "👤 Mon compte", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
+  { k: "portfolios", label: "⚙ Config. portefeuilles", roles: ["ADM"], grp: "admin" },
+  { k: "users", label: "🔐 Utilisateurs", roles: ["ADM"], grp: "admin" },
+  { k: "audit", label: "🕘 Journal d'audit", roles: ["CD","RJ","ADM","SADM"], grp: "rapports" },
 ];
+const NAV_GROUPS = [
+  { g: "principal", label: "Principal" },
+  { g: "rh", label: "RH" },
+  { g: "paie", label: "Paie" },
+  { g: "facturation", label: "Facturation" },
+  { g: "rapports", label: "Rapports" },
+  { g: "admin", label: "Admin" },
+  { g: "plateforme", label: "Plateforme" },
+];
+let NAV_VISIBLE = [], NAV_PRESENT = [];
 async function boot() {
   login.classList.add("hidden"); app.classList.remove("hidden");
   document.getElementById("langSel").value = LANG;
@@ -868,10 +885,25 @@ async function boot() {
   startAccessPolling();
 }
 function buildNav() {
-  const items = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)));
-  nav.innerHTML = items.map(n => `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${esc(n.label)}</div>`).join("");
-  const cur = document.querySelector(".nav.active"); // preserved across rebuild via CURRENT_VIEW
+  NAV_VISIBLE = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)));
+  NAV_PRESENT = NAV_GROUPS.filter(G => NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
+  const mb = document.getElementById("modbar");
+  if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
+  if (!window.CURRENT_GROUP || !NAV_PRESENT.some(G => G.g === window.CURRENT_GROUP)) window.CURRENT_GROUP = (NAV_PRESENT[0] || { g: "principal" }).g;
+  renderSubnav();
+}
+function renderSubnav() {
+  const items = NAV_VISIBLE.filter(n => (n.grp || "admin") === window.CURRENT_GROUP);
+  const label = (NAV_GROUPS.find(G => G.g === window.CURRENT_GROUP) || {}).label || "";
+  const mobileBar = `<div class="modbar-m">${NAV_PRESENT.map(G => `<div class="modtab-m ${G.g === window.CURRENT_GROUP ? "active" : ""}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("")}</div>`;
+  nav.innerHTML = mobileBar + `<div class="sb-modtitle">${esc(label)}</div>` + items.map(n => `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${esc(n.label)}</div>`).join("");
+  document.querySelectorAll(".modtab").forEach(e => e.classList.toggle("active", e.id === "mod-" + window.CURRENT_GROUP));
   if (window.CURRENT_VIEW) { const el = document.getElementById("nav-" + window.CURRENT_VIEW); if (el) el.classList.add("active"); }
+}
+function goGroup(g) {
+  window.CURRENT_GROUP = g; renderSubnav();
+  const first = NAV_VISIBLE.find(n => (n.grp || "admin") === g);
+  if (first && first.k !== window.CURRENT_VIEW) go(first.k);
 }
 // Poll the profile so access changes made by an admin/super-admin (modules, rights)
 // take effect live — no re-login required.
@@ -899,6 +931,8 @@ function go(k) {
   window.CURRENT_VIEW = k;
   closeSidebar();
   applySectionColor(k);
+  const _it = NAV.find(n => n.k === k);
+  if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
   ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, none }[k] || none)();
 }
