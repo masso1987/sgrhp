@@ -2386,6 +2386,7 @@ async function paramsView() {
       <div><label>Mode par défaut</label><select id="lhMode"><option value="fields" ${lh.mode!=="image"?"selected":""}>Champs (blocs saisis)</option><option value="image" ${lh.mode==="image"?"selected":""}>Image (bandeaux)</option></select></div>
       <div><label>Hauteur en-tête (px)</label><input id="lhHH" type="number" value="${lh.headerHeight||80}"></div>
       <div><label>Hauteur pied (px)</label><input id="lhFH" type="number" value="${lh.footerHeight||50}"></div>
+      <div><label>Couleur en-tête tableau facture</label><input id="lhAccent" type="color" value="${lh.accent||"#065f46"}" style="height:34px;padding:2px"></div>
     </div>
     <b style="font-size:12px;color:var(--muted)">EN-TÊTE — bandeau image (mode image)</b>
     <div style="display:flex;gap:10px;align-items:center;margin:4px 0 6px"><input type="file" accept="image/*" onchange="lhUpload(event,'header')"><span id="lhHdrName" style="font-size:12px;color:var(--muted)">${lh.headerImage?"image importée":"aucune"}</span><button class="btn ghost sm" onclick="lhClear('header')">Retirer</button></div>
@@ -4587,7 +4588,7 @@ async function saveLetterhead(){
     headerImage:window._LH.headerImage||"", footerImage:window._LH.footerImage||"",
     company:{ name:g("lhcName"),address:g("lhcAddr"),city:g("lhcCity"),phone:g("lhcPhone"),email:g("lhcEmail"),rccm:g("lhcRccm"),niu:g("lhcNiu"),capital:g("lhcCap"),website:g("lhcWeb") },
     bank:{ name:g("lhbName"),holder:g("lhbHolder"),code:g("lhbCode"),guichet:g("lhbGuichet"),account:g("lhbAcct"),cle:g("lhbCle"),swift:g("lhbSwift") },
-    legal:g("lhLegal"), showPage:(document.getElementById("lhPage")||{}).checked } };
+    legal:g("lhLegal"), showPage:(document.getElementById("lhPage")||{}).checked, accent:g("lhAccent")||"" } };
   try{ await api("/settings/branding",{method:"PUT",body:JSON.stringify(body)}); alert("Papier à en-tête enregistré."); }
   catch(e){ const el=document.getElementById("lhErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }

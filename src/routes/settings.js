@@ -66,7 +66,7 @@ const DEFAULTS = {
       headerImage: "", footerImage: "", headerHeight: 80, footerHeight: 50,
       company: { name: "", address: "", city: "", phone: "", email: "", rccm: "", niu: "", capital: "", website: "" },
       bank: { name: "", holder: "", code: "", guichet: "", account: "", cle: "", swift: "" },
-      legal: "", showPage: true,
+      legal: "", showPage: true, accent: "",
     },
   },
 };
@@ -232,6 +232,7 @@ router.put("/branding", allow("ADM"), (req, res) => {
     if (src.legal !== undefined) lh.legal = String(src.legal).slice(0, 600);
     for (const k of ["headerHeight", "footerHeight"]) if (src[k] !== undefined) lh[k] = Math.max(0, Math.min(200, Number(src[k]) || 0));
     if (src.showPage !== undefined) lh.showPage = !!src.showPage;
+    if (src.accent !== undefined) { if (src.accent && !HEX.test(src.accent)) return res.status(400).json({ error: "Couleur d'accent invalide" }); lh.accent = src.accent || ""; }
     if (src.company) { lh.company = lh.company || {}; for (const k of ["name", "address", "city", "phone", "email", "rccm", "niu", "capital", "website"]) if (src.company[k] !== undefined) lh.company[k] = String(src.company[k]).slice(0, 160); }
     if (src.bank) { lh.bank = lh.bank || {}; for (const k of ["name", "holder", "code", "guichet", "account", "cle", "swift"]) if (src.bank[k] !== undefined) lh.bank[k] = String(src.bank[k]).slice(0, 80); }
     for (const k of ["headerImage", "footerImage"]) if (src[k] !== undefined) { if (src[k] && src[k].length > 900000) return res.status(400).json({ error: "Image trop volumineuse (max ~650 Ko)" }); lh[k] = src[k]; }
