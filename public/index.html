@@ -4334,6 +4334,7 @@ async function billingTplModal(id) {
           <b>Comment ça marche :</b> une colonne « champ » affiche une info (nom, matricule, cat…). Une colonne « formule » calcule un montant à partir des jetons ci-dessous. Cliquez un jeton pour le copier.
           <div style="margin-top:6px"><b>Valeurs de base :</b> ${["BASE","JOURS","PRES"].map(billTok).join(" ")}</div>
           <div style="margin-top:4px"><b>Cascade (auto) :</b> ${["BRUT","CONGES","CHARGES","FRAIS","HT","TVA_CASC","TTC_CASC"].map(billTok).join(" ")}</div>
+          <div style="margin-top:4px"><b>Alias acceptes :</b> ${["GROSS","TVA","TTC","NET","FG","TOTAL_HT","ANCIENNETE"].map(billTok).join(" ")} <span style="color:var(--muted)">(sans tenir compte de la casse : gross = GROSS)</span></div>
           <div style="margin-top:4px"><b>Composants du catalogue :</b> ${(_comps||[]).slice(0,60).map(c=>billTok(c.code)).join(" ") || "<i>aucun</i>"}</div>
           <div style="margin-top:4px"><b>Autres colonnes :</b> utilisez la <b>clé</b> d'une colonne définie plus haut (ex. <code>SAL_BRUT / 12</code>).</div>
           <div style="margin-top:4px"><b>Opérateurs :</b> <code>+  −  *  /  (  )</code></div>
