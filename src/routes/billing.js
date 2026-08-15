@@ -431,6 +431,34 @@ router.get("/sheets/:id/invoice/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (
 
 /* ==================== ANNEXE TEMPLATES (configurable) ==================== */
 const tplOf = (req, id) => mine(db.billingAnnexeTemplates, req).find(t => t.id === id);
+
+// Générer / synchroniser l'annexe d'un client depuis ses composants activés (point 6).
+router.post("/contracts/:id/generate-annexe", allow("ADM"), (req, res) => {
+  const c = contractOf(req, req.params.id);
+  if (!c) return res.status(404).json({ error: "Client introuvable" });
+  const lf = Array.isArray(c.lineFields) && c.lineFields.length ? c.lineFields : [{ key: "poste", label: "Poste", type: "text" }];
+  const comps = (c.components || []).filter(x => x.active !== false).slice().sort((a, b) => (a.order || 99) - (b.order || 99));
+  const cols = [];
+  cols.push({ key: "NOM", source: "field", field: "name", label: "Noms & Prénoms", align: "left", w: 150 });
+  for (const f of lf) cols.push({ key: f.key.toUpperCase(), source: "field", field: f.key, label: f.label, align: "left", w: 90 });
+  for (const cp of comps) cols.push({ key: cp.code, expr: cp.code, label: cp.label, w: 70 });
+  const tva = ((c.rates || {}).tva != null ? c.rates.tva : 0.1925);
+  cols.push({ key: "BRUT", expr: "BRUT", label: "Salaire brut", w: 76, bold: true });
+  cols.push({ key: "CONGES", expr: "CONGES", label: "Congés", w: 66 });
+  cols.push({ key: "CHARGES", expr: "CHARGES", label: "Charges patronales", w: 76 });
+  cols.push({ key: "FRAIS", expr: "FRAIS", label: "Frais de gestion", w: 72 });
+  cols.push({ key: "HT", expr: "HT", label: "Total HT", w: 80, bold: true });
+  cols.push({ key: "TVA", expr: "TVA_CASC", label: "TVA", w: 66 });
+  cols.push({ key: "TTC", expr: "TTC_CASC", label: "Total TTC", w: 84, bold: true });
+  let t = mine(db.billingAnnexeTemplates, req).find(x => x.contractId === c.id);
+  const patch = { title: "Annexe — " + (c.clientName || ""), code: (c.clientCode || "CLI") + "_ANX", contractId: c.id,
+    groupBy: null, roundMode: "unrounded", taxes: { tva: tva, is: c.isEnabled ? Number(c.isRate || 0) : 0 },
+    columns: cols };
+  if (t) { Object.assign(t, patch); }
+  else { t = stamp(Object.assign({ id: id("batpl"), signatures: [], etabliPar: "", createdAt: new Date().toISOString() }, patch), req); db.billingAnnexeTemplates.push(t); }
+  save(); audit(req.user, t ? "GENERATED" : "CREATED", "BillingAnnexeTemplate", t.id, { from: "components", client: c.clientName });
+  res.json(t);
+});
 router.get("/annexe-templates", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) =>
   res.json(mine(db.billingAnnexeTemplates, req).slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""))));
 router.get("/annexe-templates/:id", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {

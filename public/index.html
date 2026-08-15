@@ -3944,7 +3944,8 @@ async function billingCfgView() {
     ${contracts.map(c => `<tr><td><b>${esc(c.clientName)}</b></td><td>${esc(c.clientCode || "")}</td><td>${esc(c.billingType)}</td>
       <td>${c.tvaExonere ? "exonérée" : ((c.rates.tva * 100).toFixed(2) + " %")}</td>
       <td>${(c.rates.fraisGestion * 100).toFixed(0)} %</td><td>÷${c.rates.congesDivisor}</td>
-      <td><button class="btn ghost sm" onclick='billingContractModal(${JSON.stringify(c.id)})'>✏️</button></td></tr>`).join("") || '<tr><td colspan="7" style="color:var(--muted)">Aucun client.</td></tr>'}
+      <td style="white-space:nowrap"><button class="btn ghost sm" title="Générer l'annexe depuis les composants" onclick='billingGenAnnexe(${JSON.stringify(c.id)})'>🧩 Annexe</button>
+        <button class="btn ghost sm" onclick='billingContractModal(${JSON.stringify(c.id)})'>✏️</button></td></tr>`).join("") || '<tr><td colspan="7" style="color:var(--muted)">Aucun client.</td></tr>'}
     </table></div>
   <div class="panel"><b>Catalogue des composants (${comps.length})</b>
     <span style="float:right;display:flex;gap:6px">
@@ -4145,6 +4146,7 @@ async function billingTemplatesView() {
 let BILL_TPL_COLS = [];
 async function billingTplModal(id) {
   const t = id ? await api("/billing/annexe-templates/" + id) : { title: "", code: "", groupBy: null, taxes: { tva: 0.1925, is: 0 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"], columns: [] };
+  const _comps = await api("/billing/components").catch(() => []);
   BILL_TPL_COLS = JSON.parse(JSON.stringify(t.columns || []));
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal" style="width:760px"><h3 style="margin:0 0 6px">${id ? "Modifier" : "Nouveau"} modèle d'annexe</h3>
@@ -4160,7 +4162,16 @@ async function billingTplModal(id) {
         <div><label>Établi par</label><input id="tpEtabli" value="${esc(t.etabliPar||"")}"></div>
       </div>
       <b style="font-size:12px;color:var(--muted)">COLONNES</b>
-      <div class="note" style="margin:4px 0">Source « champ » = nom/poste/cat. Sinon <b>formule</b> sur : <code>BASE, JOURS, PRES</code>, les codes composants (<code>IND_TRANS, HS120…</code>), les valeurs cascade (<code>BRUT, CONGES, CHARGES, FRAIS, HT</code>) et les <b>clés d'autres colonnes</b> (ex. <code>GROSS / 12</code>). Opérateurs + − × ÷ ( ).</div>
+      <details style="margin:4px 0"><summary style="cursor:pointer;font-size:12px;color:var(--nav-active-color)">💡 Aide formules — cliquez pour les jetons disponibles</summary>
+        <div class="note" style="margin-top:6px;line-height:1.7">
+          <b>Comment ça marche :</b> une colonne « champ » affiche une info (nom, matricule, cat…). Une colonne « formule » calcule un montant à partir des jetons ci-dessous. Cliquez un jeton pour le copier.
+          <div style="margin-top:6px"><b>Valeurs de base :</b> ${["BASE","JOURS","PRES"].map(billTok).join(" ")}</div>
+          <div style="margin-top:4px"><b>Cascade (auto) :</b> ${["BRUT","CONGES","CHARGES","FRAIS","HT","TVA_CASC","TTC_CASC"].map(billTok).join(" ")}</div>
+          <div style="margin-top:4px"><b>Composants du catalogue :</b> ${(_comps||[]).slice(0,60).map(c=>billTok(c.code)).join(" ") || "<i>aucun</i>"}</div>
+          <div style="margin-top:4px"><b>Autres colonnes :</b> utilisez la <b>clé</b> d'une colonne définie plus haut (ex. <code>SAL_BRUT / 12</code>).</div>
+          <div style="margin-top:4px"><b>Opérateurs :</b> <code>+  −  *  /  (  )</code></div>
+          <div style="margin-top:6px"><b>Exemples :</b> <code>BASE / 12</code> · <code>(SAL_BRUT + ALLOC_CONGE) * 0.162</code> · <code>TOTAL_HT * 0.022</code></div>
+        </div></details>
       <div id="tpCols"></div>
       <button class="btn ghost sm" style="margin-top:6px" onclick="billingTplAddCol()">+ Colonne</button>
     </div>
@@ -4339,6 +4350,16 @@ function billLFRenderCustom() {
   const box = document.getElementById("lfCustom"); if (!box) return;
   const cust = BILL_LINE_FIELDS.filter(x => x.custom);
   box.innerHTML = cust.length ? `<div class="note">Champs personnalis\u00e9s : ${cust.map(f => `${esc(f.label)} <span class="tag gray">${f.type}</span> <a href="#" onclick="billLFDelCustom('${f.key}');return false" style="color:var(--red)">\u2715</a>`).join(" &nbsp;\u00b7&nbsp; ")}</div>` : "";
+}
+
+
+function billTok(code){ return `<code style="cursor:pointer;background:var(--nav-active-bg);padding:1px 5px;border-radius:4px;margin:1px 2px;display:inline-block" title="Copier" onclick="billCopyTok('${code}')">${code}</code>`; }
+function billCopyTok(code){ try{ navigator.clipboard && navigator.clipboard.writeText(code); }catch(e){} const el=document.getElementById("tpHint"); if(el){el.textContent="Copié : "+code;setTimeout(()=>el.textContent="",1400);} }
+async function billingGenAnnexe(cid){
+  if(!confirm("Générer / mettre à jour l'annexe de ce client à partir de ses composants activés ?\n(Les colonnes = champs de ligne + composants activés + totaux cascade.)")) return;
+  try{ const t=await api("/billing/contracts/"+cid+"/generate-annexe",{method:"POST"});
+    alert("Annexe générée : "+(t.columns||[]).length+" colonnes. Vous pouvez l'ajuster dans les modèles."); billingTemplatesView(); }
+  catch(e){ alert(e.message); }
 }
 
 </script>

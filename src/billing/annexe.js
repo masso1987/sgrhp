@@ -5,7 +5,7 @@
  * cascade values } and evaluate each column in order (a column may reference earlier
  * columns by key). Produces rows, per-group subtotals, and a grand total.
  */
-const { computeLine } = require("./engine");
+const { computeLine, componentValue, mergeRates } = require("./engine");
 const { evalFormula } = require("./formula");
 const r2 = (n) => Math.round(Number(n) || 0);
 
@@ -20,8 +20,12 @@ function lineScope(line, contract) {
     BRUT: c.raw.brut || 0, CONGES: c.raw.conges || 0, CHARGES: c.raw.charges || 0,
     FRAIS: c.raw.fraisGestion || 0, HT: c.raw.HT || 0, TVA_CASC: c.raw.TVA || 0, TTC_CASC: c.raw.TTC || 0,
   };
+  const R = mergeRates(contract);
+  for (const comp of (contract.components || [])) {
+    if (comp && comp.code) scope[comp.code] = componentValue(comp, line, R) || 0;
+  }
   for (const [code, v] of Object.entries(line.components || {}))
-    scope[code] = Number(v && v.montant != null ? v.montant : v) || 0;
+    if (scope[code] == null) scope[code] = Number(v && v.montant != null ? v.montant : v) || 0;
   // aggregate helpers
   scope.PRIMES = Number(line.primes) || 0;
   scope.HORSCHARGES = Number(line.horsCharges) || 0;

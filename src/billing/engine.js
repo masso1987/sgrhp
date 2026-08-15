@@ -169,4 +169,4 @@ function computeSheet(sheet, contract) {
   return { lines, groups, totals };
 }
 
-module.exports = { computeLine, computeSheet, computeMAD, computePrestation, computeRecap, DEFAULT_RATES, mergeRates, r2 };
+module.exports = { computeLine, computeSheet, computeMAD, computePrestation, computeRecap, DEFAULT_RATES, mergeRates, componentValue, r2 };
