@@ -66,7 +66,7 @@ const DEFAULTS = {
       headerImage: "", footerImage: "", headerHeight: 80, footerHeight: 50,
       company: { name: "", address: "", city: "", phone: "", email: "", rccm: "", niu: "", capital: "", website: "" },
       bank: { name: "", holder: "", code: "", guichet: "", account: "", cle: "", swift: "" },
-      legal: "", showPage: true, accent: "",
+      legal: "", showPage: true, accent: "", tagline: "",
     },
   },
 };
@@ -230,6 +230,7 @@ router.put("/branding", allow("ADM"), (req, res) => {
     const lh = s.branding.letterhead = s.branding.letterhead || {}; const src = b.letterhead;
     if (src.mode && ["fields", "image"].includes(src.mode)) lh.mode = src.mode;
     if (src.legal !== undefined) lh.legal = String(src.legal).slice(0, 600);
+    if (src.tagline !== undefined) lh.tagline = String(src.tagline).slice(0, 160);
     for (const k of ["headerHeight", "footerHeight"]) if (src[k] !== undefined) lh[k] = Math.max(0, Math.min(200, Number(src[k]) || 0));
     if (src.showPage !== undefined) lh.showPage = !!src.showPage;
     if (src.accent !== undefined) { if (src.accent && !HEX.test(src.accent)) return res.status(400).json({ error: "Couleur d'accent invalide" }); lh.accent = src.accent || ""; }

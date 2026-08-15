@@ -343,27 +343,37 @@ function _proformaLines(s, computed, contract) {
   return out;
 }
 function _drawHeader(doc, co, client, title) {
-  const lh = _lh(); const cb = client || {}; let top = 104, clientTop = 46;
+  const lh = _lh(); const cb = client || {}; const pw = doc.page.width; let top = 104, clientTop = 46;
   if (lh.mode === "image" && lh.headerImage) {
     const h = lh.headerHeight || 80; const buf = _dataBuf(lh.headerImage);
-    if (buf) { try { doc.image(buf, 0, 0, { width: doc.page.width, height: h }); } catch (e) {} }
-    doc.fillColor("#000").font("Helvetica-Bold").fontSize(13).text(title, 24, h + 4);
+    if (buf) { try { doc.image(buf, 0, 0, { width: pw, height: h }); } catch (e) {} }
+    if (title) doc.fillColor("#000").font("Helvetica-Bold").fontSize(13).text(title, 24, h + 4);
     clientTop = h + 4; top = h + 58;
   } else {
     const c = Object.assign({}, co, lh.company || {});
-    doc.font("Helvetica-Bold").fontSize(15).fillColor("#000").text(title, 24, 22);
-    doc.font("Helvetica-Bold").fontSize(11).text(_fixEnc(c.name || co.name || "CIBLE RH EMPLOI"), 24, 46);
+    const logo = (((db.settings || {}).branding || {}).logo) || "";
+    let ly = 20;
+    if (logo) { const lb = _dataBuf(logo); if (lb) { try { doc.image(lb, 24, 18, { height: 34 }); ly = 56; } catch (e) {} } }
+    if (lh.tagline) { doc.font("Helvetica-Oblique").fontSize(8).fillColor("#b3261e").text(_fixEnc(lh.tagline), 24, ly, { width: pw / 2 - 24 }); ly += 12; }
+    doc.fillColor("#000");
+    // company block — right aligned
+    const cw = 250, cx = pw - 24 - cw; let ry = 20;
+    doc.font("Helvetica-Bold").fontSize(11).text(_fixEnc(c.name || co.name || "CIBLE RH EMPLOI"), cx, ry, { width: cw, align: "right" }); ry += 15;
     doc.font("Helvetica").fontSize(8);
-    if (c.address) doc.text(_fixEnc(c.address), 24, 62);
-    if (c.city) doc.text(_fixEnc(c.city), 24, 73);
-    const l3 = [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : "", c.phone ? "Tél : " + c.phone : ""].filter(Boolean).join("   ·   ");
-    if (l3) doc.text(l3, 24, 84);
+    if (c.address) { doc.text(_fixEnc(c.address), cx, ry, { width: cw, align: "right" }); ry += 11; }
+    if (c.city) { doc.text(_fixEnc(c.city), cx, ry, { width: cw, align: "right" }); ry += 11; }
+    if (c.niu) { doc.text("N° CONTRIBUABLE : " + c.niu, cx, ry, { width: cw, align: "right" }); ry += 11; }
+    if (c.rccm) { doc.text("RCCM : " + c.rccm, cx, ry, { width: cw, align: "right" }); ry += 11; }
+    if (c.phone) { doc.text("Tél : " + c.phone, cx, ry, { width: cw, align: "right" }); ry += 11; }
+    if (title) { doc.fillColor("#000").font("Helvetica-Bold").fontSize(14).text(title, 24, ly + 4, { width: pw / 2 }); ly += 24; }
+    clientTop = Math.max(ly, ry) + 4; top = Math.max(104, clientTop);
   }
   if (client) {
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#000").text("ADRESSÉE À :", 360, clientTop);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#000").text("ADRESSÉE À :", 24, clientTop);
     doc.font("Helvetica").fontSize(9);
-    if (cb.name) doc.text(_fixEnc(cb.name), 360, clientTop + 14); if (cb.adresse) doc.text(_fixEnc(cb.adresse), 360, clientTop + 26);
-    if (cb.rccm) doc.text("RCCM : " + cb.rccm, 360, clientTop + 38); if (cb.niu) doc.text("NIU : " + cb.niu, 360, clientTop + 49);
+    if (cb.name) doc.text(_fixEnc(cb.name), 24, clientTop + 14); if (cb.adresse) doc.text(_fixEnc(cb.adresse), 24, clientTop + 26);
+    if (cb.rccm) doc.text("RCCM : " + cb.rccm, 24, clientTop + 38); if (cb.niu) doc.text("NIU : " + cb.niu, 24, clientTop + 49);
+    top = clientTop + 62;
   }
   return top;
 }

@@ -2416,6 +2416,7 @@ async function paramsView() {
     <b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">PIED — bandeau image (mode image)</b>
     <div style="display:flex;gap:10px;align-items:center;margin:4px 0 6px"><input type="file" accept="image/*" onchange="lhUpload(event,'footer')"><span id="lhFtrName" style="font-size:12px;color:var(--muted)">${lh.footerImage?"image importée":"aucune"}</span><button class="btn ghost sm" onclick="lhClear('footer')">Retirer</button></div>
     <img id="lhFtrPrev" style="max-height:50px;border:1px solid var(--border);border-radius:6px;${lh.footerImage?"":"display:none"}" src="${lh.footerImage||""}">
+    <div style="margin-top:8px"><label>Slogan (sous le logo, en rouge)</label><input id="lhTagline" value="${esc(lh.tagline||"")}" placeholder="ex. Une vocation africaine .... Des standards internationaux"></div>
     <div style="margin-top:8px"><label>Mentions légales (pied)</label><input id="lhLegal" value="${esc(lh.legal||"")}"></div>
     <label class="chk" style="margin-top:6px"><input type="checkbox" id="lhPage" ${lh.showPage!==false?"checked":""}><span>Afficher le numéro de page</span></label>
     <div class="err hidden" id="lhErr" style="margin-top:6px"></div>
@@ -4588,7 +4589,7 @@ async function saveLetterhead(){
     headerImage:window._LH.headerImage||"", footerImage:window._LH.footerImage||"",
     company:{ name:g("lhcName"),address:g("lhcAddr"),city:g("lhcCity"),phone:g("lhcPhone"),email:g("lhcEmail"),rccm:g("lhcRccm"),niu:g("lhcNiu"),capital:g("lhcCap"),website:g("lhcWeb") },
     bank:{ name:g("lhbName"),holder:g("lhbHolder"),code:g("lhbCode"),guichet:g("lhbGuichet"),account:g("lhbAcct"),cle:g("lhbCle"),swift:g("lhbSwift") },
-    legal:g("lhLegal"), showPage:(document.getElementById("lhPage")||{}).checked, accent:g("lhAccent")||"" } };
+    legal:g("lhLegal"), tagline:g("lhTagline"), showPage:(document.getElementById("lhPage")||{}).checked, accent:g("lhAccent")||"" } };
   try{ await api("/settings/branding",{method:"PUT",body:JSON.stringify(body)}); alert("Papier à en-tête enregistré."); }
   catch(e){ const el=document.getElementById("lhErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
