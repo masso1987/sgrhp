@@ -677,6 +677,8 @@ router.post("/invoices", allow("ADM","CD","RJ","GPF"), (req, res) => {
 router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   for (const k of ["objet", "bonCommande", "date", "dueDate", "journalId", "account", "annexeSheetId", "stage", "status"]) if (req.body[k] !== undefined) inv[k] = req.body[k];
+  if (req.body.isRate !== undefined) inv.isRate = Number(req.body.isRate) || 0;
+  if (req.body.tvaExonere !== undefined) inv.tvaExonere = !!req.body.tvaExonere;
   if (Array.isArray(req.body.lines)) inv.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
   save(); audit(req.user, "UPDATED", "BillingInvoice", inv.id, {}); res.json(withInvTotals(inv));
 });

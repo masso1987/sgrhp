@@ -4508,6 +4508,7 @@ async function invoiceOpen(id) {
       <div><label>Date d'échéance</label><input id="ivDue" type="date" value="${esc(INV_EDIT.dueDate || "")}"></div>
       <div><label>Journal</label><input id="ivJournal" value="${esc(INV_EDIT.journalId || "")}"></div>
       <div><label>Compte GL</label><input id="ivAcct" value="${esc(INV_EDIT.account || "701100")}"></div>
+      <div><label>IS retenue %</label><input id="ivIS" type="number" step="0.1" value="${((INV_EDIT.isRate||0)*100)}" oninput="INV_EDIT.isRate=(Number(this.value)||0)/100;invRenderTotals()" title="0 = pas d'IS"></div>
       <div><label>Annexe liée (comparaison)</label><select id="ivAnnexe">${`<option value="">—</option>` + sheets.filter(s => s.contractId === INV_EDIT.contractId).map(s => `${opt(s.id, INV_EDIT.annexeSheetId)}${esc(s.period)} · HT ${fCFA(s.HT)}</option>`).join("")}</select></div>
     </div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">LIGNES DE FACTURE</b>
@@ -4527,8 +4528,8 @@ function invRenderTotals() {
 }
 async function invoiceSave() {
   const g = (x) => (document.getElementById(x) || {}).value;
-  Object.assign(INV_EDIT, { objet: g("ivObjet"), bonCommande: g("ivPO"), date: g("ivDate"), dueDate: g("ivDue"), journalId: g("ivJournal"), account: g("ivAcct"), annexeSheetId: g("ivAnnexe") || null });
-  try { const v = await api("/billing/invoices/" + INV_EDIT.id, { method: "PUT", body: JSON.stringify({ objet: INV_EDIT.objet, bonCommande: INV_EDIT.bonCommande, date: INV_EDIT.date, dueDate: INV_EDIT.dueDate, journalId: INV_EDIT.journalId, account: INV_EDIT.account, annexeSheetId: INV_EDIT.annexeSheetId, lines: INV_EDIT.lines }) });
+  Object.assign(INV_EDIT, { objet: g("ivObjet"), bonCommande: g("ivPO"), date: g("ivDate"), dueDate: g("ivDue"), journalId: g("ivJournal"), account: g("ivAcct"), annexeSheetId: g("ivAnnexe") || null, isRate: (Number(g("ivIS"))||0)/100 });
+  try { const v = await api("/billing/invoices/" + INV_EDIT.id, { method: "PUT", body: JSON.stringify({ objet: INV_EDIT.objet, bonCommande: INV_EDIT.bonCommande, date: INV_EDIT.date, dueDate: INV_EDIT.dueDate, journalId: INV_EDIT.journalId, account: INV_EDIT.account, annexeSheetId: INV_EDIT.annexeSheetId, isRate: INV_EDIT.isRate, lines: INV_EDIT.lines }) });
     alert("Facture enregistrée."); } catch (e) { alert(e.message); }
 }
 async function invoiceCompareRun() {
