@@ -310,6 +310,25 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
 /* ==================== ANNEXE & FACTURE (PDF / Excel) ==================== */
 const _NF = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 function _company() { const b = (db.settings && db.settings.branding) || {}; return Object.assign({ name: b.appName || "CIBLE RH EMPLOI" }, b.company || {}); }
+function _lh() { const b = (db.settings && db.settings.branding) || {}; const lh = b.letterhead || {}; return Object.assign({ mode: "fields", headerHeight: 80, footerHeight: 50, showPage: true, legal: "" }, lh, { company: Object.assign({}, b.company || {}, lh.company || {}), bank: Object.assign({}, lh.bank || {}) }); }
+function _dataBuf(d) { try { const i = String(d).indexOf(","); return Buffer.from(String(d).slice(i + 1), "base64"); } catch (e) { return null; } }
+function _drawFooter(doc, pageNo, pageCount) {
+  const lh = _lh(); const pw = doc.page.width, ph = doc.page.height;
+  if (lh.mode === "image" && lh.footerImage) { const buf = _dataBuf(lh.footerImage); if (buf) { try { doc.image(buf, 0, ph - (lh.footerHeight || 50), { width: pw, height: lh.footerHeight || 50 }); } catch (e) {} } return; }
+  const bk = lh.bank || {}; const parts = [];
+  const nm = bk.holder ? (bk.name ? bk.name + " — " + bk.holder : bk.holder) : bk.name;
+  if (nm) parts.push(nm);
+  const acct = [bk.code, bk.guichet, bk.account, bk.cle].filter(Boolean).join(" "); if (acct) parts.push("Compte : " + acct);
+  if (bk.swift) parts.push("SWIFT : " + bk.swift);
+  const y = ph - 44;
+  doc.save(); doc.lineWidth(0.5).strokeColor("#999").moveTo(24, y).lineTo(pw - 24, y).stroke();
+  doc.font("Helvetica").fontSize(7).fillColor("#444");
+  if (parts.length) doc.text(parts.join("   |   "), 24, y + 4, { width: pw - 48 });
+  if (lh.legal) doc.text(lh.legal, 24, y + 15, { width: pw - 120 });
+  if (lh.showPage !== false && pageCount) doc.text("Page " + pageNo + " / " + pageCount, pw - 90, y + 15, { width: 66, align: "right" });
+  doc.fillColor("#000"); doc.restore();
+}
+function _paintFooters(doc) { try { const r = doc.bufferedPageRange(); for (let i = 0; i < r.count; i++) { doc.switchToPage(r.start + i); _drawFooter(doc, i + 1, r.count); } } catch (e) {} }
 function _proformaLines(s, computed, contract) {
   const L = computed.lines; const sum = (k) => L.reduce((a, l) => a + (l.raw[k] || 0), 0);
   const out = [["SALAIRES BRUTS", Math.round(sum("brut"))], ["PROVISION CONGÉS", Math.round(sum("conges"))]];
@@ -323,19 +342,27 @@ function _proformaLines(s, computed, contract) {
   return out;
 }
 function _drawHeader(doc, co, client, title) {
-  doc.font("Helvetica-Bold").fontSize(15).text(title, 24, 22);
-  doc.font("Helvetica").fontSize(8);
-  doc.font("Helvetica-Bold").fontSize(11).text(co.name || "CIBLE RH EMPLOI", 24, 46);
-  doc.font("Helvetica").fontSize(8);
-  if (co.address) doc.text(co.address, 24, 62);
-  if (co.city) doc.text(co.city, 24, 73);
-  if (co.rccm || co.niu) doc.text(`RCCM : ${co.rccm || ""}   ·   NIU : ${co.niu || ""}`, 24, 84);
-  // client block (right)
-  const cb = client || {};
-  doc.font("Helvetica-Bold").fontSize(9).text("ADRESSÉE À :", 360, 46);
+  const lh = _lh(); const cb = client || {}; let top = 104, clientTop = 46;
+  if (lh.mode === "image" && lh.headerImage) {
+    const h = lh.headerHeight || 80; const buf = _dataBuf(lh.headerImage);
+    if (buf) { try { doc.image(buf, 0, 0, { width: doc.page.width, height: h }); } catch (e) {} }
+    doc.fillColor("#000").font("Helvetica-Bold").fontSize(13).text(title, 24, h + 4);
+    clientTop = h + 4; top = h + 58;
+  } else {
+    const c = Object.assign({}, co, lh.company || {});
+    doc.font("Helvetica-Bold").fontSize(15).fillColor("#000").text(title, 24, 22);
+    doc.font("Helvetica-Bold").fontSize(11).text(c.name || co.name || "CIBLE RH EMPLOI", 24, 46);
+    doc.font("Helvetica").fontSize(8);
+    if (c.address) doc.text(c.address, 24, 62);
+    if (c.city) doc.text(c.city, 24, 73);
+    const l3 = [c.rccm ? "RCCM : " + c.rccm : "", c.niu ? "NIU : " + c.niu : "", c.phone ? "Tél : " + c.phone : ""].filter(Boolean).join("   ·   ");
+    if (l3) doc.text(l3, 24, 84);
+  }
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#000").text("ADRESSÉE À :", 360, clientTop);
   doc.font("Helvetica").fontSize(9);
-  if (cb.name) doc.text(cb.name, 360, 60); if (cb.adresse) doc.text(cb.adresse, 360, 72);
-  if (cb.rccm) doc.text("RCCM : " + cb.rccm, 360, 84); if (cb.niu) doc.text("NIU : " + cb.niu, 360, 95);
+  if (cb.name) doc.text(cb.name, 360, clientTop + 14); if (cb.adresse) doc.text(cb.adresse, 360, clientTop + 26);
+  if (cb.rccm) doc.text("RCCM : " + cb.rccm, 360, clientTop + 38); if (cb.niu) doc.text("NIU : " + cb.niu, 360, clientTop + 49);
+  return top;
 }
 
 router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
@@ -505,17 +532,17 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
   const t = tplOf(req, req.query.templateId); if (!t) return res.status(400).json({ error: "Modèle d'annexe requis" });
   const contract = contractOf(req, s.contractId) || { billingType: "MAD", rates: {} };
   const A = computeAnnexe(t, s.lines || [], contract); const co = _company();
-  const doc = new PDFDocument({ margin: 16, size: "A4", layout: "landscape" });
+  const doc = new PDFDocument({ margin: 16, size: "A4", layout: "landscape", bufferPages: true });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Annexe_${(contract.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
   doc.pipe(res);
-  _drawHeader(doc, co, contract.clientBlock, t.title || "ANNEXE DE FACTURATION");
-  doc.font("Helvetica").fontSize(8).text(`Client : ${contract.clientName || ""}   ·   Période : ${s.period}`, 24, 104);
+  const _top = _drawHeader(doc, co, contract.clientBlock, t.title || "ANNEXE DE FACTURATION");
+  doc.font("Helvetica").fontSize(8).text(`Client : ${contract.clientName || ""}   ·   Période : ${s.period}`, 24, _top);
   const cols = t.columns || [];
   let total = 0; cols.forEach(c => total += (c.w || 60));
   const avail = 810; const scale = total > avail ? avail / total : 1;
   const x0 = 16; const xs = []; let x = x0; cols.forEach(c => { xs.push(x); x += (c.w || 60) * scale; }); const W = x - x0;
-  let y = 120;
+  let y = _top + 14;
   const T = (cx, yy, v, w, al, b, sz) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 6.5).fillColor("#000").text(v == null ? "" : String(v), cx + 1, yy, { width: w - 2, align: al || "right", lineBreak: false });
   const headRow = () => { doc.rect(x0, y, W, 14).fillAndStroke("#7a1420", "#000"); cols.forEach((c, i) => doc.font("Helvetica-Bold").fontSize(6).fillColor("#fff").text(c.label || c.key, xs[i] + 1, y + 3.5, { width: (c.w || 60) * scale - 2, align: c.align === "left" ? "left" : "right", lineBreak: false })); doc.fillColor("#000"); y += 14; };
   headRow();
@@ -529,7 +556,7 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
   else { for (const r of A.rows) drawRow(r); }
   totalRow(A.total, "TOTAL GÉNÉRAL (" + A.count + ")");
   if ((t.signatures || []).length) { y = Math.min(y + 24, 560); const sw = W / t.signatures.length; t.signatures.forEach((sig, i) => doc.font("Helvetica-Bold").fontSize(8).text(sig, x0 + i * sw, y, { width: sw, align: "center" })); }
-  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe-template", format: "pdf" }); doc.end();
+  _paintFooters(doc); audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe-template", format: "pdf" }); doc.end();
 });
 
 /* ==================== CYCLE DE VIE + DUPLICATION ==================== */
@@ -675,17 +702,17 @@ router.get("/invoices/:id/compare", allow("ADM","CD","RJ","GPF","UI"), (req, res
 router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   const contract = contractOf(req, inv.contractId) || {}; const co = _company(); const t = invTotals(inv);
-  const doc = new PDFDocument({ margin: 28, size: "A4" });
+  const doc = new PDFDocument({ margin: 28, size: "A4", bufferPages: true });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Facture_${(inv.number||"").replace(/[^\w]/g,"_")}.pdf"`);
   doc.pipe(res);
-  _drawHeader(doc, co, contract.clientBlock, "FACTURE");
-  doc.font("Helvetica-Bold").fontSize(10).text("N° " + (inv.number || ""), 360, 118);
-  doc.font("Helvetica").fontSize(9).text("Date : " + (inv.date || ""), 360, 132);
-  if (inv.dueDate) doc.text("Échéance : " + inv.dueDate, 360, 144);
-  if (inv.objet) doc.font("Helvetica-Bold").fontSize(9).text("Objet : " + inv.objet, 28, 118, { width: 300 });
-  if (inv.bonCommande) doc.font("Helvetica").fontSize(8).text("Bon de commande : " + inv.bonCommande, 28, 140);
-  let y = 165; const x0 = 28, W = 539;
+  const _top = _drawHeader(doc, co, contract.clientBlock, "FACTURE");
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#000").text("N° " + (inv.number || ""), 360, _top);
+  doc.font("Helvetica").fontSize(9).text("Date : " + (inv.date || ""), 360, _top + 12);
+  if (inv.dueDate) doc.text("Échéance : " + inv.dueDate, 360, _top + 24);
+  if (inv.objet) doc.font("Helvetica-Bold").fontSize(9).text("Objet : " + inv.objet, 28, _top, { width: 300 });
+  if (inv.bonCommande) doc.font("Helvetica").fontSize(8).text("Bon de commande : " + inv.bonCommande, 28, _top + 22);
+  let y = _top + 48; const x0 = 28, W = 539;
   const T = (cx, yy, v, w, al, b) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(9).text(v == null ? "" : String(v), cx + 3, yy, { width: w - 6, align: al || "left", lineBreak: false });
   doc.rect(x0, y, W, 16).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
   T(x0, y + 4, "Désignation", 300, "left", true); T(x0 + 300, y + 4, "Qté", 50, "right", true); T(x0 + 350, y + 4, "P.U.", 90, "right", true); T(x0 + 440, y + 4, "Montant", 99, "right", true); y += 16;
@@ -703,7 +730,7 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   if (t.IS) tot("IS (retenue)", -t.IS);
   tot(t.IS ? "TOTAL À PAYER" : "TOTAL TTC", t.IS ? t.totalDu : t.TTC, true);
   doc.font("Helvetica-Oblique").fontSize(8).text("Arrêtée la présente facture à la somme de : " + enLettres(t.IS ? t.totalDu : t.TTC), x0, y + 8, { width: W });
-  audit(req.user, "EXPORTED", "BillingInvoice", inv.id, { doc: "invoice", format: "pdf" }); doc.end();
+  _paintFooters(doc); audit(req.user, "EXPORTED", "BillingInvoice", inv.id, { doc: "invoice", format: "pdf" }); doc.end();
 });
 
 module.exports = router;

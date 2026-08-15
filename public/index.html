@@ -2377,7 +2377,48 @@ async function repExport(fmt) {
 async function paramsView() {
   const s = await api("/settings");
   window._EMAIL = s.email; window._TPLS = s.emailTemplates; window._RCPT = s.emailRecipients;
+  const lh = Object.assign({ company: {}, bank: {} }, s.branding.letterhead || {}); lh.company = lh.company || {}; lh.bank = lh.bank || {};
+  window._LH = { headerImage: lh.headerImage || "", footerImage: lh.footerImage || "" };
   view.innerHTML = `<h1>Paramètres de l'application</h1>
+  <div class="panel"><b>📄 Papier à en-tête (factures &amp; annexes)</b>
+    <div class="note" style="margin:6px 0">En-tête et pied appliqués aux PDF de <b>factures</b> et d'<b>annexes</b>. Mode <b>champs</b> = logo + blocs saisis ; mode <b>image</b> = bandeaux importés (en-tête / pied).</div>
+    <div class="grid3">
+      <div><label>Mode par défaut</label><select id="lhMode"><option value="fields" ${lh.mode!=="image"?"selected":""}>Champs (blocs saisis)</option><option value="image" ${lh.mode==="image"?"selected":""}>Image (bandeaux)</option></select></div>
+      <div><label>Hauteur en-tête (px)</label><input id="lhHH" type="number" value="${lh.headerHeight||80}"></div>
+      <div><label>Hauteur pied (px)</label><input id="lhFH" type="number" value="${lh.footerHeight||50}"></div>
+    </div>
+    <b style="font-size:12px;color:var(--muted)">EN-TÊTE — bandeau image (mode image)</b>
+    <div style="display:flex;gap:10px;align-items:center;margin:4px 0 6px"><input type="file" accept="image/*" onchange="lhUpload(event,'header')"><span id="lhHdrName" style="font-size:12px;color:var(--muted)">${lh.headerImage?"image importée":"aucune"}</span><button class="btn ghost sm" onclick="lhClear('header')">Retirer</button></div>
+    <img id="lhHdrPrev" style="max-height:60px;border:1px solid var(--border);border-radius:6px;${lh.headerImage?"":"display:none"}" src="${lh.headerImage||""}">
+    <b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">SOCIÉTÉ (mode champs — en-tête)</b>
+    <div class="grid3">
+      <div><label>Raison sociale</label><input id="lhcName" value="${esc(lh.company.name||"")}"></div>
+      <div><label>Adresse</label><input id="lhcAddr" value="${esc(lh.company.address||"")}"></div>
+      <div><label>Ville</label><input id="lhcCity" value="${esc(lh.company.city||"")}"></div>
+      <div><label>Téléphone</label><input id="lhcPhone" value="${esc(lh.company.phone||"")}"></div>
+      <div><label>Email</label><input id="lhcEmail" value="${esc(lh.company.email||"")}"></div>
+      <div><label>RCCM</label><input id="lhcRccm" value="${esc(lh.company.rccm||"")}"></div>
+      <div><label>NIU</label><input id="lhcNiu" value="${esc(lh.company.niu||"")}"></div>
+      <div><label>Capital</label><input id="lhcCap" value="${esc(lh.company.capital||"")}"></div>
+      <div><label>Site web</label><input id="lhcWeb" value="${esc(lh.company.website||"")}"></div>
+    </div>
+    <b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">COORDONNÉES BANCAIRES (mode champs — pied)</b>
+    <div class="grid3">
+      <div><label>Banque</label><input id="lhbName" value="${esc(lh.bank.name||"")}"></div>
+      <div><label>Titulaire</label><input id="lhbHolder" value="${esc(lh.bank.holder||"")}"></div>
+      <div><label>Code banque</label><input id="lhbCode" value="${esc(lh.bank.code||"")}"></div>
+      <div><label>Code guichet</label><input id="lhbGuichet" value="${esc(lh.bank.guichet||"")}"></div>
+      <div><label>N° compte</label><input id="lhbAcct" value="${esc(lh.bank.account||"")}"></div>
+      <div><label>Clé</label><input id="lhbCle" value="${esc(lh.bank.cle||"")}"></div>
+      <div><label>SWIFT / BIC</label><input id="lhbSwift" value="${esc(lh.bank.swift||"")}"></div>
+    </div>
+    <b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">PIED — bandeau image (mode image)</b>
+    <div style="display:flex;gap:10px;align-items:center;margin:4px 0 6px"><input type="file" accept="image/*" onchange="lhUpload(event,'footer')"><span id="lhFtrName" style="font-size:12px;color:var(--muted)">${lh.footerImage?"image importée":"aucune"}</span><button class="btn ghost sm" onclick="lhClear('footer')">Retirer</button></div>
+    <img id="lhFtrPrev" style="max-height:50px;border:1px solid var(--border);border-radius:6px;${lh.footerImage?"":"display:none"}" src="${lh.footerImage||""}">
+    <div style="margin-top:8px"><label>Mentions légales (pied)</label><input id="lhLegal" value="${esc(lh.legal||"")}"></div>
+    <label class="chk" style="margin-top:6px"><input type="checkbox" id="lhPage" ${lh.showPage!==false?"checked":""}><span>Afficher le numéro de page</span></label>
+    <div class="err hidden" id="lhErr" style="margin-top:6px"></div>
+    <button class="btn p" style="margin-top:8px" onclick="saveLetterhead()">Enregistrer le papier à en-tête</button></div>
   <div class="grid2">
     <div class="panel"><b>🔐 Sécurité</b>
       <label class="chk" style="margin-top:8px"><input type="checkbox" id="p2faAdm" ${s.security.require2faForAdmins ? "checked" : ""}>
@@ -4535,6 +4576,20 @@ async function imSave(id) {
     document.querySelector(".modal-bg").remove(); invoiceModelsView(); } catch (e) { const el = document.getElementById("imErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
 async function imDel(id) { if (!confirm("Supprimer ce modèle ?")) return; try { await api("/billing/invoice-models/" + id, { method: "DELETE" }); invoiceModelsView(); } catch (e) { alert(e.message); } }
+
+
+function lhUpload(ev, which){ const f=ev.target.files[0]; if(!f) return; if(f.size>650000){ alert("Image trop volumineuse (max ~650 Ko)."); return; } const rd=new FileReader(); rd.onload=()=>{ const url=String(rd.result); window._LH[which+"Image"]=url; const pv=document.getElementById(which==="header"?"lhHdrPrev":"lhFtrPrev"); if(pv){pv.src=url;pv.style.display="";} const nm=document.getElementById(which==="header"?"lhHdrName":"lhFtrName"); if(nm)nm.textContent="image importée"; }; rd.readAsDataURL(f); }
+function lhClear(which){ window._LH[which+"Image"]=""; const pv=document.getElementById(which==="header"?"lhHdrPrev":"lhFtrPrev"); if(pv){pv.src="";pv.style.display="none";} const nm=document.getElementById(which==="header"?"lhHdrName":"lhFtrName"); if(nm)nm.textContent="aucune"; }
+async function saveLetterhead(){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={ letterhead:{ mode:g("lhMode"), headerHeight:Number(g("lhHH"))||80, footerHeight:Number(g("lhFH"))||50,
+    headerImage:window._LH.headerImage||"", footerImage:window._LH.footerImage||"",
+    company:{ name:g("lhcName"),address:g("lhcAddr"),city:g("lhcCity"),phone:g("lhcPhone"),email:g("lhcEmail"),rccm:g("lhcRccm"),niu:g("lhcNiu"),capital:g("lhcCap"),website:g("lhcWeb") },
+    bank:{ name:g("lhbName"),holder:g("lhbHolder"),code:g("lhbCode"),guichet:g("lhbGuichet"),account:g("lhbAcct"),cle:g("lhbCle"),swift:g("lhbSwift") },
+    legal:g("lhLegal"), showPage:(document.getElementById("lhPage")||{}).checked } };
+  try{ await api("/settings/branding",{method:"PUT",body:JSON.stringify(body)}); alert("Papier à en-tête enregistré."); }
+  catch(e){ const el=document.getElementById("lhErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
 
 </script>
 </body>

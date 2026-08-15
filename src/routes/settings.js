@@ -61,6 +61,13 @@ const DEFAULTS = {
       grid: "", fiches: "", dataio: "", params: "", settings: "",
     },
     density: "comfortable",         // comfortable | compact
+    letterhead: {
+      mode: "fields",               // fields | image (défaut par document)
+      headerImage: "", footerImage: "", headerHeight: 80, footerHeight: 50,
+      company: { name: "", address: "", city: "", phone: "", email: "", rccm: "", niu: "", capital: "", website: "" },
+      bank: { name: "", holder: "", code: "", guichet: "", account: "", cle: "", swift: "" },
+      legal: "", showPage: true,
+    },
   },
 };
 
@@ -218,6 +225,16 @@ router.put("/branding", allow("ADM"), (req, res) => {
     if (s.branding.sectionColors[k] === undefined) continue;
     if (v && !HEX.test(v)) return res.status(400).json({ error: `Couleur de section invalide : ${k}` });
     s.branding.sectionColors[k] = v || "";
+  }
+  if (b.letterhead) {
+    const lh = s.branding.letterhead = s.branding.letterhead || {}; const src = b.letterhead;
+    if (src.mode && ["fields", "image"].includes(src.mode)) lh.mode = src.mode;
+    if (src.legal !== undefined) lh.legal = String(src.legal).slice(0, 600);
+    for (const k of ["headerHeight", "footerHeight"]) if (src[k] !== undefined) lh[k] = Math.max(0, Math.min(200, Number(src[k]) || 0));
+    if (src.showPage !== undefined) lh.showPage = !!src.showPage;
+    if (src.company) { lh.company = lh.company || {}; for (const k of ["name", "address", "city", "phone", "email", "rccm", "niu", "capital", "website"]) if (src.company[k] !== undefined) lh.company[k] = String(src.company[k]).slice(0, 160); }
+    if (src.bank) { lh.bank = lh.bank || {}; for (const k of ["name", "holder", "code", "guichet", "account", "cle", "swift"]) if (src.bank[k] !== undefined) lh.bank[k] = String(src.bank[k]).slice(0, 80); }
+    for (const k of ["headerImage", "footerImage"]) if (src[k] !== undefined) { if (src[k] && src[k].length > 900000) return res.status(400).json({ error: "Image trop volumineuse (max ~650 Ko)" }); lh[k] = src[k]; }
   }
   save();
   audit(req.user, "CONFIG_CHANGED", "Settings", "branding", { before, after: s.branding });
