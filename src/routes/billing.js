@@ -262,7 +262,7 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
   if (s.status === "validated") return res.status(409).json({ error: "Fiche validée — lecture seule" });
   const contract = contractOf(req, s.contractId) || {};
   try {
-    const { data, sheet, headerRow, mapping, mode } = req.body || {};
+    const { data, sheet, headerRow, mapping, mode, preview } = req.body || {};
     if (!data || !mapping) return res.status(400).json({ error: "Fichier ou mapping manquant" });
     const wb = _wb(data); const m = _matrix(wb, sheet || wb.SheetNames[0]); const hr = Number(headerRow) || 0;
     const at = (row, key) => { const c = mapping[key]; return (c === null || c === "" || c === undefined) ? undefined : row[Number(c)]; };
@@ -299,6 +299,7 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
       }
       out.push(rec);
     }
+    if (preview) { return res.json({ preview: true, count: out.length, lines: out }); }
     s.lines = (mode === "append") ? (s.lines || []).concat(out) : out;
     if (contract.id) {
       contract.columnMapping = { sheet, headerRow: hr, mapping };

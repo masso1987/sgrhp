@@ -4104,6 +4104,7 @@ async function billingReparse(sheet) {
   catch (e) { alert(e.message); }
 }
 function billingMapModal(p, replace) {
+  window._IMP_P = p;
   const comps = ((window._IMP_COMPS && window._IMP_COMPS.length) ? window._IMP_COMPS : (BILL_SHEET.contract.components || [])).filter(c => ["PRIME", "HORS_CHARGE", "RETENUE", "PRESTATION"].includes(c.stage)).slice().sort((a, b) => (a.order || 99) - (b.order || 99));
   const opts = (sel) => `<option value="">—</option>` + p.headers.map(h => `<option value="${h.index}" ${String(sel) === String(h.index) ? "selected" : ""}>${esc(h.label)}</option>`).join("");
   const guess = (kw) => { const h = p.headers.find(x => (x.label || "").toLowerCase().includes(kw)); return h ? h.index : ""; };
@@ -4159,24 +4160,63 @@ function billingMapModal(p, replace) {
       </div>
     </div>
     <div class="err hidden" id="imErr" style="margin-top:6px"></div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingDoImport()">Importer</button>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingDoPreview()">Aperçu →</button>
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
   let bg = document.querySelector(".modal-bg");
   if (replace && bg) bg.innerHTML = html; else { bg = document.createElement("div"); bg.className = "modal-bg"; bg.innerHTML = html; document.body.appendChild(bg); }
   window._imSheet = p.sheet;
 }
-async function billingDoImport() {
+function billBuildImportBody(preview) {
   const mapping = { components: {} };
   document.querySelectorAll("[data-map]").forEach(s => { mapping[s.dataset.map] = s.value === "" ? null : Number(s.value); });
   document.querySelectorAll("[data-comp]").forEach(s => { if (s.value !== "") mapping.components[s.dataset.comp] = Number(s.value); });
   mapping.fields = {};
   document.querySelectorAll("[data-field]").forEach(s => { if (s.value !== "") mapping.fields[s.dataset.field] = Number(s.value); });
-  const body = { data: window._billFile, sheet: (document.getElementById("imSheet") || {}).value || window._imSheet,
-    headerRow: Number((document.getElementById("imHeader") || {}).value || 0), mapping, mode: (document.getElementById("imMode") || {}).value };
+  window._IMP_MAP = mapping;
+  return { data: window._billFile, sheet: (document.getElementById("imSheet") || {}).value || window._imSheet,
+    headerRow: Number((document.getElementById("imHeader") || {}).value || 0), mapping, mode: (document.getElementById("imMode") || {}).value, preview: !!preview };
+}
+async function billingDoPreview() {
+  const body = billBuildImportBody(true);
+  try { const r = await api("/billing/sheets/" + BILL_SHEET.id + "/import-excel", { method: "POST", body: JSON.stringify(body) });
+    billRenderPreview(window._IMP_MAP, r.lines || []); }
+  catch (e) { const el = document.getElementById("imErr"); if (el) { el.textContent = e.message; el.classList.remove("hidden"); } else alert(e.message); }
+}
+function billLabelFor(kind, key) {
+  if (kind === "field") { const all = [...(typeof LF_KNOWN !== "undefined" ? LF_KNOWN : []), ...((BILL_SHEET.contract.lineFields) || [])]; const f = all.find(x => x.key === key); return f ? f.label : key; }
+  const c = (window._IMP_COMPS || []).find(x => x.code === key); return c ? c.label : key;
+}
+function billRenderPreview(mapping, lines) {
+  const idf = Object.keys(mapping.fields || {});
+  const comp = Object.keys(mapping.components || {});
+  const cols = [];
+  cols.push({ h: "Nom", get: l => l.name || "" });
+  if (mapping.salaireBase != null) cols.push({ h: "Sal. base", num: true, get: l => l.salaireBase || 0 });
+  if (mapping.jours != null) cols.push({ h: "Jours", num: true, get: l => l.jours });
+  for (const k of idf) if (k !== "poste") cols.push({ h: billLabelFor("field", k), get: l => l[k] != null ? l[k] : "" });
+  if (idf.includes("poste")) cols.splice(1, 0, { h: "Poste", get: l => l.poste || "" });
+  for (const code of comp) { const key = (((window._IMP_COMPS || []).find(x => x.code === code) || {}).inputMode) === "heures" ? "heures" : (((window._IMP_COMPS || []).find(x => x.code === code) || {}).inputMode) === "quantite" ? "quantite" : "montant"; cols.push({ h: billLabelFor("comp", code), num: true, get: l => ((l.components || {})[code] || {})[key] || 0 }); }
+  const N = (v) => typeof v === "number" ? fCFA(v) : esc(String(v == null ? "" : v));
+  const show = lines.slice(0, 100);
+  const totals = cols.map(c => c.num ? lines.reduce((a, l) => a + (Number(c.get(l)) || 0), 0) : null);
+  const bg = document.querySelector(".modal-bg");
+  bg.innerHTML = `<div class="modal" style="width:900px"><h3 style="margin:0 0 4px">Aperçu de l'import — ${lines.length} ligne(s)</h3>
+    <div class="note" style="margin-bottom:6px">Vérifiez les colonnes mappées et les valeurs avant d'importer. ${lines.length > 100 ? "(100 premières lignes affichées)" : ""}</div>
+    <div class="scroll" style="max-height:60vh;overflow:auto"><table style="font-size:12px"><tr>${cols.map(c => `<th style="white-space:nowrap;text-align:${c.num ? "right" : "left"}">${esc(c.h)}</th>`).join("")}</tr>
+      ${show.map(l => `<tr>${cols.map(c => `<td style="white-space:nowrap;text-align:${c.num ? "right" : "left"}">${N(c.get(l))}</td>`).join("")}</tr>`).join("")}
+      <tr style="font-weight:600;border-top:2px solid var(--border)">${cols.map((c, i) => `<td style="text-align:${c.num ? "right" : "left"}">${i === 0 ? "TOTAL" : (c.num ? fCFA(totals[i]) : "")}</td>`).join("")}</tr>
+    </table></div>
+    <div class="err hidden" id="imErr2" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn ghost" onclick="billingMapModal(window._IMP_P, true)">← Modifier le mapping</button>
+      <button class="btn p" onclick="billingDoImport()">✓ Importer ${lines.length} ligne(s)</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+}
+async function billingDoImport() {
+  const body = billBuildImportBody(false);
   try { const s = await api("/billing/sheets/" + BILL_SHEET.id + "/import-excel", { method: "POST", body: JSON.stringify(body) });
-    BILL_SHEET = s; document.querySelector(".modal-bg").remove(); billingSheetOpen(s.id);
+    BILL_SHEET = s; const bg = document.querySelector(".modal-bg"); if (bg) bg.remove(); billingSheetOpen(s.id);
     alert((s.lines || []).length + " ligne(s) importée(s)."); }
-  catch (e) { const el = document.getElementById("imErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+  catch (e) { const el = document.getElementById("imErr2") || document.getElementById("imErr"); if (el) { el.textContent = e.message; el.classList.remove("hidden"); } else alert(e.message); }
 }
 
 
