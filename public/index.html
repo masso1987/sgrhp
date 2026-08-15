@@ -3759,7 +3759,7 @@ async function billingSheetOpen(id) {
       <button class="btn ghost sm" onclick="billingCarry()">↻ Reprendre mois préc.</button>` : ""}
     <span style="flex:1"></span>
     <b>HT ${fCFA(t.HT)} · TVA ${fCFA(t.TVA)}${t.IS?` · IS -${fCFA(t.IS)}`:""} · <span style="color:var(--green)">${t.IS?"À payer "+fCFA(t.totalDu):"TTC "+fCFA(t.TTC)}</span></b>
-    ${ME.role !== "UI" ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "✓ Valider"}</button>` : ""}
+    ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "✓ Valider (CD)"}</button>` : (s.status === "validated" ? "" : `<span class="tag amber" style="align-self:center">En attente de validation CD</span>`)}
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/pdf','Annexe_${s.period}.pdf')">⬇ Annexe PDF</button>
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/excel','Annexe_${s.period}.xlsx')">⬇ Annexe Excel</button>
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/invoice/pdf','Facture_${s.period}.pdf')">⬇ Facture PDF</button>
@@ -4500,6 +4500,7 @@ function invoiceRows(list) {
     <div style="min-width:0;flex:1"><div style="font-weight:600">${esc(v.number || "—")}</div><div style="font-size:12px;color:var(--muted)">${esc(v.client)} · ${esc(v.date || "")}${v.annexeSheetId ? " · 🔗 annexe" : ""}</div></div>
     <div style="text-align:right;min-width:90px"><div style="font-size:11px;color:var(--muted)">HT</div><div>${fCFA(v.HT)}</div></div>
     <div style="text-align:right;min-width:100px"><div style="font-size:11px;color:var(--muted)">${v.IS ? "À payer" : "TTC"}</div><div style="font-weight:600">${fCFA(v.IS ? v.totalDu : v.TTC)}</div></div>
+    <div style="min-width:74px;text-align:center">${v.status === "validated" ? '<span class="tag green">Validée ✓</span>' : '<span class="tag amber">Brouillon</span>'}</div>
     <button class="btn ghost sm" onclick="invoiceOpen('${v.id}')">Ouvrir</button></div>`).join("");
 }
 async function invoiceCreate() {
@@ -4521,10 +4522,12 @@ async function invoiceOpen(id) {
   const opt = (v, cur) => `<option value="${v}" ${String(cur) === String(v) ? "selected" : ""}>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="invoicesView()">← Factures</button>
   <h1 style="margin-top:10px">Facture ${esc(INV_EDIT.number || "")} <span style="font-size:13px;color:var(--muted)">· ${esc(INV_EDIT.client || "")}</span>
+    ${INV_EDIT.status === "validated" ? '<span class="tag green">Validée ✓</span>' : '<span class="tag amber">Brouillon</span>'}
     <span style="float:right;display:flex;gap:6px">
       <button class="btn ghost sm" onclick="invoiceCompareRun()">⚖️ Comparer à l'annexe</button>
       <button class="btn ghost sm" onclick="payDownload('/billing/invoices/${id}/pdf','Facture_${esc(INV_EDIT.number || id)}.pdf')">⬇ PDF</button>
-      <button class="btn p sm" onclick="invoiceSave()">💾 Enregistrer</button></span></h1>
+      ${INV_EDIT.status !== "validated" ? `<button class="btn p sm" onclick="invoiceSave()">💾 Enregistrer</button>` : ""}
+      ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : "✓ Valider (CD)"}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}</span></h1>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">EN-TÊTE</b>
     <div class="grid3" style="margin-top:6px">
       <div><label>Objet</label><input id="ivObjet" value="${esc(INV_EDIT.objet || "")}"></div>
@@ -4556,6 +4559,10 @@ async function invoiceSave() {
   Object.assign(INV_EDIT, { objet: g("ivObjet"), bonCommande: g("ivPO"), date: g("ivDate"), dueDate: g("ivDue"), journalId: g("ivJournal"), account: g("ivAcct"), annexeSheetId: g("ivAnnexe") || null, isRate: (Number(g("ivIS"))||0)/100 });
   try { const v = await api("/billing/invoices/" + INV_EDIT.id, { method: "PUT", body: JSON.stringify({ objet: INV_EDIT.objet, bonCommande: INV_EDIT.bonCommande, date: INV_EDIT.date, dueDate: INV_EDIT.dueDate, journalId: INV_EDIT.journalId, account: INV_EDIT.account, annexeSheetId: INV_EDIT.annexeSheetId, isRate: INV_EDIT.isRate, lines: INV_EDIT.lines }) });
     alert("Facture enregistrée."); } catch (e) { alert(e.message); }
+}
+async function invoiceValidate() {
+  try { const v = await api("/billing/invoices/" + INV_EDIT.id + "/validate", { method: "POST" }); INV_EDIT = await api("/billing/invoices/" + INV_EDIT.id); invoiceOpen(INV_EDIT.id); }
+  catch (e) { alert(e.message); }
 }
 async function invoiceCompareRun() {
   await invoiceSave();
