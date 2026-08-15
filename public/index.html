@@ -4173,8 +4173,9 @@ function billBuildImportBody(preview) {
   mapping.fields = {};
   document.querySelectorAll("[data-field]").forEach(s => { if (s.value !== "") mapping.fields[s.dataset.field] = Number(s.value); });
   window._IMP_MAP = mapping;
-  return { data: window._billFile, sheet: (document.getElementById("imSheet") || {}).value || window._imSheet,
+  const _body = { data: window._billFile, sheet: (document.getElementById("imSheet") || {}).value || window._imSheet,
     headerRow: Number((document.getElementById("imHeader") || {}).value || 0), mapping, mode: (document.getElementById("imMode") || {}).value, preview: !!preview };
+  window._IMP_BODY = _body; return _body;
 }
 async function billingDoPreview() {
   const body = billBuildImportBody(true);
@@ -4212,7 +4213,7 @@ function billRenderPreview(mapping, lines) {
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
 }
 async function billingDoImport() {
-  const body = billBuildImportBody(false);
+  const body = window._IMP_BODY ? Object.assign({}, window._IMP_BODY, { preview: false }) : billBuildImportBody(false);
   try { const s = await api("/billing/sheets/" + BILL_SHEET.id + "/import-excel", { method: "POST", body: JSON.stringify(body) });
     BILL_SHEET = s; const bg = document.querySelector(".modal-bg"); if (bg) bg.remove(); billingSheetOpen(s.id);
     alert((s.lines || []).length + " ligne(s) importée(s)."); }
