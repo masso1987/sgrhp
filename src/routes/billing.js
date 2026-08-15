@@ -589,5 +589,122 @@ router.get("/sheets/:id/annexe-template/excel", allow("ADM", "CD", "RJ", "GPF", 
   res.setHeader("Content-Disposition", `attachment; filename="Annexe_${s.period}.xlsx"`); res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
+/* ==================== FACTURES (entité séparée des annexes) ==================== */
+function invTotals(inv) {
+  const HT = (inv.lines || []).filter(l => l.type === "product").reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.pu) || 0), 0);
+  const tva = inv.tvaExonere ? 0 : HT * (inv.tvaRate != null ? inv.tvaRate : 0.1925);
+  const is = inv.isRate ? HT * inv.isRate : 0;
+  return { HT: Math.round(HT), TVA: Math.round(tva), IS: Math.round(is), TTC: Math.round(HT + tva), totalDu: Math.round(HT + tva - is) };
+}
+const withInvTotals = (inv) => Object.assign({}, inv, invTotals(inv));
+
+/* ---- Modèles de facture (lignes par défaut, par client) ---- */
+const imOf = (req, mid) => mine(db.billingInvoiceModels, req).find(m => m.id === mid);
+router.get("/invoice-models", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
+  res.json(mine(db.billingInvoiceModels, req).slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""))));
+router.get("/invoice-models/:id", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
+  const m = imOf(req, req.params.id); if (!m) return res.status(404).json({ error: "Modèle introuvable" }); res.json(m);
+});
+router.post("/invoice-models", allow("ADM"), (req, res) => {
+  const b = req.body || {}; if (!b.name) return res.status(400).json({ error: "Nom obligatoire" });
+  const m = stamp({ id: id("bimod"), name: b.name, contractId: b.contractId || null,
+    lines: (Array.isArray(b.lines) ? b.lines : []).map(l => Object.assign({ id: l.id || id("iln") }, l)), createdAt: new Date().toISOString() }, req);
+  db.billingInvoiceModels.push(m); save(); audit(req.user, "CREATED", "BillingInvoiceModel", m.id, { name: m.name }); res.status(201).json(m);
+});
+router.put("/invoice-models/:id", allow("ADM"), (req, res) => {
+  const m = imOf(req, req.params.id); if (!m) return res.status(404).json({ error: "Modèle introuvable" });
+  for (const k of ["name", "contractId"]) if (req.body[k] !== undefined) m[k] = req.body[k];
+  if (Array.isArray(req.body.lines)) m.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
+  save(); audit(req.user, "UPDATED", "BillingInvoiceModel", m.id, {}); res.json(m);
+});
+router.delete("/invoice-models/:id", allow("ADM"), (req, res) => {
+  const m = imOf(req, req.params.id); if (!m) return res.status(404).json({ error: "Modèle introuvable" });
+  db.billingInvoiceModels.splice(db.billingInvoiceModels.indexOf(m), 1); save(); res.json({ ok: true });
+});
+
+/* ---- Factures ---- */
+const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid);
+router.get("/invoices", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
+  res.json(mine(db.billingInvoices, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(withInvTotals)));
+router.get("/invoices/:id", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
+  const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
+  const contract = contractOf(req, inv.contractId) || {};
+  res.json(Object.assign(withInvTotals(inv), { contract }));
+});
+router.post("/invoices", allow("ADM","CD","RJ","GPF"), (req, res) => {
+  const b = req.body || {}; const contract = contractOf(req, b.contractId);
+  if (!contract) return res.status(400).json({ error: "Client obligatoire" });
+  let lines = [];
+  if (b.modelId) { const m = imOf(req, b.modelId); if (m) lines = (m.lines || []).map(l => Object.assign({}, l, { id: id("iln") })); }
+  if (Array.isArray(b.lines)) lines = b.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
+  const period = b.period || new Date().toISOString().slice(0, 7); const [yy, mm] = period.split("-");
+  const seq = mine(db.billingInvoices, req).filter(x => (x.period || "").slice(0, 4) === yy).length + 1;
+  const number = `${contract.invoiceSeqPrefix || "029"}/${yy}/${mm}/${String(seq).padStart(5, "0")}`;
+  const inv = stamp({ id: id("binv"), contractId: contract.id, client: contract.clientName, number, period,
+    date: b.date || new Date().toISOString().slice(0, 10), dueDate: b.dueDate || "", objet: b.objet || "", bonCommande: b.bonCommande || "",
+    journalId: b.journalId || contract.journalId || "", account: b.account || contract.defaultAccount || "701100",
+    tvaRate: contract.tvaExonere ? 0 : 0.1925, tvaExonere: !!contract.tvaExonere, isRate: contract.isEnabled ? Number(contract.isRate || 0) : 0,
+    annexeSheetId: b.annexeSheetId || null, stage: "devis", status: "draft", lines, createdAt: new Date().toISOString() }, req);
+  db.billingInvoices.push(inv); save(); audit(req.user, "CREATED", "BillingInvoice", inv.id, { number }); res.status(201).json(withInvTotals(inv));
+});
+router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
+  const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
+  for (const k of ["objet", "bonCommande", "date", "dueDate", "journalId", "account", "annexeSheetId", "stage", "status"]) if (req.body[k] !== undefined) inv[k] = req.body[k];
+  if (Array.isArray(req.body.lines)) inv.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
+  save(); audit(req.user, "UPDATED", "BillingInvoice", inv.id, {}); res.json(withInvTotals(inv));
+});
+router.delete("/invoices/:id", allow("ADM","CD","RJ"), (req, res) => {
+  const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
+  db.billingInvoices.splice(db.billingInvoices.indexOf(inv), 1); save(); res.json({ ok: true });
+});
+
+/* ---- Comparer facture ↔ annexe ---- */
+router.get("/invoices/:id/compare", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
+  const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
+  const it = invTotals(inv);
+  let annexe = null;
+  if (inv.annexeSheetId) {
+    const sh = mine(db.billingSheets, req).find(x => x.id === inv.annexeSheetId);
+    if (sh) { const D = withCompute(sh, req); const t = D.computed.totals; annexe = { sheetId: sh.id, period: sh.period, HT: Math.round(t.HT || 0), TVA: Math.round(t.TVA || 0), TTC: Math.round(t.TTC || 0), IS: Math.round(t.IS || 0) }; }
+  }
+  const diff = annexe ? { HT: it.HT - annexe.HT, TVA: it.TVA - annexe.TVA, TTC: it.TTC - annexe.TTC } : null;
+  res.json({ invoice: it, annexe, diff });
+});
+
+/* ---- Facture PDF (en-tête simple; papier à en-tête ajouté ensuite) ---- */
+router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
+  const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
+  const contract = contractOf(req, inv.contractId) || {}; const co = _company(); const t = invTotals(inv);
+  const doc = new PDFDocument({ margin: 28, size: "A4" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Facture_${(inv.number||"").replace(/[^\w]/g,"_")}.pdf"`);
+  doc.pipe(res);
+  _drawHeader(doc, co, contract.clientBlock, "FACTURE");
+  doc.font("Helvetica-Bold").fontSize(10).text("N° " + (inv.number || ""), 360, 118);
+  doc.font("Helvetica").fontSize(9).text("Date : " + (inv.date || ""), 360, 132);
+  if (inv.dueDate) doc.text("Échéance : " + inv.dueDate, 360, 144);
+  if (inv.objet) doc.font("Helvetica-Bold").fontSize(9).text("Objet : " + inv.objet, 28, 118, { width: 300 });
+  if (inv.bonCommande) doc.font("Helvetica").fontSize(8).text("Bon de commande : " + inv.bonCommande, 28, 140);
+  let y = 165; const x0 = 28, W = 539;
+  const T = (cx, yy, v, w, al, b) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(9).text(v == null ? "" : String(v), cx + 3, yy, { width: w - 6, align: al || "left", lineBreak: false });
+  doc.rect(x0, y, W, 16).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
+  T(x0, y + 4, "Désignation", 300, "left", true); T(x0 + 300, y + 4, "Qté", 50, "right", true); T(x0 + 350, y + 4, "P.U.", 90, "right", true); T(x0 + 440, y + 4, "Montant", 99, "right", true); y += 16;
+  for (const l of (inv.lines || [])) {
+    if (l.type === "section") { doc.rect(x0, y, W, 14).fill("#f1f5f4"); doc.fillColor("#000"); T(x0, y + 3, (l.label || "").toUpperCase(), W, "left", true); y += 14; continue; }
+    if (l.type === "note") { doc.font("Helvetica-Oblique").fontSize(8).fillColor("#555").text(l.label || l.description || "", x0 + 4, y + 2, { width: W - 8 }); doc.fillColor("#000"); y += 13; continue; }
+    const amt = (Number(l.qty) || 0) * (Number(l.pu) || 0);
+    T(x0, y + 2, l.label || "", 300, "left"); if (l.description) { doc.font("Helvetica").fontSize(7.5).fillColor("#666").text(l.description, x0 + 6, y + 12, { width: 290 }); doc.fillColor("#000"); }
+    T(x0 + 300, y + 2, l.qty || 0, 50, "right"); T(x0 + 350, y + 2, _NF((Number(l.pu) || 0)), 90, "right"); T(x0 + 440, y + 2, _NF(amt), 99, "right");
+    y += (l.description ? 24 : 14); doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y).lineTo(x0 + W, y).stroke();
+    if (y > 720) { doc.addPage({ margin: 28 }); y = 40; }
+  }
+  y += 8; const tot = (lab, v, b) => { T(x0 + 300, y, lab, 140, "right", b); T(x0 + 440, y, _NF(v), 99, "right", b); y += 15; };
+  tot("Total HT", t.HT, true); tot(inv.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA);
+  if (t.IS) tot("IS (retenue)", -t.IS);
+  tot(t.IS ? "TOTAL À PAYER" : "TOTAL TTC", t.IS ? t.totalDu : t.TTC, true);
+  doc.font("Helvetica-Oblique").fontSize(8).text("Arrêtée la présente facture à la somme de : " + enLettres(t.IS ? t.totalDu : t.TTC), x0, y + 8, { width: W });
+  audit(req.user, "EXPORTED", "BillingInvoice", inv.id, { doc: "invoice", format: "pdf" }); doc.end();
+});
+
 module.exports = router;
 module.exports.enLettres = enLettres;

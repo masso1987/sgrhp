@@ -842,7 +842,8 @@ const NAV = [
   { k: "generated", label: "🖨 Documents générés", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "payroll", label: "💵 Paie", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payconfig", label: "⚙️ Paramètres paie", roles: ["ADM"], module: "payroll", grp: "paie" },
-  { k: "billing", label: "🧾 Facturation", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
+  { k: "billing", label: "🧾 Facturation (annexes)", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
+  { k: "invoices", label: "🧾 Factures", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"], grp: "admin" },
@@ -934,7 +935,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4361,6 +4362,179 @@ async function billingGenAnnexe(cid){
     alert("Annexe générée : "+(t.columns||[]).length+" colonnes. Vous pouvez l'ajuster dans les modèles."); billingTemplatesView(); }
   catch(e){ alert(e.message); }
 }
+
+
+
+/* ==================== FACTURES (entité séparée) + MODÈLES + DRAG-DROP ==================== */
+let INV_EDIT = null, IM_EDIT = null, _dragCtx = null, _dragI = null;
+function billLineArr(ctx) { return ctx === "inv" ? INV_EDIT.lines : IM_EDIT.lines; }
+function billLineRerender(ctx) { if (ctx === "inv") invRenderLines(); else imRenderLines(); }
+function billLineSet(ctx, i, f, v) { const l = billLineArr(ctx)[i]; l[f] = (f === "qty" || f === "pu" || f === "taxRate") ? Number(v || 0) : v; if (ctx === "inv") invRenderTotals(); else imRowAmt(i); }
+function billLineDel(ctx, i) { billLineArr(ctx).splice(i, 1); billLineRerender(ctx); }
+function billLineAdd(ctx, type) {
+  const arr = billLineArr(ctx);
+  arr.push(type === "product" ? { id: "iln" + Date.now(), type: "product", label: "", description: "", qty: 1, pu: 0, taxRate: 0.1925, account: "701100" } : { id: "iln" + Date.now(), type, label: "" });
+  billLineRerender(ctx);
+}
+function billLineDragStart(ctx, i) { _dragCtx = ctx; _dragI = i; }
+function billLineDrop(ctx, i) { if (_dragCtx !== ctx || _dragI == null || _dragI === i) return; const arr = billLineArr(ctx); const [m] = arr.splice(_dragI, 1); arr.splice(i, 0, m); _dragI = null; billLineRerender(ctx); }
+function billLineRowHtml(l, i, ctx) {
+  const grip = `<td draggable="true" ondragstart="billLineDragStart('${ctx}',${i})" style="cursor:grab;color:var(--muted);text-align:center;user-select:none">⣿</td>`;
+  const drop = `ondragover="event.preventDefault()" ondrop="billLineDrop('${ctx}',${i})"`;
+  if (l.type === "section") return `<tr ${drop}>${grip}<td colspan="4"><input value="${esc(l.label || "")}" oninput="billLineSet('${ctx}',${i},'label',this.value)" placeholder="Titre de section" style="margin:0;font-weight:600"></td><td></td><td><button class="btn ghost sm" onclick="billLineDel('${ctx}',${i})">✕</button></td></tr>`;
+  if (l.type === "note") return `<tr ${drop}>${grip}<td colspan="4"><input value="${esc(l.label || "")}" oninput="billLineSet('${ctx}',${i},'label',this.value)" placeholder="Note libre" style="margin:0;font-style:italic"></td><td></td><td><button class="btn ghost sm" onclick="billLineDel('${ctx}',${i})">✕</button></td></tr>`;
+  const amt = (Number(l.qty) || 0) * (Number(l.pu) || 0);
+  return `<tr ${drop}>${grip}
+    <td><input value="${esc(l.label || "")}" oninput="billLineSet('${ctx}',${i},'label',this.value)" placeholder="Désignation" style="margin:0;min-width:170px">
+      <input value="${esc(l.description || "")}" oninput="billLineSet('${ctx}',${i},'description',this.value)" placeholder="Description (optionnel)" style="margin:2px 0 0;font-size:12px;min-width:170px"></td>
+    <td><input type="number" value="${l.qty != null ? l.qty : 1}" oninput="billLineSet('${ctx}',${i},'qty',this.value)" style="margin:0;max-width:56px"></td>
+    <td><input type="number" value="${l.pu || 0}" oninput="billLineSet('${ctx}',${i},'pu',this.value)" style="margin:0;max-width:104px"></td>
+    <td><input value="${esc(l.account || "701100")}" oninput="billLineSet('${ctx}',${i},'account',this.value)" style="margin:0;max-width:76px" title="Compte comptable"></td>
+    <td style="text-align:right;white-space:nowrap" id="${ctx}amt${i}">${fCFA(amt)}</td>
+    <td><button class="btn ghost sm" onclick="billLineDel('${ctx}',${i})">✕</button></td></tr>`;
+}
+function billLinesTableHtml(arr, ctx) {
+  return `<div style="overflow-x:auto"><table><tr><th style="width:22px"></th><th>Désignation</th><th>Qté</th><th>P.U.</th><th>Compte</th><th style="text-align:right">Montant</th><th></th></tr>
+    ${arr.map((l, i) => billLineRowHtml(l, i, ctx)).join("") || `<tr><td colspan="7" style="color:var(--muted)">Aucune ligne — ajoutez ci-dessous.</td></tr>`}</table></div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="btn ghost sm" onclick="billLineAdd('${ctx}','product')">+ Ligne produit</button>
+      <button class="btn ghost sm" onclick="billLineAdd('${ctx}','section')">+ Section</button>
+      <button class="btn ghost sm" onclick="billLineAdd('${ctx}','note')">+ Note</button>
+      <small style="color:var(--muted);align-self:center">Glissez ⣿ pour réordonner</small></div>`;
+}
+function imRowAmt(i) { const l = IM_EDIT.lines[i]; const el = document.getElementById("imamt" + i); if (el) el.textContent = fCFA((Number(l.qty) || 0) * (Number(l.pu) || 0)); }
+
+/* ---- Écran Factures ---- */
+async function invoicesView() {
+  const [invs, contracts, models] = await Promise.all([api("/billing/invoices"), api("/billing/contracts"), api("/billing/invoice-models")]);
+  BILL_CTR = contracts;
+  view.innerHTML = `<h1>🧾 Factures
+    <span style="float:right;display:flex;gap:6px">${ME.role === "ADM" ? `<button class="btn ghost sm" onclick="invoiceModelsView()">🧱 Modèles de facture</button>` : ""}</span></h1>
+  <div class="panel" style="max-width:760px"><b>Nouvelle facture</b>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
+      <div><label>Client</label><select id="niClient" onchange="invLoadAnnexes()" style="margin:0;min-width:180px">${contracts.map(c => `<option value="${c.id}">${esc(c.clientName)}</option>`).join("")}</select></div>
+      <div><label>Modèle</label><select id="niModel" style="margin:0;min-width:150px"><option value="">— vierge —</option>${models.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select></div>
+      <div><label>Annexe à comparer</label><select id="niAnnexe" style="margin:0;min-width:170px"><option value="">—</option></select></div>
+      <div><label>Période</label><input id="niPeriod" type="month" value="${new Date().toISOString().slice(0, 7)}" style="margin:0"></div>
+      <button class="btn p sm" onclick="invoiceCreate()">+ Créer</button></div>
+    <div class="err hidden" id="niErr" style="margin-top:6px"></div></div>
+  <div class="panel"><b>Factures émises</b><div id="invList" style="margin-top:8px">${invoiceRows(invs)}</div></div>`;
+  invLoadAnnexes();
+}
+async function invLoadAnnexes() {
+  const cid = (document.getElementById("niClient") || {}).value;
+  const sel = document.getElementById("niAnnexe"); if (!sel) return;
+  const sheets = await api("/billing/sheets").catch(() => []);
+  const mine = sheets.filter(s => !cid || s.contractId === cid);
+  sel.innerHTML = `<option value="">—</option>` + mine.map(s => `<option value="${s.id}">${esc(s.client)} · ${esc(s.period)} · HT ${fCFA(s.HT)}</option>`).join("");
+}
+function invoiceRows(list) {
+  if (!list.length) return '<div style="color:var(--muted);padding:12px 4px">Aucune facture.</div>';
+  return list.map(v => `<div style="display:flex;align-items:center;gap:12px;padding:11px 6px;border-bottom:1px solid var(--border)">
+    <div style="width:36px;height:36px;border-radius:10px;background:var(--nav-active-bg);color:var(--nav-active-color);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:15px">🧾</span></div>
+    <div style="min-width:0;flex:1"><div style="font-weight:600">${esc(v.number || "—")}</div><div style="font-size:12px;color:var(--muted)">${esc(v.client)} · ${esc(v.date || "")}${v.annexeSheetId ? " · 🔗 annexe" : ""}</div></div>
+    <div style="text-align:right;min-width:90px"><div style="font-size:11px;color:var(--muted)">HT</div><div>${fCFA(v.HT)}</div></div>
+    <div style="text-align:right;min-width:100px"><div style="font-size:11px;color:var(--muted)">${v.IS ? "À payer" : "TTC"}</div><div style="font-weight:600">${fCFA(v.IS ? v.totalDu : v.TTC)}</div></div>
+    <button class="btn ghost sm" onclick="invoiceOpen('${v.id}')">Ouvrir</button></div>`).join("");
+}
+async function invoiceCreate() {
+  const g = (x) => (document.getElementById(x) || {}).value;
+  try {
+    const inv = await api("/billing/invoices", { method: "POST", body: JSON.stringify({ contractId: g("niClient"), modelId: g("niModel") || null, annexeSheetId: g("niAnnexe") || null, period: g("niPeriod") }) });
+    invoiceOpen(inv.id);
+  } catch (e) { const el = document.getElementById("niErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+function invCalc() {
+  const L = INV_EDIT.lines || []; const HT = L.filter(l => l.type === "product").reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.pu) || 0), 0);
+  const tva = INV_EDIT.tvaExonere ? 0 : HT * (INV_EDIT.tvaRate != null ? INV_EDIT.tvaRate : 0.1925);
+  const is = INV_EDIT.isRate ? HT * INV_EDIT.isRate : 0;
+  return { HT: Math.round(HT), TVA: Math.round(tva), IS: Math.round(is), TTC: Math.round(HT + tva), totalDu: Math.round(HT + tva - is) };
+}
+async function invoiceOpen(id) {
+  INV_EDIT = await api("/billing/invoices/" + id);
+  const sheets = await api("/billing/sheets").catch(() => []);
+  const opt = (v, cur) => `<option value="${v}" ${String(cur) === String(v) ? "selected" : ""}>`;
+  view.innerHTML = `<button class="btn ghost sm" onclick="invoicesView()">← Factures</button>
+  <h1 style="margin-top:10px">Facture ${esc(INV_EDIT.number || "")} <span style="font-size:13px;color:var(--muted)">· ${esc(INV_EDIT.client || "")}</span>
+    <span style="float:right;display:flex;gap:6px">
+      <button class="btn ghost sm" onclick="invoiceCompareRun()">⚖️ Comparer à l'annexe</button>
+      <button class="btn ghost sm" onclick="payDownload('/billing/invoices/${id}/pdf','Facture_${esc(INV_EDIT.number || id)}.pdf')">⬇ PDF</button>
+      <button class="btn p sm" onclick="invoiceSave()">💾 Enregistrer</button></span></h1>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">EN-TÊTE</b>
+    <div class="grid3" style="margin-top:6px">
+      <div><label>Objet</label><input id="ivObjet" value="${esc(INV_EDIT.objet || "")}"></div>
+      <div><label>Bon de commande</label><input id="ivPO" value="${esc(INV_EDIT.bonCommande || "")}"></div>
+      <div><label>Date</label><input id="ivDate" type="date" value="${esc(INV_EDIT.date || "")}"></div>
+      <div><label>Date d'échéance</label><input id="ivDue" type="date" value="${esc(INV_EDIT.dueDate || "")}"></div>
+      <div><label>Journal</label><input id="ivJournal" value="${esc(INV_EDIT.journalId || "")}"></div>
+      <div><label>Compte GL</label><input id="ivAcct" value="${esc(INV_EDIT.account || "701100")}"></div>
+      <div><label>Annexe liée (comparaison)</label><select id="ivAnnexe">${`<option value="">—</option>` + sheets.filter(s => s.contractId === INV_EDIT.contractId).map(s => `${opt(s.id, INV_EDIT.annexeSheetId)}${esc(s.period)} · HT ${fCFA(s.HT)}</option>`).join("")}</select></div>
+    </div></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">LIGNES DE FACTURE</b>
+    <div id="invLines" style="margin-top:6px"></div>
+    <div id="invTotals" style="margin-top:10px;text-align:right"></div></div>
+  <div class="panel" id="invCompare"><small style="color:var(--muted)">Cliquez « ⚖️ Comparer à l'annexe » pour vérifier l'écart facture ↔ annexe.</small></div>`;
+  invRenderLines();
+}
+function invRenderLines() { document.getElementById("invLines").innerHTML = billLinesTableHtml(INV_EDIT.lines, "inv"); invRenderTotals(); }
+function invRenderTotals() {
+  const t = invCalc();
+  document.getElementById("invTotals").innerHTML = `<div style="display:inline-block;text-align:right;min-width:260px">
+    <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">Total HT</span><b>${fCFA(t.HT)}</b></div>
+    <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">${INV_EDIT.tvaExonere ? "TVA (exonérée)" : "TVA 19,25 %"}</span><span>${fCFA(t.TVA)}</span></div>
+    ${t.IS ? `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">IS (retenue)</span><span>−${fCFA(t.IS)}</span></div>` : ""}
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:16px"><b>${t.IS ? "Total à payer" : "Total TTC"}</b><b>${fCFA(t.IS ? t.totalDu : t.TTC)}</b></div></div>`;
+}
+async function invoiceSave() {
+  const g = (x) => (document.getElementById(x) || {}).value;
+  Object.assign(INV_EDIT, { objet: g("ivObjet"), bonCommande: g("ivPO"), date: g("ivDate"), dueDate: g("ivDue"), journalId: g("ivJournal"), account: g("ivAcct"), annexeSheetId: g("ivAnnexe") || null });
+  try { const v = await api("/billing/invoices/" + INV_EDIT.id, { method: "PUT", body: JSON.stringify({ objet: INV_EDIT.objet, bonCommande: INV_EDIT.bonCommande, date: INV_EDIT.date, dueDate: INV_EDIT.dueDate, journalId: INV_EDIT.journalId, account: INV_EDIT.account, annexeSheetId: INV_EDIT.annexeSheetId, lines: INV_EDIT.lines }) });
+    alert("Facture enregistrée."); } catch (e) { alert(e.message); }
+}
+async function invoiceCompareRun() {
+  await invoiceSave();
+  const c = await api("/billing/invoices/" + INV_EDIT.id + "/compare").catch(e => ({ error: e.message }));
+  const box = document.getElementById("invCompare");
+  if (!c.annexe) { box.innerHTML = '<b>Comparaison</b><div class="note" style="margin-top:6px">Aucune annexe liée. Choisissez-en une dans l\'en-tête puis réessayez.</div>'; return; }
+  const row = (lab, a, b) => { const d = a - b; const col = d === 0 ? "var(--muted)" : (Math.abs(d) <= 1 ? "var(--nav-active-color)" : "var(--red)"); return `<tr><td>${lab}</td><td style="text-align:right">${fCFA(a)}</td><td style="text-align:right">${fCFA(b)}</td><td style="text-align:right;color:${col};font-weight:600">${d > 0 ? "+" : ""}${fCFA(d)}</td></tr>`; };
+  box.innerHTML = `<b>Comparaison facture ↔ annexe</b>
+    <table style="margin-top:6px;max-width:520px"><tr><th></th><th style="text-align:right">Facture</th><th style="text-align:right">Annexe</th><th style="text-align:right">Écart</th></tr>
+    ${row("HT", c.invoice.HT, c.annexe.HT)}${row("TVA", c.invoice.TVA, c.annexe.TVA)}${row("TTC", c.invoice.TTC, c.annexe.TTC)}</table>
+    <div class="note" style="margin-top:6px">${Math.abs(c.diff.HT) <= 1 ? "✅ Facture et annexe concordent (à ±1 F)." : "⚠️ Écart HT de " + fCFA(c.diff.HT) + " F — vérifiez les lignes."}</div>`;
+}
+
+/* ---- Modèles de facture ---- */
+async function invoiceModelsView() {
+  const [models, contracts] = await Promise.all([api("/billing/invoice-models"), api("/billing/contracts")]);
+  BILL_CTR = contracts;
+  view.innerHTML = `<button class="btn ghost sm" onclick="invoicesView()">← Factures</button>
+  <h1 style="margin-top:10px">🧱 Modèles de facture <button class="btn p sm" style="float:right" onclick="imOpen()">+ Nouveau modèle</button></h1>
+  <div class="note">Un modèle = les lignes par défaut d'une facture (sections, produits, notes). Réutilisable à la création d'une facture.</div>
+  <div class="panel"><table><tr><th>Nom</th><th>Client</th><th>Lignes</th><th></th></tr>
+    ${models.length ? models.map(m => `<tr><td><b>${esc(m.name)}</b></td><td>${esc((contracts.find(c => c.id === m.contractId) || {}).clientName || "—")}</td><td>${(m.lines || []).length}</td>
+      <td><button class="btn ghost sm" onclick="imOpen('${m.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="imDel('${m.id}')">🗑</button></td></tr>`).join("")
+      : '<tr><td colspan="4" style="color:var(--muted)">Aucun modèle.</td></tr>'}</table></div>`;
+}
+async function imOpen(id) {
+  IM_EDIT = id ? await api("/billing/invoice-models/" + id) : { name: "", contractId: (BILL_CTR[0] || {}).id || null, lines: [] };
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="width:760px"><h3 style="margin:0 0 8px">${id ? "Modifier" : "Nouveau"} modèle de facture</h3>
+    <div class="grid2"><div><label>Nom</label><input id="imName" value="${esc(IM_EDIT.name || "")}"></div>
+      <div><label>Client (optionnel)</label><select id="imClient"><option value="">— tous —</option>${BILL_CTR.map(c => `<option value="${c.id}" ${IM_EDIT.contractId === c.id ? "selected" : ""}>${esc(c.clientName)}</option>`).join("")}</select></div></div>
+    <div class="scroll" style="max-height:52vh;margin-top:8px"><div id="imLines"></div></div>
+    <div class="err hidden" id="imErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="imSave('${id || ""}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg); imRenderLines();
+}
+function imRenderLines() { const el = document.getElementById("imLines"); if (el) el.innerHTML = billLinesTableHtml(IM_EDIT.lines, "im"); }
+async function imSave(id) {
+  IM_EDIT.name = (document.getElementById("imName") || {}).value; IM_EDIT.contractId = (document.getElementById("imClient") || {}).value || null;
+  if (!IM_EDIT.name) { const e = document.getElementById("imErr"); e.textContent = "Nom obligatoire."; e.classList.remove("hidden"); return; }
+  try { if (id) await api("/billing/invoice-models/" + id, { method: "PUT", body: JSON.stringify(IM_EDIT) });
+    else await api("/billing/invoice-models", { method: "POST", body: JSON.stringify(IM_EDIT) });
+    document.querySelector(".modal-bg").remove(); invoiceModelsView(); } catch (e) { const el = document.getElementById("imErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+async function imDel(id) { if (!confirm("Supprimer ce modèle ?")) return; try { await api("/billing/invoice-models/" + id, { method: "DELETE" }); invoiceModelsView(); } catch (e) { alert(e.message); } }
 
 </script>
 </body>
