@@ -4199,6 +4199,9 @@ let BILL_TPL_COLS = [];
 async function billingTplModal(id) {
   const t = id ? await api("/billing/annexe-templates/" + id) : { title: "", code: "", groupBy: null, taxes: { tva: 0.1925, is: 0 }, signatures: ["La Comptabilité", "Le Responsable GPF", "Direction Générale"], columns: [] };
   const _comps = await api("/billing/components").catch(() => []);
+  let _tflds = [];
+  if (t.contractId) { try { const _ct = await api("/billing/contracts/" + t.contractId); _tflds = _ct.lineFields || []; } catch (e) {} }
+  window._TPL_FIELDS = _tflds;
   BILL_TPL_COLS = JSON.parse(JSON.stringify(t.columns || []));
   const r = t.report || {};
   const bg = document.createElement("div"); bg.className = "modal-bg";
@@ -4245,6 +4248,14 @@ async function billingTplModal(id) {
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
   document.body.appendChild(bg); billingTplRenderCols();
 }
+function billTplFieldOpts(cur) {
+  const base = [{ key: "name", label: "nom" }, { key: "jours", label: "jours" }];
+  const cli = (window._TPL_FIELDS || []);
+  const known = (typeof LF_KNOWN !== "undefined" ? LF_KNOWN : []);
+  const seen = new Set(); const out = [];
+  for (const f of [...base, ...cli, ...known, ...(BILL_LINE_FIELDS || []).filter(f => f.custom)]) { if (!f || seen.has(f.key)) continue; seen.add(f.key); out.push(f); }
+  return out.map(f => `<option value="${esc(f.key)}" ${cur === f.key ? "selected" : ""}>${esc(f.label)}</option>`).join("");
+}
 function billingTplRenderCols() {
   const box = document.getElementById("tpCols");
   box.innerHTML = `<table><tr><th style="width:20px"></th><th>Libellé</th><th>Clé</th><th>Source</th><th>Champ / Formule</th><th>Align</th><th>L.</th><th>G</th><th></th></tr>
@@ -4254,7 +4265,7 @@ function billingTplRenderCols() {
       <td><input value="${esc(c.key || "")}" oninput="BILL_TPL_COLS[${i}].key=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'_')" style="max-width:90px;margin:0"></td>
       <td><select onchange="BILL_TPL_COLS[${i}].source=this.value;billingTplRenderCols()" style="margin:0"><option value="" ${c.source!=="field"?"selected":""}>formule</option><option value="field" ${c.source==="field"?"selected":""}>champ</option></select></td>
       <td>${c.source === "field"
-        ? `<select onchange="BILL_TPL_COLS[${i}].field=this.value" style="margin:0">${[["name","nom"],["poste","poste"],["matricule","matricule"],["categorie","catégorie"],["cat","catégorie (cat)"],["dateNaissance","date naissance"],["dateEmbauche","date embauche"],["dateFin","date fin"],["cnps","N° CNPS"],["ref","référence"],["jours","jours"]].map(([v,lab])=>`<option value="${v}" ${c.field===v?"selected":""}>${lab}</option>`).join("")}${(BILL_LINE_FIELDS||[]).filter(f=>f.custom).map(f=>`<option value="${esc(f.key)}" ${c.field===f.key?"selected":""}>${esc(f.label)}</option>`).join("")}</select>`
+        ? `<select onchange="BILL_TPL_COLS[${i}].field=this.value" style="margin:0">${billTplFieldOpts(c.field)}</select>`
         : `<input value="${esc(c.expr || "")}" oninput="BILL_TPL_COLS[${i}].expr=this.value" placeholder="ex. GROSS / 12" style="min-width:170px;margin:0">`}</td>
       <td><select onchange="BILL_TPL_COLS[${i}].align=this.value" style="margin:0"><option value="right" ${c.align!=="left"?"selected":""}>droite</option><option value="left" ${c.align==="left"?"selected":""}>gauche</option></select></td>
       <td><input type="number" value="${c.w || 60}" oninput="BILL_TPL_COLS[${i}].w=Number(this.value)" style="max-width:50px;margin:0"></td>
