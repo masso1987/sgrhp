@@ -266,6 +266,7 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
     const wb = _wb(data); const m = _matrix(wb, sheet || wb.SheetNames[0]); const hr = Number(headerRow) || 0;
     const at = (row, key) => { const c = mapping[key]; return (c === null || c === "" || c === undefined) ? undefined : row[Number(c)]; };
     const compMap = mapping.components || {};
+    const compDef = {}; for (const c of (contract.components || [])) compDef[c.code] = c;
     const out = [];
     for (let i = hr + 1; i < m.length; i++) {
       const row = m[i]; if (!row || row.every(c => c === "" || c == null)) continue;
@@ -273,7 +274,13 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
       const sal = _n(at(row, "salaireBase"));
       if (!name && !sal) continue;
       const components = {};
-      for (const [code, ci] of Object.entries(compMap)) { if (ci === "" || ci == null) continue; const val = _n(row[Number(ci)]); if (val) components[code] = { montant: val }; }
+      for (const [code, ci] of Object.entries(compMap)) {
+        if (ci === "" || ci == null) continue;
+        const val = _n(row[Number(ci)]); if (!val) continue;
+        const im = (compDef[code] || {}).inputMode;
+        const key = im === "heures" ? "heures" : (im === "quantite" ? "quantite" : "montant");
+        components[code] = { [key]: val };
+      }
       let years = _n(at(row, "years"));
       const hv = at(row, "hireDate");
       if (hv) { const hd = hv instanceof Date ? hv : (/\d{4}/.test(String(hv)) ? new Date(hv) : null);

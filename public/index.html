@@ -3897,9 +3897,23 @@ async function billingReparse(sheet) {
   catch (e) { alert(e.message); }
 }
 function billingMapModal(p, replace) {
-  const comps = (BILL_SHEET.contract.components || []).filter(c => ["PRIME", "HORS_CHARGE"].includes(c.stage));
+  const comps = (BILL_SHEET.contract.components || []).filter(c => ["PRIME", "HORS_CHARGE", "RETENUE"].includes(c.stage));
   const opts = (sel) => `<option value="">—</option>` + p.headers.map(h => `<option value="${h.index}" ${String(sel) === String(h.index) ? "selected" : ""}>${esc(h.label)}</option>`).join("");
   const guess = (kw) => { const h = p.headers.find(x => (x.label || "").toLowerCase().includes(kw)); return h ? h.index : ""; };
+  const norm = (x) => String(x == null ? "" : x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const STOP = new Set(["prime","primes","de","d","indemnite","indemnites","allowance","pour","la","le","les","du","des","sur","et","mois","total","nombre","bonus","monthly","amount"]);
+  const compTokens = (c) => norm((c.label || "") + " " + (c.code || "")).split(" ").filter(t => t.length >= 3 && !STOP.has(t));
+  const guessComp = (c) => {
+    const toks = compTokens(c); if (!toks.length) return "";
+    let best = "", bestScore = 0;
+    for (const h of p.headers) {
+      const hw = norm(h.label).split(" ").filter(Boolean); if (!hw.length) continue;
+      let sc = 0;
+      for (const t of toks) for (const w of hw) { if (w === t || (w.length >= 3 && (w.startsWith(t) || t.startsWith(w)))) { sc++; break; } }
+      if (sc > bestScore) { bestScore = sc; best = h.index; }
+    }
+    return bestScore > 0 ? best : "";
+  };
   const html = `<div class="modal" style="width:620px"><h3 style="margin:0 0 4px">Import Excel — mapper les colonnes</h3>
     <div class="note">Feuille détectée : en-tête à la ligne ${p.headerRow + 1} · ${p.rowCount} ligne(s) de données. Associez chaque champ à sa colonne.</div>
     <div style="display:flex;gap:8px;align-items:end;margin:6px 0">
@@ -3920,7 +3934,7 @@ function billingMapModal(p, replace) {
       ${BILL_SHEET.contract.billingType === "RECAP" ? `<div class="grid2"><div><label>Montant HT (Récap)</label><select data-map="montantHT">${opts(guess("ht"))}</select></div></div>` : ""}
       ${["PRESTATION", "TONNAGE"].includes(BILL_SHEET.contract.billingType) ? `<div class="grid2"><div><label>Quantité</label><select data-map="quantite">${opts(guess("quant"))}</select></div><div><label>Prix unitaire</label><select data-map="pu">${opts(guess("prix"))}</select></div></div>` : ""}
       <b style="font-size:12px;color:var(--muted)">COMPOSANTS (primes / hors-charges actifs sur ce client)</b>
-      ${comps.length ? `<div class="grid2" style="margin-top:4px">${comps.map(c => `<div><label>${esc(c.label)} <span class="tag gray">${c.stage}</span></label><select data-comp="${c.code}">${opts("")}</select></div>`).join("")}</div>`
+      ${comps.length ? `<div class="grid2" style="margin-top:4px">${comps.map(c => `<div><label>${esc(c.label)} <span class="tag gray">${c.stage}</span></label><select data-comp="${c.code}">${opts(guessComp(c))}</select></div>`).join("")}</div>`
         : '<div class="note">Aucun composant actif — ajoutez-les au contrat pour importer les primes. Sinon, mappez « Primes (agrégé) » ci-dessous.</div>'}
       <div class="grid2" style="margin-top:6px">
         <div><label>Primes (colonne agrégée, optionnel)</label><select data-map="primes">${opts("")}</select></div>
