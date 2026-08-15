@@ -548,33 +548,44 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
   const contract = contractOf(req, s.contractId) || { billingType: "MAD", rates: {} };
   const A = computeAnnexe(t, s.lines || [], contract); const co = _company();
   const rep = Object.assign({ orientation: "landscape", showHeader: true, showClientBlock: true, showTitle: true, showPeriod: true, showTotals: true, showSignatures: true }, t.report || {});
-  const doc = new PDFDocument({ margin: 16, size: "A4", layout: rep.orientation === "portrait" ? "portrait" : "landscape", bufferPages: true });
+  const land = rep.orientation !== "portrait";
+  const pgSize = land ? "A3" : "A4", pgLayout = land ? "landscape" : "portrait";
+  const doc = new PDFDocument({ margin: 16, size: pgSize, layout: pgLayout, bufferPages: true });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Annexe_${(contract.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
   doc.pipe(res);
+  const PW = doc.page.width, x0 = 16;
   let _top = 24;
-  if (rep.showHeader) { _top = _drawHeader(doc, co, rep.showClientBlock ? contract.clientBlock : null, rep.showTitle ? (t.title || "ANNEXE DE FACTURATION") : ""); }
-  else if (rep.showTitle) { doc.font("Helvetica-Bold").fontSize(14).fillColor("#000").text(t.title || "ANNEXE DE FACTURATION", 24, 20); _top = 44; }
-  if (rep.showPeriod) { doc.font("Helvetica").fontSize(8).fillColor("#000").text(`Client : ${contract.clientName || ""}   ·   Période : ${s.period}`, 24, _top); _top += 14; } else { _top += 4; }
+  if (rep.showHeader) {
+    _top = _drawHeader(doc, co, null, "");
+    if (rep.showTitle) doc.font("Helvetica").fontSize(16).fillColor("#000").text(t.title || "ANNEXE DE FACTURATION", 0, 44, { width: PW, align: "center" });
+  } else if (rep.showTitle) { doc.font("Helvetica-Bold").fontSize(15).fillColor("#000").text(t.title || "ANNEXE DE FACTURATION", 0, 22, { width: PW, align: "center" }); _top = 46; }
+  const cbn = (contract.clientBlock || {}).name2 ? " " + contract.clientBlock.name2 : "";
+  if (rep.showClientBlock) doc.font("Helvetica-Bold").fontSize(8).fillColor("#000").text("CLIENT : ", x0, _top, { continued: true }).font("Helvetica").text(_fixEnc((contract.clientName || "") + cbn));
+  if (rep.showPeriod) doc.font("Helvetica-Bold").fontSize(8).fillColor("#000").text("PÉRIODE : " + s.period, PW - 220, _top, { width: 204, align: "right" });
+  let y = _top + 15;
   const cols = t.columns || [];
   let total = 0; cols.forEach(c => total += (c.w || 60));
-  const avail = (rep.orientation === "portrait") ? 560 : 810; const scale = total > avail ? avail / total : 1; const scale2 = scale;
-  const avail2 = (rep.orientation === "portrait") ? 560 : 810;
-  const x0 = 16; const xs = []; let x = x0; cols.forEach(c => { xs.push(x); x += (c.w || 60) * scale2; }); const W = x - x0;
-  let y = _top;
-  const T = (cx, yy, v, w, al, b, sz) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 6.5).fillColor("#000").text(v == null ? "" : String(v), cx + 1, yy, { width: w - 2, align: al || "right", lineBreak: false });
-  const headRow = () => { doc.rect(x0, y, W, 14).fillAndStroke("#7a1420", "#000"); cols.forEach((c, i) => doc.font("Helvetica-Bold").fontSize(6).fillColor("#fff").text(c.label || c.key, xs[i] + 1, y + 3.5, { width: (c.w || 60) * scale - 2, align: c.align === "left" ? "left" : "right", lineBreak: false })); doc.fillColor("#000"); y += 14; };
+  const UW = PW - 2 * x0; const scale = total > UW ? UW / total : 1;
+  const xs = []; const wpx = cols.map(c => { const w = (c.w || 60) * scale; xs.push(x0 + xs.reduce((a) => a, 0)); return w; });
+  { let xx = x0; for (let i = 0; i < cols.length; i++) { xs[i] = xx; xx += wpx[i]; } }
+  const W = wpx.reduce((a, b) => a + b, 0);
+  const HH = 16, RH = 12, pageBottom = doc.page.height - 46;
+  const vlines = (yy, h, sepCol) => { doc.lineWidth(0.3).strokeColor(sepCol || "#cfcfcf"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], yy).lineTo(xs[i], yy + h).stroke(); } doc.lineWidth(0.4).strokeColor("#9aa2a0").rect(x0, yy, W, h).stroke(); };
+  const cellTxt = (i, yy, v, al, bold, sz, color) => doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 5.7).fillColor(color || "#000").text(v == null ? "" : String(v), xs[i] + 2, yy, { width: wpx[i] - 4, align: al, lineBreak: false });
+  const numFmt = (c, row) => c.source === "field" ? (row.cells[c.key] == null ? "" : String(row.cells[c.key])) : (_NF(row.cells[c.key]) + " FCFA");
+  const headRow = () => { doc.rect(x0, y, W, HH).fill("#7a1420"); cols.forEach((c, i) => cellTxt(i, y + 3, _fixEnc(c.label || c.key), c.align === "left" ? "left" : "right", true, 5.6, "#fff")); doc.lineWidth(0.3).strokeColor("#ffffff"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], y).lineTo(xs[i], y + HH).stroke(); } doc.fillColor("#000"); y += HH; };
+  const groupHead = (g) => { doc.rect(x0, y, W, 11).fillAndStroke("#f2e9e9", "#c9b8b8"); doc.fillColor("#000").font("Helvetica-Bold").fontSize(6.2).text(_fixEnc(g), xs[0] + 3, y + 2.6, { width: W - 6, lineBreak: false }); y += 11; };
+  const drawRow = (row) => { cols.forEach((c, i) => cellTxt(i, y + 2.4, numFmt(c, row), c.align === "left" ? "left" : "right", !!c.bold)); vlines(y, RH); y += RH;
+    if (y > pageBottom) { doc.addPage({ margin: 16, size: pgSize, layout: pgLayout }); y = 30; headRow(); } };
+  const totalRow = (cells, label) => { const h = RH + 1; doc.rect(x0, y, W, h).fillAndStroke("#efe7e7", "#999"); doc.fillColor("#000");
+    cols.forEach((c, i) => { let v = ""; if (i === 0) v = label; else if (c.source !== "field" && cells[c.key] != null) v = _NF(cells[c.key]) + " FCFA"; cellTxt(i, y + 3, v, i === 0 ? "left" : "right", true, 5.8); });
+    doc.lineWidth(0.3).strokeColor("#c9b8b8"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], y).lineTo(xs[i], y + h).stroke(); } y += h; };
   headRow();
-  const drawRow = (row, bold, bg) => { if (bg) { doc.rect(x0, y, W, 10).fill(bg); doc.fillColor("#000"); }
-    cols.forEach((c, i) => { const v = c.source === "field" ? row.cells[c.key] : _NF(row.cells[c.key]); T(xs[i], y + 1.5, v, (c.w || 60) * scale, c.align === "left" ? "left" : "right", bold || c.bold); });
-    doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 10).lineTo(x0 + W, y + 10).stroke(); y += 10.5;
-    if (y > (rep.orientation === "portrait" ? 760 : 555)) { doc.addPage({ margin: 16, size: "A4", layout: rep.orientation === "portrait" ? "portrait" : "landscape" }); y = 30; headRow(); } };
-  const totalRow = (cells, label) => { doc.lineWidth(0.6).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 1.5;
-    cols.forEach((c, i) => { let v = ""; if (i === 0) v = label; else if (c.source !== "field" && cells[c.key] != null) v = _NF(cells[c.key]); T(xs[i], y + 1.5, v, (c.w || 60) * scale, i === 0 ? "left" : "right", true); }); y += 12; };
-  if (A.groups) { for (const g of Object.keys(A.groups).sort()) { for (const r of A.groups[g]) drawRow(r); if (rep.showTotals) totalRow(A.groupTotals[g], "TOTAL " + g.toUpperCase()); } }
+  if (A.groups) { for (const g of Object.keys(A.groups).sort()) { groupHead(g); for (const r of A.groups[g]) drawRow(r); if (rep.showTotals) totalRow(A.groupTotals[g], "TOTAL " + String(g).toUpperCase()); } }
   else { for (const r of A.rows) drawRow(r); }
   if (rep.showTotals) totalRow(A.total, "TOTAL GÉNÉRAL (" + A.count + ")");
-  if (rep.showSignatures && (t.signatures || []).length) { y = Math.min(y + 24, 560); const sw = W / t.signatures.length; t.signatures.forEach((sig, i) => doc.font("Helvetica-Bold").fontSize(8).text(sig, x0 + i * sw, y, { width: sw, align: "center" })); }
+  if (rep.showSignatures && (t.signatures || []).length) { y = Math.min(y + 30, pageBottom - 20); const sw = W / t.signatures.length; t.signatures.forEach((sig, i) => { doc.font("Helvetica-Bold").fontSize(8).fillColor("#000").text(_fixEnc(sig), x0 + i * sw, y, { width: sw, align: "center" }); doc.lineWidth(0.5).strokeColor("#000").moveTo(x0 + i * sw + sw / 2 - 40, y + 22).lineTo(x0 + i * sw + sw / 2 + 40, y + 22).stroke(); }); }
   _paintFooters(doc); audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe-template", format: "pdf" }); doc.end();
 });
 
