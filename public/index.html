@@ -4094,78 +4094,92 @@ function billingImportExcel() {
     const f = inp.files[0]; if (!f) return;
     const b64 = await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(String(rd.result).split(",")[1]); rd.readAsDataURL(f); });
     window._billFile = b64;
-    try { const [p, allc] = await Promise.all([api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: b64 }) }), api("/billing/components").catch(() => [])]); window._IMP_COMPS = allc; billingMapModal(p); }
+    try { const [p, allc, tpls] = await Promise.all([api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: b64 }) }), api("/billing/components").catch(() => []), api("/billing/annexe-templates").catch(() => [])]); window._IMP_COMPS = allc; window._IMP_TPLS = tpls; window._IMP_TPLSEL = undefined; billingMapModal(p); }
     catch (e) { alert(e.message); }
   };
   inp.click();
 }
 async function billingReparse(sheet) {
-  try { const p = await api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: window._billFile, sheet }) }); if (!window._IMP_COMPS) window._IMP_COMPS = await api("/billing/components").catch(() => []); billingMapModal(p, true); }
+  try { const p = await api("/billing/import/parse", { method: "POST", body: JSON.stringify({ data: window._billFile, sheet }) }); if (!window._IMP_COMPS) window._IMP_COMPS = await api("/billing/components").catch(() => []); if (!window._IMP_TPLS) window._IMP_TPLS = await api("/billing/annexe-templates").catch(() => []); billingMapModal(p, true); }
   catch (e) { alert(e.message); }
 }
 function billingMapModal(p, replace) {
   window._IMP_P = p;
-  const comps = ((window._IMP_COMPS && window._IMP_COMPS.length) ? window._IMP_COMPS : (BILL_SHEET.contract.components || [])).filter(c => ["PRIME", "HORS_CHARGE", "RETENUE", "PRESTATION"].includes(c.stage)).slice().sort((a, b) => (a.order || 99) - (b.order || 99));
-  const opts = (sel) => `<option value="">—</option>` + p.headers.map(h => `<option value="${h.index}" ${String(sel) === String(h.index) ? "selected" : ""}>${esc(h.label)}</option>`).join("");
-  const guess = (kw) => { const h = p.headers.find(x => (x.label || "").toLowerCase().includes(kw)); return h ? h.index : ""; };
-  const norm = (x) => String(x == null ? "" : x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-  const STOP = new Set(["prime","primes","de","d","indemnite","indemnites","allowance","pour","la","le","les","du","des","sur","et","mois","total","nombre","bonus","monthly","amount"]);
-  const compTokens = (c) => norm((c.label || "") + " " + (c.code || "")).split(" ").filter(t => t.length >= 3 && !STOP.has(t));
-  const guessField = (f) => {
-    const toks = norm((f.label || "") + " " + (f.key || "")).split(" ").filter(t => t.length >= 3 && !STOP.has(t));
-    if (!toks.length) return "";
-    let best = "", bs = 0;
-    for (const h of p.headers) { const hw = norm(h.label).split(" ").filter(Boolean); if (!hw.length) continue;
-      let sc = 0; for (const t of toks) for (const w of hw) { if (w === t || (w.length >= 3 && (w.startsWith(t) || t.startsWith(w)))) { sc++; break; } }
-      if (sc > bs) { bs = sc; best = h.index; } }
-    return bs > 0 ? best : "";
-  };
-  const guessComp = (c) => {
-    const toks = compTokens(c); if (!toks.length) return "";
-    let best = "", bestScore = 0;
-    for (const h of p.headers) {
-      const hw = norm(h.label).split(" ").filter(Boolean); if (!hw.length) continue;
-      let sc = 0;
-      for (const t of toks) for (const w of hw) { if (w === t || (w.length >= 3 && (w.startsWith(t) || t.startsWith(w)))) { sc++; break; } }
-      if (sc > bestScore) { bestScore = sc; best = h.index; }
-    }
-    return bestScore > 0 ? best : "";
-  };
-  const html = `<div class="modal" style="width:620px"><h3 style="margin:0 0 4px">Import Excel — mapper les colonnes</h3>
-    <div class="note">Feuille détectée : en-tête à la ligne ${p.headerRow + 1} · ${p.rowCount} ligne(s) de données. Associez chaque champ à sa colonne.</div>
-    <div style="display:flex;gap:8px;align-items:end;margin:6px 0">
+  const tpls = window._IMP_TPLS || [];
+  const defTpl = tpls.find(t => t.contractId === BILL_SHEET.contract.id) || null;
+  if (window._IMP_TPLSEL === undefined) window._IMP_TPLSEL = defTpl ? defTpl.id : "";
+  const html = `<div class="modal" style="width:640px"><h3 style="margin:0 0 4px">Import Excel — mapper les colonnes</h3>
+    <div class="note">Feuille détectée : en-tête à la ligne ${p.headerRow + 1} · ${p.rowCount} ligne(s). Choisissez le modèle d'annexe : seules ses colonnes seront proposées au mapping (les colonnes calculées sont auto-générées).</div>
+    <div style="display:flex;gap:8px;align-items:end;margin:6px 0;flex-wrap:wrap">
       <div><label>Feuille</label><select id="imSheet" onchange="billingReparse(this.value)">${p.sheets.map(sn => `<option ${sn === p.sheet ? "selected" : ""}>${esc(sn)}</option>`).join("")}</select></div>
       <div><label>Ligne d'en-tête</label><input id="imHeader" type="number" value="${p.headerRow}" style="max-width:80px"></div>
       <div><label>Mode</label><select id="imMode"><option value="replace">Remplacer les lignes</option><option value="append">Ajouter</option></select></div>
+      <div><label>Modèle d'annexe</label><select id="imTpl" onchange="window._IMP_TPLSEL=this.value;billMapRenderFields()" style="min-width:200px">
+        <option value="">— générique (tout) —</option>${tpls.map(t => `<option value="${t.id}" ${window._IMP_TPLSEL === t.id ? "selected" : ""}>${esc(t.title)}</option>`).join("")}</select></div>
     </div>
-    <div class="scroll" style="max-height:52vh">
-      <b style="font-size:12px;color:var(--muted)">CHAMPS DE BASE</b>
-      <div class="grid2" style="margin-top:4px">
-        <div><label>Nom / ressource</label><select data-map="name">${opts(guess("nom"))}</select></div>
-        <div><label>Salaire de base</label><select data-map="salaireBase">${opts(guess("base"))}</select></div>
-        <div><label>Jours travaillés</label><select data-map="jours">${opts(guess("jr"))}</select></div>
-        <div><label>Date d'embauche (→ ancienneté)</label><select data-map="hireDate">${opts(guess("embauche"))}</select></div>
-        <div><label>Années d'ancienneté (si pas de date)</label><select data-map="years">${opts("")}</select></div>
-      </div>
-      ${BILL_SHEET.contract.billingType === "RECAP" ? `<div class="grid2"><div><label>Montant HT (Récap)</label><select data-map="montantHT">${opts(guess("ht"))}</select></div></div>` : ""}
-      ${["PRESTATION", "TONNAGE"].includes(BILL_SHEET.contract.billingType) ? `<div class="grid2"><div><label>Quantité</label><select data-map="quantite">${opts(guess("quant"))}</select></div><div><label>Prix unitaire</label><select data-map="pu">${opts(guess("prix"))}</select></div></div>` : ""}
-      ${(() => { const idf = [...LF_KNOWN, ...((BILL_SHEET.contract.lineFields || []).filter(f => f.custom))]; return `<b style="font-size:12px;color:var(--muted)">CHAMPS D'IDENTITÉ (ANNEXE)</b>
-      <div class="grid2" style="margin-top:4px">${idf.map(f => `<div><label>${esc(f.label)} <span class="tag gray">${f.type}</span></label><select data-field="${esc(f.key)}">${opts(guessField(f))}</select></div>`).join("")}</div>`; })()}
-      <b style="font-size:12px;color:var(--muted)">COMPOSANTS (primes / hors-charges actifs sur ce client)</b>
-      ${comps.length ? `<div class="grid2" style="margin-top:4px">${comps.map(c => `<div><label>${esc(c.label)} <span class="tag gray">${c.stage}</span></label><select data-comp="${c.code}">${opts(guessComp(c))}</select></div>`).join("")}</div>`
-        : '<div class="note">Aucun composant actif — ajoutez-les au contrat pour importer les primes. Sinon, mappez « Primes (agrégé) » ci-dessous.</div>'}
-      <div class="grid2" style="margin-top:6px">
-        <div><label>Primes (colonne agrégée, optionnel)</label><select data-map="primes">${opts("")}</select></div>
-        <div><label>Hors-charges (agrégé, optionnel)</label><select data-map="horsCharges">${opts("")}</select></div>
-      </div>
-    </div>
+    <div class="scroll" style="max-height:52vh"><div id="imFieldsBox"></div></div>
     <div class="err hidden" id="imErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingDoPreview()">Aperçu →</button>
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
   let bg = document.querySelector(".modal-bg");
   if (replace && bg) bg.innerHTML = html; else { bg = document.createElement("div"); bg.className = "modal-bg"; bg.innerHTML = html; document.body.appendChild(bg); }
   window._imSheet = p.sheet;
+  billMapRenderFields();
 }
+function billMapRenderFields() {
+  const p = window._IMP_P; const box = document.getElementById("imFieldsBox"); if (!p || !box) return;
+  const tpl = (window._IMP_TPLS || []).find(t => t.id === (window._IMP_TPLSEL || "")) || null;
+  const allComps = window._IMP_COMPS || [];
+  const norm = (x) => String(x == null ? "" : x).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const STOP = new Set(["prime", "primes", "de", "d", "indemnite", "indemnites", "allowance", "pour", "la", "le", "les", "du", "des", "sur", "et", "mois", "total", "nombre", "bonus", "monthly", "amount"]);
+  const opts = (sel) => `<option value="">—</option>` + p.headers.map(h => `<option value="${h.index}" ${String(sel) === String(h.index) ? "selected" : ""}>${esc(h.label)}</option>`).join("");
+  const guessKw = (kw) => { const h = p.headers.find(x => (x.label || "").toLowerCase().includes(kw)); return h ? h.index : ""; };
+  const guessTok = (label, key) => { const toks = norm((label || "") + " " + (key || "")).split(" ").filter(t => t.length >= 3 && !STOP.has(t)); if (!toks.length) return ""; let best = "", bs = 0; for (const h of p.headers) { const hw = norm(h.label).split(" ").filter(Boolean); if (!hw.length) continue; let sc = 0; for (const t of toks) for (const w of hw) { if (w === t || (w.length >= 3 && (w.startsWith(t) || t.startsWith(w)))) { sc++; break; } } if (sc > bs) { bs = sc; best = h.index; } } return bs > 0 ? best : ""; };
+  const CASC = new Set(["BASE", "SALAIREBASE", "BRUT", "CONGES", "CHARGES", "FRAIS", "HT", "TVA_CASC", "TTC_CASC", "PRES", "PRIMES", "HORSCHARGES"]);
+  let fieldKeys = [], compCodes = [], usesCascade = true, usesJours = true;
+  if (tpl) {
+    const codeSet = new Set(allComps.map(c => c.code));
+    const fset = new Set(), cset = new Set(); usesCascade = false; usesJours = false;
+    for (const c of (tpl.columns || [])) {
+      if (c.source === "field") { if (c.field && c.field !== "name") { if (c.field === "jours") usesJours = true; else fset.add(c.field); } continue; }
+      const expr = (c.expr != null && c.expr !== "") ? c.expr : c.key;
+      const toks = String(expr).match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+      for (const tk of toks) { if (codeSet.has(tk)) cset.add(tk); else if (tk === "JOURS") { usesJours = true; usesCascade = true; } else if (CASC.has(tk)) usesCascade = true; }
+    }
+    fieldKeys = [...fset]; compCodes = [...cset]; if (usesCascade) usesJours = true;
+  } else {
+    fieldKeys = [...LF_KNOWN.map(f => f.key), ...((BILL_SHEET.contract.lineFields || []).filter(f => f.custom).map(f => f.key))];
+    compCodes = allComps.filter(c => ["PRIME", "HORS_CHARGE", "RETENUE", "PRESTATION"].includes(c.stage)).map(c => c.code);
+    usesCascade = true; usesJours = true;
+  }
+  fieldKeys = [...new Set(fieldKeys)].filter(k => k !== "name" && k !== "jours");
+  const allFldDefs = [...LF_KNOWN, ...((BILL_SHEET.contract.lineFields) || [])];
+  const fLabel = (k) => { const f = allFldDefs.find(x => x.key === k); return f ? f.label : k; };
+  const fType = (k) => { const f = allFldDefs.find(x => x.key === k); return f ? f.type : "text"; };
+  const cObj = (code) => allComps.find(c => c.code === code) || { code, label: code, stage: "" };
+  const bt = (BILL_SHEET.contract.billingType || "MAD").toUpperCase();
+  let h = `<b style="font-size:12px;color:var(--muted)">CHAMPS DE BASE</b><div class="grid2" style="margin-top:4px">`;
+  h += `<div><label>Nom / ressource</label><select data-map="name">${opts(guessKw("nom"))}</select></div>`;
+  if (usesCascade) {
+    h += `<div><label>Salaire de base</label><select data-map="salaireBase">${opts(guessKw("base"))}</select></div>`;
+    h += `<div><label>Date d'embauche (→ ancienneté)</label><select data-map="hireDate">${opts(guessKw("embauche"))}</select></div>`;
+    h += `<div><label>Années d'ancienneté</label><select data-map="years">${opts("")}</select></div>`;
+  }
+  if (usesJours) h += `<div><label>Jours travaillés</label><select data-map="jours">${opts(guessKw("jr"))}</select></div>`;
+  if (bt === "RECAP") h += `<div><label>Montant HT (Récap)</label><select data-map="montantHT">${opts(guessKw("ht"))}</select></div>`;
+  if (["PRESTATION", "TONNAGE"].includes(bt)) h += `<div><label>Quantité</label><select data-map="quantite">${opts(guessKw("quant"))}</select></div><div><label>Prix unitaire</label><select data-map="pu">${opts(guessKw("prix"))}</select></div>`;
+  h += `</div>`;
+  if (fieldKeys.length) { h += `<b style="font-size:12px;color:var(--muted)">CHAMPS D'IDENTITÉ${tpl ? " (du modèle)" : ""}</b><div class="grid2" style="margin-top:4px">`;
+    for (const k of fieldKeys) h += `<div><label>${esc(fLabel(k))} <span class="tag gray">${fType(k)}</span></label><select data-field="${esc(k)}">${opts(guessTok(fLabel(k), k))}</select></div>`;
+    h += `</div>`; }
+  if (compCodes.length) { h += `<b style="font-size:12px;color:var(--muted)">COMPOSANTS${tpl ? " (du modèle)" : ""}</b><div class="grid2" style="margin-top:4px">`;
+    for (const code of compCodes) { const c = cObj(code); h += `<div><label>${esc(c.label)} <span class="tag gray">${c.stage || ""}</span></label><select data-comp="${esc(code)}">${opts(guessTok(c.label, c.code))}</select></div>`; }
+    h += `</div>`; }
+  else if (tpl) h += `<div class="note" style="margin-top:6px">Ce modèle n'utilise aucun composant à mapper.</div>`;
+  h += `<div class="grid2" style="margin-top:6px"><div><label>Primes (agrégé, optionnel)</label><select data-map="primes">${opts("")}</select></div><div><label>Hors-charges (agrégé, optionnel)</label><select data-map="horsCharges">${opts("")}</select></div></div>`;
+  box.innerHTML = h;
+}
+
 function billBuildImportBody(preview) {
   const mapping = { components: {} };
   document.querySelectorAll("[data-map]").forEach(s => { mapping[s.dataset.map] = s.value === "" ? null : Number(s.value); });
