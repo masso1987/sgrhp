@@ -3632,16 +3632,27 @@ async function paySaveConfig() {
 
 
 /* ================= Module Facturation ================= */
-let BILL_CTR = [];
+let BILL_SHEETS = [], BILL_CTR = [];
 async function billingView() {
   const [contracts, sheets] = await Promise.all([api("/billing/contracts"), api("/billing/sheets")]);
-  BILL_CTR = contracts;
+  BILL_CTR = contracts; BILL_SHEETS = sheets;
   const period = window._billPeriod || new Date().toISOString().slice(0, 7);
-  view.innerHTML = `<h1>🧾 Facturation — fiches (annexes)
+  const sum = (k) => sheets.reduce((a, x) => a + (x[k] || 0), 0);
+  const nVal = sheets.filter(x => x.status === "validated").length;
+  const kpi = (lab, val, sub) => `<div style="flex:1;min-width:150px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px">
+    <div style="font-size:12px;color:var(--muted)">${lab}</div>
+    <div style="font-size:22px;font-weight:600;margin-top:3px">${val}${sub ? ` <span style="font-size:12px;color:var(--muted);font-weight:400">${sub}</span>` : ""}</div></div>`;
+  view.innerHTML = `<h1>🧾 Facturation
     <span style="float:right;display:flex;gap:6px">
       <button class="btn ghost sm" onclick="billingRecap()">📊 Récap mensuel</button>
       ${ME.role === "ADM" ? `<button class="btn ghost sm" onclick="go('billingcfg')">⚙️ Clients &amp; composants</button>` : ""}
     </span></h1>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    ${kpi("Total HT", fCFA(sum("HT")), "FCFA")}
+    ${kpi("Total TVA", fCFA(sum("TVA")), "FCFA")}
+    ${kpi("Total TTC", fCFA(sum("TTC")), "FCFA")}
+    ${kpi("Fiches", sheets.length, `· ${nVal} validée${nVal > 1 ? "s" : ""}`)}
+  </div>
   <div class="panel" style="max-width:680px"><b>Nouvelle fiche</b>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
       <div><label>Client</label><select id="nfClient" style="min-width:200px;margin:0">
@@ -3650,16 +3661,35 @@ async function billingView() {
       <button class="btn p sm" onclick="billingCreateSheet()">+ Créer la fiche</button></div>
     <div class="err hidden" id="nfErr" style="margin-top:6px"></div>
     ${contracts.length ? "" : '<div class="note" style="margin-top:8px">Configurez d\'abord un client dans « ⚙️ Clients &amp; composants ».</div>'}</div>
-  <div class="panel"><table><tr><th>Client</th><th>Période</th><th>N°</th><th style="text-align:right">HT</th>
-    <th style="text-align:right">TVA</th><th style="text-align:right">TTC</th><th>Statut</th><th></th></tr>
-    ${sheets.length ? sheets.map(s => `<tr>
-      <td><b>${esc(s.client)}</b></td><td>${esc(s.period)}</td><td>${esc(s.number || "")}</td>
-      <td style="text-align:right">${fCFA(s.HT)}</td><td style="text-align:right">${fCFA(s.TVA)}</td>
-      <td style="text-align:right"><b>${fCFA(s.TTC)}</b></td>
-      <td>${s.status === "validated" ? '<span class="tag green">Validée ✓</span>' : '<span class="tag amber">Brouillon</span>'}</td>
-      <td><button class="btn ghost sm" onclick="billingSheetOpen('${s.id}')">📋 Ouvrir</button></td></tr>`).join("")
-      : '<tr><td colspan="8" style="color:var(--muted)">Aucune fiche.</td></tr>'}
-  </table></div>`;
+  <div class="panel">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <b style="margin-right:auto">Annexes / factures</b>
+      <input id="blq" placeholder="🔍 Rechercher un client…" oninput="billingListFilter()" style="margin:0;min-width:200px">
+      <input id="blper" type="month" oninput="billingListFilter()" style="margin:0" title="Filtrer par période">
+      <select id="blst" onchange="billingListFilter()" style="margin:0"><option value="">Tous statuts</option><option value="draft">Brouillon</option><option value="validated">Validée</option></select>
+    </div>
+    <div id="billList">${billingListRows(sheets)}</div></div>`;
+}
+function billingIni(name) { return (name || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?"; }
+function billingListRows(list) {
+  if (!list.length) return '<div style="color:var(--muted);padding:14px 4px">Aucune fiche.</div>';
+  return list.map(s => `<div style="display:flex;align-items:center;gap:12px;padding:11px 6px;border-bottom:1px solid var(--border)">
+    <div style="width:38px;height:38px;border-radius:10px;background:var(--nav-active-bg);color:var(--nav-active-color);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0">${billingIni(s.client)}</div>
+    <div style="min-width:0;flex:1"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.client)}</div>
+      <div style="font-size:12px;color:var(--muted)">${esc(s.number || "—")} · ${esc(s.period)}</div></div>
+    <div style="text-align:right;min-width:88px"><div style="font-size:11px;color:var(--muted)">HT</div><div>${fCFA(s.HT)}</div></div>
+    <div style="text-align:right;min-width:100px"><div style="font-size:11px;color:var(--muted)">TTC</div><div style="font-weight:600">${fCFA(s.TTC)}</div></div>
+    <div style="min-width:78px;text-align:center">${s.status === "validated" ? '<span class="tag green">Validée ✓</span>' : '<span class="tag amber">Brouillon</span>'}</div>
+    <button class="btn ghost sm" onclick="billingSheetOpen('${s.id}')">Ouvrir</button></div>`).join("");
+}
+function billingListFilter() {
+  const q = (document.getElementById("blq").value || "").toLowerCase().trim();
+  const per = document.getElementById("blper").value || "";
+  const st = document.getElementById("blst").value || "";
+  const f = (BILL_SHEETS || []).filter(s =>
+    (!q || (s.client || "").toLowerCase().includes(q) || (s.number || "").toLowerCase().includes(q)) &&
+    (!per || s.period === per) && (!st || s.status === st));
+  document.getElementById("billList").innerHTML = billingListRows(f);
 }
 async function billingCreateSheet() {
   const contractId = nfClient.value, period = nfPeriod.value;
