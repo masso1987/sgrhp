@@ -118,6 +118,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
     clientName: b.clientName, billingType: b.billingType || "MAD",
     clientBlock: b.clientBlock || {}, bankBlock: b.bankBlock || {},
     numberFormat: b.numberFormat || "CLIENT/AAAA/MM/####", invoiceStyle: b.invoiceStyle || "lines",
+    lineFields: Array.isArray(b.lineFields) ? b.lineFields : [],
     isEnabled: !!b.isEnabled, isRate: b.isRate != null ? Number(b.isRate) : 0.022, invoiceSeqPrefix: b.invoiceSeqPrefix || "029",
     journalId: b.journalId || "", defaultAccount: b.defaultAccount || "701100", conditionsPaiement: b.conditionsPaiement || "Immédiat", vendeur: b.vendeur || "",
     prorate: b.prorate || "base", anciennete: b.anciennete !== false, tvaExonere: !!b.tvaExonere,
@@ -131,7 +132,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
 router.put("/contracts/:id", allow("ADM"), (req, res) => {
   const c = contractOf(req, req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix", "journalId", "defaultAccount", "conditionsPaiement", "vendeur"])
+  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix", "journalId", "defaultAccount", "conditionsPaiement", "vendeur", "lineFields"])
     if (b[k] !== undefined) c[k] = b[k];
   if (b.rates) c.rates = Object.assign({}, DEFAULT_RATES, c.rates || {}, b.rates);
   save(); audit(req.user, "UPDATED", "BillingContract", c.id, {}); res.json(c);

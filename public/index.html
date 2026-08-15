@@ -3678,11 +3678,13 @@ function billLinesTable(s, type, open) {
   const madComps = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
     ? (s.contract.components || []).filter(c => c.active !== false && ["PRIME", "HORS_CHARGE", "RETENUE"].includes(c.stage)).slice().sort((a, b) => (a.order || 99) - (b.order || 99))
     : [];
+  const lineFields = (s.contract.lineFields || []);
   const rows = (s.lines || []).map((l, i) => {
     if (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
       return `<tr data-i="${i}">
         <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:150px;margin:0"></td>
         <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:110px;margin:0"></td>
+        ${lineFields.map(f => billLineFieldTd(l, f, dis)).join("")}
         <td><input type="number" value="${l.salaireBase || 0}" data-f="salaireBase" ${dis} style="max-width:100px;margin:0"></td>
         <td><input type="number" value="${l.jours != null ? l.jours : 30}" data-f="jours" ${dis} style="max-width:55px;margin:0"></td>
         <td><input type="number" value="${l.years || 0}" data-f="years" ${dis} style="max-width:50px;margin:0"></td>
@@ -3693,20 +3695,22 @@ function billLinesTable(s, type, open) {
       return `<tr data-i="${i}">
         <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:180px;margin:0"></td>
         <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:140px;margin:0"></td>
+        ${lineFields.map(f => billLineFieldTd(l, f, dis)).join("")}
         <td><input type="number" value="${l.montantHT || 0}" data-f="montantHT" ${dis} style="max-width:130px;margin:0"></td>
         <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
     // PRESTATION / TONNAGE
     return `<tr data-i="${i}">
       <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:160px;margin:0"></td>
       <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:120px;margin:0"></td>
+      ${lineFields.map(f => billLineFieldTd(l, f, dis)).join("")}
       <td><input type="number" value="${l.quantite || 0}" data-f="quantite" ${dis} style="max-width:90px;margin:0"></td>
       <td><input type="number" value="${l.pu || 0}" data-f="pu" ${dis} style="max-width:110px;margin:0"></td>
       <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
   }).join("");
   const head = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
-    ? `<tr><th>Nom</th><th>Poste</th><th>Sal. base</th><th>Jours</th><th>Anc.</th>${madComps.map(c => `<th title="${esc(c.label || c.code)}">${esc(c.code)}${c.inputMode === "heures" ? " (h)" : c.inputMode === "quantite" ? " (q)" : ""}</th>`).join("")}${madComps.length ? "" : "<th>Primes</th><th>Hors-charges</th>"}<th></th></tr>`
-    : type === "RECAP" ? "<tr><th>Libellé</th><th>Poste</th><th>Montant HT</th><th></th></tr>"
-    : "<tr><th>Libellé</th><th>Poste</th><th>Quantité</th><th>Prix unitaire</th><th></th></tr>";
+    ? `<tr><th>Nom</th><th>Poste</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Sal. base</th><th>Jours</th><th>Anc.</th>${madComps.map(c => `<th title="${esc(c.label || c.code)}">${esc(c.code)}${c.inputMode === "heures" ? " (h)" : c.inputMode === "quantite" ? " (q)" : ""}</th>`).join("")}${madComps.length ? "" : "<th>Primes</th><th>Hors-charges</th>"}<th></th></tr>`
+    : type === "RECAP" ? `<tr><th>Libellé</th><th>Poste</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Montant HT</th><th></th></tr>`
+    : `<tr><th>Libellé</th><th>Poste</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Quantité</th><th>Prix unitaire</th><th></th></tr>`;
   return head + (rows || `<tr><td colspan="24" style="color:var(--muted)">Aucune ligne — cliquez « + Ligne ».</td></tr>`);
 }
 function billAnnexe(s, type) {
@@ -3723,6 +3727,12 @@ function billAnnexe(s, type) {
   body += `<tr style="font-weight:bold;border-top:2px solid #999"><td>TOTAL GÉNÉRAL (${t.count})</td>${cols.map(k => `<td class='r'>${["HT", "TVA", "TTC"].includes(k) ? fCFA(t[k]) : ""}</td>`).join("")}</tr>`;
   return `<style>#billAnx td.r,#billAnx th.r{text-align:right}</style><table id="billAnx"><tr>${head}</tr>${body}</table>`;
 }
+function billLineFieldTd(l, f, dis) {
+  const t = f.type === "date" ? "date" : (f.type === "number" ? "number" : "text");
+  const v = l[f.key] != null ? l[f.key] : "";
+  const w = f.type === "date" ? "min-width:130px" : (f.type === "number" ? "max-width:80px" : "min-width:110px");
+  return `<td><input type="${t}" value="${esc(String(v))}" data-lf="${esc(f.key)}" data-lftype="${f.type}" ${dis} style="${w};margin:0" title="${esc(f.label)}"></td>`;
+}
 function billCompTd(l, c, dis) {
   const key = c.inputMode === "heures" ? "heures" : (c.inputMode === "quantite" ? "quantite" : "montant");
   const v = ((l.components || {})[c.code] || {})[key] || 0;
@@ -3734,6 +3744,8 @@ function billingCollectLines() {
     const o = { id: src.id };
     tr.querySelectorAll("[data-f]").forEach(inp => { const f = inp.dataset.f;
       o[f] = inp.type === "number" ? Number(inp.value || 0) : inp.value; });
+    tr.querySelectorAll("[data-lf]").forEach(inp => { const k = inp.dataset.lf;
+      o[k] = inp.dataset.lftype === "number" ? Number(inp.value || 0) : inp.value; });
     const comps = {};
     tr.querySelectorAll("[data-comp]").forEach(inp => { const code = inp.dataset.comp, k = inp.dataset.ckey;
       const val = Number(inp.value || 0); if (val) (comps[code] = comps[code] || {})[k] = val; });
@@ -3815,6 +3827,7 @@ async function billingContractModal(cid) {
   const c = cid ? await api("/billing/contracts/" + cid) : { rates: {}, clientBlock: {}, bankBlock: {}, components: [], billingType: "MAD", prorate: "base", anciennete: true };
   const R = Object.assign({ chargesPatronales: 0.162, tva: 0.1925, fraisGestion: 0.10, congesDivisor: 16, ir: 0, ancienneteRate: 0.02, margeCRH: 0, finContrat: 0 }, c.rates || {});
   const active = new Set((c.components || []).map(x => x.code));
+  BILL_LINE_FIELDS = JSON.parse(JSON.stringify(c.lineFields || []));
   const modal = document.createElement("div"); modal.className = "modal-bg";
   const pct = (v) => (v * 100);
   modal.innerHTML = `<div class="modal" style="width:640px">
@@ -3849,6 +3862,11 @@ async function billingContractModal(cid) {
       </div>
       <b style="font-size:12px;color:var(--muted)">COMPOSANTS ACTIFS</b>
       <div class="grid2" style="margin-top:4px">${comps.map(cp => `<label class="chk"><input type="checkbox" data-comp="${cp.code}" ${active.has(cp.code) ? "checked" : ""}><span>${esc(cp.label)} <span class="tag gray">${cp.stage}</span></span></label>`).join("")}</div>
+      <b style="font-size:12px;color:var(--muted)">CHAMPS DE LA LIGNE (ANNEXE)</b>
+      <div class="note" style="margin:2px 0 4px">Infos à saisir par salarié dans SAISIE DES LIGNES (en plus de Nom, Poste, Salaire, Jours). Cochez les champs connus, ajoutez des champs personnalisés au besoin.</div>
+      <div class="grid2" id="lfKnown">${LF_KNOWN.map(f => `<label class="chk"><input type="checkbox" onchange="billLFToggle('${f.key}')" ${BILL_LINE_FIELDS.some(x => x.key === f.key) ? "checked" : ""}><span>${esc(f.label)} <span class="tag gray">${f.type}</span></span></label>`).join("")}</div>
+      <div id="lfCustom" style="margin-top:4px"></div>
+      <button class="btn ghost sm" style="margin-top:4px" onclick="billLFAddCustom()">+ Champ personnalisé</button>
       <b style="font-size:12px;color:var(--muted)">BLOC CLIENT (facture)</b>
       <div class="grid2" style="margin-top:4px">
         <div><label>Adresse</label><input id="cbAddr" value="${esc((c.clientBlock || {}).adresse || "")}"></div>
@@ -3860,7 +3878,7 @@ async function billingContractModal(cid) {
     <div class="err hidden" id="ccErr"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingSaveContract('${cid || ""}')">Enregistrer</button>
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
-  document.body.appendChild(modal);
+  document.body.appendChild(modal); billLFRenderCustom();
 }
 async function billingSaveContract(cid) {
   const comps = await api("/billing/components");
@@ -3872,7 +3890,7 @@ async function billingSaveContract(cid) {
     rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
       congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
     components, clientBlock: { adresse: g("cbAddr"), niu: g("cbNiu"), rccm: g("cbRccm") }, bankBlock: { banque: g("cbBank") },
-    isEnabled: g("ccIs") === "1", isRate: (+g("ccIsRate") || 0) / 100, invoiceSeqPrefix: g("ccSeq"), journalId: g("ccJournal"), defaultAccount: g("ccAcct2") };
+    isEnabled: g("ccIs") === "1", isRate: (+g("ccIsRate") || 0) / 100, invoiceSeqPrefix: g("ccSeq"), journalId: g("ccJournal"), defaultAccount: g("ccAcct2"), lineFields: BILL_LINE_FIELDS };
   try { if (cid) await api("/billing/contracts/" + cid, { method: "PUT", body: JSON.stringify(body) });
     else await api("/billing/contracts", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); billingCfgView(); }
@@ -4011,7 +4029,7 @@ function billingTplRenderCols() {
       <td><input value="${esc(c.key || "")}" oninput="BILL_TPL_COLS[${i}].key=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'_')" style="max-width:90px;margin:0"></td>
       <td><select onchange="BILL_TPL_COLS[${i}].source=this.value;billingTplRenderCols()" style="margin:0"><option value="" ${c.source!=="field"?"selected":""}>formule</option><option value="field" ${c.source==="field"?"selected":""}>champ</option></select></td>
       <td>${c.source === "field"
-        ? `<select onchange="BILL_TPL_COLS[${i}].field=this.value" style="margin:0"><option value="name" ${c.field==="name"?"selected":""}>nom</option><option value="poste" ${c.field==="poste"?"selected":""}>poste</option><option value="cat" ${c.field==="cat"?"selected":""}>catégorie</option><option value="jours" ${c.field==="jours"?"selected":""}>jours</option></select>`
+        ? `<select onchange="BILL_TPL_COLS[${i}].field=this.value" style="margin:0">${[["name","nom"],["poste","poste"],["matricule","matricule"],["categorie","catégorie"],["cat","catégorie (cat)"],["dateNaissance","date naissance"],["dateEmbauche","date embauche"],["dateFin","date fin"],["cnps","N° CNPS"],["ref","référence"],["jours","jours"]].map(([v,lab])=>`<option value="${v}" ${c.field===v?"selected":""}>${lab}</option>`).join("")}${(BILL_LINE_FIELDS||[]).filter(f=>f.custom).map(f=>`<option value="${esc(f.key)}" ${c.field===f.key?"selected":""}>${esc(f.label)}</option>`).join("")}</select>`
         : `<input value="${esc(c.expr || "")}" oninput="BILL_TPL_COLS[${i}].expr=this.value" placeholder="ex. GROSS / 12" style="min-width:170px;margin:0">`}</td>
       <td><select onchange="BILL_TPL_COLS[${i}].align=this.value" style="margin:0"><option value="right" ${c.align!=="left"?"selected":""}>droite</option><option value="left" ${c.align==="left"?"selected":""}>gauche</option></select></td>
       <td><input type="number" value="${c.w || 60}" oninput="BILL_TPL_COLS[${i}].w=Number(this.value)" style="max-width:50px;margin:0"></td>
@@ -4140,6 +4158,38 @@ async function billingCompImportRun() {
   try { const r = await api("/billing/components/import", { method: "POST", body: JSON.stringify({ items }) });
     document.querySelector(".modal-bg").remove(); alert(`Import terminé : ${r.created} créé(s), ${r.updated} mis à jour.`); billingCfgView(); }
   catch (e) { const el = document.getElementById("cpImpErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+
+
+/* ---- Champs de ligne configurables par client ---- */
+const LF_KNOWN = [
+  { key: "matricule", label: "Matricule", type: "text" },
+  { key: "categorie", label: "Cat\u00e9gorie", type: "text" },
+  { key: "dateNaissance", label: "Date de naissance", type: "date" },
+  { key: "dateEmbauche", label: "Date d'embauche", type: "date" },
+  { key: "dateFin", label: "Date de fin", type: "date" },
+  { key: "cnps", label: "N\u00b0 CNPS", type: "text" },
+  { key: "ref", label: "R\u00e9f\u00e9rence", type: "text" },
+];
+let BILL_LINE_FIELDS = [];
+function billLFToggle(key) {
+  const k = LF_KNOWN.find(f => f.key === key); if (!k) return;
+  const i = BILL_LINE_FIELDS.findIndex(x => x.key === key);
+  if (i >= 0) BILL_LINE_FIELDS.splice(i, 1); else BILL_LINE_FIELDS.push({ key: k.key, label: k.label, type: k.type });
+}
+function billLFAddCustom() {
+  const label = prompt("Nom du champ personnalis\u00e9 (ex. Centre de co\u00fbt) :"); if (!label) return;
+  const type = (prompt("Type : text, date ou number", "text") || "text").toLowerCase();
+  const key = "cf_" + label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  if (BILL_LINE_FIELDS.some(x => x.key === key)) { alert("Ce champ existe d\u00e9j\u00e0."); return; }
+  BILL_LINE_FIELDS.push({ key, label, type: ["text", "date", "number"].includes(type) ? type : "text", custom: true });
+  billLFRenderCustom();
+}
+function billLFDelCustom(key) { const i = BILL_LINE_FIELDS.findIndex(x => x.key === key); if (i >= 0) BILL_LINE_FIELDS.splice(i, 1); billLFRenderCustom(); }
+function billLFRenderCustom() {
+  const box = document.getElementById("lfCustom"); if (!box) return;
+  const cust = BILL_LINE_FIELDS.filter(x => x.custom);
+  box.innerHTML = cust.length ? `<div class="note">Champs personnalis\u00e9s : ${cust.map(f => `${esc(f.label)} <span class="tag gray">${f.type}</span> <a href="#" onclick="billLFDelCustom('${f.key}');return false" style="color:var(--red)">\u2715</a>`).join(" &nbsp;\u00b7&nbsp; ")}</div>` : "";
 }
 
 </script>
