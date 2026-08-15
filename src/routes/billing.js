@@ -268,6 +268,9 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
     const at = (row, key) => { const c = mapping[key]; return (c === null || c === "" || c === undefined) ? undefined : row[Number(c)]; };
     const compMap = mapping.components || {};
     const compDef = {}; for (const c of (contract.components || [])) compDef[c.code] = c;
+    const fieldMap = mapping.fields || {};
+    const fieldDef = {}; for (const f of (contract.lineFields || [])) fieldDef[f.key] = f;
+    const fmtDate = (v) => { if (v == null || v === "") return ""; if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10); const d = new Date(v); return (!isNaN(d) && /\d{4}/.test(String(v))) ? d.toISOString().slice(0, 10) : String(v).trim(); };
     const out = [];
     for (let i = hr + 1; i < m.length; i++) {
       const row = m[i]; if (!row || row.every(c => c === "" || c == null)) continue;
@@ -286,9 +289,15 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
       const hv = at(row, "hireDate");
       if (hv) { const hd = hv instanceof Date ? hv : (/\d{4}/.test(String(hv)) ? new Date(hv) : null);
         if (hd && !isNaN(hd)) { const d = new Date(s.period + "-01"); let mo = (d.getFullYear() - hd.getFullYear()) * 12 + (d.getMonth() - hd.getMonth()); years = mo < 0 ? 0 : Math.floor(mo / 12); } }
-      out.push({ id: id("bln"), name, poste: String(at(row, "poste") == null ? "" : at(row, "poste")).trim(),
+      const rec = { id: id("bln"), name, poste: String(at(row, "poste") == null ? "" : at(row, "poste")).trim(),
         salaireBase: sal, jours: _n(at(row, "jours")) || 30, years, primes: _n(at(row, "primes")), horsCharges: _n(at(row, "horsCharges")),
-        montantHT: _n(at(row, "montantHT")), quantite: _n(at(row, "quantite")), pu: _n(at(row, "pu")), components });
+        montantHT: _n(at(row, "montantHT")), quantite: _n(at(row, "quantite")), pu: _n(at(row, "pu")), components };
+      for (const [key, ci] of Object.entries(fieldMap)) {
+        if (ci === "" || ci == null) continue;
+        const raw = row[Number(ci)]; const ty = (fieldDef[key] || {}).type;
+        rec[key] = ty === "number" ? _n(raw) : (ty === "date" ? fmtDate(raw) : (raw == null ? "" : String(raw).trim()));
+      }
+      out.push(rec);
     }
     s.lines = (mode === "append") ? (s.lines || []).concat(out) : out;
     if (contract.id) { contract.columnMapping = { sheet, headerRow: hr, mapping }; }

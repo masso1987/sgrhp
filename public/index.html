@@ -3678,12 +3678,11 @@ function billLinesTable(s, type, open) {
   const madComps = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
     ? (s.contract.components || []).filter(c => c.active !== false && ["PRIME", "HORS_CHARGE", "RETENUE"].includes(c.stage)).slice().sort((a, b) => (a.order || 99) - (b.order || 99))
     : [];
-  const lineFields = (s.contract.lineFields || []);
+  const lineFields = (s.contract.lineFields && s.contract.lineFields.length) ? s.contract.lineFields : [{ key: "poste", label: "Poste", type: "text" }];
   const rows = (s.lines || []).map((l, i) => {
     if (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
       return `<tr data-i="${i}">
         <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:150px;margin:0"></td>
-        <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:110px;margin:0"></td>
         ${lineFields.map(f => billLineFieldTd(l, f, dis)).join("")}
         <td><input type="number" value="${l.salaireBase || 0}" data-f="salaireBase" ${dis} style="max-width:100px;margin:0"></td>
         <td><input type="number" value="${l.jours != null ? l.jours : 30}" data-f="jours" ${dis} style="max-width:55px;margin:0"></td>
@@ -3694,23 +3693,21 @@ function billLinesTable(s, type, open) {
     if (type === "RECAP")
       return `<tr data-i="${i}">
         <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:180px;margin:0"></td>
-        <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:140px;margin:0"></td>
         ${lineFields.map(f => billLineFieldTd(l, f, dis)).join("")}
         <td><input type="number" value="${l.montantHT || 0}" data-f="montantHT" ${dis} style="max-width:130px;margin:0"></td>
         <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
     // PRESTATION / TONNAGE
     return `<tr data-i="${i}">
       <td><input value="${esc(l.name || "")}" data-f="name" ${dis} style="min-width:160px;margin:0"></td>
-      <td><input value="${esc(l.poste || "")}" data-f="poste" ${dis} style="min-width:120px;margin:0"></td>
       ${lineFields.map(f => billLineFieldTd(l, f, dis)).join("")}
       <td><input type="number" value="${l.quantite || 0}" data-f="quantite" ${dis} style="max-width:90px;margin:0"></td>
       <td><input type="number" value="${l.pu || 0}" data-f="pu" ${dis} style="max-width:110px;margin:0"></td>
       <td>${open ? `<button class="btn ghost sm" onclick="billingDelLine(${i})">✕</button>` : ""}</td></tr>`;
   }).join("");
   const head = (type === "MAD" || type === "PORTAGE" || type === "CONSULTANT")
-    ? `<tr><th>Nom</th><th>Poste</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Sal. base</th><th>Jours</th><th>Anc.</th>${madComps.map(c => `<th title="${esc(c.label || c.code)}">${esc(c.code)}${c.inputMode === "heures" ? " (h)" : c.inputMode === "quantite" ? " (q)" : ""}</th>`).join("")}${madComps.length ? "" : "<th>Primes</th><th>Hors-charges</th>"}<th></th></tr>`
-    : type === "RECAP" ? `<tr><th>Libellé</th><th>Poste</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Montant HT</th><th></th></tr>`
-    : `<tr><th>Libellé</th><th>Poste</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Quantité</th><th>Prix unitaire</th><th></th></tr>`;
+    ? `<tr><th>Nom</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Sal. base</th><th>Jours</th><th>Anc.</th>${madComps.map(c => `<th title="${esc(c.label || c.code)}">${esc(c.code)}${c.inputMode === "heures" ? " (h)" : c.inputMode === "quantite" ? " (q)" : ""}</th>`).join("")}${madComps.length ? "" : "<th>Primes</th><th>Hors-charges</th>"}<th></th></tr>`
+    : type === "RECAP" ? `<tr><th>Libellé</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Montant HT</th><th></th></tr>`
+    : `<tr><th>Libellé</th>${lineFields.map(f => `<th>${esc(f.label)}</th>`).join("")}<th>Quantité</th><th>Prix unitaire</th><th></th></tr>`;
   return head + (rows || `<tr><td colspan="24" style="color:var(--muted)">Aucune ligne — cliquez « + Ligne ».</td></tr>`);
 }
 function billAnnexe(s, type) {
@@ -3827,7 +3824,7 @@ async function billingContractModal(cid) {
   const c = cid ? await api("/billing/contracts/" + cid) : { rates: {}, clientBlock: {}, bankBlock: {}, components: [], billingType: "MAD", prorate: "base", anciennete: true };
   const R = Object.assign({ chargesPatronales: 0.162, tva: 0.1925, fraisGestion: 0.10, congesDivisor: 16, ir: 0, ancienneteRate: 0.02, margeCRH: 0, finContrat: 0 }, c.rates || {});
   const active = new Set((c.components || []).map(x => x.code));
-  BILL_LINE_FIELDS = JSON.parse(JSON.stringify(c.lineFields || []));
+  BILL_LINE_FIELDS = (c.lineFields && c.lineFields.length) ? JSON.parse(JSON.stringify(c.lineFields)) : [{ key: "poste", label: "Poste occupé", type: "text" }];
   const modal = document.createElement("div"); modal.className = "modal-bg";
   const pct = (v) => (v * 100);
   modal.innerHTML = `<div class="modal" style="width:640px">
@@ -3921,6 +3918,15 @@ function billingMapModal(p, replace) {
   const norm = (x) => String(x == null ? "" : x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
   const STOP = new Set(["prime","primes","de","d","indemnite","indemnites","allowance","pour","la","le","les","du","des","sur","et","mois","total","nombre","bonus","monthly","amount"]);
   const compTokens = (c) => norm((c.label || "") + " " + (c.code || "")).split(" ").filter(t => t.length >= 3 && !STOP.has(t));
+  const guessField = (f) => {
+    const toks = norm((f.label || "") + " " + (f.key || "")).split(" ").filter(t => t.length >= 3 && !STOP.has(t));
+    if (!toks.length) return "";
+    let best = "", bs = 0;
+    for (const h of p.headers) { const hw = norm(h.label).split(" ").filter(Boolean); if (!hw.length) continue;
+      let sc = 0; for (const t of toks) for (const w of hw) { if (w === t || (w.length >= 3 && (w.startsWith(t) || t.startsWith(w)))) { sc++; break; } }
+      if (sc > bs) { bs = sc; best = h.index; } }
+    return bs > 0 ? best : "";
+  };
   const guessComp = (c) => {
     const toks = compTokens(c); if (!toks.length) return "";
     let best = "", bestScore = 0;
@@ -3943,7 +3949,6 @@ function billingMapModal(p, replace) {
       <b style="font-size:12px;color:var(--muted)">CHAMPS DE BASE</b>
       <div class="grid2" style="margin-top:4px">
         <div><label>Nom / ressource</label><select data-map="name">${opts(guess("nom"))}</select></div>
-        <div><label>Poste</label><select data-map="poste">${opts(guess("poste"))}</select></div>
         <div><label>Salaire de base</label><select data-map="salaireBase">${opts(guess("base"))}</select></div>
         <div><label>Jours travaillés</label><select data-map="jours">${opts(guess("jr"))}</select></div>
         <div><label>Date d'embauche (→ ancienneté)</label><select data-map="hireDate">${opts(guess("embauche"))}</select></div>
@@ -3951,6 +3956,8 @@ function billingMapModal(p, replace) {
       </div>
       ${BILL_SHEET.contract.billingType === "RECAP" ? `<div class="grid2"><div><label>Montant HT (Récap)</label><select data-map="montantHT">${opts(guess("ht"))}</select></div></div>` : ""}
       ${["PRESTATION", "TONNAGE"].includes(BILL_SHEET.contract.billingType) ? `<div class="grid2"><div><label>Quantité</label><select data-map="quantite">${opts(guess("quant"))}</select></div><div><label>Prix unitaire</label><select data-map="pu">${opts(guess("prix"))}</select></div></div>` : ""}
+      ${(BILL_SHEET.contract.lineFields || []).length ? `<b style="font-size:12px;color:var(--muted)">CHAMPS D'IDENTITÉ (ANNEXE)</b>
+      <div class="grid2" style="margin-top:4px">${(BILL_SHEET.contract.lineFields).map(f => `<div><label>${esc(f.label)} <span class="tag gray">${f.type}</span></label><select data-field="${esc(f.key)}">${opts(guessField(f))}</select></div>`).join("")}</div>` : ""}
       <b style="font-size:12px;color:var(--muted)">COMPOSANTS (primes / hors-charges actifs sur ce client)</b>
       ${comps.length ? `<div class="grid2" style="margin-top:4px">${comps.map(c => `<div><label>${esc(c.label)} <span class="tag gray">${c.stage}</span></label><select data-comp="${c.code}">${opts(guessComp(c))}</select></div>`).join("")}</div>`
         : '<div class="note">Aucun composant actif — ajoutez-les au contrat pour importer les primes. Sinon, mappez « Primes (agrégé) » ci-dessous.</div>'}
@@ -3970,6 +3977,8 @@ async function billingDoImport() {
   const mapping = { components: {} };
   document.querySelectorAll("[data-map]").forEach(s => { mapping[s.dataset.map] = s.value === "" ? null : Number(s.value); });
   document.querySelectorAll("[data-comp]").forEach(s => { if (s.value !== "") mapping.components[s.dataset.comp] = Number(s.value); });
+  mapping.fields = {};
+  document.querySelectorAll("[data-field]").forEach(s => { if (s.value !== "") mapping.fields[s.dataset.field] = Number(s.value); });
   const body = { data: window._billFile, sheet: (document.getElementById("imSheet") || {}).value || window._imSheet,
     headerRow: Number((document.getElementById("imHeader") || {}).value || 0), mapping, mode: (document.getElementById("imMode") || {}).value };
   try { const s = await api("/billing/sheets/" + BILL_SHEET.id + "/import-excel", { method: "POST", body: JSON.stringify(body) });
@@ -4163,6 +4172,7 @@ async function billingCompImportRun() {
 
 /* ---- Champs de ligne configurables par client ---- */
 const LF_KNOWN = [
+  { key: "poste", label: "Poste occupé", type: "text" },
   { key: "matricule", label: "Matricule", type: "text" },
   { key: "categorie", label: "Cat\u00e9gorie", type: "text" },
   { key: "dateNaissance", label: "Date de naissance", type: "date" },
