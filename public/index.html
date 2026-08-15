@@ -4247,8 +4247,9 @@ async function billingTplModal(id) {
 }
 function billingTplRenderCols() {
   const box = document.getElementById("tpCols");
-  box.innerHTML = `<table><tr><th>Libellé</th><th>Clé</th><th>Source</th><th>Champ / Formule</th><th>Align</th><th>L.</th><th>G</th><th></th></tr>
-    ${BILL_TPL_COLS.map((c, i) => `<tr>
+  box.innerHTML = `<table><tr><th style="width:20px"></th><th>Libellé</th><th>Clé</th><th>Source</th><th>Champ / Formule</th><th>Align</th><th>L.</th><th>G</th><th></th></tr>
+    ${BILL_TPL_COLS.map((c, i) => `<tr ondragover="event.preventDefault()" ondrop="billingTplDrop(${i})">
+      <td draggable="true" ondragstart="billingTplDrag(${i})" title="Glisser pour réordonner" style="cursor:grab;color:var(--muted);text-align:center;user-select:none">⣿</td>
       <td><input value="${esc(c.label || "")}" oninput="BILL_TPL_COLS[${i}].label=this.value" style="min-width:110px;margin:0"></td>
       <td><input value="${esc(c.key || "")}" oninput="BILL_TPL_COLS[${i}].key=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'_')" style="max-width:90px;margin:0"></td>
       <td><select onchange="BILL_TPL_COLS[${i}].source=this.value;billingTplRenderCols()" style="margin:0"><option value="" ${c.source!=="field"?"selected":""}>formule</option><option value="field" ${c.source==="field"?"selected":""}>champ</option></select></td>
@@ -4261,6 +4262,9 @@ function billingTplRenderCols() {
       <td><button class="btn ghost sm" onclick="BILL_TPL_COLS.splice(${i},1);billingTplRenderCols()">✕</button></td></tr>`).join("")}</table>`;
 }
 function billingTplAddCol() { BILL_TPL_COLS.push({ key: "COL" + (BILL_TPL_COLS.length + 1), label: "", source: "", expr: "", align: "right", w: 60 }); billingTplRenderCols(); }
+let _tplDragI = null;
+function billingTplDrag(i) { _tplDragI = i; }
+function billingTplDrop(i) { if (_tplDragI == null || _tplDragI === i) { _tplDragI = null; return; } const m = BILL_TPL_COLS.splice(_tplDragI, 1)[0]; BILL_TPL_COLS.splice(i, 0, m); _tplDragI = null; billingTplRenderCols(); }
 async function billingTplSave(id) {
   const g = (x) => (document.getElementById(x) || {}).value;
   const ck = (x) => !!(document.getElementById(x) || {}).checked;
