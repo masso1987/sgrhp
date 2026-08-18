@@ -220,6 +220,46 @@ function generatePayrollEntry(req, runId) {
 router.post("/generate/invoice/:id", allow("ADM", "CD"), (req, res) => { const e = generateInvoiceEntry(req, req.params.id); if (!e) return res.status(400).json({ error: "Facture introuvable ou sans montant" }); res.json(withTotals(e)); });
 router.post("/generate/payroll/:runId", allow("ADM", "CD"), (req, res) => { const e = generatePayrollEntry(req, req.params.runId); if (!e) return res.status(400).json({ error: "Run introuvable ou vide" }); res.json(withTotals(e)); });
 
+
+/* ==================== C3 — ÉTATS (grand-livre, journal, balance âgée) ==================== */
+function _accLabel(req) { const m = {}; for (const a of mine(db.acctAccounts, req)) m[a.number] = a.label; return m; }
+router.get("/ledger", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const acc = req.query.account; if (!acc) return res.status(400).json({ error: "Compte requis" });
+  const onlyVal = req.query.all !== "1"; const labels = _accLabel(req);
+  const rows = [];
+  for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
+    for (const l of (e.lines || [])) if (l.account === acc) rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, thirdParty: l.thirdParty || "", label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) }); }
+  rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  let solde = 0, td = 0, tc = 0; for (const r of rows) { solde += r.debit - r.credit; r.solde = solde; td += r.debit; tc += r.credit; }
+  res.json({ account: acc, label: labels[acc] || "", rows, totalDebit: td, totalCredit: tc, solde });
+});
+router.get("/journal-report", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const onlyVal = req.query.all !== "1"; const rows = [];
+  for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue;
+    if (req.query.journal && e.journalCode !== req.query.journal) continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
+    for (const l of (e.lines || [])) rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, account: l.account, thirdParty: l.thirdParty || "", label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) }); }
+  rows.sort((a, b) => (a.journal + a.piece).localeCompare(b.journal + b.piece));
+  const td = rows.reduce((s, r) => s + r.debit, 0), tc = rows.reduce((s, r) => s + r.credit, 0);
+  res.json({ rows, totalDebit: td, totalCredit: tc });
+});
+router.get("/aged", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const prefix = req.query.kind === "fournisseur" ? "401" : "411";
+  const now = new Date(); const by = {};
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue;
+    for (const l of (e.lines || [])) { if (!String(l.account).startsWith(prefix)) continue;
+      const key = (l.thirdParty || l.account); const g = (by[key] = by[key] || { tp: key, b0: 0, b30: 0, b60: 0, b90: 0, total: 0 });
+      const mv = R2(l.debit) - R2(l.credit); g.total += mv;
+      const due = l.dueDate ? new Date(l.dueDate) : (e.date ? new Date(e.date) : now);
+      const days = Math.floor((now - due) / 86400000);
+      if (days <= 30) g.b0 += mv; else if (days <= 60) g.b30 += mv; else if (days <= 90) g.b60 += mv; else g.b90 += mv; } }
+  const rows = Object.values(by).filter(r => Math.abs(r.total) > 0).sort((a, b) => String(a.tp).localeCompare(String(b.tp)));
+  const sum = (k) => rows.reduce((s, r) => s + r[k], 0);
+  res.json({ rows, totals: { b0: sum("b0"), b30: sum("b30"), b60: sum("b60"), b90: sum("b90"), total: sum("total") } });
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;

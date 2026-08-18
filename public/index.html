@@ -847,6 +847,7 @@ const NAV = [
   { k: "acct", label: "📒 Comptabilité", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctsaisie", label: "✏️ Saisie des écritures", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctbalance", label: "⚖️ Balance", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctetats", label: "📊 États", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
@@ -940,7 +941,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4911,6 +4912,57 @@ async function acctBalanceView() {
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="2">TOTAUX</td><td class="r">${fCFA(bal.totalDebit)}</td><td class="r">${fCFA(bal.totalCredit)}</td>
         <td class="r" style="color:${bal.balanced ? 'var(--nav-active-color)' : 'var(--red)'}">${bal.balanced ? '✓ équilibrée' : 'écart ' + fCFA(Math.abs(bal.totalDebit - bal.totalCredit))}</td></tr>
     </table></div>`;
+}
+
+
+/* ---- Comptabilité C3 : États ---- */
+async function acctEtatsView(){
+  window._acctEtat = window._acctEtat || "gl";
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">📊 États comptables</h1>
+    <div class="cc-seg" style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="btn ${window._acctEtat==='gl'?'p':'ghost'} sm" onclick="window._acctEtat='gl';acctEtatsView()">Grand-livre</button>
+      <button class="btn ${window._acctEtat==='jr'?'p':'ghost'} sm" onclick="window._acctEtat='jr';acctEtatsView()">Journal</button>
+      <button class="btn ${window._acctEtat==='age'?'p':'ghost'} sm" onclick="window._acctEtat='age';acctEtatsView()">Balance âgée</button>
+      <button class="btn ghost sm" onclick="go('acctbalance')">Balance</button></div>
+    <div id="acctEtatBox" class="panel"><small style="color:var(--muted)">Chargement…</small></div>`;
+  if(window._acctEtat==='gl') acctLedgerRender();
+  else if(window._acctEtat==='jr') acctJournalRender();
+  else acctAgedRender();
+}
+async function acctLedgerRender(){
+  await acctLoadRefs();
+  const acc = window._acctLedgerAcc || (ACCT_ACCOUNTS[0]||{}).number || "";
+  const box=document.getElementById("acctEtatBox");
+  box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;margin-bottom:8px"><div><label>Compte</label>
+    <select onchange="window._acctLedgerAcc=this.value;acctLedgerRender()" style="min-width:240px">${ACCT_ACCOUNTS.map(a=>`<option value="${a.number}" ${a.number===acc?'selected':''}>${esc(a.number)} ${esc(a.label)}</option>`).join("")}</select></div></div><div id="glRows">…</div>`;
+  const d=await api("/accounting/ledger?account="+encodeURIComponent(acc)).catch(()=>({rows:[]}));
+  document.getElementById("glRows").innerHTML=`<b>${esc(d.account)} — ${esc(d.label||"")}</b>
+    <table style="margin-top:6px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
+    ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
+    <tr style="font-weight:600;border-top:2px solid #999"><td colspan="4">TOTAUX</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td><td class="r">${fCFA(Math.abs(d.solde))} ${d.solde>=0?'D':'C'}</td></tr></table>`;
+}
+async function acctJournalRender(){
+  await acctLoadRefs();
+  const jr=window._acctJournal||(ACCT_JOURNALS[0]||{}).code||""; const per=window._acctPeriod||"";
+  const box=document.getElementById("acctEtatBox");
+  box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;margin-bottom:8px">
+    <div><label>Journal</label><select onchange="window._acctJournal=this.value;acctJournalRender()">${ACCT_JOURNALS.map(j=>`<option value="${j.code}" ${j.code===jr?'selected':''}>${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
+    <div><label>Période</label><input type="month" value="${per}" onchange="window._acctPeriod=this.value;acctJournalRender()"></div></div><div id="jrRows">…</div>`;
+  const d=await api("/accounting/journal-report?journal="+encodeURIComponent(jr)+(per?"&period="+per:"")).catch(()=>({rows:[]}));
+  document.getElementById("jrRows").innerHTML=`<table><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr>
+    ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.thirdParty||"")}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucune écriture.</td></tr>'}
+    <tr style="font-weight:600;border-top:2px solid #999"><td colspan="5">TOTAUX</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td></tr></table>`;
+}
+async function acctAgedRender(){
+  const kind=window._acctAged||"client";
+  const box=document.getElementById("acctEtatBox");
+  box.innerHTML=`<div style="margin-bottom:8px"><label>Type</label><select onchange="window._acctAged=this.value;acctAgedRender()"><option value="client" ${kind==='client'?'selected':''}>Clients (411)</option><option value="fournisseur" ${kind==='fournisseur'?'selected':''}>Fournisseurs (401)</option></select></div><div id="ageRows">…</div>`;
+  const d=await api("/accounting/aged?kind="+kind).catch(()=>({rows:[],totals:{}}));
+  const f=n=>fCFA(Math.abs(n))+(n<0?' C':'');
+  document.getElementById("ageRows").innerHTML=`<table><tr><th>Tiers</th><th class="r">0–30 j</th><th class="r">31–60</th><th class="r">61–90</th><th class="r">&gt; 90</th><th class="r">Total</th></tr>
+    ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.tp)}</td><td class="r">${f(r.b0)}</td><td class="r">${f(r.b30)}</td><td class="r">${f(r.b60)}</td><td class="r">${f(r.b90)}</td><td class="r"><b>${f(r.total)}</b></td></tr>`).join("") : '<tr><td colspan="6" style="color:var(--muted)">Aucun solde.</td></tr>'}
+    <tr style="font-weight:600;border-top:2px solid #999"><td>TOTAUX</td><td class="r">${f(d.totals.b0||0)}</td><td class="r">${f(d.totals.b30||0)}</td><td class="r">${f(d.totals.b60||0)}</td><td class="r">${f(d.totals.b90||0)}</td><td class="r">${f(d.totals.total||0)}</td></tr></table>`;
 }
 
 </script>
