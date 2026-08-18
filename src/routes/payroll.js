@@ -439,6 +439,7 @@ router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res)
   run.status = "CLOSED"; run.closedAt = new Date().toISOString();
   save();
   audit(req.user, "CLOSED", "PayRun", run.id, { period: run.period });
+  try { require("./accounting").generatePayrollEntry(req, run.id); } catch (e) {}
   res.json({ run });
 });
 

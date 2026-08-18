@@ -760,7 +760,9 @@ router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
 router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   inv.status = inv.status === "validated" ? "draft" : "validated";
-  save(); audit(req.user, "VALIDATED", "BillingInvoice", inv.id, { status: inv.status }); res.json(withInvTotals(inv));
+  save(); audit(req.user, "VALIDATED", "BillingInvoice", inv.id, { status: inv.status });
+  if (inv.status === "validated") { try { require("./accounting").generateInvoiceEntry(req, inv.id); } catch (e) {} }
+  res.json(withInvTotals(inv));
 });
 router.delete("/invoices/:id", allow("ADM","CD","RJ"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });

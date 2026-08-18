@@ -173,5 +173,54 @@ router.get("/balance", allow("ADM", "CD", "RJ"), (req, res) => {
   res.json({ rows, totalDebit: totalD, totalCredit: totalC, balanced: totalD === totalC });
 });
 
+/* ==================== C2 — GÉNÉRATION AUTO (Facturation & Paie) ==================== */
+function postEntry(req, e) {
+  const tid = req.user.tenantId || "t1"; seedAccounting(tid);
+  const period = e.period || (e.date || new Date().toISOString().slice(0, 10)).slice(0, 7);
+  const yy = period.slice(0, 4);
+  const seq = mine(db.acctEntries, req).filter(x => x.journalCode === e.journalCode && (x.period || "").slice(0, 4) === yy).length + 1;
+  const rec = stamp(Object.assign({ id: id("aent"), period, pieceNo: e.pieceNo || (e.journalCode + String(seq).padStart(3, "0")), status: "validated" }, e, { createdAt: new Date().toISOString() }), req);
+  db.acctEntries.push(rec); save(); return rec;
+}
+function invTotalsQ(inv) {
+  const HT = (inv.lines || []).filter(l => l.type === "product").reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.pu) || 0), 0);
+  const tva = inv.tvaExonere ? 0 : HT * (inv.tvaRate != null ? inv.tvaRate : 0.1925);
+  const is = inv.isRate ? HT * inv.isRate : 0;
+  return { HT: R2(HT), TVA: R2(tva), IS: R2(is) };
+}
+function generateInvoiceEntry(req, invId) {
+  const inv = mine(db.billingInvoices, req).find(x => x.id === invId); if (!inv) return null;
+  if (inv.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === inv.acctEntryId); if (ex) return ex; }
+  const contract = mine(db.billingContracts, req).find(c => c.id === inv.contractId) || {};
+  const t = invTotalsQ(inv); if (!t.HT && !t.TVA) return null;
+  const prodAcc = contract.defaultAccount || "701100", cc = contract.clientCode || "";
+  const lines = [{ account: "411100", thirdParty: cc, label: "Facture " + inv.number, debit: R2(t.HT + t.TVA - t.IS), credit: 0 }];
+  if (t.IS) lines.push({ account: "447110", thirdParty: "", label: "IS retenue", debit: t.IS, credit: 0 });
+  lines.push({ account: prodAcc, thirdParty: "", label: "Prestation " + inv.number, debit: 0, credit: t.HT });
+  if (t.TVA) lines.push({ account: "443100", thirdParty: "", label: "TVA collectée", debit: 0, credit: t.TVA });
+  const e = postEntry(req, { journalCode: "VTE", date: inv.date || new Date().toISOString().slice(0, 10), period: inv.period, label: "Facture " + inv.number + " — " + (inv.client || ""), lines, source: "facturation", sourceRef: inv.id });
+  inv.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "invoice", invoice: inv.number }); return e;
+}
+function generatePayrollEntry(req, runId) {
+  const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
+  if (run.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === run.acctEntryId); if (ex) return ex; }
+  const slips = mine(db.payslips, req).filter(s => s.runId === runId);
+  let brut = 0, chp = 0, net = 0, ret = 0, imp = 0;
+  for (const s of slips) { const t = (s.result && s.result.totals) || {}; brut += t.brutTotal || 0; chp += t.chargesPatronales || 0; net += t.netAPayer || 0; ret += t.totalRetenues || 0; imp += t.totalImpots || 0; }
+  brut = R2(brut); chp = R2(chp); net = R2(net); ret = R2(ret); imp = R2(imp); if (!brut) return null;
+  const social = R2((ret - imp) + chp);
+  const lines = [{ account: "661000", thirdParty: "", label: "Rémunérations " + run.period, debit: brut, credit: 0 }];
+  if (chp) lines.push({ account: "664000", thirdParty: "", label: "Charges sociales patronales", debit: chp, credit: 0 });
+  lines.push({ account: "421000", thirdParty: "", label: "Net à payer", debit: 0, credit: net });
+  if (imp) lines.push({ account: "447130", thirdParty: "", label: "État, impôts sur salaires", debit: 0, credit: imp });
+  if (social) lines.push({ account: "431000", thirdParty: "", label: "Organismes sociaux", debit: 0, credit: social });
+  const e = postEntry(req, { journalCode: "PAIE", date: (run.period || "") + "-28", period: run.period, label: "Paie " + run.period, lines, source: "paie", sourceRef: run.id });
+  run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period }); return e;
+}
+router.post("/generate/invoice/:id", allow("ADM", "CD"), (req, res) => { const e = generateInvoiceEntry(req, req.params.id); if (!e) return res.status(400).json({ error: "Facture introuvable ou sans montant" }); res.json(withTotals(e)); });
+router.post("/generate/payroll/:runId", allow("ADM", "CD"), (req, res) => { const e = generatePayrollEntry(req, req.params.runId); if (!e) return res.status(400).json({ error: "Run introuvable ou vide" }); res.json(withTotals(e)); });
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
+module.exports.generateInvoiceEntry = generateInvoiceEntry;
+module.exports.generatePayrollEntry = generatePayrollEntry;
