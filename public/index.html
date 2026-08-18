@@ -849,6 +849,7 @@ const NAV = [
   { k: "acctbalance", label: "⚖️ Balance", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctetats", label: "📊 États", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctlegal", label: "🧾 États légaux", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctcloture", label: "🔒 Clôture & fiscal", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
@@ -942,7 +943,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -5003,6 +5004,47 @@ async function acctLegalView(){
       </div>
       <div class="note" style="margin-top:6px;color:${bs.equilibre?'var(--nav-active-color)':'var(--red)'}">${bs.equilibre?'✓ Bilan équilibré (Actif = Passif)':'⚠ Écart Actif/Passif — écritures manquantes ou non validées'}</div></div>`;
 }
+
+
+/* ---- Comptabilité C5 : Clôture & fiscal ---- */
+async function acctClotureView(){
+  const [exs,jrs]=await Promise.all([api("/accounting/exercises"),api("/accounting/journals")]);
+  const cur=(exs.find(e=>e.current)||exs[0]||{});
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">🔒 Clôture &amp; fiscal</h1>
+    <div class="panel"><b>Exercices</b>
+      <table style="margin-top:6px"><tr><th>Année</th><th>Période</th><th>Statut</th><th></th></tr>
+      ${exs.map(e=>`<tr><td><b>${e.year}</b>${e.current?' <span class="tag green">courant</span>':''}</td><td>${esc(e.start)} → ${esc(e.end)}</td>
+        <td>${e.status==='closed'?'<span class="tag gray">Clôturé</span>':'<span class="tag amber">Ouvert</span>'}</td>
+        <td>${e.status!=='closed'?`<button class="btn ghost sm" onclick="acctCloseExercise('${e.id}',${e.year})">🔒 Clôturer</button>`:''}</td></tr>`).join("")}
+      </table>
+      <div class="note" style="margin-top:6px">La clôture verrouille les écritures, solde les comptes de gestion (6/7) sur le résultat (130) et génère les à-nouveaux (journal AN) de l'exercice suivant.</div></div>
+    <div class="grid2">
+      <div class="panel"><b>Clôturer un journal</b>
+        <div style="display:flex;gap:8px;align-items:end;margin-top:6px">
+          <div><label>Journal</label><select id="clJr">${jrs.map(j=>`<option value="${j.code}">${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
+          <div><label>Période</label><input id="clPer" type="month"></div>
+          <button class="btn ghost sm" onclick="acctCloseJournal()">Clôturer</button></div>
+        <div class="note" style="margin-top:6px">Verrouille les écritures validées du journal (période optionnelle).</div></div>
+      <div class="panel"><b>Export fiscal (DGI)</b>
+        <div style="display:flex;gap:8px;align-items:end;margin-top:6px">
+          <div><label>Année</label><input id="fecY" type="number" value="${cur.year||new Date().getFullYear()}" style="max-width:100px"></div>
+          <button class="btn p sm" onclick="acctFec()">⬇ Exporter le FEC</button></div>
+        <div class="note" style="margin-top:6px">Fichier des écritures comptables (format DGI, 18 colonnes, tabulé).</div></div>
+    </div>`;
+}
+async function acctCloseExercise(id,year){
+  if(!confirm("Clôturer l'exercice "+year+" ?\nLes écritures seront verrouillées et les à-nouveaux "+(year+1)+" générés.")) return;
+  try{ const r=await api("/accounting/exercises/"+id+"/close",{method:"POST"}); alert("Exercice "+year+" clôturé. Résultat : "+fCFA(r.resultat)+" FCFA."); acctClotureView(); }
+  catch(e){ alert(e.message); }
+}
+async function acctCloseJournal(){
+  const code=(document.getElementById("clJr")||{}).value; const per=(document.getElementById("clPer")||{}).value;
+  if(!confirm("Clôturer (verrouiller) le journal "+code+(per?" · "+per:"")+" ?")) return;
+  try{ const r=await api("/accounting/journals/"+code+"/close",{method:"POST",body:JSON.stringify({period:per||undefined})}); alert(r.locked+" écriture(s) verrouillée(s)."); }
+  catch(e){ alert(e.message); }
+}
+function acctFec(){ const y=(document.getElementById("fecY")||{}).value||new Date().getFullYear(); payDownload("/accounting/fec?year="+y,"FEC_"+y+".txt"); }
 
 </script>
 </body>

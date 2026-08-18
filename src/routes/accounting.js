@@ -305,6 +305,67 @@ router.get("/balance-sheet", allow("ADM", "CD", "RJ"), (req, res) => {
     resultat, equilibre: actif === passif });
 });
 
+
+/* ==================== C5 — Clôture & fiscal (lettrage, clôture, FEC) ==================== */
+router.post("/entries/:id/lock", allow("ADM"), (req, res) => {
+  const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
+  if (e.status !== "validated") return res.status(400).json({ error: "Validez d'abord l'écriture" });
+  e.status = "locked"; save(); res.json(withTotals(e));
+});
+router.post("/journals/:code/close", allow("ADM"), (req, res) => {
+  const period = (req.body || {}).period; let n = 0;
+  for (const e of mine(db.acctEntries, req)) { if (e.journalCode !== req.params.code) continue; if (period && (e.period || "") !== period) continue; if (e.status === "validated") { e.status = "locked"; n++; } }
+  save(); audit(req.user, "CLOSED", "AcctJournal", req.params.code, { period, locked: n }); res.json({ ok: true, locked: n });
+});
+router.post("/lettrage", allow("ADM", "CD"), (req, res) => {
+  const b = req.body || {}; const acc = b.account; const refs = Array.isArray(b.lines) ? b.lines : [];
+  if (!acc || refs.length < 2) return res.status(400).json({ error: "Compte + au moins 2 lignes" });
+  let sum = 0; const targets = [];
+  for (const r of refs) { const e = mine(db.acctEntries, req).find(x => x.id === r.entryId); if (!e) continue; const l = (e.lines || []).find(x => x.id === r.lineId && x.account === acc); if (l) { targets.push(l); sum += R2(l.debit) - R2(l.credit); } }
+  if (R2(sum) !== 0) return res.status(400).json({ error: "Lignes non soldées (somme ≠ 0)" });
+  const used = new Set(); for (const e of mine(db.acctEntries, req)) for (const l of (e.lines || [])) if (l.account === acc && l.lettre) used.add(l.lettre);
+  let code = "A"; while (used.has(code)) code = String.fromCharCode(code.charCodeAt(0) + 1);
+  targets.forEach(l => l.lettre = code); save(); res.json({ ok: true, lettre: code });
+});
+function closeExercise(req, exId) {
+  const ex = mine(db.acctExercises, req).find(e => e.id === exId); if (!ex) return { error: "Exercice introuvable" };
+  if (ex.status === "closed") return { error: "Exercice déjà clôturé" };
+  const yy = String(ex.year);
+  const entries = mine(db.acctEntries, req).filter(e => (e.period || "").slice(0, 4) === yy);
+  entries.forEach(e => { if (e.status === "validated") e.status = "locked"; });
+  const agg = {}; for (const e of entries) { if (e.status === "draft") continue; for (const l of (e.lines || [])) { const a = (agg[l.account] = agg[l.account] || { d: 0, c: 0 }); a.d += R2(l.debit); a.c += R2(l.credit); } }
+  // Solde de gestion : classes 6 & 7 -> 130100 (résultat)
+  const cloLines = [];
+  for (const [acc, v] of Object.entries(agg)) { const solde = v.d - v.c; const cl = acc[0];
+    if (cl === "6" && solde) cloLines.push({ account: acc, label: "Solde de clôture", debit: 0, credit: R2(solde) });
+    if (cl === "7" && solde) cloLines.push({ account: acc, label: "Solde de clôture", debit: R2(-solde), credit: 0 }); }
+  let resultat = 0;
+  if (cloLines.length) { const d = cloLines.reduce((s, l) => s + l.debit, 0), c = cloLines.reduce((s, l) => s + l.credit, 0); const diff = c - d; resultat = R2(diff);
+    cloLines.push(diff >= 0 ? { account: "130100", label: "Résultat de l'exercice", debit: R2(diff), credit: 0 } : { account: "130100", label: "Résultat de l'exercice", debit: 0, credit: R2(-diff) });
+    postEntry(req, { journalCode: "CLO", date: yy + "-12-31", period: yy + "-12", label: "Clôture — soldes de gestion " + yy, lines: cloLines, source: "cloture", sourceRef: ex.id, status: "locked" }); }
+  // Report à nouveau : classes 1-5 -> exercice suivant (journal AN)
+  let next = mine(db.acctExercises, req).find(e => e.year === ex.year + 1);
+  if (!next) { next = stamp({ id: id("acc"), year: ex.year + 1, start: (ex.year + 1) + "-01-01", end: (ex.year + 1) + "-12-31", status: "open", current: false, createdAt: new Date().toISOString() }, req); db.acctExercises.push(next); }
+  const anLines = [];
+  for (const [acc, v] of Object.entries(agg)) { const cl = acc[0]; if (cl === "6" || cl === "7") continue; const solde = v.d - v.c; if (!solde) continue; anLines.push(solde > 0 ? { account: acc, label: "À-nouveau", debit: R2(solde), credit: 0 } : { account: acc, label: "À-nouveau", debit: 0, credit: R2(-solde) }); }
+  if (anLines.length) { const d = anLines.reduce((s, l) => s + l.debit, 0), c = anLines.reduce((s, l) => s + l.credit, 0); const diff = d - c;
+    if (diff) anLines.push(diff > 0 ? { account: "130100", label: "Résultat reporté", debit: 0, credit: R2(diff) } : { account: "130100", label: "Résultat reporté", debit: R2(-diff), credit: 0 });
+    postEntry(req, { journalCode: "AN", date: (ex.year + 1) + "-01-01", period: (ex.year + 1) + "-01", label: "À-nouveaux " + (ex.year + 1), lines: anLines, source: "cloture", sourceRef: ex.id, status: "validated" }); }
+  ex.status = "closed"; ex.current = false; next.current = true; save();
+  audit(req.user, "CLOSED_EXERCISE", "AcctExercise", ex.id, { year: ex.year, resultat }); return { ok: true, resultat, exercise: ex, next };
+}
+router.post("/exercises/:id/close", allow("ADM"), (req, res) => { const r = closeExercise(req, req.params.id); if (r.error) return res.status(400).json(r); res.json(r); });
+router.get("/fec", allow("ADM", "CD"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1"); const labels = _accLabel(req); const jr = {}; for (const j of mine(db.acctJournals, req)) jr[j.code] = j.label;
+  const yy = req.query.year || String(new Date().getFullYear()); const fd = d => String(d || "").replace(/-/g, "");
+  const head = ["JournalCode", "JournalLib", "EcritureNum", "EcritureDate", "CompteNum", "CompteLib", "CompAuxNum", "CompAuxLib", "PieceRef", "PieceDate", "EcritureLib", "Debit", "Credit", "EcritureLet", "DateLet", "ValidDate", "Montantdevise", "Idevise"];
+  const rows = [head];
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if ((e.period || "").slice(0, 4) !== yy) continue;
+    for (const l of (e.lines || [])) rows.push([e.journalCode, jr[e.journalCode] || "", e.pieceNo, fd(e.date), l.account, labels[l.account] || "", l.thirdParty || "", "", e.pieceNo, fd(e.date), String(l.label || e.label || "").replace(/[\t\r\n]/g, " "), String(R2(l.debit)), String(R2(l.credit)), l.lettre || "", "", fd(e.date), "0", ""]); }
+  res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="FEC_${yy}.txt"`);
+  res.send(rows.map(r => r.join("\t")).join("\r\n"));
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
