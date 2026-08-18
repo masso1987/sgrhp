@@ -844,6 +844,10 @@ const NAV = [
   { k: "payconfig", label: "⚙️ Paramètres paie", roles: ["ADM"], module: "payroll", grp: "paie" },
   { k: "billing", label: "🧾 Facturation (annexes)", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
   { k: "invoices", label: "🧾 Factures", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
+  { k: "acct", label: "📒 Comptabilité", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctsaisie", label: "✏️ Saisie des écritures", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
+  { k: "acctbalance", label: "⚖️ Balance", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"], grp: "admin" },
@@ -859,6 +863,7 @@ const NAV_GROUPS = [
   { g: "rh", label: "RH" },
   { g: "paie", label: "Paie" },
   { g: "facturation", label: "Facturation" },
+  { g: "comptabilite", label: "Comptabilité" },
   { g: "rapports", label: "Rapports" },
   { g: "admin", label: "Admin" },
   { g: "plateforme", label: "Plateforme" },
@@ -935,7 +940,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4743,6 +4748,169 @@ async function saveLetterhead(){
     legal:g("lhLegal"), tagline:g("lhTagline"), showPage:(document.getElementById("lhPage")||{}).checked, accent:g("lhAccent")||"" } };
   try{ await api("/settings/branding",{method:"PUT",body:JSON.stringify(body)}); alert("Papier à en-tête enregistré."); }
   catch(e){ const el=document.getElementById("lhErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+
+
+/* ==================== COMPTABILITÉ (OHADA) — Phase C1 ==================== */
+let ACCT_ACCOUNTS = [], ACCT_JOURNALS = [], ACCT_ENTRY = null;
+async function acctLoadRefs() {
+  const [acc, jr] = await Promise.all([api("/accounting/accounts").catch(() => []), api("/accounting/journals").catch(() => [])]);
+  ACCT_ACCOUNTS = acc; ACCT_JOURNALS = jr;
+}
+function acctKpi(l, v) { return `<div style="flex:1;min-width:150px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px">${v}</div></div>`; }
+async function acctHome() {
+  const bal = await api("/accounting/balance?all=1").catch(() => ({ rows: [] }));
+  let prod = 0, charge = 0, tvaC = 0, tvaD = 0, treso = 0;
+  for (const r of bal.rows) { const s = r.debit - r.credit;
+    if (r.account[0] === "7") prod += -s; if (r.account[0] === "6") charge += s;
+    if (r.account.startsWith("443")) tvaC += -s; if (r.account.startsWith("445")) tvaD += s;
+    if (r.account[0] === "5") treso += s; }
+  const tile = (ic, t, s, k) => `<div class="panel" style="cursor:pointer" onclick="go('${k}')"><b>${ic} ${t}</b><div class="note" style="margin-top:4px">${s}</div></div>`;
+  view.innerHTML = `<h1>📒 Comptabilité</h1>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      ${acctKpi("Résultat (produits − charges)", fCFA(prod - charge))}
+      ${acctKpi("Trésorerie (classe 5)", fCFA(treso))}
+      ${acctKpi("TVA à payer", fCFA(tvaC - tvaD))}</div>
+    <div class="grid2">
+      ${tile("✏️", "Saisie des écritures", "Grille débit / crédit par journal, équilibrage automatique", "acctsaisie")}
+      ${tile("⚖️", "Balance des comptes", "Débit / crédit / solde par compte, contrôle d'équilibre", "acctbalance")}
+      ${tile("📋", "Plan comptable", "Comptes OHADA, journaux, taux de TVA", "acctplan")}
+      ${tile("🧾", "Écritures automatiques", "Générées depuis Facturation & Paie (phase C2)", "acctsaisie")}
+    </div>`;
+}
+async function acctPlanView() {
+  const [accs, jrs, taxes] = await Promise.all([api("/accounting/accounts"), api("/accounting/journals"), api("/accounting/taxes")]);
+  ACCT_ACCOUNTS = accs; ACCT_JOURNALS = jrs;
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">📋 Plan comptable &amp; référentiels</h1>
+    <div class="panel"><b>Plan comptable (${accs.length})</b> <button class="btn p sm" style="float:right" onclick="acctAccountModal()">+ Compte</button>
+      <table style="margin-top:8px"><tr><th>N°</th><th>Intitulé</th><th>Nature</th><th></th></tr>
+      ${accs.map(a => `<tr><td><code>${esc(a.number)}</code></td><td>${esc(a.label)}</td><td><span class="tag gray">${esc(a.nature || "")}</span></td>
+        <td><button class="btn ghost sm" onclick='acctAccountModal(${JSON.stringify(a.id)})'>✏️</button></td></tr>`).join("")}</table></div>
+    <div class="grid2">
+      <div class="panel"><b>Journaux (${jrs.length})</b>
+        <table style="margin-top:8px"><tr><th>Code</th><th>Intitulé</th><th>Type</th></tr>
+        ${jrs.map(j => `<tr><td><code>${esc(j.code)}</code></td><td>${esc(j.label)}</td><td>${esc(j.type)}</td></tr>`).join("")}</table></div>
+      <div class="panel"><b>Taux de TVA</b>
+        <table style="margin-top:8px"><tr><th>Code</th><th>Libellé</th><th class="r">Taux</th><th>Compte</th></tr>
+        ${taxes.map(t => `<tr><td><code>${esc(t.code)}</code></td><td>${esc(t.label)}</td><td class="r">${(t.rate * 100).toFixed(2)} %</td><td>${esc(t.account || "")}</td></tr>`).join("")}</table></div>
+    </div>`;
+}
+function acctAccountModal(id) {
+  const a = id ? ACCT_ACCOUNTS.find(x => x.id === id) : { number: "", label: "", nature: "charges", type: "detail" };
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  const opt = (v) => `<option value="${v}" ${a.nature === v ? "selected" : ""}>${v}</option>`;
+  bg.innerHTML = `<div class="modal" style="width:460px"><h3 style="margin:0 0 8px">${id ? "Modifier" : "Nouveau"} compte</h3>
+    <div class="grid2">
+      <div><label>N° de compte</label><input id="acN" value="${esc(a.number || "")}" ${id ? "disabled" : ""} placeholder="ex. 401110"></div>
+      <div><label>Intitulé</label><input id="acL" value="${esc(a.label || "")}"></div>
+      <div><label>Nature</label><select id="acNat">${["capitaux", "immobilisations", "stocks", "tiers", "financiers", "charges", "produits"].map(opt).join("")}</select></div>
+    </div>
+    <div class="err hidden" id="acErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctAccountSave('${id || ""}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function acctAccountSave(id) {
+  const g = (x) => (document.getElementById(x) || {}).value;
+  const body = { number: g("acN"), label: g("acL"), nature: g("acNat"), type: "detail" };
+  try { if (id) await api("/accounting/accounts/" + id, { method: "PUT", body: JSON.stringify(body) });
+    else await api("/accounting/accounts", { method: "POST", body: JSON.stringify(body) });
+    document.querySelector(".modal-bg").remove(); acctPlanView(); }
+  catch (e) { const el = document.getElementById("acErr"); el.textContent = e.message; el.classList.remove("hidden"); }
+}
+async function acctSaisieView() {
+  await acctLoadRefs();
+  const period = window._acctPeriod || new Date().toISOString().slice(0, 7);
+  const jr = window._acctJournal || (ACCT_JOURNALS[0] || {}).code || "";
+  const entries = await api("/accounting/entries?journal=" + encodeURIComponent(jr) + "&period=" + period).catch(() => []);
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">✏️ Saisie des écritures</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+      <div><label>Journal</label><select id="saJr" onchange="window._acctJournal=this.value;acctSaisieView()">${ACCT_JOURNALS.map(j => `<option value="${j.code}" ${j.code === jr ? "selected" : ""}>${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
+      <div><label>Période</label><input id="saPer" type="month" value="${period}" onchange="window._acctPeriod=this.value;acctSaisieView()"></div>
+      <button class="btn p sm" onclick="acctEntryModal()">+ Nouvelle écriture</button></div></div>
+    <div class="panel"><table><tr><th>Pièce</th><th>Date</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th>Statut</th><th></th></tr>
+      ${entries.length ? entries.map(e => `<tr>
+        <td><code>${esc(e.pieceNo || "")}</code></td><td>${esc(e.date || "")}</td><td>${esc(e.label || "")}</td>
+        <td class="r">${fCFA(e.debit)}</td><td class="r">${fCFA(e.credit)}</td>
+        <td>${e.status === "validated" ? '<span class="tag green">Validée</span>' : e.status === "locked" ? '<span class="tag gray">Clôturée</span>' : '<span class="tag amber">Brouillon</span>'}${e.balanced ? "" : ' <span class="tag" style="background:var(--red);color:#fff">déséquilibre</span>'}</td>
+        <td><button class="btn ghost sm" onclick="acctEntryModal('${e.id}')">Ouvrir</button></td></tr>`).join("")
+        : '<tr><td colspan="7" style="color:var(--muted)">Aucune écriture pour ce journal / cette période.</td></tr>'}
+    </table></div>`;
+}
+function acctEntryTotals() { const d = (ACCT_ENTRY.lines || []).reduce((a, l) => a + (Number(l.debit) || 0), 0); const c = (ACCT_ENTRY.lines || []).reduce((a, l) => a + (Number(l.credit) || 0), 0); return { d: Math.round(d), c: Math.round(c) }; }
+function acctLineSet(i, f, v) { ACCT_ENTRY.lines[i][f] = (f === "debit" || f === "credit") ? Number(v || 0) : v; acctRenderTotals(); }
+function acctLineAdd() { ACCT_ENTRY.lines.push({ account: "", thirdParty: "", label: "", debit: 0, credit: 0 }); acctRenderLines(); }
+function acctLineDel(i) { ACCT_ENTRY.lines.splice(i, 1); acctRenderLines(); }
+function acctAccOpts(cur) { return `<option value="">— compte —</option>` + ACCT_ACCOUNTS.map(a => `<option value="${a.number}" ${cur === a.number ? "selected" : ""}>${esc(a.number)} ${esc(a.label)}</option>`).join(""); }
+function acctRenderLines() {
+  const box = document.getElementById("aeLines"); if (!box) return;
+  box.innerHTML = `<table><tr><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th></th></tr>
+    ${ACCT_ENTRY.lines.map((l, i) => `<tr>
+      <td><select onchange="acctLineSet(${i},'account',this.value)" style="margin:0;min-width:150px">${acctAccOpts(l.account)}</select></td>
+      <td><input value="${esc(l.thirdParty || "")}" oninput="acctLineSet(${i},'thirdParty',this.value)" style="margin:0;max-width:90px" placeholder="401.../411..."></td>
+      <td><input value="${esc(l.label || "")}" oninput="acctLineSet(${i},'label',this.value)" style="margin:0;min-width:160px"></td>
+      <td><input type="number" value="${l.debit || 0}" oninput="acctLineSet(${i},'debit',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
+      <td><input type="number" value="${l.credit || 0}" oninput="acctLineSet(${i},'credit',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
+      <td><button class="btn ghost sm" onclick="acctLineDel(${i})">✕</button></td></tr>`).join("")}</table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="acctLineAdd()">+ Ligne</button>`;
+  acctRenderTotals();
+}
+function acctRenderTotals() {
+  const t = acctEntryTotals(); const el = document.getElementById("aeTotals"); if (!el) return;
+  const ok = t.d === t.c && t.d > 0;
+  el.innerHTML = `<div style="display:flex;gap:18px;align-items:center;justify-content:flex-end">
+    <span style="color:var(--muted)">Totaux</span> <b>Débit ${fCFA(t.d)}</b> <b>Crédit ${fCFA(t.c)}</b>
+    <span style="color:${ok ? 'var(--nav-active-color)' : 'var(--red)'};font-weight:600">${ok ? '✓ Équilibrée' : 'Solde à équilibrer : ' + fCFA(Math.abs(t.d - t.c))}</span></div>`;
+}
+async function acctEntryModal(id) {
+  await acctLoadRefs();
+  ACCT_ENTRY = id ? await api("/accounting/entries/" + id) : { journalCode: window._acctJournal || (ACCT_JOURNALS[0] || {}).code, period: window._acctPeriod || new Date().toISOString().slice(0, 7), date: new Date().toISOString().slice(0, 10), label: "", lines: [{ account: "", thirdParty: "", label: "", debit: 0, credit: 0 }, { account: "", thirdParty: "", label: "", debit: 0, credit: 0 }], status: "draft" };
+  const locked = ACCT_ENTRY.status === "locked";
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="width:780px"><h3 style="margin:0 0 6px">${id ? "Écriture " + esc(ACCT_ENTRY.pieceNo || "") : "Nouvelle écriture"}
+    ${ACCT_ENTRY.status === "validated" ? '<span class="tag green">Validée</span>' : locked ? '<span class="tag gray">Clôturée</span>' : ''}</h3>
+    <div class="grid3">
+      <div><label>Journal</label><select id="aeJr" ${id ? "disabled" : ""}>${ACCT_JOURNALS.map(j => `<option value="${j.code}" ${j.code === ACCT_ENTRY.journalCode ? "selected" : ""}>${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
+      <div><label>Date</label><input id="aeDate" type="date" value="${esc(ACCT_ENTRY.date || "")}"></div>
+      <div><label>Libellé de la pièce</label><input id="aeLabel" value="${esc(ACCT_ENTRY.label || "")}"></div>
+    </div>
+    <div id="aeLines" style="margin-top:8px"></div>
+    <div id="aeTotals" style="margin-top:8px"></div>
+    <div class="err hidden" id="aeErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      ${locked ? "" : `<button class="btn p" onclick="acctEntrySave(false)">💾 Enregistrer</button>`}
+      ${locked ? "" : `<button class="btn ghost" onclick="acctEntrySave(true)">${ACCT_ENTRY.status === "validated" ? "Rouvrir" : "✓ Valider"}</button>`}
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg); acctRenderLines();
+}
+async function acctEntrySave(validate) {
+  const g = (x) => (document.getElementById(x) || {}).value;
+  Object.assign(ACCT_ENTRY, { journalCode: g("aeJr") || ACCT_ENTRY.journalCode, date: g("aeDate"), label: g("aeLabel") });
+  const body = { journalCode: ACCT_ENTRY.journalCode, period: (g("aeDate") || "").slice(0, 7) || ACCT_ENTRY.period, date: g("aeDate"), label: g("aeLabel"), lines: ACCT_ENTRY.lines };
+  try {
+    let e;
+    if (ACCT_ENTRY.id) e = await api("/accounting/entries/" + ACCT_ENTRY.id, { method: "PUT", body: JSON.stringify(body) });
+    else { e = await api("/accounting/entries", { method: "POST", body: JSON.stringify(body) }); ACCT_ENTRY.id = e.id; }
+    if (validate) e = await api("/accounting/entries/" + ACCT_ENTRY.id + "/validate", { method: "POST" });
+    document.querySelector(".modal-bg").remove(); acctSaisieView();
+  } catch (err) { const el = document.getElementById("aeErr"); el.textContent = err.message; el.classList.remove("hidden"); }
+}
+async function acctBalanceView() {
+  const period = window._acctPeriod || "";
+  const bal = await api("/accounting/balance" + (period ? "?period=" + period : "")).catch(() => ({ rows: [], totalDebit: 0, totalCredit: 0, balanced: true }));
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">⚖️ Balance des comptes</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:end"><div><label>Période (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;acctBalanceView()"></div>
+      <div class="note" style="align-self:center">Écritures validées uniquement.</div></div></div>
+    <div class="panel"><table><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
+      ${bal.rows.length ? bal.rows.map(r => `<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label || "")}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde >= 0 ? "D" : "C"}</td></tr>`).join("")
+        : '<tr><td colspan="5" style="color:var(--muted)">Aucune écriture validée.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="2">TOTAUX</td><td class="r">${fCFA(bal.totalDebit)}</td><td class="r">${fCFA(bal.totalCredit)}</td>
+        <td class="r" style="color:${bal.balanced ? 'var(--nav-active-color)' : 'var(--red)'}">${bal.balanced ? '✓ équilibrée' : 'écart ' + fCFA(Math.abs(bal.totalDebit - bal.totalCredit))}</td></tr>
+    </table></div>`;
 }
 
 </script>
