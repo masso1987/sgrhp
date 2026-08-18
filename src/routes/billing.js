@@ -605,23 +605,25 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
   const cbn = (contract.clientBlock || {}).name2 ? " " + contract.clientBlock.name2 : "";
   if (rep.showClientBlock) doc.font("Helvetica-Bold").fontSize(8).fillColor("#000").text("CLIENT : ", x0, _top, { continued: true }).font("Helvetica").text(_fixEnc((contract.clientName || "") + cbn));
   if (rep.showPeriod) doc.font("Helvetica-Bold").fontSize(8).fillColor("#000").text("PÉRIODE : " + s.period, PW - 220, _top, { width: 204, align: "right" });
-  let y = _top + 15;
+  doc.font("Helvetica-Oblique").fontSize(6.5).fillColor("#777").text("Montants exprimés en FCFA", x0, _top + 10); doc.fillColor("#000");
+  let y = _top + 22;
   const cols = t.columns || [];
   let total = 0; cols.forEach(c => total += (c.w || 60));
   const UW = PW - 2 * x0; const scale = total > UW ? UW / total : 1;
   const xs = []; const wpx = cols.map(c => { const w = (c.w || 60) * scale; xs.push(x0 + xs.reduce((a) => a, 0)); return w; });
   { let xx = x0; for (let i = 0; i < cols.length; i++) { xs[i] = xx; xx += wpx[i]; } }
   const W = wpx.reduce((a, b) => a + b, 0);
-  const HH = 16, RH = 12, pageBottom = doc.page.height - 46;
+  const HH = 22, RH = 11, pageBottom = doc.page.height - 46;
+  const NFnb = (n) => _NF(n).replace(/ /g, "\u00A0");
   const vlines = (yy, h, sepCol) => { doc.lineWidth(0.3).strokeColor(sepCol || "#cfcfcf"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], yy).lineTo(xs[i], yy + h).stroke(); } doc.lineWidth(0.4).strokeColor("#9aa2a0").rect(x0, yy, W, h).stroke(); };
   const cellTxt = (i, yy, v, al, bold, sz, color) => doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 5.7).fillColor(color || "#000").text(v == null ? "" : String(v), xs[i] + 2, yy, { width: wpx[i] - 4, align: al, lineBreak: false });
-  const numFmt = (c, row) => c.source === "field" ? (row.cells[c.key] == null ? "" : String(row.cells[c.key])) : (_NF(row.cells[c.key]) + " FCFA");
-  const headRow = () => { doc.rect(x0, y, W, HH).fill("#7a1420"); cols.forEach((c, i) => cellTxt(i, y + 3, _fixEnc(c.label || c.key), c.align === "left" ? "left" : "right", true, 5.6, "#fff")); doc.lineWidth(0.3).strokeColor("#ffffff"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], y).lineTo(xs[i], y + HH).stroke(); } doc.fillColor("#000"); y += HH; };
+  const numFmt = (c, row) => c.source === "field" ? (row.cells[c.key] == null ? "" : String(row.cells[c.key])) : NFnb(row.cells[c.key]);
+  const headRow = () => { doc.rect(x0, y, W, HH).fill("#7a1420"); cols.forEach((c, i) => doc.font("Helvetica-Bold").fontSize(5.6).fillColor("#fff").text(_fixEnc(c.label || c.key), xs[i] + 2, y + 2, { width: wpx[i] - 4, align: c.align === "left" ? "left" : "right", height: HH - 3, ellipsis: false })); doc.lineWidth(0.3).strokeColor("#ffffff"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], y).lineTo(xs[i], y + HH).stroke(); } doc.fillColor("#000"); y += HH; };
   const groupHead = (g) => { doc.rect(x0, y, W, 11).fillAndStroke("#f2e9e9", "#c9b8b8"); doc.fillColor("#000").font("Helvetica-Bold").fontSize(6.2).text(_fixEnc(g), xs[0] + 3, y + 2.6, { width: W - 6, lineBreak: false }); y += 11; };
-  const drawRow = (row) => { cols.forEach((c, i) => cellTxt(i, y + 2.4, numFmt(c, row), c.align === "left" ? "left" : "right", !!c.bold)); vlines(y, RH); y += RH;
+  const drawRow = (row) => { cols.forEach((c, i) => cellTxt(i, y + 3, numFmt(c, row), c.align === "left" ? "left" : "right", !!c.bold)); vlines(y, RH); y += RH;
     if (y > pageBottom) { doc.addPage({ margin: 16, size: pgSize, layout: pgLayout }); y = 30; headRow(); } };
   const totalRow = (cells, label) => { const h = RH + 1; doc.rect(x0, y, W, h).fillAndStroke("#efe7e7", "#999"); doc.fillColor("#000");
-    cols.forEach((c, i) => { let v = ""; if (i === 0) v = label; else if (c.source !== "field" && cells[c.key] != null) v = _NF(cells[c.key]) + " FCFA"; cellTxt(i, y + 3, v, i === 0 ? "left" : "right", true, 5.8); });
+    cols.forEach((c, i) => { let v = ""; if (i === 0) v = label; else if (c.source !== "field" && cells[c.key] != null) v = NFnb(cells[c.key]); cellTxt(i, y + 3, v, i === 0 ? "left" : "right", true, 5.8); });
     doc.lineWidth(0.3).strokeColor("#c9b8b8"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], y).lineTo(xs[i], y + h).stroke(); } y += h; };
   headRow();
   if (A.groups) { for (const g of Object.keys(A.groups).sort()) { groupHead(g); for (const r of A.groups[g]) drawRow(r); if (rep.showTotals) totalRow(A.groupTotals[g], "TOTAL " + String(g).toUpperCase()); } }
