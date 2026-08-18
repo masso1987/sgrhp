@@ -50,17 +50,21 @@ function lineScope(line, contract) {
 function computeRow(line, template, contract) {
   const scope = lineScope(line, contract);
   const row = { _name: line.name || "", _poste: line.poste || "", _cat: line.cat || "", cells: {} };
+  const ALIAS = { cat: "categorie", categorie: "cat", position: "poste", poste: "position", mat: "matricule", matricule: "mat", noms: "name", nom: "name" };
   for (const col of template.columns || []) {
-    if (col.source === "field") {
-      const ALIAS = { cat: "categorie", categorie: "cat", position: "poste", poste: "position", mat: "matricule", matricule: "mat", noms: "name", nom: "name" };
+    const hasExpr = col.expr != null && String(col.expr).trim() !== "";
+    // A column with a formula ALWAYS computes — even if the source toggle was left on "champ".
+    if (!hasExpr && col.source === "field") {
       let fv = line[col.field];
       if (fv == null && ALIAS[col.field] != null) fv = line[ALIAS[col.field]];
-      row.cells[col.key] = fv != null ? fv : (col.field === "jours" ? scope.JOURS : "");
+      const val = fv != null ? fv : (col.field === "jours" ? scope.JOURS : "");
+      row.cells[col.key] = val;
+      const n = Number(val); if (val !== "" && val != null && !isNaN(n)) scope[col.key] = n;
       continue;
     }
-    const raw = evalFormula(col.expr != null && col.expr !== "" ? col.expr : col.key, scope);
+    const raw = evalFormula(hasExpr ? col.expr : col.key, scope);
     const shown = r2(raw);
-    scope[col.key] = template.roundMode === "rounded" ? shown : raw; // per-template rounding mode
+    scope[col.key] = template.roundMode === "rounded" ? shown : raw; // available to later columns
     row.cells[col.key] = shown;
   }
   return row;
