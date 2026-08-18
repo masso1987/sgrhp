@@ -523,8 +523,8 @@ router.post("/contracts/:id/generate-annexe", allow("ADM"), (req, res) => {
   const lf = Array.isArray(c.lineFields) && c.lineFields.length ? c.lineFields : [{ key: "poste", label: "Poste", type: "text" }];
   const comps = (c.components || []).filter(x => x.active !== false).slice().sort((a, b) => (a.order || 99) - (b.order || 99));
   const cols = [];
-  cols.push({ key: "NOM", source: "field", field: "name", label: "Noms & Prénoms", align: "left", w: 150 });
-  for (const f of lf) cols.push({ key: f.key.toUpperCase(), source: "field", field: f.key, label: f.label, align: "left", w: 90 });
+  cols.push({ key: "NOM", source: "field", field: "name", label: "Noms & Prénoms", align: "left", w: 170 });
+  for (const f of lf) cols.push({ key: f.key.toUpperCase(), source: "field", field: f.key, label: f.label, align: "left", w: (f.key === "poste" ? 130 : (f.type === "date" ? 84 : 96)) });
   for (const cp of comps) cols.push({ key: cp.code, expr: cp.code, label: cp.label, w: 70 });
   const tva = ((c.rates || {}).tva != null ? c.rates.tva : 0.1925);
   cols.push({ key: "BRUT", expr: "BRUT", label: "Salaire brut", w: 76, bold: true });
@@ -616,7 +616,7 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
   const HH = 22, RH = 11, pageBottom = doc.page.height - 46;
   const NFnb = (n) => _NF(n).replace(/ /g, "\u00A0");
   const vlines = (yy, h, sepCol) => { doc.lineWidth(0.3).strokeColor(sepCol || "#cfcfcf"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], yy).lineTo(xs[i], yy + h).stroke(); } doc.lineWidth(0.4).strokeColor("#9aa2a0").rect(x0, yy, W, h).stroke(); };
-  const cellTxt = (i, yy, v, al, bold, sz, color) => doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 5.7).fillColor(color || "#000").text(v == null ? "" : String(v), xs[i] + 2, yy, { width: wpx[i] - 4, align: al, lineBreak: false });
+  const cellTxt = (i, yy, v, al, bold, sz, color) => doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 5.7).fillColor(color || "#000").text(v == null ? "" : String(v), xs[i] + 2, yy, { width: wpx[i] - 4, align: al, height: RH - 2, ellipsis: true, lineBreak: true });
   const numFmt = (c, row) => c.source === "field" ? (row.cells[c.key] == null ? "" : String(row.cells[c.key])) : NFnb(row.cells[c.key]);
   const headRow = () => { doc.rect(x0, y, W, HH).fill("#7a1420"); cols.forEach((c, i) => doc.font("Helvetica-Bold").fontSize(5.6).fillColor("#fff").text(_fixEnc(c.label || c.key), xs[i] + 2, y + 2, { width: wpx[i] - 4, align: c.align === "left" ? "left" : "right", height: HH - 3, ellipsis: false })); doc.lineWidth(0.3).strokeColor("#ffffff"); for (let i = 1; i < cols.length; i++) { doc.moveTo(xs[i], y).lineTo(xs[i], y + HH).stroke(); } doc.fillColor("#000"); y += HH; };
   const groupHead = (g) => { doc.rect(x0, y, W, 11).fillAndStroke("#f2e9e9", "#c9b8b8"); doc.fillColor("#000").font("Helvetica-Bold").fontSize(6.2).text(_fixEnc(g), xs[0] + 3, y + 2.6, { width: W - 6, lineBreak: false }); y += 11; };
