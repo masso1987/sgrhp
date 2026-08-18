@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["acctAccounts", "acctJournals", "acctTaxes", "acctThirdParties", "acctEntries", "acctExercises"]) if (!db[k]) db[k] = [];
+for (const k of ["acctAccounts", "acctJournals", "acctTaxes", "acctThirdParties", "acctEntries", "acctExercises", "acctBudgets"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 
@@ -364,6 +364,33 @@ router.get("/fec", allow("ADM", "CD"), (req, res) => {
     for (const l of (e.lines || [])) rows.push([e.journalCode, jr[e.journalCode] || "", e.pieceNo, fd(e.date), l.account, labels[l.account] || "", l.thirdParty || "", "", e.pieceNo, fd(e.date), String(l.label || e.label || "").replace(/[\t\r\n]/g, " "), String(R2(l.debit)), String(R2(l.credit)), l.lettre || "", "", fd(e.date), "0", ""]); }
   res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="FEC_${yy}.txt"`);
   res.send(rows.map(r => r.join("\t")).join("\r\n"));
+});
+
+
+/* ==================== C6 — Analytique & budget ==================== */
+router.get("/analytic-balance", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1"); const by = {};
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
+    for (const l of (e.lines || [])) { const code = l.analytic || "(non ventilé)"; const g = (by[code] = by[code] || { code, debit: 0, credit: 0 }); g.debit += R2(l.debit); g.credit += R2(l.credit); } }
+  const rows = Object.values(by).map(r => Object.assign(r, { solde: r.debit - r.credit })).sort((a, b) => a.code.localeCompare(b.code));
+  res.json({ rows });
+});
+router.get("/budgets", allow("ADM", "CD", "RJ"), (req, res) => res.json(mine(db.acctBudgets, req)));
+router.post("/budgets", allow("ADM", "CD"), (req, res) => {
+  const b = req.body || {}; if (!b.account || !b.year) return res.status(400).json({ error: "Compte + année obligatoires" });
+  let x = mine(db.acctBudgets, req).find(r => r.account === b.account && Number(r.year) === Number(b.year));
+  if (x) { x.amount = R2(b.amount); } else { x = stamp({ id: id("abud"), account: b.account, year: Number(b.year), amount: R2(b.amount), createdAt: new Date().toISOString() }, req); db.acctBudgets.push(x); }
+  save(); res.json(x);
+});
+router.get("/budget-actual", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1"); const yy = String(req.query.year || new Date().getFullYear());
+  const labels = _accLabel(req); const actual = {};
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if ((e.period || "").slice(0, 4) !== yy) continue;
+    for (const l of (e.lines || [])) { const a = l.account; if (a[0] !== "6" && a[0] !== "7") continue; const s = (actual[a] = actual[a] || 0); actual[a] = s + (a[0] === "6" ? (R2(l.debit) - R2(l.credit)) : (R2(l.credit) - R2(l.debit))); } }
+  const budgets = mine(db.acctBudgets, req).filter(b => Number(b.year) === Number(yy));
+  const keys = new Set([...Object.keys(actual), ...budgets.map(b => b.account)]);
+  const rows = [...keys].sort().map(acc => { const bud = R2((budgets.find(b => b.account === acc) || {}).amount || 0); const act = R2(actual[acc] || 0); return { account: acc, label: labels[acc] || "", budget: bud, actual: act, ecart: act - bud }; });
+  res.json({ year: yy, rows });
 });
 
 module.exports = router;

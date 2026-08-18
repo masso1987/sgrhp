@@ -850,6 +850,7 @@ const NAV = [
   { k: "acctetats", label: "📊 États", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctlegal", label: "🧾 États légaux", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctcloture", label: "🔒 Clôture & fiscal", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
+  { k: "acctanalytic", label: "📈 Analytique & budget", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
@@ -943,7 +944,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4850,11 +4851,12 @@ function acctLineDel(i) { ACCT_ENTRY.lines.splice(i, 1); acctRenderLines(); }
 function acctAccOpts(cur) { return `<option value="">— compte —</option>` + ACCT_ACCOUNTS.map(a => `<option value="${a.number}" ${cur === a.number ? "selected" : ""}>${esc(a.number)} ${esc(a.label)}</option>`).join(""); }
 function acctRenderLines() {
   const box = document.getElementById("aeLines"); if (!box) return;
-  box.innerHTML = `<table><tr><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th></th></tr>
+  box.innerHTML = `<table><tr><th>Compte</th><th>Tiers</th><th>Analytique</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th></th></tr>
     ${ACCT_ENTRY.lines.map((l, i) => `<tr>
       <td><select onchange="acctLineSet(${i},'account',this.value)" style="margin:0;min-width:150px">${acctAccOpts(l.account)}</select></td>
-      <td><input value="${esc(l.thirdParty || "")}" oninput="acctLineSet(${i},'thirdParty',this.value)" style="margin:0;max-width:90px" placeholder="401.../411..."></td>
-      <td><input value="${esc(l.label || "")}" oninput="acctLineSet(${i},'label',this.value)" style="margin:0;min-width:160px"></td>
+      <td><input value="${esc(l.thirdParty || "")}" oninput="acctLineSet(${i},'thirdParty',this.value)" style="margin:0;max-width:82px" placeholder="401/411"></td>
+      <td><input value="${esc(l.analytic || "")}" oninput="acctLineSet(${i},'analytic',this.value)" style="margin:0;max-width:90px" placeholder="section"></td>
+      <td><input value="${esc(l.label || "")}" oninput="acctLineSet(${i},'label',this.value)" style="margin:0;min-width:150px"></td>
       <td><input type="number" value="${l.debit || 0}" oninput="acctLineSet(${i},'debit',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
       <td><input type="number" value="${l.credit || 0}" oninput="acctLineSet(${i},'credit',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
       <td><button class="btn ghost sm" onclick="acctLineDel(${i})">✕</button></td></tr>`).join("")}</table>
@@ -5045,6 +5047,41 @@ async function acctCloseJournal(){
   catch(e){ alert(e.message); }
 }
 function acctFec(){ const y=(document.getElementById("fecY")||{}).value||new Date().getFullYear(); payDownload("/accounting/fec?year="+y,"FEC_"+y+".txt"); }
+
+
+/* ---- Comptabilité C6 : Analytique & budget ---- */
+async function acctAnalyticView(){
+  const yy=(window._acctYear)||new Date().getFullYear();
+  const [ab,ba]=await Promise.all([api("/accounting/analytic-balance").catch(()=>({rows:[]})),api("/accounting/budget-actual?year="+yy).catch(()=>({rows:[]}))]);
+  const f=n=>fCFA(n||0);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">📈 Analytique &amp; budget</h1>
+    <div class="panel"><b>Balance analytique (par section)</b>
+      <table style="margin-top:6px"><tr><th>Section</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
+      ${ab.rows.length? ab.rows.map(r=>`<tr><td>${esc(r.code)}</td><td class="r">${f(r.debit)}</td><td class="r">${f(r.credit)}</td><td class="r">${f(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucune ventilation analytique (renseignez le champ « Analytique » à la saisie).</td></tr>'}</table></div>
+    <div class="panel"><b>Budget vs réalisé ${yy}</b>
+      <span style="float:right;display:flex;gap:6px"><input type="number" id="baY" value="${yy}" style="max-width:90px;margin:0"><button class="btn ghost sm" onclick="window._acctYear=Number(document.getElementById('baY').value);acctAnalyticView()">Voir</button>
+        <button class="btn ghost sm" onclick="acctBudgetModal()">+ Budget</button></span>
+      <table style="margin-top:8px"><tr><th>Compte</th><th>Intitulé</th><th class="r">Budget</th><th class="r">Réalisé</th><th class="r">Écart</th></tr>
+      ${ba.rows.length? ba.rows.map(r=>`<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td class="r">${f(r.budget)}</td><td class="r">${f(r.actual)}</td><td class="r" style="color:${r.ecart>0?'var(--red)':'var(--nav-active-color)'}">${(r.ecart>0?'+':'')}${f(r.ecart)}</td></tr>`).join("") : '<tr><td colspan="5" style="color:var(--muted)">Aucun budget / réalisé.</td></tr>'}</table></div>`;
+}
+async function acctBudgetModal(){
+  await acctLoadRefs();
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:440px"><h3 style="margin:0 0 8px">Budget d'un compte</h3>
+    <div class="grid2"><div><label>Compte (6/7)</label><select id="buAcc">${ACCT_ACCOUNTS.filter(a=>a.number[0]==='6'||a.number[0]==='7').map(a=>`<option value="${a.number}">${esc(a.number)} ${esc(a.label)}</option>`).join("")}</select></div>
+      <div><label>Année</label><input id="buY" type="number" value="${window._acctYear||new Date().getFullYear()}"></div>
+      <div><label>Montant budget</label><input id="buA" type="number" value="0"></div></div>
+    <div class="err hidden" id="buErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctBudgetSave()">Enregistrer</button><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function acctBudgetSave(){
+  const g=x=>(document.getElementById(x)||{}).value;
+  try{ await api("/accounting/budgets",{method:"POST",body:JSON.stringify({account:g("buAcc"),year:Number(g("buY")),amount:Number(g("buA"))})});
+    document.querySelector(".modal-bg").remove(); window._acctYear=Number(g("buY")); acctAnalyticView(); }
+  catch(e){ const el=document.getElementById("buErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
 
 </script>
 </body>
