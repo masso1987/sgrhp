@@ -848,6 +848,7 @@ const NAV = [
   { k: "acctsaisie", label: "✏️ Saisie des écritures", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctbalance", label: "⚖️ Balance", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctetats", label: "📊 États", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctlegal", label: "🧾 États légaux", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
@@ -941,7 +942,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4963,6 +4964,44 @@ async function acctAgedRender(){
   document.getElementById("ageRows").innerHTML=`<table><tr><th>Tiers</th><th class="r">0–30 j</th><th class="r">31–60</th><th class="r">61–90</th><th class="r">&gt; 90</th><th class="r">Total</th></tr>
     ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.tp)}</td><td class="r">${f(r.b0)}</td><td class="r">${f(r.b30)}</td><td class="r">${f(r.b60)}</td><td class="r">${f(r.b90)}</td><td class="r"><b>${f(r.total)}</b></td></tr>`).join("") : '<tr><td colspan="6" style="color:var(--muted)">Aucun solde.</td></tr>'}
     <tr style="font-weight:600;border-top:2px solid #999"><td>TOTAUX</td><td class="r">${f(d.totals.b0||0)}</td><td class="r">${f(d.totals.b30||0)}</td><td class="r">${f(d.totals.b60||0)}</td><td class="r">${f(d.totals.b90||0)}</td><td class="r">${f(d.totals.total||0)}</td></tr></table>`;
+}
+
+
+/* ---- Comptabilité C4 : TVA & états légaux ---- */
+async function acctLegalView(){
+  const per=window._acctPeriod||"";
+  const [vat,is,bs]=await Promise.all([
+    api("/accounting/vat"+(per?"?period="+per:"")).catch(()=>({})),
+    api("/accounting/income-statement"+(per?"?period="+per:"")).catch(()=>({produits:[],charges:[]})),
+    api("/accounting/balance-sheet"+(per?"?period="+per:"")).catch(()=>({actif:{},passif:{}}))]);
+  const f=n=>fCFA(n||0);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">🧾 États légaux (OHADA)</h1>
+    <div class="panel"><label>Période (vide = tout)</label><input type="month" value="${per}" onchange="window._acctPeriod=this.value;acctLegalView()" style="max-width:160px"></div>
+    <div class="grid2">
+      <div class="panel"><b>Déclaration de TVA</b>
+        <table style="margin-top:6px"><tr><td>TVA collectée (443)</td><td class="r">${f(vat.collectee)}</td></tr>
+        <tr><td>TVA déductible (445)</td><td class="r">− ${f(vat.deductible)}</td></tr>
+        <tr style="font-weight:600;border-top:1px solid var(--border)"><td>${(vat.credit||0)>0?'Crédit de TVA':'TVA à payer'}</td><td class="r">${f((vat.credit||0)>0?vat.credit:vat.aPayer)}</td></tr></table></div>
+      <div class="panel"><b>Compte de résultat</b>
+        <table style="margin-top:6px"><tr><td>Total produits (7)</td><td class="r">${f(is.totalProduits)}</td></tr>
+        <tr><td>Total charges (6)</td><td class="r">− ${f(is.totalCharges)}</td></tr>
+        <tr style="font-weight:600;border-top:1px solid var(--border)"><td>Résultat</td><td class="r" style="color:${(is.resultat||0)>=0?'var(--nav-active-color)':'var(--red)'}">${f(is.resultat)}</td></tr></table></div>
+    </div>
+    <div class="panel"><b>Bilan — grandes masses</b>
+      <div class="grid2" style="margin-top:6px">
+        <table><tr><th>ACTIF</th><th class="r"></th></tr>
+          <tr><td>Actif immobilisé</td><td class="r">${f(bs.actif.immobilise)}</td></tr>
+          <tr><td>Actif circulant</td><td class="r">${f(bs.actif.circulant)}</td></tr>
+          <tr><td>Trésorerie-Actif</td><td class="r">${f(bs.actif.tresorerie)}</td></tr>
+          <tr style="font-weight:600;border-top:1px solid var(--border)"><td>TOTAL ACTIF</td><td class="r">${f(bs.actif.total)}</td></tr></table>
+        <table><tr><th>PASSIF</th><th class="r"></th></tr>
+          <tr><td>Capitaux propres (dont résultat)</td><td class="r">${f(bs.passif.capitauxPropres)}</td></tr>
+          <tr><td>Dettes</td><td class="r">${f(bs.passif.dettes)}</td></tr>
+          <tr><td>Trésorerie-Passif</td><td class="r">${f(bs.passif.tresorerie)}</td></tr>
+          <tr style="font-weight:600;border-top:1px solid var(--border)"><td>TOTAL PASSIF</td><td class="r">${f(bs.passif.total)}</td></tr></table>
+      </div>
+      <div class="note" style="margin-top:6px;color:${bs.equilibre?'var(--nav-active-color)':'var(--red)'}">${bs.equilibre?'✓ Bilan équilibré (Actif = Passif)':'⚠ Écart Actif/Passif — écritures manquantes ou non validées'}</div></div>`;
 }
 
 </script>

@@ -260,6 +260,51 @@ router.get("/aged", allow("ADM", "CD", "RJ"), (req, res) => {
   res.json({ rows, totals: { b0: sum("b0"), b30: sum("b30"), b60: sum("b60"), b90: sum("b90"), total: sum("total") } });
 });
 
+
+/* ==================== C4 — TVA & états légaux (OHADA) ==================== */
+function aggByAccount(req, period) {
+  const agg = {};
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if (period && (e.period || "") !== period) continue;
+    for (const l of (e.lines || [])) { const a = (agg[l.account] = agg[l.account] || { debit: 0, credit: 0 }); a.debit += R2(l.debit); a.credit += R2(l.credit); } }
+  return agg;
+}
+router.get("/vat", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1"); const agg = aggByAccount(req, req.query.period);
+  let collectee = 0, deductible = 0;
+  for (const [acc, v] of Object.entries(agg)) { if (acc.startsWith("443")) collectee += (v.credit - v.debit); if (acc.startsWith("445")) deductible += (v.debit - v.credit); }
+  collectee = R2(collectee); deductible = R2(deductible); const net = collectee - deductible;
+  res.json({ period: req.query.period || "toutes", collectee, deductible, aPayer: net > 0 ? net : 0, credit: net < 0 ? -net : 0 });
+});
+router.get("/income-statement", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1"); const agg = aggByAccount(req, req.query.period); const labels = _accLabel(req);
+  const charges = [], produits = []; let tc = 0, tp = 0;
+  for (const [acc, v] of Object.entries(agg)) {
+    if (acc[0] === "6") { const m = v.debit - v.credit; if (m) { charges.push({ account: acc, label: labels[acc] || "", amount: R2(m) }); tc += m; } }
+    if (acc[0] === "7") { const m = v.credit - v.debit; if (m) { produits.push({ account: acc, label: labels[acc] || "", amount: R2(m) }); tp += m; } }
+  }
+  charges.sort((a, b) => a.account.localeCompare(b.account)); produits.sort((a, b) => a.account.localeCompare(b.account));
+  res.json({ period: req.query.period || "toutes", produits, charges, totalProduits: R2(tp), totalCharges: R2(tc), resultat: R2(tp - tc) });
+});
+router.get("/balance-sheet", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1"); const agg = aggByAccount(req, req.query.period);
+  let immobA = 0, circA = 0, tresoA = 0, capP = 0, dettesP = 0, tresoP = 0, prod = 0, charge = 0;
+  for (const [acc, v] of Object.entries(agg)) { const solde = v.debit - v.credit; const cl = acc[0];
+    if (cl === "7") prod += -solde; else if (cl === "6") charge += solde;
+    else if (cl === "2") immobA += solde;
+    else if (cl === "3") circA += solde;
+    else if (cl === "4") { if (solde >= 0) circA += solde; else dettesP += -solde; }
+    else if (cl === "5") { if (solde >= 0) tresoA += solde; else tresoP += -solde; }
+    else if (cl === "1") { if (solde <= 0) capP += -solde; else dettesP += solde; }
+  }
+  const resultat = R2(prod - charge); capP += resultat;
+  const actif = R2(immobA) + R2(circA) + R2(tresoA);
+  const passif = R2(capP) + R2(dettesP) + R2(tresoP);
+  res.json({ period: req.query.period || "toutes",
+    actif: { immobilise: R2(immobA), circulant: R2(circA), tresorerie: R2(tresoA), total: actif },
+    passif: { capitauxPropres: R2(capP), dettes: R2(dettesP), tresorerie: R2(tresoP), total: passif },
+    resultat, equilibre: actif === passif });
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
