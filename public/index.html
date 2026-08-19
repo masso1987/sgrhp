@@ -6302,6 +6302,12 @@ function plTotalsHtml(kind){
 }
 const stStatusTag=(st)=>({ordered:'<span class="tag" style="background:#2563eb;color:#fff">Commandé</span>',partial:'<span class="tag amber">Partiel</span>',completed:'<span class="tag green">Complet</span>',received:'<span class="tag green">Reçu</span>',due:'<span class="tag" style="background:#b45309;color:#fff">Dû</span>',paid:'<span class="tag green">Payé</span>'}[st]||esc(st));
 function stSupName(id){ const c=(window._STK.sups||[]).find(x=>x.id===id); return c?c.name:""; }
+const PO_ST_LABELS={commande:"Commandé",emballe:"Emballé",expedie:"Expédié",livre:"Livré",annule:"Annulé"};
+function poStTag(st){ const c={commande:"#2563eb",emballe:"#7c3aed",expedie:"#0d9488",livre:"#16a34a",annule:"#9ca3af"}[st]||"#9ca3af"; return `<span class="tag" style="background:${c};color:#fff">${PO_ST_LABELS[st]||st||"—"}</span>`; }
+function poStOpts(cur){ return Object.keys(PO_ST_LABELS).map(k=>`<option value="${k}" ${cur===k?"selected":""}>${PO_ST_LABELS[k]}</option>`).join(""); }
+function stkAttach(input,varName){ const fl=input.files&&input.files[0]; if(!fl){ window[varName]=null; return; } if(fl.size>5*1024*1024){ alert("Fichier trop volumineux (max 5 Mo)."); input.value=""; window[varName]=null; return; } const rd=new FileReader(); rd.onload=()=>{ window[varName]={name:fl.name,size:fl.size,dataUrl:rd.result}; }; rd.readAsDataURL(fl); }
+function attachLink(a){ return a&&a.dataUrl?`<a href="${a.dataUrl}" download="${esc(a.name)}" title="${esc(a.name)}">📎</a>`:""; }
+async function stockPOSetStatus(id,st){ try{ await api("/stock/po/"+id+"/status",{method:"PUT",body:JSON.stringify({orderStatus:st})}); stockPOView(); }catch(e){ alert(e.message); } }
 
 /* ---- Bons de commande ---- */
 async function stockPOView(){
@@ -6310,18 +6316,23 @@ async function stockPOView(){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
     <h1 style="margin-top:10px">🧾 Bons de commande</h1>
     <div class="panel"><button class="btn p sm" style="float:right" onclick="stockPOForm()">+ Nouveau BC</button><b>${list.length} bon(s) de commande</b>
-      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th class="r">Qté restante</th><th class="r">Total</th><th></th></tr>
-      ${list.length?list.map(po=>`<tr><td><code>${esc(po.ref)}</code></td><td>${esc(po.date||'')}</td><td>${esc(stSupName(po.supplierId))}</td>
-        <td>${stStatusTag(po.status)}</td><td class="r">${po.remaining}</td><td class="r">${fCFA(po.total)}</td>
-        <td style="white-space:nowrap">${po.status!=='completed'?`<button class="btn p sm" onclick="stockPOReceive('${po.id}','${esc(po.ref)}')">Recevoir</button>`:''}
-          ${po.received<=0?`<button class="btn ghost sm" onclick="stockPODelete('${po.id}')">✕</button>`:''}</td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
+      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Fournisseur</th><th>Réception</th><th>Statut commande</th><th class="r">Qté restante</th><th class="r">Total</th><th></th></tr>
+      ${list.length?list.map(po=>`<tr><td><code>${esc(po.ref)}</code> ${attachLink(po.attachment)}</td><td>${esc(po.date||'')}</td><td>${esc(stSupName(po.supplierId))}</td>
+        <td>${stStatusTag(po.status)}</td>
+        <td><select onchange="stockPOSetStatus('${po.id}',this.value)" style="margin:0;padding:2px 4px;font-size:12px">${poStOpts(po.orderStatus||'commande')}</select></td>
+        <td class="r">${po.remaining}</td><td class="r">${fCFA(po.total)}</td>
+        <td style="white-space:nowrap">${po.status!=='completed'?`<button class="btn p sm" onclick="stockPurchaseForm('${po.id}')">Conclure l'achat</button>`:''}
+          ${po.received<=0?`<button class="btn ghost sm" onclick="stockPODelete('${po.id}')">✕</button>`:''}</td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
       </table></div>`;
 }
 function stockPOForm(){
   window._PLKIND='po'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpo')">← Bons de commande</button>
     <h1 style="margin-top:10px">Ajouter un bon de commande</h1>
-    <div class="panel">${plHeaderHtml('po')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('po')}
+    <div class="panel">${plHeaderHtml('po')}
+    <div class="grid3" style="margin-top:6px"><div><label>Statut de commande</label><select id="poStatus">${poStOpts('commande')}</select></div>
+      <div><label>Joindre un document (≤ 5 Mo)</label><input type="file" id="poFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_poAttach')"></div></div>
+    <div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('po')}
     <div class="err hidden" id="poErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockPOSubmit()">Enregistrer le BC</button></div></div>`;
   plRender();
@@ -6329,7 +6340,7 @@ function stockPOForm(){
 async function stockPOSubmit(){
   const g=(x)=>(document.getElementById(x)||{}).value;
   const lines=plCollect(); if(!lines.length){ const e=document.getElementById("poErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
-  try{ await api("/stock/po",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),location:g("hdLoc"),deliveryDelay:g("hdDelay"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines})});
+  try{ await api("/stock/po",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),location:g("hdLoc"),deliveryDelay:g("hdDelay"),orderStatus:g("poStatus"),attachment:window._poAttach,taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines})});
     go('stockpo'); }catch(e){ const el=document.getElementById("poErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stockPOReceive(id,ref){ if(!confirm("Recevoir le reliquat du BC "+ref+" ? Le stock sera incrémenté et un achat créé.")) return;
@@ -6345,25 +6356,44 @@ async function stockPurchasesView(){
     <h1 style="margin-top:10px">📥 Achats (réceptions)</h1>
     <div class="panel"><button class="btn p sm" style="float:right" onclick="stockPurchaseForm()">+ Nouvel achat</button><b>${list.length} achat(s)</b>
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th></th></tr>
-      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code>${p.poRef?` <span class="note">(BC ${esc(p.poRef)})</span>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td>
+      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code> ${attachLink(p.attachment)}${p.poRef?` <span class="note">(BC ${esc(p.poRef)})</span>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td>
         <td>${stStatusTag(p.purchaseStatus)}</td><td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
         <td style="white-space:nowrap">${p.paymentStatus!=='paid'?`<button class="btn ghost sm" onclick="stockPayModal('${p.id}',${p.total-p.amountPaid})">Payer</button>`:''}
           <button class="btn ghost sm" onclick="stockPurchaseDelete('${p.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucun achat.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
 }
-function stockPurchaseForm(){
-  window._PLKIND='purchase'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+async function stockPurchaseForm(poId){
+  await stockLoadRefs();
+  const pos=(await api("/stock/po").catch(()=>[])).filter(p=>p.status!=='completed' && p.orderStatus!=='annule');
+  window._puPOs=pos; window._PLKIND='purchase'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}]; window._puAttach=null; window._puPOId=""; window._puPORef="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpurchases')">← Achats</button>
     <h1 style="margin-top:10px">Ajouter un achat (réception)</h1>
-    <div class="panel">${plHeaderHtml('purchase')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('purchase')}
+    <div class="panel">
+      <div class="grid3">
+        <div><label>Bon de commande (charger les produits)</label><select id="puPO" onchange="stockPurchaseLoadPO(this.value)"><option value="">— aucun —</option>${pos.map(po=>`<option value="${po.id}">${esc(po.ref)} — ${esc(stSupName(po.supplierId))} · ${PO_ST_LABELS[po.orderStatus||'commande']} · reste ${po.remaining}</option>`).join("")}</select></div>
+        <div><label>Conditions de paiement</label><input id="puTerms"></div>
+        <div><label>Joindre un document (≤ 5 Mo)</label><input type="file" id="puFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_puAttach')"></div>
+      </div>
+      ${plHeaderHtml('purchase')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('purchase')}
     <div class="err hidden" id="puErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockPurchaseSubmit()">Enregistrer l'achat</button></div></div>`;
   plRender();
+  if(poId){ const sel=document.getElementById("puPO"); if(sel) sel.value=poId; stockPurchaseLoadPO(poId); }
 }
+async function stockPurchaseLoadPO(id){
+  if(!id){ window._puPOId=""; window._puPORef=""; return; }
+  const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
+  window._puPOId=po.id; window._puPORef=po.ref;
+  window._PL=(po.lines||[]).map(l=>({productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct})).filter(l=>l.qty>0);
+  if(!window._PL.length) window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  const g=(x)=>document.getElementById(x); if(g("hdSup")) g("hdSup").value=po.supplierId||""; if(g("puTerms")) g("puTerms").value=po.paymentTerms||""; if(g("plTax")) g("plTax").value=po.taxPct||0;
+  plRender();
+}
+function Q_(n){ return Math.round((Number(n)||0)*1000)/1000; }
 async function stockPurchaseSubmit(){
   const g=(x)=>(document.getElementById(x)||{}).value;
   const lines=plCollect(); if(!lines.length){ const e=document.getElementById("puErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
-  try{ await api("/stock/purchases",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,amountPaid:Number(g("plPaid"))||0,lines})});
+  try{ await api("/stock/purchases",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),poId:window._puPOId||"",poRef:window._puPORef||"",paymentTerms:g("puTerms"),attachment:window._puAttach,taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,amountPaid:Number(g("plPaid"))||0,lines})});
     go('stockpurchases'); }catch(e){ const el=document.getElementById("puErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 function stockPayModal(id,due){
