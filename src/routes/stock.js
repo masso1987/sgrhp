@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockMovements"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockMovements"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -41,6 +41,10 @@ function crud(path, col, fields, keyField, roleWrite) {
 }
 crud("categories", "stockCategories", ["name"], "name", ["ADM", "CD", "GPF"]);
 crud("units", "stockUnits", ["name", "shortName", "allowDecimal"], "name", ["ADM", "CD", "GPF"]);
+crud("brands", "stockBrands", ["name", "note"], "name", ["ADM", "CD", "GPF"]);
+crud("warranties", "stockWarranties", ["name", "duration", "description"], "name", ["ADM", "CD", "GPF"]);
+crud("pricegroups", "stockPriceGroups", ["name", "note"], "name", ["ADM", "CD", "GPF"]);
+crud("variations", "stockVariations", ["name", "values"], "name", ["ADM", "CD", "GPF"]);
 
 /* ============================ CONTACTS (fournisseurs & clients) ============================ */
 const CONTACT_FIELDS = ["type", "entityType", "contactId", "name", "firstName", "mobile", "altPhone", "landline", "email",
@@ -96,9 +100,10 @@ router.get("/suppliers", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 function prodOut(p, req) {
   const cat = mine(db.stockCategories, req).find(c => c.id === p.categoryId);
   const unit = mine(db.stockUnits, req).find(u => u.id === p.unitId);
+  const brand = mine(db.stockBrands, req).find(x => x.id === p.brandId);
   const qty = Q(p.qty || 0);
   return Object.assign({}, p, {
-    categoryName: cat ? cat.name : "", unitName: unit ? (unit.shortName || unit.name) : "",
+    categoryName: cat ? cat.name : "", unitName: unit ? (unit.shortName || unit.name) : "", brandName: brand ? brand.name : "",
     qty, stockValue: R2(qty * (Number(p.purchasePrice) || 0)),
     low: (p.alertQty != null && p.alertQty !== "") ? (qty <= Number(p.alertQty)) : false,
     out: qty <= 0
@@ -122,7 +127,8 @@ router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
   if (b.sku && mine(db.stockProducts, req).some(p => (p.sku || "") && p.sku === b.sku)) return res.status(409).json({ error: "SKU déjà utilisé : " + b.sku });
   const initial = Q(b.qty || 0);
   const p = stamp({
-    id: id("prd"), sku: b.sku || "", name: b.name, categoryId: b.categoryId || "", unitId: b.unitId || "", supplierId: b.supplierId || "",
+    id: id("prd"), sku: b.sku || "", barcode: b.barcode || "", name: b.name, categoryId: b.categoryId || "", unitId: b.unitId || "", supplierId: b.supplierId || "",
+    brandId: b.brandId || "", warrantyId: b.warrantyId || "", priceGroupId: b.priceGroupId || "",
     purchasePrice: R2(b.purchasePrice), salePrice: R2(b.salePrice), qty: initial, alertQty: b.alertQty != null ? Q(b.alertQty) : "",
     active: b.active !== false, note: b.note || "", createdAt: new Date().toISOString()
   }, req);
@@ -133,7 +139,7 @@ router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
 router.put("/products/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   const p = mine(db.stockProducts, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Produit introuvable" });
   const b = req.body || {};
-  for (const f of ["sku", "name", "categoryId", "unitId", "supplierId", "note"]) if (b[f] !== undefined) p[f] = b[f];
+  for (const f of ["sku", "barcode", "name", "categoryId", "unitId", "supplierId", "brandId", "warrantyId", "priceGroupId", "note"]) if (b[f] !== undefined) p[f] = b[f];
   for (const f of ["purchasePrice", "salePrice"]) if (b[f] !== undefined) p[f] = R2(b[f]);
   if (b.alertQty !== undefined) p.alertQty = b.alertQty === "" ? "" : Q(b.alertQty);
   if (b.active !== undefined) p.active = !!b.active;
@@ -214,6 +220,48 @@ router.get("/dashboard", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
     lowList: low.sort((a, b) => a.qty - b.qty).slice(0, 10).map(p => ({ id: p.id, name: p.name, qty: p.qty, alertQty: p.alertQty, unitName: p.unitName })),
     recent, topValue
   });
+});
+
+/* ============================ IMPORTS (produits & stock d'ouverture) ============================ */
+function refByName(req, col, name) {
+  const n = String(name || "").trim(); if (!n) return "";
+  let x = mine(db[col], req).find(r => String(r.name || "").toLowerCase() === n.toLowerCase());
+  if (!x) { x = stamp({ id: id("stk"), name: n, createdAt: new Date().toISOString() }, req); db[col].push(x); }
+  return x.id;
+}
+router.post("/products/import", allow("ADM", "CD", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  const rows = Array.isArray((req.body || {}).rows) ? req.body.rows : [];
+  let created = 0, skipped = 0;
+  for (const r of rows) {
+    const name = String(r.name || "").trim(); if (!name) { skipped++; continue; }
+    const sku = String(r.sku || "").trim();
+    if (sku && mine(db.stockProducts, req).some(p => p.sku === sku)) { skipped++; continue; }
+    const qty = Q(r.qty || 0);
+    const p = stamp({ id: id("prd"), sku, barcode: String(r.barcode || ""), name,
+      categoryId: refByName(req, "stockCategories", r.category), unitId: refByName(req, "stockUnits", r.unit), brandId: refByName(req, "stockBrands", r.brand),
+      supplierId: "", warrantyId: "", priceGroupId: "", purchasePrice: R2(r.purchasePrice), salePrice: R2(r.salePrice),
+      qty, alertQty: (r.alertQty != null && r.alertQty !== "") ? Q(r.alertQty) : "", active: true, note: "", createdAt: new Date().toISOString() }, req);
+    db.stockProducts.push(p);
+    if (qty) db.stockMovements.push(stamp({ id: id("mov"), date: new Date().toISOString().slice(0, 10), type: "initial", productId: p.id, qty, unitCost: p.purchasePrice, ref: "Import produits", createdBy: req.user.id, createdAt: new Date().toISOString() }, req));
+    created++;
+  }
+  save(); audit(req.user, "IMPORTED", "StockProducts", "", { created }); res.json({ ok: true, created, skipped });
+});
+router.post("/opening", allow("ADM", "CD", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  const rows = Array.isArray((req.body || {}).rows) ? req.body.rows : [];
+  let updated = 0, notfound = 0, unchanged = 0;
+  for (const r of rows) {
+    const key = String(r.sku || r.name || "").trim().toLowerCase(); if (!key) { notfound++; continue; }
+    const p = mine(db.stockProducts, req).find(x => (x.sku && String(x.sku).toLowerCase() === key) || String(x.name || "").toLowerCase() === key);
+    if (!p) { notfound++; continue; }
+    if (r.unitCost != null && r.unitCost !== "") p.purchasePrice = R2(r.unitCost);
+    const target = Q(r.qty || 0); const delta = target - Q(p.qty || 0);
+    if (delta) { p.qty = target; db.stockMovements.push(stamp({ id: id("mov"), date: new Date().toISOString().slice(0, 10), type: "initial", productId: p.id, qty: delta, unitCost: p.purchasePrice, ref: "Stock d'ouverture", createdBy: req.user.id, createdAt: new Date().toISOString() }, req)); updated++; }
+    else unchanged++;
+  }
+  save(); audit(req.user, "IMPORTED", "StockOpening", "", { updated }); res.json({ ok: true, updated, notfound, unchanged });
 });
 
 module.exports = router;
