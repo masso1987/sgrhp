@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockMovements"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockMovements"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -262,6 +262,153 @@ router.post("/opening", allow("ADM", "CD", "GPF"), (req, res) => {
     else unchanged++;
   }
   save(); audit(req.user, "IMPORTED", "StockOpening", "", { updated }); res.json({ ok: true, updated, notfound, unchanged });
+});
+
+/* ============================ ACHATS (bons de commande, réceptions, retours) ============================ */
+function seqRef(req, col, prefix, field) {
+  const yy = new Date().getFullYear();
+  const n = mine(db[col], req).filter(x => String(x[field] || "").startsWith(prefix + yy)).length + 1;
+  return prefix + yy + "/" + String(n).padStart(4, "0");
+}
+function calcLines(lines) {
+  let subtotal = 0;
+  const out = (Array.isArray(lines) ? lines : []).filter(l => l.productId && Q(l.qty) > 0).map(l => {
+    const qty = Q(l.qty), pu = R2(l.unitCost), disc = Number(l.discountPct) || 0;
+    const net = Math.round(qty * pu * (1 - disc / 100));
+    return { productId: l.productId, qty, unitCost: pu, discountPct: disc, net, receivedQty: Q(l.receivedQty || 0) };
+  });
+  subtotal = out.reduce((s, l) => s + l.net, 0);
+  return { lines: out, subtotal };
+}
+function pName(req, pid) { const p = _prod(req, pid); return p ? p.name : ""; }
+function docTotals(subtotal, taxPct, shippingFee) {
+  const tax = Math.round(subtotal * (Number(taxPct) || 0) / 100);
+  const ship = R2(shippingFee);
+  return { tax, shipping: ship, total: subtotal + tax + ship };
+}
+
+/* ---- Bons de commande ---- */
+function poOut(po) {
+  const ordered = (po.lines || []).reduce((s, l) => s + Q(l.qty), 0);
+  const received = (po.lines || []).reduce((s, l) => s + Q(l.receivedQty || 0), 0);
+  const remaining = Q(ordered - received);
+  const status = received <= 0 ? "ordered" : (remaining > 0 ? "partial" : "completed");
+  return Object.assign({}, po, { ordered, received, remaining, status });
+}
+router.get("/po", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  res.json(mine(db.stockPOs, req).map(poOut).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+});
+router.get("/po/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
+  const o = poOut(po); o.lines = (o.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })); res.json(o);
+});
+router.post("/po", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines);
+  if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  const t = docTotals(subtotal, b.taxPct, b.shippingFee);
+  const po = stamp({ id: id("po"), ref: b.ref || seqRef(req, "stockPOs", "PO", "ref"), supplierId: b.supplierId || "", date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    location: b.location || "", paymentTerms: b.paymentTerms || "", deliveryDelay: b.deliveryDelay || "", shippingStatus: b.shippingStatus || "", deliverTo: b.deliverTo || "", note: b.note || "",
+    taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee), subtotal, tax: t.tax, total: t.total, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockPOs.push(po); save(); audit(req.user, "CREATED", "StockPO", po.id, { ref: po.ref }); res.status(201).json(poOut(po));
+});
+router.put("/po/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+  const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
+  if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà partiellement reçu — non modifiable" });
+  const b = req.body || {};
+  for (const f of ["supplierId", "date", "location", "paymentTerms", "deliveryDelay", "shippingStatus", "deliverTo", "note"]) if (b[f] !== undefined) po[f] = b[f];
+  if (Array.isArray(b.lines)) { const { lines, subtotal } = calcLines(b.lines); po.lines = lines; po.subtotal = subtotal; const t = docTotals(subtotal, b.taxPct != null ? b.taxPct : po.taxPct, b.shippingFee != null ? b.shippingFee : po.shippingFee); po.tax = t.tax; po.total = t.total; }
+  if (b.taxPct !== undefined) po.taxPct = Number(b.taxPct) || 0;
+  if (b.shippingFee !== undefined) po.shippingFee = R2(b.shippingFee);
+  save(); res.json(poOut(po));
+});
+router.delete("/po/:id", allow("ADM", "CD"), (req, res) => {
+  const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "Introuvable" });
+  if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà reçu — non supprimable" });
+  db.stockPOs.splice(db.stockPOs.indexOf(po), 1); save(); res.json({ ok: true });
+});
+// Réception d'un BC : reçoit le reliquat, incrémente le stock, crée un achat
+router.post("/po/:id/receive", allow("ADM", "CD", "GPF"), (req, res) => {
+  const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
+  const date = (req.body && req.body.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const recvLines = [];
+  for (const l of (po.lines || [])) { const rem = Q(Q(l.qty) - Q(l.receivedQty || 0)); if (rem <= 0) continue;
+    recvLines.push({ productId: l.productId, qty: rem, unitCost: l.unitCost, discountPct: l.discountPct });
+    l.receivedQty = Q(l.qty);
+  }
+  if (!recvLines.length) return res.status(400).json({ error: "Rien à recevoir (BC déjà complet)" });
+  const pur = createPurchase(req, { supplierId: po.supplierId, date, poId: po.id, poRef: po.ref, lines: recvLines, taxPct: po.taxPct, shippingFee: 0, amountPaid: 0, note: "Réception BC " + po.ref });
+  save(); audit(req.user, "RECEIVED", "StockPO", po.id, { ref: po.ref, purchase: pur.ref }); res.json({ ok: true, po: poOut(po), purchaseRef: pur.ref });
+});
+
+/* ---- Achats (réceptions) ---- */
+function createPurchase(req, b) {
+  const { lines, subtotal } = calcLines(b.lines);
+  const t = docTotals(subtotal, b.taxPct, b.shippingFee);
+  const paid = R2(b.amountPaid);
+  const pur = stamp({ id: id("pur"), ref: b.ref || seqRef(req, "stockPurchases", "ACH", "ref"), supplierId: b.supplierId || "", poId: b.poId || "", poRef: b.poRef || "",
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), location: b.location || "", note: b.note || "",
+    taxPct: Number(b.taxPct) || 0, shippingFee: t.shipping, subtotal, tax: t.tax, total: t.total,
+    amountPaid: Math.min(paid, t.total), paymentStatus: paid >= t.total && t.total > 0 ? "paid" : paid > 0 ? "partial" : "due",
+    purchaseStatus: "received", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockPurchases.push(pur);
+  for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) + l.qty); if (l.unitCost) p.purchasePrice = l.unitCost;
+    logMove(req, { date: pur.date, type: "achat", productId: p.id, qty: l.qty, unitCost: l.unitCost, ref: pur.ref, supplierId: pur.supplierId, sourceType: "purchase", sourceId: pur.id });
+  }
+  return pur;
+}
+router.get("/purchases", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  res.json(mine(db.stockPurchases, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+});
+router.get("/purchases/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Achat introuvable" });
+  res.json(Object.assign({}, pur, { lines: (pur.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
+});
+router.post("/purchases", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines } = calcLines(b.lines);
+  if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  const pur = createPurchase(req, b); save(); audit(req.user, "STOCK_IN", "StockPurchase", pur.id, { ref: pur.ref }); res.status(201).json(pur);
+});
+router.post("/purchases/:id/pay", allow("ADM", "CD", "GPF"), (req, res) => {
+  const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Achat introuvable" });
+  const amt = R2((req.body || {}).amount);
+  pur.amountPaid = Math.min(R2(pur.amountPaid) + amt, pur.total);
+  pur.paymentStatus = pur.amountPaid >= pur.total && pur.total > 0 ? "paid" : pur.amountPaid > 0 ? "partial" : "due";
+  save(); res.json({ ok: true, amountPaid: pur.amountPaid, paymentStatus: pur.paymentStatus });
+});
+router.delete("/purchases/:id", allow("ADM", "CD"), (req, res) => {
+  const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Introuvable" });
+  // reverse stock + remove linked movements
+  for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "purchase" && m.sourceId === pur.id)) {
+    const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1);
+  }
+  if (pur.poId) { const po = mine(db.stockPOs, req).find(x => x.id === pur.poId); if (po) for (const l of (po.lines || [])) { const pl = (pur.lines || []).find(x => x.productId === l.productId); if (pl) l.receivedQty = Q(Q(l.receivedQty || 0) - Q(pl.qty)); } }
+  db.stockPurchases.splice(db.stockPurchases.indexOf(pur), 1); save(); res.json({ ok: true });
+});
+
+/* ---- Retours d'achat ---- */
+router.get("/returns", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  res.json(mine(db.stockReturns, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+});
+router.post("/returns", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines);
+  if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  const ret = stamp({ id: id("ret"), ref: b.ref || seqRef(req, "stockReturns", "RET", "ref"), supplierId: b.supplierId || "", purchaseId: b.purchaseId || "",
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), note: b.note || "", subtotal, total: subtotal, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockReturns.push(ret);
+  for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) - l.qty);
+    logMove(req, { date: ret.date, type: "retour", productId: p.id, qty: -l.qty, unitCost: l.unitCost, ref: ret.ref, supplierId: ret.supplierId, sourceType: "return", sourceId: ret.id });
+  }
+  save(); audit(req.user, "STOCK_RETURN", "StockReturn", ret.id, { ref: ret.ref }); res.status(201).json(ret);
+});
+router.delete("/returns/:id", allow("ADM", "CD"), (req, res) => {
+  const ret = mine(db.stockReturns, req).find(x => x.id === req.params.id); if (!ret) return res.status(404).json({ error: "Introuvable" });
+  for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "return" && m.sourceId === ret.id)) {
+    const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1);
+  }
+  db.stockReturns.splice(db.stockReturns.indexOf(ret), 1); save(); res.json({ ok: true });
 });
 
 module.exports = router;
