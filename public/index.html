@@ -5614,7 +5614,11 @@ const IMP_TYPES={
   tiers:{label:"Comptes tiers", fields:[
     {k:"code",l:"Code tiers",kw:["compauxnum","numerotiers","comptetiers","comptaux","codetiers","code","tiers"]},{k:"name",l:"Nom / raison sociale",kw:["compauxlib","intituletiers","raisonsociale","nomtiers","nom","name","intitule","designation"]},
     {k:"collectiveAccount",l:"Compte collectif",kw:["comptecollectif","collectif","comptegeneral","compte","comptenum"]},{k:"kind",l:"Type (client/fournisseur)",kw:["type","kind","sens"]}],
-    required:["code"]}
+    required:["code"]},
+  balance:{label:"Balance (reprise des soldes)", reprise:true, fields:[
+    {k:"account",l:"N° compte",kw:["comptenum","numerocompte","ncompte","compte"]},{k:"label",l:"Intitulé",kw:["intitulecompte","intitule","libelle","designation","comptelib"]},
+    {k:"debit",l:"Solde débiteur",kw:["soldedebiteur","soldedebit","debiteur","debit"]},{k:"credit",l:"Solde créditeur",kw:["soldecrediteur","soldecredit","crediteur","credit"]}],
+    required:["account"]}
 };
 function acctImportView(){
   window._imp = window._imp || {type:"entries"};
@@ -5629,31 +5633,47 @@ function acctImportView(){
     <div id="impPrevBox"></div>`;
 }
 function acctImpFileChosen(input){ const file=input.files&&input.files[0]; if(!file) return;
-  const rd=new FileReader(); rd.onload=()=>{ window._IMPTEXT=rd.result; window._IMPDELIM=null; acctImpBuildMap(); }; rd.readAsText(file,"utf-8"); }
+  const rd=new FileReader();
+  rd.onload=()=>{ window._IMPBUF=rd.result;
+    let txt=new TextDecoder("utf-8").decode(window._IMPBUF);
+    if(txt.includes("�")){ window._IMPENC="iso-8859-1"; txt=new TextDecoder("iso-8859-1").decode(window._IMPBUF); } else window._IMPENC="utf-8";
+    window._IMPTEXT=txt; window._IMPDELIM=null; window._IMPHR=0; window._IMPNOHDR=false; acctImpBuildMap(); };
+  rd.readAsArrayBuffer(file); }
+function acctImpDecode(enc){ window._IMPENC=enc; try{ window._IMPTEXT=new TextDecoder(enc).decode(window._IMPBUF); }catch(e){ window._IMPTEXT=new TextDecoder("utf-8").decode(window._IMPBUF); } acctImpBuildMap(); }
 function acctImpBuildMap(){
   const box=document.getElementById("impMapBox"); if(!box) return;
   const delim=window._IMPDELIM||bankGuessDelim(window._IMPTEXT||""); window._IMPDELIM=delim;
   const rows=bankParseCSV(window._IMPTEXT||"", delim); window._IMPROWS=rows;
-  const hr=window._IMPHR||0; const headers=rows[hr]||[];
-  const norm=(x)=>String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
-  const guess=(kws)=>{ for(const kw of kws){ const i=headers.findIndex(h=>norm(h).includes(kw)); if(i>=0) return i; } return ""; };
+  const noHdr=!!window._IMPNOHDR; const hr=window._IMPHR||0;
+  const maxCols=rows.reduce((m,r)=>Math.max(m,(r||[]).length),0);
+  const headers = noHdr ? Array.from({length:maxCols},(_,i)=>"Colonne "+(i+1)) : (rows[hr]||[]);
+  const norm=(x)=>String(x).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]/g,"");
+  const guess=(kws)=>{ if(noHdr) return ""; for(const kw of kws){ const i=headers.findIndex(h=>norm(h).includes(kw)); if(i>=0) return i; } return ""; };
   const opt=(sel)=>`<option value="">—</option>`+headers.map((h,i)=>`<option value="${i}" ${String(sel)===String(i)?'selected':''}>${esc(String(h)||('col '+(i+1)))}</option>`).join("");
   const cfg=IMP_TYPES[window._imp.type];
   const delimVal=delim===String.fromCharCode(9)?'tab':delim;
+  const encVal=window._IMPENC||"utf-8";
+  const dataCount = rows.length - (noHdr?0:hr+1);
   box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:8px 0">
       <div><label>Séparateur</label><select onchange="window._IMPDELIM=this.value==='tab'?String.fromCharCode(9):this.value;acctImpBuildMap()">
         ${[["tab","tabulation"],[";",";"],[",",","],["|","|"]].map(d=>`<option value="${d[0]}" ${delimVal===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select></div>
-      <div><label>Ligne d'en-tête</label><input type="number" value="${hr}" style="max-width:80px" onchange="window._IMPHR=Number(this.value);acctImpBuildMap()"></div>
-      <div class="note" style="align-self:center">${rows.length} ligne(s) · ${headers.length} colonne(s)</div></div>
+      <div><label>Encodage</label><select onchange="acctImpDecode(this.value)">
+        ${[["utf-8","UTF-8"],["iso-8859-1","ANSI / Latin-1"],["windows-1252","Windows-1252"]].map(e=>`<option value="${e[0]}" ${encVal===e[0]?'selected':''}>${e[1]}</option>`).join("")}</select></div>
+      <div><label>Ligne d'en-tête</label><input type="number" value="${hr}" style="max-width:70px" ${noHdr?'disabled':''} onchange="window._IMPHR=Number(this.value);acctImpBuildMap()"></div>
+      <label class="chk" style="display:flex;gap:5px;align-items:center;margin:0"><input type="checkbox" ${noHdr?'checked':''} onchange="window._IMPNOHDR=this.checked;acctImpBuildMap()" style="width:auto;margin:0"> Sans en-tête</label>
+      ${cfg.reprise?`<div><label>Date de reprise</label><input type="date" value="${esc(window._IMPDATE||(new Date().getFullYear()+'-01-01'))}" onchange="window._IMPDATE=this.value" style="max-width:150px"></div>`:''}
+      <div class="note" style="align-self:center">${dataCount} ligne(s) de données · ${headers.length} colonne(s)</div></div>
+    ${noHdr?'<div class="note" style="margin-bottom:6px">Mode sans en-tête : les colonnes sont numérotées, mappez-les manuellement.</div>':''}
     <div class="grid3">${cfg.fields.map(f=>`<div><label>${esc(f.l)}${cfg.required.includes(f.k)?' *':''}</label><select id="imp_${f.k}">${opt(guess(f.kw))}</select></div>`).join("")}</div>
     <div style="margin-top:8px"><button class="btn ghost sm" onclick="acctImpPreview()">Aperçu</button>
       <button class="btn p sm" onclick="acctImpDoImport()">Importer</button></div>`;
 }
 function acctImpCollect(){
-  const cfg=IMP_TYPES[window._imp.type]; const rows=window._IMPROWS||[]; const hr=window._IMPHR||0;
+  const cfg=IMP_TYPES[window._imp.type]; const rows=window._IMPROWS||[];
+  const start=window._IMPNOHDR?0:(window._IMPHR||0)+1;
   const ci={}; for(const f of cfg.fields){ const el=document.getElementById("imp_"+f.k); ci[f.k]=el?el.value:""; }
   const out=[];
-  for(let i=hr+1;i<rows.length;i++){ const r=rows[i]; if(!r) continue; const o={};
+  for(let i=start;i<rows.length;i++){ const r=rows[i]; if(!r) continue; const o={};
     for(const f of cfg.fields){ let v=ci[f.k]!==""?r[ci[f.k]]:""; if(f.k==="date"||f.k==="pieceDate") v=acctImpDate(v);
       else if(f.k==="debit"||f.k==="credit") v=bankNum(v); else v=String(v==null?"":v).trim(); o[f.k]=v; }
     const req=cfg.required.every(k=>String(o[k]||"").trim()!=="");
@@ -5670,11 +5690,15 @@ function acctImpPreview(){
 }
 async function acctImpDoImport(){
   const data=acctImpCollect(); if(!data.length){ alert("Aucune ligne exploitable — vérifiez le mapping et les colonnes obligatoires (*)."); return; }
-  const type=window._imp.type; const ep={entries:"/accounting/import/entries",accounts:"/accounting/import/accounts",tiers:"/accounting/import/tiers"}[type];
+  const type=window._imp.type;
+  const ep={entries:"/accounting/import/entries",accounts:"/accounting/import/accounts",tiers:"/accounting/import/tiers",balance:"/accounting/import/balance"}[type];
   if(type==='entries' && !confirm(data.length+" ligne(s) FEC seront regroupées en écritures et importées. Continuer ?")) return;
-  try{ const r=await api(ep,{method:"POST",body:JSON.stringify({rows:data})});
+  if(type==='balance' && !confirm(data.length+" compte(s) : une écriture d'à-nouveaux (reprise des soldes) sera générée. Continuer ?")) return;
+  const body=type==='balance'?{rows:data,date:window._IMPDATE||""}:{rows:data};
+  try{ const r=await api(ep,{method:"POST",body:JSON.stringify(body)});
     let msg;
     if(type==='entries') msg=`${r.imported} écriture(s) importée(s) · ${r.duplicates} doublon(s) ignoré(s)`+ (r.unbalanced?` · ${r.unbalanced} non équilibrée(s) (mises en brouillon)`:'');
+    else if(type==='balance') msg=`${r.accountsCreated} compte(s) créé(s) · écriture d'à-nouveaux de ${r.lines} ligne(s) · ${r.balanced?'✓ équilibrée ('+fCFA(r.totalDebit)+')':'⚠ DÉSÉQUILIBRÉE — écart '+fCFA(r.ecart)+' (mise en brouillon)'}`;
     else msg=`${r.created} créé(s) · ${r.skipped} déjà présent(s)`;
     alert("Import terminé.\n"+msg);
     document.getElementById("impPrevBox").innerHTML=`<div class="panel"><b>✓ Import terminé</b><div class="note" style="margin-top:4px">${esc(msg)}</div></div>`;

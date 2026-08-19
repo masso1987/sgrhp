@@ -714,6 +714,33 @@ router.get("/dashboard", allow("ADM","CD","RJ"), (req,res)=>{
   });
 });
 
+/* ==================== Import balance (reprise des soldes → à-nouveaux) ==================== */
+router.post("/import/balance", allow("ADM","CD"), (req,res)=>{
+  seedAccounting(req.user.tenantId||"t1"); const tid=req.user.tenantId||"t1";
+  const b=req.body||{}; const rows=Array.isArray(b.rows)?b.rows:[];
+  const ex=mine(db.acctExercises,req).find(x=>x.current)||null;
+  const date=((b.date||"").slice(0,10)) || (ex&&ex.start) || (new Date().getFullYear()+"-01-01");
+  const period=date.slice(0,7);
+  const importKey=tid+"|BALANCE|"+period;
+  if(mine(db.acctEntries,req).some(e=>e.importKey===importKey)) return res.status(409).json({error:"Une reprise de balance existe déjà pour "+period+"."});
+  let accCreated=0; const lines=[];
+  for(const r of rows){ const num=String(r.account||"").trim(); if(!num) continue;
+    if(!mine(db.acctAccounts,req).some(a=>String(a.number)===num)){ _ensureAccount(req,tid,num,r.label); accCreated++; }
+    const d=R2(r.debit), c=R2(r.credit); if(!d && !c) continue;
+    // net the two solde columns in case both are filled
+    const net=d-c; const dd=net>0?net:0, cc=net<0?-net:0;
+    lines.push({id:id("aln"),account:num,thirdParty:String(r.thirdParty||"").trim(),label:"Reprise solde "+num,debit:dd,credit:cc});
+  }
+  if(!lines.length) return res.status(400).json({error:"Aucun solde à reprendre — vérifiez le mapping des colonnes de solde."});
+  const td=lines.reduce((s,l)=>s+l.debit,0), tc=lines.reduce((s,l)=>s+l.credit,0);
+  const balanced=td===tc;
+  _ensureJournal(req,"AN","Journal des à-nouveaux");
+  const e=stamp({id:id("aent"),journalCode:"AN",period,pieceNo:"AN-REPRISE",date,label:"Reprise de balance (à-nouveaux) "+period,
+    lines,status:balanced?"validated":"draft",source:"import",sourceRef:"balance",importKey,createdAt:new Date().toISOString()},req);
+  db.acctEntries.push(e); save(); audit(req.user,"IMPORTED","AcctBalance",e.id,{accCreated,lines:lines.length,balanced});
+  res.json({ok:true, accountsCreated:accCreated, lines:lines.length, totalDebit:td, totalCredit:tc, balanced, ecart:td-tc, status:e.status, entryId:e.id});
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
