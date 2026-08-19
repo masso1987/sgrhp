@@ -564,6 +564,30 @@ router.get("/bank/reconcile", allow("ADM", "CD", "RJ"), (req, res) => {
   });
 });
 
+/* ==================== États tiers — grand-livre consolidé ==================== */
+router.get("/tiers-ledger-all", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const kind = req.query.kind || "all"; const onlyVal = req.query.all !== "1";
+  const ref = {}; for (const t of mine(db.acctThirdParties, req)) ref[t.code] = t;
+  const groups = {};
+  for (const e of mine(db.acctEntries, req)) {
+    if (onlyVal && e.status === "draft") continue;
+    for (const l of (e.lines || [])) {
+      const tp = l.thirdParty; if (!tp) continue;
+      const acc = String(l.account);
+      const k = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : "autre";
+      if (kind !== "all" && k !== kind) continue;
+      const g = (groups[tp] = groups[tp] || { code: tp, name: (ref[tp] || {}).name || "", kind: k, rows: [], debit: 0, credit: 0 });
+      g.rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, account: l.account, label: l.label || e.label || "", dueDate: l.dueDate || "", lettre: l.lettre || "", debit: R2(l.debit), credit: R2(l.credit) });
+      g.debit += R2(l.debit); g.credit += R2(l.credit);
+    }
+  }
+  const out = Object.values(groups).map(g => { g.rows.sort((a, b) => (a.date || "").localeCompare(b.date || "")); let sd = 0; for (const r of g.rows) { sd += r.debit - r.credit; r.solde = sd; } g.solde = g.debit - g.credit; return g; })
+    .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  const totals = { debit: out.reduce((s, g) => s + g.debit, 0), credit: out.reduce((s, g) => s + g.credit, 0) };
+  res.json({ groups: out, totals: Object.assign(totals, { solde: totals.debit - totals.credit }), count: out.length });
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
