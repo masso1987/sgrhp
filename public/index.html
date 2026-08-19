@@ -4768,31 +4768,69 @@ async function acctLoadRefs() {
   ACCT_ACCOUNTS = acc; ACCT_JOURNALS = jr;
 }
 function acctKpi(l, v) { return `<div style="flex:1;min-width:150px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px">${v}</div></div>`; }
+async function ensureChartJs(){ if(window.Chart) return true;
+  return new Promise((resolve)=>{ const sc=document.createElement("script");
+    sc.src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";
+    sc.onload=()=>resolve(true); sc.onerror=()=>resolve(false); document.head.appendChild(sc); }); }
 async function acctHome() {
-  const bal = await api("/accounting/balance?all=1").catch(() => ({ rows: [] }));
-  let prod = 0, charge = 0, tvaC = 0, tvaD = 0, treso = 0;
-  for (const r of bal.rows) { const s = r.debit - r.credit;
-    if (r.account[0] === "7") prod += -s; if (r.account[0] === "6") charge += s;
-    if (r.account.startsWith("443")) tvaC += -s; if (r.account.startsWith("445")) tvaD += s;
-    if (r.account[0] === "5") treso += s; }
-  const tile = (ic, t, s, k) => `<div class="panel" style="cursor:pointer" onclick="go('${k}')"><b>${ic} ${t}</b><div class="note" style="margin-top:4px">${s}</div></div>`;
-  view.innerHTML = `<h1>📒 Comptabilité</h1>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-      ${acctKpi("Résultat (produits − charges)", fCFA(prod - charge))}
-      ${acctKpi("Trésorerie (classe 5)", fCFA(treso))}
-      ${acctKpi("TVA à payer", fCFA(tvaC - tvaD))}</div>
+  const d = await api("/accounting/dashboard").catch(()=>null);
+  if(!d){ view.innerHTML='<h1>📒 Comptabilité</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
+  const k=d.kpi, t=d.todo;
+  const tvaLabel = k.tva>=0 ? "TVA à payer" : "Crédit de TVA";
+  const kpiCard=(l,v,dest)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:150px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px">${fCFA(v)}</div></div>`;
+  const todoItem=(n,label,dest,warn)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="cursor:${dest?'pointer':'default'};display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>${label}</span><b style="color:${n>0?(warn?'var(--red)':'var(--nav-active-color)'):'var(--muted)'}">${n}</b></div>`;
+  const tile = (ic, tt, ss, kk) => `<div class="panel" style="cursor:pointer" onclick="go('${kk}')"><b>${ic} ${tt}</b><div class="note" style="margin-top:4px">${ss}</div></div>`;
+  const tierRows=(list)=> list.length? list.map(r=>`<tr><td><code>${esc(r.code)}</code></td><td>${esc(r.name||'')}</td><td class="r">${fCFA(r.solde)}</td><td><button class="btn ghost sm" onclick="acctTiersLedger('${esc(r.code)}')">Relevé</button></td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucun.</td></tr>';
+  view.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">📒 Comptabilité</h1>
+      ${d.exercice?`<span class="tag ${d.exercice.status==='open'?'green':'gray'}">Exercice ${d.exercice.year} · ${d.exercice.status==='open'?'ouvert':'clôturé'}</span>`:''}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px">
+      ${kpiCard("Résultat (produits − charges)",k.resultat)}
+      ${kpiCard("Chiffre d'affaires "+(d.exercice?d.exercice.year:''),k.ca)}
+      ${kpiCard("Trésorerie (classe 5)",k.tresorerie,'acctbank')}
+      ${kpiCard(tvaLabel,Math.abs(k.tva),'acctlegal')}
+      ${kpiCard("Créances clients (411)",k.creances,'accttiers')}
+      ${kpiCard("Dettes fournisseurs (401)",k.dettes,'accttiers')}</div>
     <div class="grid2">
-      ${tile("✏️", "Saisie des écritures", "Grille débit / crédit par journal, équilibrage automatique", "acctsaisie")}
-      ${tile("⚖️", "Balance des comptes", "Débit / crédit / solde par compte, contrôle d'équilibre", "acctbalance")}
-      ${tile("📋", "Plan comptable", "Comptes OHADA, journaux, taux de TVA", "acctplan")}
-      ${tile("👥", "Comptes tiers", "Clients (411) et fournisseurs (401), soldes et relevés", "accttiers")}
-      ${tile("🔎", "Recherche d'écritures", "Retrouver une écriture par compte, tiers, montant, libellé…", "acctsearch")}
-      ${tile("🏦", "Rapprochement bancaire", "Importer un relevé (CSV) et pointer les mouvements de banque", "acctbank")}
-      ${tile("📑", "États tiers", "Balance, grand-livre et relevés imprimables par tiers", "accttierstates")}
-      ${tile("📥", "Import Sage / FEC", "Reprendre plan comptable, tiers et écritures (fichier FEC / CSV)", "acctimport")}
-      ${tile("🧾", "Écritures automatiques", "Générées depuis Facturation & Paie (phase C2)", "acctsaisie")}
-    </div>`;
+      <div class="panel"><b>Produits vs charges — 12 mois</b><div style="height:230px;margin-top:6px"><canvas id="dashPC"></canvas></div></div>
+      <div class="panel"><b>Trésorerie — 12 mois</b><div style="height:230px;margin-top:6px"><canvas id="dashTreso"></canvas></div></div></div>
+    <div class="grid2">
+      <div class="panel"><b>À traiter</b><div style="margin-top:6px">
+        ${todoItem(t.draftUnbalanced,"Écritures brouillon non équilibrées","acctsaisie",true)}
+        ${todoItem(t.draftTotal,"Écritures en brouillon","acctsaisie")}
+        ${todoItem(t.invNonCompta,"Factures validées non comptabilisées","invoices",true)}
+        ${todoItem(t.payNonCompta,"Paies clôturées non comptabilisées","payroll",true)}
+        ${todoItem(t.bankUnpointed,"Lignes de relevé non pointées","acctbank")}</div></div>
+      <div class="panel"><b>Balance âgée clients</b><div style="height:210px;margin-top:6px"><canvas id="dashAged"></canvas></div></div></div>
+    <div class="grid2">
+      <div class="panel"><b>Top débiteurs (clients)</b><table style="margin-top:6px"><tr><th>Code</th><th>Nom</th><th class="r">Solde</th><th></th></tr>${tierRows(d.topDebtors)}</table></div>
+      <div class="panel"><b>Top créditeurs (fournisseurs)</b><table style="margin-top:6px"><tr><th>Code</th><th>Nom</th><th class="r">Solde</th><th></th></tr>${tierRows(d.topCreditors)}</table></div></div>
+    <h3 style="margin:14px 0 6px">Accès rapides</h3>
+    <div class="grid2">
+      ${tile("✏️","Saisie des écritures","Grille débit / crédit par journal","acctsaisie")}
+      ${tile("⚖️","Balance des comptes","Débit / crédit / solde par compte","acctbalance")}
+      ${tile("📋","Plan comptable","Comptes OHADA, journaux, taux de TVA","acctplan")}
+      ${tile("👥","Comptes tiers","Clients, fournisseurs, salariés — soldes et relevés","accttiers")}
+      ${tile("🔎","Recherche d'écritures","Par compte, tiers, montant, libellé…","acctsearch")}
+      ${tile("🏦","Rapprochement bancaire","Importer un relevé (CSV) et pointer","acctbank")}
+      ${tile("📑","États tiers","Balance, grand-livre, relevés imprimables","accttierstates")}
+      ${tile("📥","Import Sage / FEC","Reprendre plan, tiers et écritures","acctimport")}</div>`;
+  const ok=await ensureChartJs();
+  if(ok && window.Chart){
+    const gc=(id)=>{ const el=document.getElementById(id); return el?el.getContext("2d"):null; };
+    const opt=(leg)=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:leg,position:"bottom"}},scales:{y:{ticks:{callback:v=>Number(v).toLocaleString("fr-FR")}}}});
+    try{
+      new Chart(gc("dashPC"),{type:"bar",data:{labels:d.trend.months,datasets:[
+        {label:"Produits",data:d.trend.produits,backgroundColor:"#10b981"},
+        {label:"Charges",data:d.trend.charges,backgroundColor:"#ef4444"}]},options:opt(true)});
+      new Chart(gc("dashTreso"),{type:"line",data:{labels:d.trend.months,datasets:[
+        {label:"Trésorerie",data:d.trend.tresorerie,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.12)",fill:true,tension:.3}]},options:opt(false)});
+      new Chart(gc("dashAged"),{type:"bar",data:{labels:["0–30 j","31–60","61–90","> 90"],datasets:[
+        {label:"Créances",data:[d.aged.b0,d.aged.b30,d.aged.b60,d.aged.b90],backgroundColor:["#10b981","#f59e0b","#f97316","#ef4444"]}]},options:opt(false)});
+    }catch(e){ console.warn("charts",e); }
+  }
 }
+
 async function acctPlanView() {
   const [accs, jrs, taxes] = await Promise.all([api("/accounting/accounts"), api("/accounting/journals"), api("/accounting/taxes")]);
   ACCT_ACCOUNTS = accs; ACCT_JOURNALS = jrs;

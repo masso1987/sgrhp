@@ -647,6 +647,73 @@ router.post("/import/entries", allow("ADM","CD"), (req,res)=>{
   res.json({ok:true,imported,duplicates:dup,empty,unbalanced,groups:Object.keys(groups).length});
 });
 
+/* ==================== Tableau de bord (dashboard) ==================== */
+router.get("/dashboard", allow("ADM","CD","RJ"), (req,res)=>{
+  seedAccounting(req.user.tenantId||"t1");
+  const entries=mine(db.acctEntries,req).filter(e=>e.status!=="draft");
+  const ex=mine(db.acctExercises,req).find(x=>x.current)||mine(db.acctExercises,req).sort((a,b)=>b.year-a.year)[0]||null;
+  const exYear = ex ? String(ex.year) : new Date().toISOString().slice(0,4);
+  // aggregate whole-ledger
+  let prod=0,charge=0,tvaC=0,tvaD=0,treso=0,creances=0,dettes=0,caEx=0;
+  for(const e of entries){ const inEx=(e.period||"").slice(0,4)===exYear;
+    for(const l of (e.lines||[])){ const a=String(l.account); const d=R2(l.debit),c=R2(l.credit); const net=d-c;
+      if(a[0]==="7"){ prod+=-net; if(inEx) caEx+=-net; }
+      if(a[0]==="6") charge+=net;
+      if(a.startsWith("443")) tvaC+=-net;
+      if(a.startsWith("445")) tvaD+=net;
+      if(a[0]==="5") treso+=net;
+      if(a.startsWith("411")) creances+=net;
+      if(a.startsWith("401")) dettes+=-net;
+    } }
+  // 12-month trend
+  const months=[]; const now=new Date();
+  for(let i=11;i>=0;i--){ const dt=new Date(now.getFullYear(),now.getMonth()-i,1); months.push(dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")); }
+  const mIdx={}; months.forEach((m,i)=>mIdx[m]=i);
+  const trendProd=months.map(()=>0), trendCharge=months.map(()=>0), trendTreso=months.map(()=>0);
+  // monthly treasury delta then cumulative
+  const tresoDelta={};
+  for(const e of entries){ const m=(e.period||e.date||"").slice(0,7);
+    for(const l of (e.lines||[])){ const a=String(l.account); const net=R2(l.debit)-R2(l.credit);
+      if(mIdx[m]!==undefined){ if(a[0]==="7") trendProd[mIdx[m]]+=-net; if(a[0]==="6") trendCharge[mIdx[m]]+=net; }
+      if(a[0]==="5") tresoDelta[m]=(tresoDelta[m]||0)+net;
+    } }
+  // cumulative treasury balance at each month-end (walk chronological union of all months)
+  const union=[...new Set([...Object.keys(tresoDelta),...months])].sort();
+  let run=0; const cumAll={};
+  for(const m of union){ run+=(tresoDelta[m]||0); cumAll[m]=run; }
+  months.forEach((m,i)=>{ trendTreso[i]=R2(cumAll[m]); });
+  // à-traiter
+  const draftUnbalanced = mine(db.acctEntries,req).filter(e=>{ if(e.status!=="draft")return false; const t=entryTotals(e); return !t.balanced; }).length;
+  const draftTotal = mine(db.acctEntries,req).filter(e=>e.status==="draft").length;
+  const invNonCompta = mine(db.billingInvoices||[],req).filter(i=>i.status==="validated" && !i.acctEntryId).length;
+  const payNonCompta = mine(db.payRuns||[],req).filter(r=>(r.status==="closed"||r.closed) && !r.acctEntryId).length;
+  // bank unpointed across class-5 accounts
+  const matchedBank=new Set(mine(db.acctBankMatches,req).map(m=>m.bankLineId));
+  const bankUnpointed = mine(db.acctBankLines,req).filter(b=>!matchedBank.has(b.id)).length;
+  // top tiers
+  const tp={};
+  for(const e of entries){ for(const l of (e.lines||[])){ const a=String(l.account); if(!l.thirdParty) continue;
+    if(!a.startsWith("411")&&!a.startsWith("401")) continue;
+    const g=(tp[l.thirdParty]=tp[l.thirdParty]||{code:l.thirdParty,cli:0,fou:0});
+    if(a.startsWith("411")) g.cli+=R2(l.debit)-R2(l.credit); else g.fou+=R2(l.credit)-R2(l.debit); } }
+  const ref={}; for(const t of mine(db.acctThirdParties,req)) ref[t.code]=t.name;
+  const topDebtors=Object.values(tp).filter(g=>g.cli>0).sort((a,b)=>b.cli-a.cli).slice(0,5).map(g=>({code:g.code,name:ref[g.code]||"",solde:R2(g.cli)}));
+  const topCreditors=Object.values(tp).filter(g=>g.fou>0).sort((a,b)=>b.fou-a.fou).slice(0,5).map(g=>({code:g.code,name:ref[g.code]||"",solde:R2(g.fou)}));
+  // aged (clients) snapshot
+  const nowD=new Date(); const aged={b0:0,b30:0,b60:0,b90:0};
+  for(const e of entries){ for(const l of (e.lines||[])){ if(!String(l.account).startsWith("411"))continue;
+    const mv=R2(l.debit)-R2(l.credit); if(mv<=0)continue;
+    const due=l.dueDate?new Date(l.dueDate):(e.date?new Date(e.date):nowD); const days=Math.floor((nowD-due)/86400000);
+    if(days<=30)aged.b0+=mv; else if(days<=60)aged.b30+=mv; else if(days<=90)aged.b60+=mv; else aged.b90+=mv; } }
+  res.json({
+    kpi:{ resultat:R2(prod-charge), tresorerie:R2(treso), tva:R2(tvaC-tvaD), creances:R2(creances), dettes:R2(dettes), ca:R2(caEx) },
+    exercice: ex ? {year:ex.year,status:ex.status,start:ex.start,end:ex.end} : null,
+    trend:{ months, produits:trendProd.map(R2), charges:trendCharge.map(R2), tresorerie:trendTreso },
+    todo:{ draftUnbalanced, draftTotal, invNonCompta:invNonCompta, payNonCompta, bankUnpointed },
+    topDebtors, topCreditors, aged:{b0:R2(aged.b0),b30:R2(aged.b30),b60:R2(aged.b60),b90:R2(aged.b90)}
+  });
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
