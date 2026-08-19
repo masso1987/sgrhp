@@ -833,19 +833,27 @@ function logout() { sessionStorage.clear(); TOKEN = null; ME = null; location.hr
 
 const NAV = [
   { k: "tenants", label: "🏢 Tenants (plateforme)", roles: ["SADM"], grp: "plateforme" },
-  { k: "dash", label: "▦ Tableau de bord", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
-  { k: "employees", label: "👥 Employés", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "dataio", label: "⇅ Import / Export", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "queue", label: "✓ File de validation", roles: ["CD","RJ"], grp: "principal" },
+
+  { k: "dash", label: "▦ Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
+  { k: "employees", label: "👥 Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "generated", label: "🖨 Documents générés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
+  { k: "dataio", label: "⇅ Import / Export", sec: "Données & validation", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "queue", label: "✓ File de validation", sec: "Données & validation", roles: ["CD","RJ"], grp: "principal" },
+
   { k: "fiches", label: "📋 Fiches de poste", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
   { k: "grid", label: "💰 Grille salariale", roles: ["GPF","CD","ADM"], grp: "rh" },
   { k: "career", label: "📈 Career & Perf.", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
+
   { k: "reports", label: "📊 Reports & KPIs", roles: ["CD","RJ","ADM"], grp: "rapports" },
-  { k: "generated", label: "🖨 Documents générés", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
-  { k: "payroll", label: "💵 Paie", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
-  { k: "payconfig", label: "⚙️ Paramètres paie", roles: ["ADM"], module: "payroll", grp: "paie" },
-  { k: "billing", label: "🧾 Facturation (annexes)", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
-  { k: "invoices", label: "🧾 Factures", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
+  { k: "audit", label: "🕘 Journal d'audit", roles: ["CD","RJ","ADM","SADM"], grp: "rapports" },
+
+  { k: "payroll", label: "💵 Bulletins & traitements", sec: "Traitement", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
+  { k: "payconfig", label: "⚙️ Paramètres paie", sec: "Paramétrage", roles: ["ADM"], module: "payroll", grp: "paie" },
+
+  { k: "billing", label: "🧾 Annexes de facturation", sec: "Documents", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
+  { k: "invoices", label: "🧾 Factures", sec: "Documents", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
+  { k: "billingcfg", label: "⚙️ Config facturation", sec: "Configuration", roles: ["ADM"], module: "invoicing", grp: "facturation" },
+
   { k: "acct", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctsaisie", label: "✏️ Saisie des écritures", sec: "Saisie & suivi", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctsearch", label: "🔎 Recherche d'écritures", sec: "Saisie & suivi", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
@@ -860,15 +868,14 @@ const NAV = [
   { k: "acctjournals", label: "📓 Codes journaux", sec: "Structure", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "accttiers", label: "👥 Comptes tiers", sec: "Structure", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctimport", label: "📥 Import Sage / FEC", sec: "Données", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
-  { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
-  { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
-  { k: "settings", label: "🛠 Référentiels", roles: ["ADM"], grp: "admin" },
-  { k: "params", label: "🔧 Paramètres", roles: ["ADM"], grp: "admin" },
-  { k: "mailtpl", label: "✉️ Notifications email", roles: ["ADM"], grp: "admin" },
-  { k: "account", label: "👤 Mon compte", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
-  { k: "portfolios", label: "⚙ Config. portefeuilles", roles: ["ADM"], grp: "admin" },
-  { k: "users", label: "🔐 Utilisateurs", roles: ["ADM"], grp: "admin" },
-  { k: "audit", label: "🕘 Journal d'audit", roles: ["CD","RJ","ADM","SADM"], grp: "rapports" },
+
+  { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
+  { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
+  { k: "settings", label: "🛠 Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
+  { k: "portfolios", label: "⚙ Config. portefeuilles", sec: "Configuration", roles: ["ADM"], grp: "admin" },
+  { k: "templates", label: "📄 Modèles de documents", sec: "Configuration", roles: ["ADM"], grp: "admin" },
+  { k: "mailtpl", label: "✉️ Notifications email", sec: "Configuration", roles: ["ADM"], grp: "admin" },
+  { k: "users", label: "🔐 Utilisateurs", sec: "Sécurité & accès", roles: ["ADM"], grp: "admin" },
 ];
 const NAV_GROUPS = [
   { g: "principal", label: "Principal" },
