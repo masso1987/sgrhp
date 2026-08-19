@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockMovements"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockMovements"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -41,7 +41,57 @@ function crud(path, col, fields, keyField, roleWrite) {
 }
 crud("categories", "stockCategories", ["name"], "name", ["ADM", "CD", "GPF"]);
 crud("units", "stockUnits", ["name", "shortName", "allowDecimal"], "name", ["ADM", "CD", "GPF"]);
-crud("suppliers", "stockSuppliers", ["name", "contact", "phone", "email", "address"], "name", ["ADM", "CD", "GPF"]);
+
+/* ============================ CONTACTS (fournisseurs & clients) ============================ */
+const CONTACT_FIELDS = ["type", "entityType", "contactId", "name", "firstName", "mobile", "altPhone", "landline", "email",
+  "taxId", "openingBalance", "paymentTerms", "address1", "address2", "city", "wilaya", "country", "postalCode", "note",
+  "custom1", "custom2", "custom3", "custom4", "custom5", "custom6", "custom7", "custom8", "custom9", "custom10"];
+function nextContactId(req, type) {
+  const pre = type === "client" ? "CLI" : "FRN";
+  const used = new Set(mine(db.stockContacts, req).map(c => c.contactId));
+  let n = mine(db.stockContacts, req).filter(c => (c.type || "fournisseur") === type).length + 1;
+  let cid; do { cid = pre + String(n).padStart(4, "0"); n++; } while (used.has(cid));
+  return cid;
+}
+router.get("/contacts", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  let list = mine(db.stockContacts, req);
+  if (req.query.type) list = list.filter(c => (c.type || "fournisseur") === req.query.type);
+  const q = (req.query.q || "").toLowerCase();
+  if (q) list = list.filter(c => ((c.name || "") + " " + (c.contactId || "") + " " + (c.mobile || "")).toLowerCase().includes(q));
+  res.json(list.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
+});
+router.get("/contacts/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Contact introuvable" });
+  res.json(c);
+});
+router.post("/contacts", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; if (!b.name) return res.status(400).json({ error: "Nom obligatoire" });
+  const type = b.type === "client" ? "client" : "fournisseur";
+  let cid = String(b.contactId || "").trim();
+  if (cid && mine(db.stockContacts, req).some(c => c.contactId === cid)) return res.status(409).json({ error: "ID de contact déjà utilisé : " + cid });
+  if (!cid) cid = nextContactId(req, type);
+  const rec = { id: id("ctc"), createdAt: new Date().toISOString() };
+  for (const fld of CONTACT_FIELDS) if (b[fld] !== undefined) rec[fld] = b[fld];
+  rec.type = type; rec.contactId = cid; rec.openingBalance = R2(b.openingBalance);
+  db.stockContacts.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "StockContact", rec.id, { type, name: rec.name }); res.status(201).json(rec);
+});
+router.put("/contacts/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+  const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Contact introuvable" });
+  const b = req.body || {};
+  for (const fld of CONTACT_FIELDS) if (fld !== "contactId" && fld !== "type" && b[fld] !== undefined) c[fld] = b[fld];
+  if (b.openingBalance !== undefined) c.openingBalance = R2(b.openingBalance);
+  save(); res.json(c);
+});
+router.delete("/contacts/:id", allow("ADM", "CD"), (req, res) => {
+  const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
+  db.stockContacts.splice(db.stockContacts.indexOf(c), 1); save(); res.json({ ok: true });
+});
+// Back-compat alias: suppliers = contacts of type fournisseur
+router.get("/suppliers", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  res.json(mine(db.stockContacts, req).filter(c => (c.type || "fournisseur") === "fournisseur").sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
+});
 
 function prodOut(p, req) {
   const cat = mine(db.stockCategories, req).find(c => c.id === p.categoryId);

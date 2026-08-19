@@ -877,6 +877,7 @@ const NAV = [
   { k: "stockadjust", label: "⚖️ Ajustement", sec: "Mouvements", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Mouvements", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
 
   { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -975,7 +976,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -5793,10 +5794,11 @@ async function acctJournalSave(id){
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};
 async function stockLoadRefs(){
-  const [cats,units,sups,prods]=await Promise.all([
+  const [cats,units,sups,clients,prods]=await Promise.all([
     api("/stock/categories").catch(()=>[]), api("/stock/units").catch(()=>[]),
-    api("/stock/suppliers").catch(()=>[]), api("/stock/products").catch(()=>[])]);
-  window._STK={cats,units,sups,prods};
+    api("/stock/contacts?type=fournisseur").catch(()=>[]), api("/stock/contacts?type=client").catch(()=>[]),
+    api("/stock/products").catch(()=>[])]);
+  window._STK={cats,units,sups,clients,prods};
 }
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
@@ -5903,12 +5905,12 @@ function stkRefView(opts){
 }
 const STK_REF={
   categories:{title:"🗃️ Catégories",ep:"categories",cols:[{k:"name",l:"Nom"}],fields:[{k:"name",l:"Nom",type:"text"}]},
-  units:{title:"📐 Unités",ep:"units",cols:[{k:"name",l:"Nom"},{k:"shortName",l:"Abrégé"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"shortName",l:"Nom court",type:"text"}]},
-  suppliers:{title:"🚚 Fournisseurs",ep:"suppliers",cols:[{k:"name",l:"Nom"},{k:"phone",l:"Téléphone"},{k:"email",l:"Email"}],fields:[{k:"name",l:"Nom / raison sociale",type:"text"},{k:"contact",l:"Contact",type:"text"},{k:"phone",l:"Téléphone",type:"text"},{k:"email",l:"Email",type:"text"},{k:"address",l:"Adresse",type:"text"}]},
+  units:{title:"📐 Unités",ep:"units",cols:[{k:"name",l:"Nom"},{k:"shortName",l:"Abrégé"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"shortName",l:"Nom court",type:"text"}]}
 };
 const stockCatsView=stkRefView(STK_REF.categories);
 const stockUnitsView=stkRefView(STK_REF.units);
-const stockSuppliersView=stkRefView(STK_REF.suppliers);
+const stockSuppliersView=()=>stockContactsView("fournisseur");
+const stockClientsView=()=>stockContactsView("client");
 function stkRefModal(ep,id){
   const cfg=STK_REF[ep]; const list=window["_stkref_"+ep]||[]; const r=id?(list.find(x=>x.id===id)||{}):{};
   const bg=document.createElement("div"); bg.className="modal-bg";
@@ -5972,7 +5974,7 @@ async function stockOutView(){
     <h1 style="margin-top:10px">⬆ Sortie de stock (vente / consommation)</h1>
     <div class="panel"><div class="grid3">
       <div><label>Date</label><input id="outDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
-      <div><label>Client / destination</label><input id="outCust" placeholder="ex. client, chantier, service"></div>
+      <div><label>Client / destination</label><select id="outCust"><option value="">— libre / interne —</option>${(window._STK.clients||[]).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}${c.contactId?" ("+esc(c.contactId)+")":""}</option>`).join("")}</select></div>
       <div><label>N° pièce / réf</label><input id="outRef"></div>
     </div><div id="stkLines" style="margin-top:8px"></div>
     <label class="chk" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="outNeg" style="width:auto;margin:0"> autoriser le stock négatif</label>
@@ -6032,6 +6034,81 @@ async function stockMovesView(){
         <td class="r">${fCFA(m.unitCost)}</td><td>${esc(m.ref||'')}</td><td>${esc(m.reason||m.customer||m.note||'')}</td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
       </table></div>`;
 }
+
+/* ---- Contacts riches (fournisseurs / clients) ---- */
+async function stockContactsView(type){
+  window._ctcType=type;
+  const q=(window._ctcQ||"").toLowerCase();
+  let list=await api("/stock/contacts?type="+type).catch(()=>[]);
+  window._STKCTC=list;
+  if(q) list=list.filter(c=>((c.name||"")+" "+(c.contactId||"")+" "+(c.mobile||"")).toLowerCase().includes(q));
+  const isC=type==="client";
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">${isC?'🧑‍💼 Clients':'🚚 Fournisseurs'}</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input placeholder="Rechercher nom / ID / mobile…" value="${esc(window._ctcQ||'')}" oninput="window._ctcQ=this.value" onkeydown="if(event.key==='Enter')stockContactsView('${type}')" style="margin:0;min-width:220px">
+        <span style="flex:1"></span><button class="btn p sm" onclick="stockContactModal('${type}')">+ ${isC?'Client':'Fournisseur'}</button></div>
+      <table style="margin-top:8px"><tr><th>ID</th><th>Nom / raison sociale</th><th>Type</th><th>Mobile</th><th>Email</th><th>NIF</th><th class="r">Solde ouv.</th><th></th></tr>
+      ${list.length?list.map(c=>`<tr><td><code>${esc(c.contactId||'')}</code></td><td>${esc(c.name||'')}</td>
+        <td>${c.entityType==='company'?'<span class="tag gray">Entreprise</span>':'<span class="tag gray">Individuel</span>'}</td>
+        <td>${esc(c.mobile||'')}</td><td>${esc(c.email||'')}</td><td>${esc(c.taxId||'')}</td><td class="r">${fCFA(c.openingBalance)}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="stockContactModal('${type}','${c.id}')">✏️</button>
+          <button class="btn ghost sm" onclick="stockContactDelete('${type}','${c.id}')">✕</button></td></tr>`).join(""):`<tr><td colspan="8" style="color:var(--muted)">Aucun ${isC?'client':'fournisseur'}.</td></tr>`}
+      </table></div>`;
+}
+function stockContactModal(type,id){
+  const c=id?((window._STKCTC||[]).find(x=>x.id===id)||{}):{type,entityType:"company",country:"Cameroun"};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const et=(v,l)=>`<label style="display:inline-flex;gap:4px;align-items:center;margin-right:14px"><input type="radio" name="ctEnt" value="${v}" ${(c.entityType||'company')===v?'checked':''} style="width:auto;margin:0"> ${l}</label>`;
+  const custom=[];
+  for(let i=1;i<=10;i++) custom.push(`<div><label>Champ personnalisé ${i}</label><input id="ct_custom${i}" value="${esc(c['custom'+i]||'')}"></div>`);
+  bg.innerHTML=`<div class="modal" style="width:760px;max-height:88vh;overflow:auto"><h3 style="margin:0 0 8px">${id?'Modifier':'Nouveau'} ${type==='client'?'client':'fournisseur'}</h3>
+    <div class="grid3">
+      <div><label>Type de contact</label><select id="ct_type"><option value="fournisseur" ${c.type!=='client'?'selected':''}>Fournisseur</option><option value="client" ${c.type==='client'?'selected':''}>Client</option></select></div>
+      <div style="align-self:end;padding-bottom:6px">${et('individual','Individuel')}${et('company','Entreprise')}</div>
+      <div><label>ID de contact <span class="note">(auto si vide)</span></label><input id="ct_contactId" value="${esc(c.contactId||'')}" ${id?'disabled':''}></div>
+    </div>
+    <div class="grid2"><div><label>Nom / raison sociale *</label><input id="ct_name" value="${esc(c.name||'')}"></div>
+      <div><label>Prénom (si individuel)</label><input id="ct_firstName" value="${esc(c.firstName||'')}"></div></div>
+    <div class="grid2" style="margin-top:2px">
+      <div><label>Mobile *</label><input id="ct_mobile" value="${esc(c.mobile||'')}"></div>
+      <div><label>Numéro alternatif</label><input id="ct_altPhone" value="${esc(c.altPhone||'')}"></div>
+      <div><label>Ligne fixe</label><input id="ct_landline" value="${esc(c.landline||'')}"></div>
+      <div><label>Email</label><input id="ct_email" value="${esc(c.email||'')}"></div></div>
+    <b style="font-size:12px;color:var(--muted);display:block;margin-top:10px">INFORMATIONS COMMERCIALES</b>
+    <div class="grid3">
+      <div><label>Numéro d'identification fiscale (NIF/NIU)</label><input id="ct_taxId" value="${esc(c.taxId||'')}"></div>
+      <div><label>Solde d'ouverture (FCFA)</label><input id="ct_openingBalance" type="number" value="${c.openingBalance||0}"></div>
+      <div><label>Conditions de paiement</label><input id="ct_paymentTerms" value="${esc(c.paymentTerms||'')}" placeholder="ex. 30 j fin de mois"></div></div>
+    <b style="font-size:12px;color:var(--muted);display:block;margin-top:10px">ADRESSE</b>
+    <div class="grid2"><div><label>Adresse 1</label><input id="ct_address1" value="${esc(c.address1||'')}"></div>
+      <div><label>Adresse ligne 2</label><input id="ct_address2" value="${esc(c.address2||'')}"></div></div>
+    <div class="grid2" style="margin-top:2px"><div><label>Ville</label><input id="ct_city" value="${esc(c.city||'')}"></div>
+      <div><label>Région / Wilaya</label><input id="ct_wilaya" value="${esc(c.wilaya||'')}"></div>
+      <div><label>Pays</label><input id="ct_country" value="${esc(c.country||'')}"></div>
+      <div><label>Code postal</label><input id="ct_postalCode" value="${esc(c.postalCode||'')}"></div></div>
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--muted)">CHAMPS PERSONNALISÉS (1–10)</summary>
+      <div class="grid3" style="margin-top:6px">${custom.join("")}</div></details>
+    <div class="err hidden" id="ctErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockContactSave('${id||''}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function stockContactSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const ent=(document.querySelector('input[name="ctEnt"]:checked')||{}).value||"company";
+  const body={type:g("ct_type"),entityType:ent,contactId:g("ct_contactId"),name:g("ct_name"),firstName:g("ct_firstName"),
+    mobile:g("ct_mobile"),altPhone:g("ct_altPhone"),landline:g("ct_landline"),email:g("ct_email"),
+    taxId:g("ct_taxId"),openingBalance:g("ct_openingBalance"),paymentTerms:g("ct_paymentTerms"),
+    address1:g("ct_address1"),address2:g("ct_address2"),city:g("ct_city"),wilaya:g("ct_wilaya"),country:g("ct_country"),postalCode:g("ct_postalCode")};
+  for(let i=1;i<=10;i++) body["custom"+i]=g("ct_custom"+i);
+  try{ if(id) await api("/stock/contacts/"+id,{method:"PUT",body:JSON.stringify(body)});
+    else await api("/stock/contacts",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); stockContactsView(body.type); }
+  catch(e){ const el=document.getElementById("ctErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockContactDelete(type,id){ if(!confirm("Supprimer ce contact ?")) return;
+  try{ await api("/stock/contacts/"+id,{method:"DELETE"}); stockContactsView(type); }catch(e){ alert(e.message); } }
 
 </script>
 </body>
