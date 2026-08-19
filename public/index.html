@@ -852,6 +852,7 @@ const NAV = [
   { k: "acctcloture", label: "🔒 Clôture & fiscal", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctanalytic", label: "📈 Analytique & budget", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
+  { k: "acctjournals", label: "📓 Codes journaux", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "accttiers", label: "👥 Comptes tiers", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctsearch", label: "🔎 Recherche d'écritures", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctbank", label: "🏦 Rapprochement bancaire", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
@@ -949,7 +950,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4855,7 +4856,7 @@ async function acctPlanView() {
         : '<tr><td colspan="5" style="color:var(--muted)">Aucun compte pour ce filtre.</td></tr>'}
       </table></div>
     <div class="grid2">
-      <div class="panel"><b>Journaux (${jrs.length})</b> <button class="btn ghost sm" style="float:right" onclick="go('acctplan')">Gérer →</button>
+      <div class="panel"><b>Journaux (${jrs.length})</b> <button class="btn ghost sm" style="float:right" onclick="go('acctjournals')">Gérer →</button>
         <table style="margin-top:8px"><tr><th>Code</th><th>Intitulé</th><th>Type</th></tr>
         ${jrs.map(j => `<tr><td><code>${esc(j.code)}</code></td><td>${esc(j.label)}</td><td>${esc(j.type)}</td></tr>`).join("")}</table>
         <div class="note" style="margin-top:6px">Gestion complète des journaux : menu « Codes journaux ».</div></div>
@@ -4908,7 +4909,7 @@ async function acctSaisieView() {
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">✏️ Saisie des écritures</h1>
     <div class="panel"><div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-      <div><label>Journal</label><select id="saJr" onchange="window._acctJournal=this.value;acctSaisieView()">${ACCT_JOURNALS.map(j => `<option value="${j.code}" ${j.code === jr ? "selected" : ""}>${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
+      <div><label>Journal</label><select id="saJr" onchange="window._acctJournal=this.value;acctSaisieView()">${ACCT_JOURNALS.filter(j=>j.active!==false||j.code===jr).map(j => `<option value="${j.code}" ${j.code === jr ? "selected" : ""}>${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
       <div><label>Période</label><input id="saPer" type="month" value="${period}" onchange="window._acctPeriod=this.value;acctSaisieView()"></div>
       <button class="btn p sm" onclick="acctEntryModal()">+ Nouvelle écriture</button></div></div>
     <div class="panel"><table><tr><th>Pièce</th><th>Date</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th>Statut</th><th></th></tr>
@@ -4954,7 +4955,7 @@ async function acctEntryModal(id) {
   bg.innerHTML = `<div class="modal" style="width:780px"><h3 style="margin:0 0 6px">${id ? "Écriture " + esc(ACCT_ENTRY.pieceNo || "") : "Nouvelle écriture"}
     ${ACCT_ENTRY.status === "validated" ? '<span class="tag green">Validée</span>' : locked ? '<span class="tag gray">Clôturée</span>' : ''}</h3>
     <div class="grid3">
-      <div><label>Journal</label><select id="aeJr" ${id ? "disabled" : ""}>${ACCT_JOURNALS.map(j => `<option value="${j.code}" ${j.code === ACCT_ENTRY.journalCode ? "selected" : ""}>${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
+      <div><label>Journal</label><select id="aeJr" ${id ? "disabled" : ""}>${ACCT_JOURNALS.filter(j=>j.active!==false||j.code===ACCT_ENTRY.journalCode).map(j => `<option value="${j.code}" ${j.code === ACCT_ENTRY.journalCode ? "selected" : ""}>${esc(j.code)} — ${esc(j.label)}</option>`).join("")}</select></div>
       <div><label>Date</label><input id="aeDate" type="date" value="${esc(ACCT_ENTRY.date || "")}"></div>
       <div><label>Libellé de la pièce</label><input id="aeLabel" value="${esc(ACCT_ENTRY.label || "")}"></div>
     </div>
@@ -5664,6 +5665,66 @@ async function acctImpDoImport(){
     alert("Import terminé.\n"+msg);
     document.getElementById("impPrevBox").innerHTML=`<div class="panel"><b>✓ Import terminé</b><div class="note" style="margin-top:4px">${esc(msg)}</div></div>`;
   }catch(e){ alert("Erreur : "+e.message); }
+}
+
+/* ---- Comptabilité : Codes journaux (assistant Sage-style) ---- */
+const JR_TYPES=[["achat","Achats"],["vente","Ventes"],["tresorerie","Trésorerie"],["general","Général"],["situation","Situation"],
+  ["banque","Banque"],["caisse","Caisse"],["od","Opérations diverses"],["anouveaux","À-nouveaux"],["cloture","Clôture"]];
+function jrTypeLabel(t){ const f=JR_TYPES.find(x=>x[0]===t); return f?f[1]:(t||"—"); }
+async function acctJournalsView(){
+  const jrs=await api("/accounting/journals").catch(()=>[]);
+  ACCT_JOURNALS=jrs;
+  const flt=window._acctJrF||"actifs"; const q=(window._acctJrQ||"").toLowerCase();
+  let rows=jrs.filter(j=>flt==="tous"?true:flt==="sommeil"?(j.active===false):(j.active!==false));
+  if(q) rows=rows.filter(j=>(j.code+" "+(j.label||"")).toLowerCase().includes(q));
+  const seg=(v,l)=>`<button class="btn ${flt===v?'p':'ghost'} sm" onclick="window._acctJrF='${v}';acctJournalsView()">${l}</button>`;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">📓 Codes journaux</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${seg('actifs','Actifs')} ${seg('sommeil','En sommeil')} ${seg('tous','Tous')}
+        <input placeholder="Rechercher code / intitulé…" value="${esc(window._acctJrQ||'')}" oninput="window._acctJrQ=this.value" onkeydown="if(event.key==='Enter')acctJournalsView()" style="margin:0;min-width:220px">
+        <span style="flex:1"></span>
+        <button class="btn p sm" onclick="acctJournalModal()">+ Nouveau journal</button></div>
+      <table style="margin-top:8px"><tr><th>Type</th><th>Code</th><th>Intitulé du journal</th><th>Analytique</th><th>Statut</th><th></th></tr>
+      ${rows.length?rows.map(j=>`<tr${j.active===false?' style="opacity:.55"':''}>
+        <td><span class="tag gray">${esc(jrTypeLabel(j.type))}</span></td><td><code>${esc(j.code)}</code></td><td>${esc(j.label)}</td>
+        <td>${j.analytic?'<span class="tag" style="background:#0d9488;color:#fff">Oui</span>':'<span class="tag gray">Non</span>'}</td>
+        <td>${j.active===false?'<span class="tag" style="background:#9ca3af;color:#fff">En sommeil</span>':'<span class="tag green">Actif</span>'}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="acctJournalModal('${esc(j.id)}')">✏️</button>
+          <button class="btn ghost sm" onclick="acctJournalToggle('${j.id}',${j.active===false})">${j.active===false?'Réactiver':'Mettre en sommeil'}</button></td></tr>`).join("")
+        :'<tr><td colspan="6" style="color:var(--muted)">Aucun journal pour ce filtre.</td></tr>'}
+      </table></div>`;
+}
+async function acctJournalToggle(id,activate){ try{ await api("/accounting/journals/"+id,{method:"PUT",body:JSON.stringify({active:!!activate})}); acctJournalsView(); }catch(e){ alert(e.message); } }
+function acctJournalModal(id){
+  const j=id?(ACCT_JOURNALS.find(x=>x.id===id)||{}):{code:"",label:"",type:"achat",analytic:false,active:true};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const topt=JR_TYPES.slice(0,5).map(t=>`<option value="${t[0]}" ${((j.type||'achat')===t[0])?'selected':''}>${t[1]}</option>`).join("");
+  // if editing a journal whose type is outside the 5 Sage types, include it so it's preserved
+  const extra=(!JR_TYPES.slice(0,5).some(t=>t[0]===j.type)&&j.type)?`<option value="${esc(j.type)}" selected>${esc(jrTypeLabel(j.type))}</option>`:"";
+  bg.innerHTML=`<div class="modal" style="width:480px"><h3 style="margin:0 0 4px">${id?'Modifier le journal':'Assistant de création d\'un code journal'}</h3>
+    <div class="note">Le code et l'intitulé sont obligatoires.</div>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Type du journal</label><select id="jType">${extra}${topt}</select></div>
+      <div><label>Code</label><input id="jCode" value="${esc(j.code||'')}" ${id?'disabled':''} placeholder="ex. ACH" maxlength="10"></div>
+      <div style="grid-column:1/3"><label>Intitulé</label><input id="jLabel" value="${esc(j.label||'')}" placeholder="ex. Journal des achats"></div>
+      <div><label>Ventilation analytique</label><select id="jAna"><option value="0" ${!j.analytic?'selected':''}>Non</option><option value="1" ${j.analytic?'selected':''}>Oui</option></select></div>
+      <div><label>Statut</label><select id="jAct"><option value="1" ${j.active!==false?'selected':''}>Actif</option><option value="0" ${j.active===false?'selected':''}>En sommeil</option></select></div>
+    </div>
+    <div class="err hidden" id="jErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctJournalSave('${id||''}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function acctJournalSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const code=(g("jCode")||"").toUpperCase().trim();
+  if(!id && !code){ const el=document.getElementById("jErr"); el.textContent="Le code est obligatoire"; el.classList.remove("hidden"); return; }
+  const body={ code, label:g("jLabel"), type:g("jType"), analytic:g("jAna")==="1", active:g("jAct")!=="0" };
+  try{ if(id) await api("/accounting/journals/"+id,{method:"PUT",body:JSON.stringify(body)});
+    else await api("/accounting/journals",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); acctJournalsView(); }
+  catch(e){ const el=document.getElementById("jErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 
 </script>

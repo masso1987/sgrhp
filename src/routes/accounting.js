@@ -86,7 +86,7 @@ function crud(path, col, fields, keyField) {
   });
 }
 crud("accounts", "acctAccounts", ["number", "label", "type", "nature", "reportANouveau", "taxCode", "reportingAccount", "active"], "number");
-crud("journals", "acctJournals", ["code", "label", "type", "contraAccount"], "code");
+crud("journals", "acctJournals", ["code", "label", "type", "contraAccount", "analytic", "active"], "code");
 crud("taxes", "acctTaxes", ["code", "label", "rate", "account"], "code");
 crud("third-parties", "acctThirdParties", ["code", "name", "kind", "collectiveAccount", "terms", "niu", "rccm"], "code");
 
