@@ -403,7 +403,7 @@ router.get("/third-parties-usage", allow("ADM", "CD", "RJ"), (req, res) => {
     for (const l of (e.lines || [])) {
       const tp = l.thirdParty; if (!tp) continue;
       const acc = String(l.account);
-      const kind = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : "autre";
+      const kind = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : acc.startsWith("42") ? "salarie" : "autre";
       const g = (agg[tp] = agg[tp] || { code: tp, kind, debit: 0, credit: 0, count: 0 });
       g.debit += R2(l.debit); g.credit += R2(l.credit); g.count++;
     }
@@ -575,7 +575,7 @@ router.get("/tiers-ledger-all", allow("ADM", "CD", "RJ"), (req, res) => {
     for (const l of (e.lines || [])) {
       const tp = l.thirdParty; if (!tp) continue;
       const acc = String(l.account);
-      const k = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : "autre";
+      const k = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : acc.startsWith("42") ? "salarie" : "autre";
       if (kind !== "all" && k !== kind) continue;
       const g = (groups[tp] = groups[tp] || { code: tp, name: (ref[tp] || {}).name || "", kind: k, rows: [], debit: 0, credit: 0 });
       g.rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, account: l.account, label: l.label || e.label || "", dueDate: l.dueDate || "", lettre: l.lettre || "", debit: R2(l.debit), credit: R2(l.credit) });
@@ -596,7 +596,7 @@ function _ensureAccount(req,tid,number,label){ if(!number) return; number=String
 function _ensureJournal(req,code,label){ if(!code) return; if(mine(db.acctJournals,req).some(j=>j.code===code)) return;
   db.acctJournals.push(stamp({id:id("acc"),code,label:label||code,type:"od",contraAccount:"",createdAt:new Date().toISOString()},req)); }
 function _ensureTiers(req,code,name,account){ if(!code) return; if(mine(db.acctThirdParties,req).some(t=>String(t.code)===String(code))) return;
-  const acc=String(account||""); const kind=acc.startsWith("401")?"fournisseur":acc.startsWith("411")?"client":"";
+  const acc=String(account||""); const kind=acc.startsWith("401")?"fournisseur":acc.startsWith("411")?"client":acc.startsWith("42")?"salarie":"";
   db.acctThirdParties.push(stamp({id:id("acc"),code:String(code),name:name||"",kind,collectiveAccount:acc,createdAt:new Date().toISOString()},req)); }
 
 router.post("/import/accounts", allow("ADM","CD"), (req,res)=>{
@@ -612,7 +612,7 @@ router.post("/import/tiers", allow("ADM","CD"), (req,res)=>{
   const rows=Array.isArray((req.body||{}).rows)?req.body.rows:[]; let created=0, skipped=0;
   for(const r of rows){ const code=String(r.code||"").trim(); if(!code){skipped++;continue;}
     if(mine(db.acctThirdParties,req).some(t=>String(t.code)===code)){ skipped++; continue; }
-    const acc=String(r.collectiveAccount||""); const kind=r.kind||(acc.startsWith("401")?"fournisseur":acc.startsWith("411")?"client":"");
+    const acc=String(r.collectiveAccount||""); const kind=r.kind||(acc.startsWith("401")?"fournisseur":acc.startsWith("411")?"client":acc.startsWith("42")?"salarie":"");
     db.acctThirdParties.push(stamp({id:id("acc"),code,name:r.name||"",kind,collectiveAccount:acc,createdAt:new Date().toISOString()},req)); created++; }
   save(); audit(req.user,"IMPORTED","AcctThirdParties","",{created}); res.json({ok:true,created,skipped});
 });
