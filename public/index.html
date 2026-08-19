@@ -6257,17 +6257,62 @@ function plAdd(){ window._PL.push({productId:"",qty:"",unitCost:"",discountPct:"
 function plDel(i){ window._PL.splice(i,1); if(!window._PL.length) window._PL.push({productId:"",qty:"",unitCost:"",discountPct:""}); plRender(); }
 function plPick(i,v){ window._PL[i].productId=v; const p=(window._STK.prods||[]).find(x=>x.id===v); if(p&&!window._PL[i].unitCost){ const sk=['so','sale','quote','salesreturn']; window._PL[i].unitCost= sk.includes(window._PLKIND)?p.salePrice:p.purchasePrice; } plRender(); }
 function plSet(i,f,v){ window._PL[i][f]=v; plTotals(); }
+function plName(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); return p?p.name:"(produit supprimé)"; }
 function plRender(){
   const box=document.getElementById("plBox"); if(!box) return; const disc=!['return','salesreturn'].includes(window._PLKIND);
-  box.innerHTML=`<table><tr><th>Produit</th><th class="r">Quantité</th><th class="r">Coût unitaire</th>${disc?'<th class="r">Remise %</th>':''}<th class="r">Total ligne</th><th></th></tr>
-    ${window._PL.map((l,i)=>`<tr>
-      <td><select onchange="plPick(${i},this.value)" style="margin:0;min-width:220px">${plProdOpts(l.productId)}</select></td>
+  box.innerHTML=`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <input id="plSearch" placeholder="🔍 Entrez le nom du produit / SKU / code-barres…" value="${esc(window._plQ||'')}" oninput="window._plQ=this.value;plSearchRender()" onkeydown="if(event.key==='Enter'){event.preventDefault();plSearchAddFirst();}" style="margin:0;flex:1">
+      <button class="btn ghost sm" onclick="plNewProduct()">+ Nouveau produit</button></div>
+    <div id="plSearchRes"></div>
+    <table><tr><th>Produit</th><th class="r">Quantité</th><th class="r">Coût unitaire</th>${disc?'<th class="r">Remise %</th>':''}<th class="r">Total ligne</th><th></th></tr>
+    ${window._PL.length?window._PL.map((l,i)=>`<tr>
+      <td>${esc(plName(l.productId))}</td>
       <td><input type="number" value="${l.qty}" oninput="plSet(${i},'qty',this.value)" style="margin:0;max-width:90px;text-align:right"></td>
       <td><input type="number" value="${l.unitCost}" oninput="plSet(${i},'unitCost',this.value)" style="margin:0;max-width:110px;text-align:right"></td>
       ${disc?`<td><input type="number" value="${l.discountPct}" oninput="plSet(${i},'discountPct',this.value)" style="margin:0;max-width:70px;text-align:right"></td>`:''}
-      <td class="r" id="plnet${i}">${fCFA(plNet(l))}</td><td><button class="btn ghost sm" onclick="plDel(${i})">✕</button></td></tr>`).join("")}</table>
-    <button class="btn ghost sm" style="margin-top:6px" onclick="plAdd()">+ Ligne</button>`;
-  plTotals();
+      <td class="r" id="plnet${i}">${fCFA(plNet(l))}</td><td><button class="btn ghost sm" onclick="plDel(${i})">✕</button></td></tr>`).join(""):`<tr><td colspan="${disc?6:5}" style="color:var(--muted)">Recherchez un produit ci-dessus pour l'ajouter.</td></tr>`}</table>`;
+  plSearchRender(); plTotals();
+}
+function plSearchRender(){
+  const box=document.getElementById("plSearchRes"); if(!box) return; const q=(window._plQ||"").toLowerCase().trim();
+  if(!q){ box.innerHTML=""; return; }
+  const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
+  const sk=['so','sale','quote','salesreturn'].includes(window._PLKIND);
+  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="plAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">${fCFA(sk?(p.salePrice||0):(p.purchasePrice||0))} · stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit trouvé. <a onclick="plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._plQ)} »</a></div>`}</div>`;
+}
+function plAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); if(!p) return;
+  const sk=['so','sale','quote','salesreturn'].includes(window._PLKIND); const price=sk?(p.salePrice||0):(p.purchasePrice||0);
+  const ex=(window._PL||[]).find(l=>l.productId===id); if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._PL.push({productId:id,qty:1,unitCost:price,discountPct:""});
+  window._plQ=""; plRender();
+}
+function plSearchAddFirst(){ const q=(window._plQ||"").toLowerCase().trim(); if(!q) return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) plAddProduct(r.id); }
+function plNewProduct(){
+  const cats=window._STK.cats||[],units=window._STK.units||[];
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const sel=(arr,ph)=>`<option value="">${ph}</option>`+arr.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+  bg.innerHTML=`<div class="modal" style="width:520px"><h3 style="margin:0 0 8px">Nouveau produit</h3>
+    <div class="grid2">
+      <div><label>Nom (désignation) *</label><input id="npName" value="${esc(window._plQ||'')}"></div>
+      <div><label>SKU / référence</label><input id="npSku"></div>
+      <div><label>Catégorie</label><select id="npCat">${sel(cats,'—')}</select></div>
+      <div><label>Unité</label><select id="npUnit">${sel(units,'—')}</select></div>
+      <div><label>Prix d'achat</label><input id="npPP" type="number" value="0"></div>
+      <div><label>Prix de vente</label><input id="npSP" type="number" value="0"></div>
+    </div>
+    <div class="err hidden" id="npErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="plNewProductSave()">Créer et ajouter</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function plNewProductSave(){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={name:g("npName"),sku:g("npSku"),categoryId:g("npCat"),unitId:g("npUnit"),purchasePrice:g("npPP"),salePrice:g("npSP"),qty:0};
+  if(!body.name){ const e=document.getElementById("npErr"); e.textContent="Nom obligatoire"; e.classList.remove("hidden"); return; }
+  try{ const p=await api("/stock/products",{method:"POST",body:JSON.stringify(body)});
+    window._STK.prods=await api("/stock/products").catch(()=>window._STK.prods);
+    document.querySelector(".modal-bg").remove(); window._plQ=""; plAddProduct(p.id); }
+  catch(e){ const el=document.getElementById("npErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 function plTotals(){
   (window._PL||[]).forEach((l,i)=>{ const el=document.getElementById("plnet"+i); if(el) el.textContent=fCFA(plNet(l)); });
@@ -6326,7 +6371,7 @@ async function stockPOView(){
       </table></div>`;
 }
 function stockPOForm(){
-  window._PLKIND='po'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  window._PLKIND='po'; window._PL=[]; window._plQ="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpo')">← Bons de commande</button>
     <h1 style="margin-top:10px">Ajouter un bon de commande</h1>
     <div class="panel">${plHeaderHtml('po')}
@@ -6365,7 +6410,7 @@ async function stockPurchasesView(){
 async function stockPurchaseForm(poId){
   await stockLoadRefs();
   const pos=(await api("/stock/po").catch(()=>[])).filter(p=>p.status!=='completed' && p.orderStatus!=='annule');
-  window._puPOs=pos; window._PLKIND='purchase'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}]; window._puAttach=null; window._puPOId=""; window._puPORef="";
+  window._puPOs=pos; window._PLKIND='purchase'; window._PL=[]; window._plQ=""; window._puAttach=null; window._puPOId=""; window._puPORef="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpurchases')">← Achats</button>
     <h1 style="margin-top:10px">Ajouter un achat (réception)</h1>
     <div class="panel">
@@ -6385,7 +6430,7 @@ async function stockPurchaseLoadPO(id){
   const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
   window._puPOId=po.id; window._puPORef=po.ref;
   window._PL=(po.lines||[]).map(l=>({productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct})).filter(l=>l.qty>0);
-  if(!window._PL.length) window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  if(!window._PL.length) window._PL=[]; window._plQ="";
   const g=(x)=>document.getElementById(x); if(g("hdSup")) g("hdSup").value=po.supplierId||""; if(g("puTerms")) g("puTerms").value=po.paymentTerms||""; if(g("plTax")) g("plTax").value=po.taxPct||0;
   plRender();
 }
@@ -6424,7 +6469,7 @@ async function stockReturnsView(){
       </table></div>`;
 }
 function stockReturnForm(){
-  window._PLKIND='return'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  window._PLKIND='return'; window._PL=[]; window._plQ="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockreturns')">← Retours</button>
     <h1 style="margin-top:10px">Nouveau retour d'achat</h1>
     <div class="panel">${plHeaderHtml('return')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('return')}
@@ -6453,7 +6498,7 @@ async function stockSOView(){
         <td style="white-space:nowrap">${o.status!=='completed'?`<button class="btn p sm" onclick="stockSODeliver('${o.id}','${esc(o.ref)}')">Livrer</button>`:''}${o.delivered<=0?`<button class="btn ghost sm" onclick="stockSODelete('${o.id}')">✕</button>`:''}</td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune commande.</td></tr>'}
       </table></div>`;
 }
-function stockSOForm(){ window._PLKIND='so'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+function stockSOForm(){ window._PLKIND='so'; window._PL=[]; window._plQ="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockso')">← Commandes client</button><h1 style="margin-top:10px">Nouvelle commande client</h1>
     <div class="panel">${plHeaderHtml('so','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('so')}
     <div class="err hidden" id="soErr" style="margin-top:6px"></div>
@@ -6483,7 +6528,7 @@ async function stockSalesView(){
         <td style="white-space:nowrap">${p.paymentStatus!=='paid'?`<button class="btn ghost sm" onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">Encaisser</button>`:''}<button class="btn ghost sm" onclick="stockSaleDelete('${p.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucune vente.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
 }
-function stockSaleForm(){ window._PLKIND='sale'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+function stockSaleForm(){ window._PLKIND='sale'; window._PL=[]; window._plQ="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksales')">← Ventes</button><h1 style="margin-top:10px">Nouvelle vente</h1>
     <div class="panel">${plHeaderHtml('sale','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('sale')}
     <label class="chk" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="saNeg" style="width:auto;margin:0"> autoriser le stock négatif</label>
@@ -6516,7 +6561,7 @@ async function stockQuotesView(){
         <td style="white-space:nowrap">${q.status!=='converted'?`<button class="btn p sm" onclick="stockQuoteConvert('${q.id}','${esc(q.ref)}')">Convertir</button>`:''}<button class="btn ghost sm" onclick="stockQuoteDelete('${q.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun devis.</td></tr>'}
       </table></div>`;
 }
-function stockQuoteForm(){ window._PLKIND='quote'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+function stockQuoteForm(){ window._PLKIND='quote'; window._PL=[]; window._plQ="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockquotes')">← Devis</button><h1 style="margin-top:10px">Nouveau devis</h1>
     <div class="panel">${plHeaderHtml('quote','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('quote')}
     <div class="err hidden" id="qeErr" style="margin-top:6px"></div>
@@ -6542,7 +6587,7 @@ async function stockSalesReturnsView(){
         <td><button class="btn ghost sm" onclick="stockSalesReturnDelete('${r.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="5" style="color:var(--muted)">Aucun retour.</td></tr>'}
       </table></div>`;
 }
-function stockSalesReturnForm(){ window._PLKIND='salesreturn'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+function stockSalesReturnForm(){ window._PLKIND='salesreturn'; window._PL=[]; window._plQ="";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksalesreturns')">← Retours de vente</button><h1 style="margin-top:10px">Nouveau retour de vente</h1>
     <div class="panel">${plHeaderHtml('salesreturn','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('salesreturn')}
     <div class="err hidden" id="srErr" style="margin-top:6px"></div>
