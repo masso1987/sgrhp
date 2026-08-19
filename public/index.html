@@ -856,6 +856,7 @@ const NAV = [
   { k: "acctsearch", label: "🔎 Recherche d'écritures", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctbank", label: "🏦 Rapprochement bancaire", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "accttierstates", label: "📑 États tiers", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctimport", label: "📥 Import Sage / FEC", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"], grp: "admin" },
@@ -948,7 +949,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4788,6 +4789,7 @@ async function acctHome() {
       ${tile("🔎", "Recherche d'écritures", "Retrouver une écriture par compte, tiers, montant, libellé…", "acctsearch")}
       ${tile("🏦", "Rapprochement bancaire", "Importer un relevé (CSV) et pointer les mouvements de banque", "acctbank")}
       ${tile("📑", "États tiers", "Balance, grand-livre et relevés imprimables par tiers", "accttierstates")}
+      ${tile("📥", "Import Sage / FEC", "Reprendre plan comptable, tiers et écritures (fichier FEC / CSV)", "acctimport")}
       ${tile("🧾", "Écritures automatiques", "Générées depuis Facturation & Paie (phase C2)", "acctsaisie")}
     </div>`;
 }
@@ -5507,6 +5509,95 @@ async function acctTiersPrintReleve(tp){
     ${(d.rows||[]).map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")}
     <tr class="tot"><td colspan="6">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td><td class="r">${fCFA(Math.abs(d.solde||0))} ${(d.solde||0)>=0?'D':'C'}</td></tr></table>`;
   acctPrintWindow("Relevé de compte tiers", body);
+}
+
+/* ---- Comptabilité : Import Sage / FEC ---- */
+function acctImpDate(v){ let x=String(v||"").trim();
+  let m=x.match(/^(\d{4})(\d{2})(\d{2})$/); if(m) return m[1]+"-"+m[2]+"-"+m[3];
+  m=x.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+"-"+m[2]+"-"+m[3];
+  m=x.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/); if(m){ let y=m[3]; if(y.length==2) y="20"+y; return y+"-"+m[2].padStart(2,'0')+"-"+m[1].padStart(2,'0'); }
+  return x.slice(0,10); }
+const IMP_TYPES={
+  entries:{label:"Écritures (FEC)", fields:[
+    {k:"journal",l:"Code journal",kw:["journalcode","jrnl","journal"]},{k:"journalLib",l:"Libellé journal",kw:["journallib"]},
+    {k:"num",l:"N° écriture",kw:["ecriturenum","ecrnum","num"]},{k:"date",l:"Date écriture",kw:["ecrituredate","date"]},
+    {k:"account",l:"N° compte",kw:["comptenum","compte","account"]},{k:"accountLib",l:"Libellé compte",kw:["comptelib"]},
+    {k:"auxNum",l:"N° tiers (aux)",kw:["compauxnum","auxnum","tiers"]},{k:"auxLib",l:"Libellé tiers",kw:["compauxlib","auxlib"]},
+    {k:"pieceRef",l:"Réf pièce",kw:["pieceref","piece"]},{k:"pieceDate",l:"Date pièce/échéance",kw:["piecedate","echeance"]},
+    {k:"label",l:"Libellé écriture",kw:["ecriturelib","libelle","label"]},{k:"debit",l:"Débit",kw:["debit"]},
+    {k:"credit",l:"Crédit",kw:["credit"]},{k:"lettre",l:"Lettrage",kw:["ecriturelet","lettrage","let"]}],
+    required:["account"]},
+  accounts:{label:"Plan comptable", fields:[
+    {k:"number",l:"N° compte",kw:["comptenum","numero","number","compte"]},{k:"label",l:"Intitulé",kw:["comptelib","intitule","libelle","label"]},
+    {k:"nature",l:"Nature (option)",kw:["nature"]}], required:["number"]},
+  tiers:{label:"Comptes tiers", fields:[
+    {k:"code",l:"Code tiers",kw:["compauxnum","code","tiers"]},{k:"name",l:"Nom / raison sociale",kw:["compauxlib","nom","name","intitule"]},
+    {k:"collectiveAccount",l:"Compte collectif",kw:["compte","collectif","comptenum"]},{k:"kind",l:"Type (client/fournisseur)",kw:["type","kind","sens"]}],
+    required:["code"]}
+};
+function acctImportView(){
+  window._imp = window._imp || {type:"entries"};
+  const t=window._imp.type;
+  const seg=(v)=>`<button class="btn ${t===v?'p':'ghost'} sm" onclick="window._imp={type:'${v}'};acctImportView()">${IMP_TYPES[v].label}</button>`;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">📥 Import Sage / FEC</h1>
+    <div class="panel"><div style="display:flex;gap:6px;margin-bottom:8px">${Object.keys(IMP_TYPES).map(seg).join("")}</div>
+      <div class="note">Chargez un fichier (FEC, CSV ou texte). Les colonnes standard FEC sont reconnues automatiquement. Séparateur détecté (tabulation / ; / ,), modifiable.</div>
+      <div style="margin:8px 0"><input type="file" id="impFile" accept=".txt,.csv,.tsv" onchange="acctImpFileChosen(this)"></div>
+      <div id="impMapBox"></div></div>
+    <div id="impPrevBox"></div>`;
+}
+function acctImpFileChosen(input){ const file=input.files&&input.files[0]; if(!file) return;
+  const rd=new FileReader(); rd.onload=()=>{ window._IMPTEXT=rd.result; window._IMPDELIM=null; acctImpBuildMap(); }; rd.readAsText(file,"utf-8"); }
+function acctImpBuildMap(){
+  const box=document.getElementById("impMapBox"); if(!box) return;
+  const delim=window._IMPDELIM||bankGuessDelim(window._IMPTEXT||""); window._IMPDELIM=delim;
+  const rows=bankParseCSV(window._IMPTEXT||"", delim); window._IMPROWS=rows;
+  const hr=window._IMPHR||0; const headers=rows[hr]||[];
+  const norm=(x)=>String(x).toLowerCase().replace(/[^a-z0-9]/g,"");
+  const guess=(kws)=>{ for(const kw of kws){ const i=headers.findIndex(h=>norm(h).includes(kw)); if(i>=0) return i; } return ""; };
+  const opt=(sel)=>`<option value="">—</option>`+headers.map((h,i)=>`<option value="${i}" ${String(sel)===String(i)?'selected':''}>${esc(String(h)||('col '+(i+1)))}</option>`).join("");
+  const cfg=IMP_TYPES[window._imp.type];
+  const delimVal=delim===String.fromCharCode(9)?'tab':delim;
+  box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:8px 0">
+      <div><label>Séparateur</label><select onchange="window._IMPDELIM=this.value==='tab'?String.fromCharCode(9):this.value;acctImpBuildMap()">
+        ${[["tab","tabulation"],[";",";"],[",",","],["|","|"]].map(d=>`<option value="${d[0]}" ${delimVal===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select></div>
+      <div><label>Ligne d'en-tête</label><input type="number" value="${hr}" style="max-width:80px" onchange="window._IMPHR=Number(this.value);acctImpBuildMap()"></div>
+      <div class="note" style="align-self:center">${rows.length} ligne(s) · ${headers.length} colonne(s)</div></div>
+    <div class="grid3">${cfg.fields.map(f=>`<div><label>${esc(f.l)}${cfg.required.includes(f.k)?' *':''}</label><select id="imp_${f.k}">${opt(guess(f.kw))}</select></div>`).join("")}</div>
+    <div style="margin-top:8px"><button class="btn ghost sm" onclick="acctImpPreview()">Aperçu</button>
+      <button class="btn p sm" onclick="acctImpDoImport()">Importer</button></div>`;
+}
+function acctImpCollect(){
+  const cfg=IMP_TYPES[window._imp.type]; const rows=window._IMPROWS||[]; const hr=window._IMPHR||0;
+  const ci={}; for(const f of cfg.fields){ const el=document.getElementById("imp_"+f.k); ci[f.k]=el?el.value:""; }
+  const out=[];
+  for(let i=hr+1;i<rows.length;i++){ const r=rows[i]; if(!r) continue; const o={};
+    for(const f of cfg.fields){ let v=ci[f.k]!==""?r[ci[f.k]]:""; if(f.k==="date"||f.k==="pieceDate") v=acctImpDate(v);
+      else if(f.k==="debit"||f.k==="credit") v=bankNum(v); else v=String(v==null?"":v).trim(); o[f.k]=v; }
+    const req=cfg.required.every(k=>String(o[k]||"").trim()!=="");
+    if(!req) continue; out.push(o); }
+  return out;
+}
+function acctImpPreview(){
+  const data=acctImpCollect(); const cfg=IMP_TYPES[window._imp.type]; const box=document.getElementById("impPrevBox");
+  const cols=cfg.fields.slice(0,8);
+  box.innerHTML=`<div class="panel"><b>Aperçu — ${data.length} ligne(s) exploitable(s)</b>
+    <div class="scroll" style="max-height:40vh;margin-top:6px"><table><tr>${cols.map(c=>`<th>${esc(c.l)}</th>`).join("")}</tr>
+    ${data.slice(0,15).map(o=>`<tr>${cols.map(c=>`<td>${esc(String(o[c.k]))}</td>`).join("")}</tr>`).join("")}
+    ${data.length>15?`<tr><td colspan="${cols.length}" class="note">… +${data.length-15} autres</td></tr>`:''}</table></div></div>`;
+}
+async function acctImpDoImport(){
+  const data=acctImpCollect(); if(!data.length){ alert("Aucune ligne exploitable — vérifiez le mapping et les colonnes obligatoires (*)."); return; }
+  const type=window._imp.type; const ep={entries:"/accounting/import/entries",accounts:"/accounting/import/accounts",tiers:"/accounting/import/tiers"}[type];
+  if(type==='entries' && !confirm(data.length+" ligne(s) FEC seront regroupées en écritures et importées. Continuer ?")) return;
+  try{ const r=await api(ep,{method:"POST",body:JSON.stringify({rows:data})});
+    let msg;
+    if(type==='entries') msg=`${r.imported} écriture(s) importée(s) · ${r.duplicates} doublon(s) ignoré(s)`+ (r.unbalanced?` · ${r.unbalanced} non équilibrée(s) (mises en brouillon)`:'');
+    else msg=`${r.created} créé(s) · ${r.skipped} déjà présent(s)`;
+    alert("Import terminé.\n"+msg);
+    document.getElementById("impPrevBox").innerHTML=`<div class="panel"><b>✓ Import terminé</b><div class="note" style="margin-top:4px">${esc(msg)}</div></div>`;
+  }catch(e){ alert("Erreur : "+e.message); }
 }
 
 </script>

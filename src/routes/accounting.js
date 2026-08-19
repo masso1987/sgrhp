@@ -588,6 +588,65 @@ router.get("/tiers-ledger-all", allow("ADM", "CD", "RJ"), (req, res) => {
   res.json({ groups: out, totals: Object.assign(totals, { solde: totals.debit - totals.credit }), count: out.length });
 });
 
+/* ==================== Import Sage / FEC (plan, tiers, écritures) ==================== */
+function _natureOf(num){ const c=String(num||"")[0]; return ({"1":"capitaux","2":"immobilisations","3":"stocks","4":"tiers","5":"financiers","6":"charges","7":"produits"})[c]||"charges"; }
+function _ensureAccount(req,tid,number,label){ if(!number) return; number=String(number);
+  if(mine(db.acctAccounts,req).some(a=>String(a.number)===number)) return;
+  db.acctAccounts.push(stamp({id:id("acc"),number,label:label||"",type:"detail",nature:_natureOf(number),active:true,createdAt:new Date().toISOString()},req)); }
+function _ensureJournal(req,code,label){ if(!code) return; if(mine(db.acctJournals,req).some(j=>j.code===code)) return;
+  db.acctJournals.push(stamp({id:id("acc"),code,label:label||code,type:"od",contraAccount:"",createdAt:new Date().toISOString()},req)); }
+function _ensureTiers(req,code,name,account){ if(!code) return; if(mine(db.acctThirdParties,req).some(t=>String(t.code)===String(code))) return;
+  const acc=String(account||""); const kind=acc.startsWith("401")?"fournisseur":acc.startsWith("411")?"client":"";
+  db.acctThirdParties.push(stamp({id:id("acc"),code:String(code),name:name||"",kind,collectiveAccount:acc,createdAt:new Date().toISOString()},req)); }
+
+router.post("/import/accounts", allow("ADM","CD"), (req,res)=>{
+  seedAccounting(req.user.tenantId||"t1"); const tid=req.user.tenantId||"t1";
+  const rows=Array.isArray((req.body||{}).rows)?req.body.rows:[]; let created=0, skipped=0;
+  for(const r of rows){ const num=String(r.number||"").trim(); if(!num){skipped++;continue;}
+    if(mine(db.acctAccounts,req).some(a=>String(a.number)===num)){ skipped++; continue; }
+    db.acctAccounts.push(stamp({id:id("acc"),number:num,label:r.label||"",type:"detail",nature:r.nature||_natureOf(num),active:true,createdAt:new Date().toISOString()},req)); created++; }
+  save(); audit(req.user,"IMPORTED","AcctAccounts","",{created}); res.json({ok:true,created,skipped});
+});
+router.post("/import/tiers", allow("ADM","CD"), (req,res)=>{
+  seedAccounting(req.user.tenantId||"t1");
+  const rows=Array.isArray((req.body||{}).rows)?req.body.rows:[]; let created=0, skipped=0;
+  for(const r of rows){ const code=String(r.code||"").trim(); if(!code){skipped++;continue;}
+    if(mine(db.acctThirdParties,req).some(t=>String(t.code)===code)){ skipped++; continue; }
+    const acc=String(r.collectiveAccount||""); const kind=r.kind||(acc.startsWith("401")?"fournisseur":acc.startsWith("411")?"client":"");
+    db.acctThirdParties.push(stamp({id:id("acc"),code,name:r.name||"",kind,collectiveAccount:acc,createdAt:new Date().toISOString()},req)); created++; }
+  save(); audit(req.user,"IMPORTED","AcctThirdParties","",{created}); res.json({ok:true,created,skipped});
+});
+router.post("/import/entries", allow("ADM","CD"), (req,res)=>{
+  seedAccounting(req.user.tenantId||"t1"); const tid=req.user.tenantId||"t1";
+  const rows=Array.isArray((req.body||{}).rows)?req.body.rows:[];
+  // group by journal + ecriture number
+  const groups={};
+  for(const r of rows){ const jr=String(r.journal||"OD").trim()||"OD"; const num=String(r.num||"").trim()||"_"; const key=jr+"|"+num;
+    (groups[key]=groups[key]||{journal:jr,journalLib:r.journalLib||"",num,date:r.date||"",label:r.label||"",lines:[]});
+    groups[key].lines.push(r); if(!groups[key].date && r.date) groups[key].date=r.date; }
+  const existingKeys=new Set(mine(db.acctEntries,req).filter(e=>e.importKey).map(e=>e.importKey));
+  let imported=0, dup=0, empty=0, unbalanced=0;
+  for(const g of Object.values(groups)){
+    const importKey=tid+"|"+g.journal+"|"+g.num+"|"+(g.date||"");
+    if(existingKeys.has(importKey)){ dup++; continue; }
+    const lines=g.lines.filter(l=>String(l.account||"").trim() && (R2(l.debit)||R2(l.credit))).map(l=>({
+      id:id("aln"), account:String(l.account).trim(), thirdParty:String(l.auxNum||"").trim(), label:l.label||g.label||"",
+      dueDate:(l.pieceDate||"").slice(0,10), debit:R2(l.debit), credit:R2(l.credit), lettre:String(l.lettre||"").trim() }));
+    if(!lines.length){ empty++; continue; }
+    for(const l of g.lines){ _ensureAccount(req,tid,l.account,l.accountLib); if(String(l.auxNum||"").trim()) _ensureTiers(req,l.auxNum,l.auxLib,l.account); }
+    _ensureJournal(req,g.journal,g.journalLib);
+    const d=lines.reduce((s,l)=>s+l.debit,0), c=lines.reduce((s,l)=>s+l.credit,0);
+    const balanced = d===c && d>0; if(!balanced) unbalanced++;
+    const date=(g.date||"").slice(0,10) || new Date().toISOString().slice(0,10);
+    const period=date.slice(0,7);
+    db.acctEntries.push(stamp({id:id("aent"),journalCode:g.journal,period,pieceNo:g.num,date,label:g.label||"",
+      lines,status:balanced?"validated":"draft",source:"import",sourceRef:"FEC",importKey,createdAt:new Date().toISOString()},req));
+    imported++; existingKeys.add(importKey);
+  }
+  save(); audit(req.user,"IMPORTED","AcctEntries","",{imported,dup}); 
+  res.json({ok:true,imported,duplicates:dup,empty,unbalanced,groups:Object.keys(groups).length});
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
