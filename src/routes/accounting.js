@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["acctAccounts", "acctJournals", "acctTaxes", "acctThirdParties", "acctEntries", "acctExercises", "acctBudgets"]) if (!db[k]) db[k] = [];
+for (const k of ["acctAccounts", "acctJournals", "acctTaxes", "acctThirdParties", "acctEntries", "acctExercises", "acctBudgets", "acctBankLines", "acctBankMatches"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 
@@ -460,6 +460,108 @@ router.get("/entries-search", allow("ADM", "CD", "RJ"), (req, res) => {
   rows.sort((a, b) => (b.date || "").localeCompare(a.date || "") || (a.journal + a.piece).localeCompare(b.journal + b.piece));
   const cap = rows.slice(0, 1000);
   res.json({ rows: cap, count: rows.length, capped: rows.length > 1000, totalDebit: cap.reduce((s, r) => s + r.debit, 0), totalCredit: cap.reduce((s, r) => s + r.credit, 0) });
+});
+
+/* ==================== C5b — Rapprochement bancaire ==================== */
+// Book-side movements on a bank/cash account (validated entries only)
+function bankBookLines(req, account) {
+  const rows = [];
+  const matches = mine(db.acctBankMatches, req).filter(m => m.account === account);
+  const pointedLine = new Set(matches.map(m => m.lineId));
+  for (const e of mine(db.acctEntries, req)) {
+    if (e.status === "draft") continue;
+    for (const l of (e.lines || [])) if (String(l.account) === String(account))
+      rows.push({ entryId: e.id, lineId: l.id, date: e.date, journal: e.journalCode, piece: e.pieceNo, label: l.label || e.label || "", thirdParty: l.thirdParty || "", net: R2(l.debit) - R2(l.credit), pointed: pointedLine.has(l.id) });
+  }
+  rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  return rows;
+}
+router.get("/bank/lines", allow("ADM", "CD", "RJ"), (req, res) => {
+  const account = req.query.account; if (!account) return res.status(400).json({ error: "Compte requis" });
+  const matched = new Set(mine(db.acctBankMatches, req).filter(m => m.account === account).map(m => m.bankLineId));
+  const rows = mine(db.acctBankLines, req).filter(b => b.account === account)
+    .map(b => Object.assign({}, b, { matched: matched.has(b.id) }))
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  res.json(rows);
+});
+router.get("/bank/book", allow("ADM", "CD", "RJ"), (req, res) => {
+  const account = req.query.account; if (!account) return res.status(400).json({ error: "Compte requis" });
+  res.json(bankBookLines(req, account));
+});
+router.post("/bank/import", allow("ADM", "CD"), (req, res) => {
+  const b = req.body || {}; const account = b.account; if (!account) return res.status(400).json({ error: "Compte requis" });
+  const statementId = id("bstm");
+  const lines = (Array.isArray(b.lines) ? b.lines : []).filter(l => l && (l.date || l.label) && (R2(l.amount) !== 0 || l.amount === 0 && (l.label || "")));
+  let n = 0;
+  for (const l of lines) {
+    if (R2(l.amount) === 0 && !l.label) continue;
+    db.acctBankLines.push(stamp({ id: id("bln"), account, statementId, date: (l.date || "").slice(0, 10), label: String(l.label || "").slice(0, 200), ref: String(l.ref || "").slice(0, 60), amount: R2(l.amount), createdAt: new Date().toISOString() }, req));
+    n++;
+  }
+  if (b.closingBalance !== undefined && b.closingBalance !== "") { const ex = mine(db.acctBankLines, req); /* store closing on nothing */ }
+  save(); audit(req.user, "IMPORTED", "BankStatement", statementId, { account, count: n });
+  res.status(201).json({ ok: true, count: n, statementId });
+});
+router.delete("/bank/lines/:id", allow("ADM", "CD"), (req, res) => {
+  const x = mine(db.acctBankLines, req).find(b => b.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
+  db.acctBankLines.splice(db.acctBankLines.indexOf(x), 1);
+  for (const m of mine(db.acctBankMatches, req).filter(m => m.bankLineId === x.id)) db.acctBankMatches.splice(db.acctBankMatches.indexOf(m), 1);
+  save(); res.json({ ok: true });
+});
+router.post("/bank/clear", allow("ADM", "CD"), (req, res) => {
+  const account = req.query.account || (req.body || {}).account; if (!account) return res.status(400).json({ error: "Compte requis" });
+  db.acctBankLines = db.acctBankLines.filter(b => !((b.tenantId || "t1") === (req.user.tenantId || "t1") && b.account === account));
+  db.acctBankMatches = db.acctBankMatches.filter(m => !((m.tenantId || "t1") === (req.user.tenantId || "t1") && m.account === account));
+  save(); res.json({ ok: true });
+});
+router.post("/bank/match", allow("ADM", "CD"), (req, res) => {
+  const b = req.body || {}; if (!b.account || !b.bankLineId || !b.lineId) return res.status(400).json({ error: "account, bankLineId, lineId requis" });
+  if (mine(db.acctBankMatches, req).some(m => m.bankLineId === b.bankLineId || m.lineId === b.lineId)) return res.status(409).json({ error: "Déjà pointé" });
+  db.acctBankMatches.push(stamp({ id: id("bmt"), account: b.account, bankLineId: b.bankLineId, entryId: b.entryId || "", lineId: b.lineId, date: new Date().toISOString() }, req));
+  save(); res.json({ ok: true });
+});
+router.post("/bank/unmatch", allow("ADM", "CD"), (req, res) => {
+  const b = req.body || {}; const list = mine(db.acctBankMatches, req).filter(m => (b.bankLineId && m.bankLineId === b.bankLineId) || (b.lineId && m.lineId === b.lineId));
+  if (!list.length) return res.status(404).json({ error: "Aucun pointage" });
+  for (const m of list) db.acctBankMatches.splice(db.acctBankMatches.indexOf(m), 1);
+  save(); res.json({ ok: true, removed: list.length });
+});
+router.post("/bank/auto", allow("ADM", "CD"), (req, res) => {
+  const b = req.body || {}; const account = b.account; if (!account) return res.status(400).json({ error: "Compte requis" });
+  const tol = Number(b.tolDays != null ? b.tolDays : 5);
+  const book = bankBookLines(req, account).filter(l => !l.pointed);
+  const matchedBank = new Set(mine(db.acctBankMatches, req).filter(m => m.account === account).map(m => m.bankLineId));
+  const bank = mine(db.acctBankLines, req).filter(l => l.account === account && !matchedBank.has(l.id));
+  const usedBook = new Set(); let n = 0;
+  for (const bl of bank) {
+    let best = null, bestDiff = Infinity;
+    for (const bk of book) {
+      if (usedBook.has(bk.lineId)) continue;
+      if (bk.net !== bl.amount) continue;
+      const dd = Math.abs((new Date(bl.date) - new Date(bk.date)) / 86400000);
+      if (dd <= tol && dd < bestDiff) { best = bk; bestDiff = dd; }
+    }
+    if (best) { db.acctBankMatches.push(stamp({ id: id("bmt"), account, bankLineId: bl.id, entryId: best.entryId, lineId: best.lineId, date: new Date().toISOString() }, req)); usedBook.add(best.lineId); n++; }
+  }
+  save(); res.json({ ok: true, matched: n });
+});
+router.get("/bank/reconcile", allow("ADM", "CD", "RJ"), (req, res) => {
+  const account = req.query.account; if (!account) return res.status(400).json({ error: "Compte requis" });
+  const closing = req.query.closingBalance !== undefined && req.query.closingBalance !== "" ? R2(req.query.closingBalance) : null;
+  const book = bankBookLines(req, account);
+  const bankMatched = new Set(mine(db.acctBankMatches, req).filter(m => m.account === account).map(m => m.bankLineId));
+  const bank = mine(db.acctBankLines, req).filter(b => b.account === account);
+  const soldeComptable = book.reduce((s, l) => s + l.net, 0);
+  const unpointedBook = book.filter(l => !l.pointed).reduce((s, l) => s + l.net, 0);
+  const unpointedBank = bank.filter(b => !bankMatched.has(b.id)).reduce((s, b) => s + b.amount, 0);
+  const soldeReleveTheorique = soldeComptable - unpointedBook + unpointedBank;
+  const ecart = closing === null ? null : R2(soldeReleveTheorique - closing);
+  res.json({
+    account, soldeComptable: R2(soldeComptable), unpointedBook: R2(unpointedBook), unpointedBank: R2(unpointedBank),
+    soldeReleveTheorique: R2(soldeReleveTheorique), closingBalance: closing, ecart,
+    bookCount: book.length, bookPointed: book.filter(l => l.pointed).length,
+    bankCount: bank.length, bankPointed: bank.filter(b => bankMatched.has(b.id)).length
+  });
 });
 
 module.exports = router;

@@ -854,6 +854,7 @@ const NAV = [
   { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "accttiers", label: "👥 Comptes tiers", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctsearch", label: "🔎 Recherche d'écritures", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctbank", label: "🏦 Rapprochement bancaire", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"], grp: "admin" },
@@ -946,7 +947,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4784,6 +4785,7 @@ async function acctHome() {
       ${tile("📋", "Plan comptable", "Comptes OHADA, journaux, taux de TVA", "acctplan")}
       ${tile("👥", "Comptes tiers", "Clients (411) et fournisseurs (401), soldes et relevés", "accttiers")}
       ${tile("🔎", "Recherche d'écritures", "Retrouver une écriture par compte, tiers, montant, libellé…", "acctsearch")}
+      ${tile("🏦", "Rapprochement bancaire", "Importer un relevé (CSV) et pointer les mouvements de banque", "acctbank")}
       ${tile("🧾", "Écritures automatiques", "Générées depuis Facturation & Paie (phase C2)", "acctsaisie")}
     </div>`;
 }
@@ -5217,6 +5219,188 @@ async function acctSearchRun(keep){
       <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td>
       <td><button class="btn ghost sm" onclick="acctEntryModal('${r.entryId}')">Ouvrir</button></td></tr>`).join("")
       : '<tr><td colspan="10" style="color:var(--muted)">Aucun résultat.</td></tr>'}</table>`;
+}
+
+/* ---- Comptabilité : Rapprochement bancaire (import CSV générique) ---- */
+function bankParseCSV(text, delim){
+  const rows=[]; let i=0, field="", row=[], inQ=false;
+  while(i<text.length){ const c=text[i];
+    if(inQ){ if(c=='"'){ if(text[i+1]=='"'){field+='"';i++;} else inQ=false; } else field+=c; }
+    else { if(c=='"') inQ=true; else if(c===delim){ row.push(field); field=""; } else if(c=='\n'){ row.push(field); rows.push(row); row=[]; field=""; } else if(c=='\r'){} else field+=c; }
+    i++; }
+  if(field!==""||row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=>r.some(x=>String(x).trim()!==""));
+}
+function bankNum(v){ let x=String(v==null?"":v).replace(/[^\d.,\-]/g,""); if(!x) return 0;
+  if(x.indexOf(',')>-1 && x.indexOf('.')>-1) x=x.replace(/\./g,'').replace(',','.');
+  else if(x.indexOf(',')>-1) x=x.replace(',','.');
+  return Number(x)||0; }
+function bankDate(v){ let x=String(v||"").trim(); let m=x.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[1]+"-"+m[2]+"-"+m[3];
+  m=x.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/); if(m){ let y=m[3]; if(y.length==2) y="20"+y; return y+"-"+m[2].padStart(2,'0')+"-"+m[1].padStart(2,'0'); }
+  return x.slice(0,10); }
+function bankAccountsList(){ return (ACCT_ACCOUNTS||[]).filter(a=>String(a.number)[0]==='5'); }
+
+async function acctBankView(){
+  await acctLoadRefs();
+  const banks=bankAccountsList();
+  const acc = window._acctBankAcc || (banks[0]||{}).number || "";
+  window._acctBankAcc=acc;
+  if(!acc){ view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button><h1 style="margin-top:10px">🏦 Rapprochement bancaire</h1><div class="panel">Aucun compte de trésorerie (classe 5). Créez un compte 521/571 dans le plan comptable.</div>`; return; }
+  const closing = (window._bankClosing||{})[acc];
+  const [book, bank, recon] = await Promise.all([
+    api("/accounting/bank/book?account="+encodeURIComponent(acc)).catch(()=>[]),
+    api("/accounting/bank/lines?account="+encodeURIComponent(acc)).catch(()=>[]),
+    api("/accounting/bank/reconcile?account="+encodeURIComponent(acc)+(closing!=null&&closing!==""?"&closingBalance="+encodeURIComponent(closing):"")).catch(()=>({}))
+  ]);
+  window._BANK={book, bank, recon, acc};
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">🏦 Rapprochement bancaire</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+      <div><label>Compte de trésorerie</label><select onchange="window._acctBankAcc=this.value;acctBankView()">${banks.map(a=>`<option value="${a.number}" ${a.number===acc?'selected':''}>${esc(a.number)} — ${esc(a.label)}</option>`).join("")}</select></div>
+      <button class="btn p sm" onclick="acctBankImportModal()">⬆ Importer un relevé (CSV)</button>
+      <button class="btn ghost sm" onclick="acctBankAuto()">⚙️ Pointage auto</button>
+      <button class="btn ghost sm" onclick="acctBankClear()" style="color:var(--red)">Vider le relevé</button>
+    </div></div>
+    <div id="bankReconBox" class="panel"></div>
+    <div id="bankPointBox"></div>`;
+  acctBankRenderRecon(); acctBankRenderPoint();
+}
+function acctBankRenderRecon(){
+  const {recon}=window._BANK||{}; const acc=window._BANK.acc; const box=document.getElementById("bankReconBox"); if(!box||!recon) return;
+  const closing=(window._bankClosing||{})[acc];
+  const line=(l,v,strong)=>`<div style="display:flex;justify-content:space-between;${strong?'font-weight:600;border-top:1px solid var(--line);padding-top:4px;margin-top:4px':''}"><span>${l}</span><span>${fCFA(v)}</span></div>`;
+  const ec=recon.ecart;
+  box.innerHTML=`<b>État de rapprochement</b>
+    <div style="max-width:460px;margin-top:6px;font-size:13px">
+      ${line("Solde comptable (compte "+esc(acc)+")", recon.soldeComptable)}
+      ${line("− mouvements comptables non pointés", recon.unpointedBook)}
+      ${line("+ mouvements relevé non pointés", recon.unpointedBank)}
+      ${line("= Solde relevé théorique", recon.soldeReleveTheorique, true)}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span>Solde relevé (saisi)</span>
+        <input type="number" value="${closing!=null?closing:''}" onchange="acctBankSetClosing(this.value)" style="max-width:150px;text-align:right;margin:0" placeholder="solde de clôture"></div>
+      ${ec===null?'<div class="note" style="margin-top:6px">Saisissez le solde du relevé pour calculer l\'écart.</div>':
+        `<div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px;color:${ec===0?'var(--nav-active-color)':'var(--red)'}"><span>Écart de rapprochement</span><span>${ec===0?'✓ 0 (rapproché)':fCFA(ec)}</span></div>`}
+    </div>
+    <div class="note" style="margin-top:6px">Banque pointée ${recon.bankPointed}/${recon.bankCount} · Comptable pointé ${recon.bookPointed}/${recon.bookCount}</div>`;
+}
+function acctBankSetClosing(v){ window._bankClosing=window._bankClosing||{}; window._bankClosing[window._BANK.acc]=v; acctBankView(); }
+function acctBankPick(side,id){ window._bankSel=window._bankSel||{}; window._bankSel[side]=(window._bankSel[side]===id?null:id); acctBankRenderPoint(); }
+function acctBankRenderPoint(){
+  const box=document.getElementById("bankPointBox"); if(!box) return;
+  const {book,bank}=window._BANK; const sel=window._bankSel||{};
+  const bookU=book.filter(l=>!l.pointed), bankU=bank.filter(l=>!l.matched);
+  const bookP=book.filter(l=>l.pointed), matchedBank=bank.filter(l=>l.matched);
+  const canMatch=sel.book&&sel.bank;
+  const bl=(l)=>`<tr class="${sel.book===l.lineId?'sel':''}" style="cursor:pointer;${sel.book===l.lineId?'background:var(--nav-active-bg)':''}" onclick="acctBankPick('book','${l.lineId}')">
+    <td>${esc(l.date||'')}</td><td><code>${esc(l.piece)}</code></td><td>${esc(l.label)}</td><td class="r">${fCFA(l.net)}</td></tr>`;
+  const kl=(l)=>`<tr class="${sel.bank===l.id?'sel':''}" style="cursor:pointer;${sel.bank===l.id?'background:var(--nav-active-bg)':''}" onclick="acctBankPick('bank','${l.id}')">
+    <td>${esc(l.date||'')}</td><td>${esc(l.label)}</td><td class="r">${fCFA(l.amount)}</td></tr>`;
+  box.innerHTML=`
+    <div style="display:flex;gap:8px;align-items:center;margin:6px 0">
+      <button class="btn ${canMatch?'p':'ghost'} sm" ${canMatch?'':'disabled'} onclick="acctBankDoMatch()">🔗 Pointer la paire sélectionnée</button>
+      <span class="note">Sélectionnez une ligne comptable et une ligne relevé de même montant, puis pointez.</span></div>
+    <div class="grid2">
+      <div class="panel"><b>Écritures comptables non pointées (${bookU.length})</b>
+        <table style="margin-top:6px"><tr><th>Date</th><th>Pièce</th><th>Libellé</th><th class="r">Montant</th></tr>
+        ${bookU.length?bookU.map(bl).join(""):'<tr><td colspan="4" style="color:var(--muted)">Tout est pointé.</td></tr>'}</table></div>
+      <div class="panel"><b>Lignes du relevé non pointées (${bankU.length})</b>
+        <table style="margin-top:6px"><tr><th>Date</th><th>Libellé</th><th class="r">Montant</th></tr>
+        ${bankU.length?bankU.map(kl).join(""):'<tr><td colspan="3" style="color:var(--muted)">Aucune ligne importée non pointée.</td></tr>'}</table></div>
+    </div>
+    <div class="panel"><b>Mouvements pointés (${matchedBank.length})</b>
+      <table style="margin-top:6px"><tr><th>Date relevé</th><th>Libellé relevé</th><th class="r">Montant</th><th></th></tr>
+      ${matchedBank.length?matchedBank.map(l=>`<tr><td>${esc(l.date||'')}</td><td>${esc(l.label)}</td><td class="r">${fCFA(l.amount)}</td>
+        <td><button class="btn ghost sm" onclick="acctBankUnmatch('${l.id}')">Dépointer</button></td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">Aucun pointage.</td></tr>'}</table></div>`;
+}
+async function acctBankDoMatch(){
+  const sel=window._bankSel||{}; if(!sel.book||!sel.bank) return;
+  const bk=window._BANK.book.find(l=>l.lineId===sel.book);
+  const kl=window._BANK.bank.find(l=>l.id===sel.bank);
+  if(bk && kl && bk.net!==kl.amount && !confirm(`Montants différents (${fCFA(bk.net)} vs ${fCFA(kl.amount)}). Pointer quand même ?`)) return;
+  try{ await api("/accounting/bank/match",{method:"POST",body:JSON.stringify({account:window._BANK.acc,bankLineId:sel.bank,entryId:bk?bk.entryId:"",lineId:sel.book})});
+    window._bankSel={}; acctBankView(); }catch(e){ alert(e.message); }
+}
+async function acctBankUnmatch(bankLineId){ try{ await api("/accounting/bank/unmatch",{method:"POST",body:JSON.stringify({bankLineId})}); acctBankView(); }catch(e){ alert(e.message); } }
+async function acctBankAuto(){ try{ const r=await api("/accounting/bank/auto",{method:"POST",body:JSON.stringify({account:window._BANK.acc,tolDays:5})}); alert(r.matched+" mouvement(s) pointé(s) automatiquement."); acctBankView(); }catch(e){ alert(e.message); } }
+async function acctBankClear(){ if(!confirm("Supprimer toutes les lignes de relevé importées pour ce compte ?")) return; try{ await api("/accounting/bank/clear?account="+encodeURIComponent(window._BANK.acc),{method:"POST"}); acctBankView(); }catch(e){ alert(e.message); } }
+
+function acctBankImportModal(){
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:720px"><h3 style="margin:0 0 4px">Importer un relevé bancaire — ${esc(window._acctBankAcc)}</h3>
+    <div class="note">Fichier CSV. Choisissez le fichier, puis mappez les colonnes (date, libellé, montant).</div>
+    <div style="margin:8px 0"><input type="file" id="bkFile" accept=".csv,.txt" onchange="bankFileChosen(this)"></div>
+    <div id="bkMapBox"></div>
+    <div class="err hidden" id="bkErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" id="bkImpBtn" onclick="bankDoImport()" disabled>Importer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+function bankFileChosen(input){
+  const file=input.files&&input.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ window._BIMPTEXT=rd.result; bankBuildMapping(); };
+  rd.readAsText(file,"utf-8");
+}
+function bankGuessDelim(text){ const l=(text.split(/\r?\n/).find(x=>x.trim())||""); const c=(d)=>(l.split(d).length-1); const cand=[[";",c(";")],["\t",c("\t")],[",",c(",")]].sort((a,b)=>b[1]-a[1]); return cand[0][1]>0?cand[0][0]:","; }
+function bankBuildMapping(){
+  const box=document.getElementById("bkMapBox"); if(!box) return;
+  const delim=window._BIMPDELIM||bankGuessDelim(window._BIMPTEXT||""); window._BIMPDELIM=delim;
+  const rows=bankParseCSV(window._BIMPTEXT||"", delim); window._BIMPROWS=rows;
+  const hr=window._BIMPHR||0;
+  const headers=rows[hr]||[];
+  const guess=(kw)=>{ const i=headers.findIndex(h=>String(h).toLowerCase().includes(kw)); return i<0?"":i; };
+  const opt=(sel)=>`<option value="">—</option>`+headers.map((h,i)=>`<option value="${i}" ${String(sel)===String(i)?'selected':''}>${esc(String(h)||('col '+(i+1)))}</option>`).join("");
+  const mode=window._BIMPMODE||"signed";
+  box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
+      <div><label>Séparateur</label><select onchange="window._BIMPDELIM=this.value==='tab'?String.fromCharCode(9):this.value;bankBuildMapping()">
+        ${[[";",";"],[",",","],["tab","tabulation"]].map(d=>`<option value="${d[0]}" ${(delim===String.fromCharCode(9)&&d[0]==='tab')||delim===d[0]?'selected':''}>${d[1]}</option>`).join("")}</select></div>
+      <div><label>Ligne d'en-tête</label><input type="number" value="${hr}" style="max-width:80px" onchange="window._BIMPHR=Number(this.value);bankBuildMapping()"></div>
+      <div><label>Format montant</label><select onchange="window._BIMPMODE=this.value;bankBuildMapping()">
+        <option value="signed" ${mode==='signed'?'selected':''}>Une colonne signée (+/−)</option>
+        <option value="debcred" ${mode==='debcred'?'selected':''}>Colonnes Débit / Crédit</option></select></div>
+    </div>
+    <div class="grid3">
+      <div><label>Date</label><select id="bkColDate">${opt(guess("date"))}</select></div>
+      <div><label>Libellé</label><select id="bkColLabel">${opt(guess("lib")!==""?guess("lib"):guess("nature"))}</select></div>
+      <div><label>Référence (option)</label><select id="bkColRef">${opt(guess("ref"))}</select></div>
+      ${mode==='signed'
+        ? `<div><label>Montant</label><select id="bkColAmt">${opt(guess("montant"))}</select></div>`
+        : `<div><label>Débit (sortie)</label><select id="bkColDeb">${opt(guess("débit")!==""?guess("débit"):guess("debit"))}</select></div>
+           <div><label>Crédit (entrée)</label><select id="bkColCred">${opt(guess("crédit")!==""?guess("crédit"):guess("credit"))}</select></div>`}
+    </div>
+    <div style="margin-top:8px"><button class="btn ghost sm" onclick="bankPreview()">Aperçu</button></div>
+    <div id="bkPrev" class="scroll" style="max-height:32vh;margin-top:6px"></div>`;
+  const btn=document.getElementById("bkImpBtn"); if(btn) btn.disabled=false;
+}
+function bankCollectLines(){
+  const g=(x)=>{ const el=document.getElementById(x); return el?el.value:""; };
+  const rows=window._BIMPROWS||[]; const hr=window._BIMPHR||0; const mode=window._BIMPMODE||"signed";
+  const ci={date:g("bkColDate"),label:g("bkColLabel"),ref:g("bkColRef"),amt:g("bkColAmt"),deb:g("bkColDeb"),cred:g("bkColCred")};
+  const out=[];
+  for(let i=hr+1;i<rows.length;i++){ const r=rows[i]; if(!r) continue;
+    const date=bankDate(ci.date!==""?r[ci.date]:"");
+    const label=ci.label!==""?String(r[ci.label]||""):"";
+    const ref=ci.ref!==""?String(r[ci.ref]||""):"";
+    let amount=0;
+    if(mode==='signed') amount=bankNum(ci.amt!==""?r[ci.amt]:0);
+    else { const deb=bankNum(ci.deb!==""?r[ci.deb]:0), cred=bankNum(ci.cred!==""?r[ci.cred]:0); amount=cred-deb; }
+    if(!date && !label && !amount) continue;
+    out.push({date,label,ref,amount});
+  }
+  return out;
+}
+function bankPreview(){
+  const lines=bankCollectLines(); const box=document.getElementById("bkPrev"); if(!box) return;
+  box.innerHTML=`<b>${lines.length} ligne(s)</b><table style="margin-top:4px"><tr><th>Date</th><th>Libellé</th><th class="r">Montant</th></tr>
+    ${lines.slice(0,12).map(l=>`<tr><td>${esc(l.date)}</td><td>${esc(l.label)}</td><td class="r">${fCFA(l.amount)}</td></tr>`).join("")}
+    ${lines.length>12?`<tr><td colspan="3" class="note">… +${lines.length-12} autres</td></tr>`:''}</table>`;
+}
+async function bankDoImport(){
+  const lines=bankCollectLines();
+  if(!lines.length){ const el=document.getElementById("bkErr"); el.textContent="Aucune ligne exploitable — vérifiez le mapping."; el.classList.remove("hidden"); return; }
+  try{ const r=await api("/accounting/bank/import",{method:"POST",body:JSON.stringify({account:window._acctBankAcc,lines})});
+    document.querySelector(".modal-bg").remove(); alert(r.count+" ligne(s) importée(s)."); acctBankView(); }
+  catch(e){ const el=document.getElementById("bkErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 
 </script>
