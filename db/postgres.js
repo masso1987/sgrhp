@@ -35,7 +35,7 @@ const COLLECTIONS = {
   billingContracts: "billing_contracts", billingComponents: "billing_components", billingSheets: "billing_sheets",
   billingAnnexeTemplates: "billing_annexe_templates",
   billingInvoiceModels: "billing_invoice_models", billingInvoices: "billing_invoices", billingLineFields: "billing_line_fields",
-  acctAccounts: "acct_accounts", acctJournals: "acct_journals", acctTaxes: "acct_taxes", acctThirdParties: "acct_third_parties", acctEntries: "acct_entries", acctExercises: "acct_exercises", acctBudgets: "acct_budgets", acctBankLines: "acct_bank_lines", acctBankMatches: "acct_bank_matches",
+  acctAccounts: "acct_accounts", acctJournals: "acct_journals", acctTaxes: "acct_taxes", acctThirdParties: "acct_third_parties", acctEntries: "acct_entries", acctExercises: "acct_exercises", acctBudgets: "acct_budgets", acctBankLines: "acct_bank_lines", acctBankMatches: "acct_bank_matches", stockProducts: "stock_products", stockCategories: "stock_categories", stockUnits: "stock_units", stockSuppliers: "stock_suppliers", stockMovements: "stock_movements",
 };
 
 let pool;
