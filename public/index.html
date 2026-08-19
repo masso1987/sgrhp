@@ -5426,7 +5426,7 @@ function bankFileChosen(input){
   rd.onload=()=>{ window._BIMPTEXT=rd.result; bankBuildMapping(); };
   rd.readAsText(file,"utf-8");
 }
-function bankGuessDelim(text){ const l=(text.split(/\r?\n/).find(x=>x.trim())||""); const c=(d)=>(l.split(d).length-1); const cand=[[";",c(";")],["\t",c("\t")],[",",c(",")]].sort((a,b)=>b[1]-a[1]); return cand[0][1]>0?cand[0][0]:","; }
+function bankGuessDelim(text){ const l=(text.split(/\r?\n/).find(x=>x.trim())||""); const c=(d)=>(l.split(d).length-1); const cand=[[";",c(";")],["\t",c("\t")],[",",c(",")],["|",c("|")]].sort((a,b)=>b[1]-a[1]); return cand[0][1]>0?cand[0][0]:","; }
 function bankBuildMapping(){
   const box=document.getElementById("bkMapBox"); if(!box) return;
   const delim=window._BIMPDELIM||bankGuessDelim(window._BIMPTEXT||""); window._BIMPDELIM=delim;
@@ -5600,20 +5600,20 @@ function acctImpDate(v){ let x=String(v||"").trim();
   return x.slice(0,10); }
 const IMP_TYPES={
   entries:{label:"Écritures (FEC)", fields:[
-    {k:"journal",l:"Code journal",kw:["journalcode","jrnl","journal"]},{k:"journalLib",l:"Libellé journal",kw:["journallib"]},
-    {k:"num",l:"N° écriture",kw:["ecriturenum","ecrnum","num"]},{k:"date",l:"Date écriture",kw:["ecrituredate","date"]},
-    {k:"account",l:"N° compte",kw:["comptenum","compte","account"]},{k:"accountLib",l:"Libellé compte",kw:["comptelib"]},
-    {k:"auxNum",l:"N° tiers (aux)",kw:["compauxnum","auxnum","tiers"]},{k:"auxLib",l:"Libellé tiers",kw:["compauxlib","auxlib"]},
-    {k:"pieceRef",l:"Réf pièce",kw:["pieceref","piece"]},{k:"pieceDate",l:"Date pièce/échéance",kw:["piecedate","echeance"]},
-    {k:"label",l:"Libellé écriture",kw:["ecriturelib","libelle","label"]},{k:"debit",l:"Débit",kw:["debit"]},
-    {k:"credit",l:"Crédit",kw:["credit"]},{k:"lettre",l:"Lettrage",kw:["ecriturelet","lettrage","let"]}],
+    {k:"journal",l:"Code journal",kw:["journalcode","codejournal","jrnl","journal","jal"]},{k:"journalLib",l:"Libellé journal",kw:["journallib","libellejournal","intitulejournal"]},
+    {k:"num",l:"N° écriture / pièce",kw:["ecriturenum","numeroecriture","numecriture","ecrnum","nmouvement","mouvement","ecriture","numeropiece","npiece","piece","num"]},{k:"date",l:"Date écriture",kw:["ecrituredate","dateecriture","datecomptable","datesaisie","date"]},
+    {k:"account",l:"N° compte",kw:["comptenum","numerocompte","comptegeneral","comptegen","ncompte","cptenum","cpte","compte","account"]},{k:"accountLib",l:"Libellé compte",kw:["comptelib","intitulecompte","libellecompte","designationcompte"]},
+    {k:"auxNum",l:"N° tiers (aux)",kw:["compauxnum","comptetiers","comptaux","numerotiers","cpteaux","auxnum","auxiliaire","tiers"]},{k:"auxLib",l:"Libellé tiers",kw:["compauxlib","intituletiers","nomtiers","auxlib"]},
+    {k:"pieceRef",l:"Réf pièce",kw:["pieceref","refpiece","reference","numpiece","piece"]},{k:"pieceDate",l:"Date pièce/échéance",kw:["piecedate","dateecheance","echeance","datepiece"]},
+    {k:"label",l:"Libellé écriture",kw:["ecriturelib","libelleecriture","libelle","intitule","designation","label"]},{k:"debit",l:"Débit",kw:["montantdebit","debitmontant","debit"]},
+    {k:"credit",l:"Crédit",kw:["montantcredit","creditmontant","credit"]},{k:"lettre",l:"Lettrage",kw:["ecriturelet","codelettrage","lettrage","lettre","let"]}],
     required:["account"]},
   accounts:{label:"Plan comptable", fields:[
-    {k:"number",l:"N° compte",kw:["comptenum","numero","number","compte"]},{k:"label",l:"Intitulé",kw:["comptelib","intitule","libelle","label"]},
+    {k:"number",l:"N° compte",kw:["comptenum","numerocompte","ncompte","comptegeneral","numero","number","cpte","compte"]},{k:"label",l:"Intitulé",kw:["comptelib","intitulecompte","intitule","libelle","designation","label"]},
     {k:"nature",l:"Nature (option)",kw:["nature"]}], required:["number"]},
   tiers:{label:"Comptes tiers", fields:[
-    {k:"code",l:"Code tiers",kw:["compauxnum","code","tiers"]},{k:"name",l:"Nom / raison sociale",kw:["compauxlib","nom","name","intitule"]},
-    {k:"collectiveAccount",l:"Compte collectif",kw:["compte","collectif","comptenum"]},{k:"kind",l:"Type (client/fournisseur)",kw:["type","kind","sens"]}],
+    {k:"code",l:"Code tiers",kw:["compauxnum","numerotiers","comptetiers","comptaux","codetiers","code","tiers"]},{k:"name",l:"Nom / raison sociale",kw:["compauxlib","intituletiers","raisonsociale","nomtiers","nom","name","intitule","designation"]},
+    {k:"collectiveAccount",l:"Compte collectif",kw:["comptecollectif","collectif","comptegeneral","compte","comptenum"]},{k:"kind",l:"Type (client/fournisseur)",kw:["type","kind","sens"]}],
     required:["code"]}
 };
 function acctImportView(){
@@ -5635,7 +5635,7 @@ function acctImpBuildMap(){
   const delim=window._IMPDELIM||bankGuessDelim(window._IMPTEXT||""); window._IMPDELIM=delim;
   const rows=bankParseCSV(window._IMPTEXT||"", delim); window._IMPROWS=rows;
   const hr=window._IMPHR||0; const headers=rows[hr]||[];
-  const norm=(x)=>String(x).toLowerCase().replace(/[^a-z0-9]/g,"");
+  const norm=(x)=>String(x).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
   const guess=(kws)=>{ for(const kw of kws){ const i=headers.findIndex(h=>norm(h).includes(kw)); if(i>=0) return i; } return ""; };
   const opt=(sel)=>`<option value="">—</option>`+headers.map((h,i)=>`<option value="${i}" ${String(sel)===String(i)?'selected':''}>${esc(String(h)||('col '+(i+1)))}</option>`).join("");
   const cfg=IMP_TYPES[window._imp.type];
