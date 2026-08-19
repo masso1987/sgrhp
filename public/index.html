@@ -4762,7 +4762,7 @@ async function saveLetterhead(){
 
 
 /* ==================== COMPTABILITÉ (OHADA) — Phase C1 ==================== */
-let ACCT_ACCOUNTS = [], ACCT_JOURNALS = [], ACCT_ENTRY = null;
+let ACCT_ACCOUNTS = [], ACCT_JOURNALS = [], ACCT_TAXES = [], ACCT_ENTRY = null;
 async function acctLoadRefs() {
   const [acc, jr] = await Promise.all([api("/accounting/accounts").catch(() => []), api("/accounting/journals").catch(() => [])]);
   ACCT_ACCOUNTS = acc; ACCT_JOURNALS = jr;
@@ -4833,31 +4833,57 @@ async function acctHome() {
 
 async function acctPlanView() {
   const [accs, jrs, taxes] = await Promise.all([api("/accounting/accounts"), api("/accounting/journals"), api("/accounting/taxes")]);
-  ACCT_ACCOUNTS = accs; ACCT_JOURNALS = jrs;
+  ACCT_ACCOUNTS = accs; ACCT_JOURNALS = jrs; ACCT_TAXES = taxes;
+  const flt = window._acctPlanF || "actifs";
+  const q = (window._acctPlanQ || "").toLowerCase();
+  let rows = accs.filter(a => flt === "tous" ? true : flt === "sommeil" ? (a.active === false) : (a.active !== false));
+  if (q) rows = rows.filter(a => (a.number + " " + (a.label || "")).toLowerCase().includes(q));
+  const seg = (v, l) => `<button class="btn ${flt === v ? 'p' : 'ghost'} sm" onclick="window._acctPlanF='${v}';acctPlanView()">${l}</button>`;
+  const natTag = (a) => `<span class="tag gray">${esc(a.nature || "")}</span>${a.type === "total" ? ' <span class="tag" style="background:#334155;color:#fff">total</span>' : ''}${a.reportANouveau ? ' <span class="tag" style="background:#0d9488;color:#fff" title="report à nouveau">RAN</span>' : ''}`;
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
-    <h1 style="margin-top:10px">📋 Plan comptable &amp; référentiels</h1>
-    <div class="panel"><b>Plan comptable (${accs.length})</b> <button class="btn p sm" style="float:right" onclick="acctAccountModal()">+ Compte</button>
-      <table style="margin-top:8px"><tr><th>N°</th><th>Intitulé</th><th>Nature</th><th></th></tr>
-      ${accs.map(a => `<tr><td><code>${esc(a.number)}</code></td><td>${esc(a.label)}</td><td><span class="tag gray">${esc(a.nature || "")}</span></td>
-        <td><button class="btn ghost sm" onclick='acctAccountModal(${JSON.stringify(a.id)})'>✏️</button></td></tr>`).join("")}</table></div>
+    <h1 style="margin-top:10px">📋 Gestion des comptes généraux</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${seg('actifs','Actifs')} ${seg('sommeil','En sommeil')} ${seg('tous','Tous')}
+        <input placeholder="Rechercher n° / intitulé…" value="${esc(window._acctPlanQ||'')}" oninput="window._acctPlanQ=this.value" onkeydown="if(event.key==='Enter')acctPlanView()" style="margin:0;min-width:220px">
+        <span style="flex:1"></span>
+        <button class="btn p sm" onclick="acctAccountModal()">+ Compte</button></div>
+      <table style="margin-top:8px"><tr><th>N°</th><th>Intitulé du compte</th><th>Nature</th><th>Statut</th><th></th></tr>
+      ${rows.length ? rows.map(a => `<tr${a.active === false ? ' style="opacity:.55"' : ''}><td><code>${esc(a.number)}</code></td><td>${esc(a.label)}</td><td>${natTag(a)}</td>
+        <td>${a.active === false ? '<span class="tag" style="background:#9ca3af;color:#fff">En sommeil</span>' : '<span class="tag green">Actif</span>'}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick='acctAccountModal(${JSON.stringify(a.id)})'>✏️</button>
+          <button class="btn ghost sm" onclick="acctAccountToggle('${a.id}',${a.active === false})">${a.active === false ? 'Réactiver' : 'Mettre en sommeil'}</button></td></tr>`).join("")
+        : '<tr><td colspan="5" style="color:var(--muted)">Aucun compte pour ce filtre.</td></tr>'}
+      </table></div>
     <div class="grid2">
-      <div class="panel"><b>Journaux (${jrs.length})</b>
+      <div class="panel"><b>Journaux (${jrs.length})</b> <button class="btn ghost sm" style="float:right" onclick="go('acctplan')">Gérer →</button>
         <table style="margin-top:8px"><tr><th>Code</th><th>Intitulé</th><th>Type</th></tr>
-        ${jrs.map(j => `<tr><td><code>${esc(j.code)}</code></td><td>${esc(j.label)}</td><td>${esc(j.type)}</td></tr>`).join("")}</table></div>
+        ${jrs.map(j => `<tr><td><code>${esc(j.code)}</code></td><td>${esc(j.label)}</td><td>${esc(j.type)}</td></tr>`).join("")}</table>
+        <div class="note" style="margin-top:6px">Gestion complète des journaux : menu « Codes journaux ».</div></div>
       <div class="panel"><b>Taux de TVA</b>
         <table style="margin-top:8px"><tr><th>Code</th><th>Libellé</th><th class="r">Taux</th><th>Compte</th></tr>
         ${taxes.map(t => `<tr><td><code>${esc(t.code)}</code></td><td>${esc(t.label)}</td><td class="r">${(t.rate * 100).toFixed(2)} %</td><td>${esc(t.account || "")}</td></tr>`).join("")}</table></div>
     </div>`;
 }
+async function acctAccountToggle(id, activate) {
+  try { await api("/accounting/accounts/" + id, { method: "PUT", body: JSON.stringify({ active: !!activate }) }); acctPlanView(); }
+  catch (e) { alert(e.message); }
+}
 function acctAccountModal(id) {
-  const a = id ? ACCT_ACCOUNTS.find(x => x.id === id) : { number: "", label: "", nature: "charges", type: "detail" };
+  const a = id ? ACCT_ACCOUNTS.find(x => x.id === id) : { number: "", label: "", nature: "charges", type: "detail", active: true };
+  const taxes = ACCT_TAXES || [];
   const bg = document.createElement("div"); bg.className = "modal-bg";
   const opt = (v) => `<option value="${v}" ${a.nature === v ? "selected" : ""}>${v}</option>`;
-  bg.innerHTML = `<div class="modal" style="width:460px"><h3 style="margin:0 0 8px">${id ? "Modifier" : "Nouveau"} compte</h3>
+  const topt = (v, l) => `<option value="${v}" ${(a.type || "detail") === v ? "selected" : ""}>${l}</option>`;
+  const taxopt = `<option value="">— aucun —</option>` + taxes.map(t => `<option value="${esc(t.code)}" ${a.taxCode === t.code ? "selected" : ""}>${esc(t.code)} (${(t.rate*100).toFixed(2)} %)</option>`).join("");
+  bg.innerHTML = `<div class="modal" style="width:500px"><h3 style="margin:0 0 8px">${id ? "Modifier" : "Nouveau"} compte général</h3>
     <div class="grid2">
       <div><label>N° de compte</label><input id="acN" value="${esc(a.number || "")}" ${id ? "disabled" : ""} placeholder="ex. 401110"></div>
       <div><label>Intitulé</label><input id="acL" value="${esc(a.label || "")}"></div>
       <div><label>Nature</label><select id="acNat">${["capitaux", "immobilisations", "stocks", "tiers", "financiers", "charges", "produits"].map(opt).join("")}</select></div>
+      <div><label>Type</label><select id="acType">${topt("detail","Détail (mouvementé)")}${topt("total","Total (regroupement)")}</select></div>
+      <div><label>Compte de taxe</label><select id="acTax">${taxopt}</select></div>
+      <div><label>Report à nouveau</label><select id="acRAN"><option value="">Non</option><option value="1" ${a.reportANouveau ? "selected" : ""}>Oui</option></select></div>
+      <div><label>Statut</label><select id="acAct"><option value="1" ${a.active !== false ? "selected" : ""}>Actif</option><option value="0" ${a.active === false ? "selected" : ""}>En sommeil</option></select></div>
     </div>
     <div class="err hidden" id="acErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctAccountSave('${id || ""}')">Enregistrer</button>
@@ -4866,12 +4892,14 @@ function acctAccountModal(id) {
 }
 async function acctAccountSave(id) {
   const g = (x) => (document.getElementById(x) || {}).value;
-  const body = { number: g("acN"), label: g("acL"), nature: g("acNat"), type: "detail" };
+  const body = { number: g("acN"), label: g("acL"), nature: g("acNat"), type: g("acType") || "detail",
+    taxCode: g("acTax") || "", reportANouveau: g("acRAN") === "1", active: g("acAct") !== "0" };
   try { if (id) await api("/accounting/accounts/" + id, { method: "PUT", body: JSON.stringify(body) });
     else await api("/accounting/accounts", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); acctPlanView(); }
   catch (e) { const el = document.getElementById("acErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
+
 async function acctSaisieView() {
   await acctLoadRefs();
   const period = window._acctPeriod || new Date().toISOString().slice(0, 7);
