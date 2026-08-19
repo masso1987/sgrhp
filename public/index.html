@@ -868,6 +868,15 @@ const NAV = [
   { k: "acctjournals", label: "📓 Codes journaux", sec: "Structure", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "accttiers", label: "👥 Comptes tiers", sec: "Structure", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctimport", label: "📥 Import Sage / FEC", sec: "Données", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
+  { k: "stockhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
+  { k: "stockproducts", label: "📦 Produits", sec: "Catalogue", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
+  { k: "stockcats", label: "🗃️ Catégories", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockunits", label: "📐 Unités", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockin", label: "⬇ Entrées (achats)", sec: "Mouvements", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockout", label: "⬆ Sorties (ventes)", sec: "Mouvements", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockadjust", label: "⚖️ Ajustement", sec: "Mouvements", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Mouvements", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
+  { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
 
   { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -883,6 +892,7 @@ const NAV_GROUPS = [
   { g: "paie", label: "Paie" },
   { g: "facturation", label: "Facturation" },
   { g: "comptabilite", label: "Comptabilité" },
+  { g: "stock", label: "Stock" },
   { g: "rapports", label: "Rapports" },
   { g: "admin", label: "Admin" },
   { g: "plateforme", label: "Plateforme" },
@@ -965,7 +975,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -5778,6 +5788,249 @@ async function acctJournalSave(id){
     else await api("/accounting/journals",{method:"POST",body:JSON.stringify(body)});
     document.querySelector(".modal-bg").remove(); acctJournalsView(); }
   catch(e){ const el=document.getElementById("jErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ================= Gestion de stock ================= */
+window._STK = window._STK || {};
+async function stockLoadRefs(){
+  const [cats,units,sups,prods]=await Promise.all([
+    api("/stock/categories").catch(()=>[]), api("/stock/units").catch(()=>[]),
+    api("/stock/suppliers").catch(()=>[]), api("/stock/products").catch(()=>[])]);
+  window._STK={cats,units,sups,prods};
+}
+const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
+function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
+function stkUnitName(id){ const u=(window._STK.units||[]).find(x=>x.id===id); return u?(u.shortName||u.name):""; }
+
+async function stockHome(){
+  const d=await api("/stock/dashboard").catch(()=>null);
+  if(!d){ view.innerHTML='<h1>📦 Gestion de stock</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
+  const k=d.kpi;
+  const kpi=(l,v,dest,warn)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:150px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px;${warn&&v>0?'color:var(--red)':''}">${v}</div></div>`;
+  const typeTag=(t)=>({achat:'<span class="tag green">Entrée</span>',initial:'<span class="tag gray">Initial</span>',vente:'<span class="tag" style="background:#b45309;color:#fff">Sortie</span>',ajustement:'<span class="tag" style="background:#7c3aed;color:#fff">Ajust.</span>'})[t]||esc(t);
+  view.innerHTML=`<h1>📦 Gestion de stock</h1>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px">
+      ${kpi("Produits référencés",k.products,'stockproducts')}
+      ${kpi("Valeur du stock (FCFA)",fCFA(k.stockValue))}
+      ${kpi("Alertes (stock bas)",k.lowStock,'stockproducts',true)}
+      ${kpi("Ruptures",k.outOfStock,'stockproducts',true)}</div>
+    <div class="grid2">
+      <div class="panel"><b>⚠️ Réapprovisionnement (stock ≤ seuil)</b>
+        <table style="margin-top:6px"><tr><th>Produit</th><th class="r">Stock</th><th class="r">Seuil</th><th></th></tr>
+        ${d.lowList.length?d.lowList.map(p=>`<tr><td>${esc(p.name)}</td><td class="r"><b style="color:var(--red)">${stkQty(p.qty)}</b> ${esc(p.unitName)}</td><td class="r">${stkQty(p.alertQty)}</td><td><button class="btn ghost sm" onclick="go('stockin')">Réappro.</button></td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">Aucune alerte 👍</td></tr>'}</table></div>
+      <div class="panel"><b>Top valeur en stock</b><div style="height:200px;margin-top:6px"><canvas id="stkTop"></canvas></div></div></div>
+    <div class="panel"><b>Derniers mouvements</b> <button class="btn ghost sm" style="float:right" onclick="go('stockmoves')">Tout voir →</button>
+      <table style="margin-top:6px"><tr><th>Date</th><th>Type</th><th>Produit</th><th class="r">Qté</th></tr>
+      ${d.recent.length?d.recent.map(m=>`<tr><td>${esc(m.date||'')}</td><td>${typeTag(m.type)}</td><td>${esc(m.productName)}</td><td class="r" style="color:${m.qty<0?'var(--red)':'var(--nav-active-color)'}">${m.qty>0?'+':''}${stkQty(m.qty)}</td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">Aucun mouvement.</td></tr>'}</table></div>`;
+  if(await ensureChartJs() && window.Chart){ try{
+    new Chart(document.getElementById("stkTop").getContext("2d"),{type:"bar",data:{labels:d.topValue.map(t=>t.name),datasets:[{label:"Valeur",data:d.topValue.map(t=>t.stockValue),backgroundColor:"#2563eb"}]},
+      options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>Number(v).toLocaleString("fr-FR")}}}}});
+  }catch(e){} }
+}
+
+async function stockProductsView(){
+  await stockLoadRefs();
+  const q=(window._stkQ||"").toLowerCase();
+  let list=window._STK.prods; if(q) list=list.filter(p=>((p.name||"")+" "+(p.sku||"")).toLowerCase().includes(q));
+  const totVal=list.reduce((s,p)=>s+(p.stockValue||0),0);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">📦 Produits</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input placeholder="Rechercher nom / SKU…" value="${esc(window._stkQ||'')}" oninput="window._stkQ=this.value" onkeydown="if(event.key==='Enter')stockProductsView()" style="margin:0;min-width:220px">
+        <span style="flex:1"></span><button class="btn p sm" onclick="stockProductModal()">+ Produit</button></div>
+      <table style="margin-top:8px"><tr><th>SKU</th><th>Produit</th><th>Catégorie</th><th class="r">Prix achat</th><th class="r">Prix vente</th><th class="r">Stock</th><th class="r">Valeur</th><th></th></tr>
+      ${list.length?list.map(p=>`<tr${p.active===false?' style="opacity:.5"':''}><td><code>${esc(p.sku||'')}</code></td><td>${esc(p.name)}${p.low?' <span class="tag" style="background:var(--red);color:#fff">bas</span>':''}${p.out?' <span class="tag gray">rupture</span>':''}</td>
+        <td>${esc(p.categoryName||'')}</td><td class="r">${fCFA(p.purchasePrice)}</td><td class="r">${fCFA(p.salePrice)}</td>
+        <td class="r"><b>${stkQty(p.qty)}</b> ${esc(p.unitName||'')}</td><td class="r">${fCFA(p.stockValue)}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="stockProductModal('${p.id}')">✏️</button>
+          <button class="btn ghost sm" onclick="go('stockadjust');setTimeout(()=>{window._adjPid='${p.id}';stockAdjustView();},50)">Ajuster</button></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun produit.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">VALEUR TOTALE (${list.length})</td><td class="r">${fCFA(totVal)}</td><td></td></tr>
+      </table></div>`;
+}
+function stockProductModal(id){
+  const p=id?(window._STK.prods.find(x=>x.id===id)||{}):{active:true};
+  const cats=window._STK.cats||[], units=window._STK.units||[], sups=window._STK.sups||[];
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const sel=(arr,cur,ph)=>`<option value="">${ph}</option>`+arr.map(x=>`<option value="${x.id}" ${cur===x.id?'selected':''}>${esc(x.name)}</option>`).join("");
+  bg.innerHTML=`<div class="modal" style="width:560px"><h3 style="margin:0 0 8px">${id?'Modifier':'Nouveau'} produit</h3>
+    <div class="grid2">
+      <div><label>Nom (désignation) *</label><input id="pName" value="${esc(p.name||'')}"></div>
+      <div><label>SKU / référence</label><input id="pSku" value="${esc(p.sku||'')}"></div>
+      <div><label>Catégorie</label><select id="pCat">${sel(cats,p.categoryId,'—')}</select></div>
+      <div><label>Unité</label><select id="pUnit">${sel(units,p.unitId,'—')}</select></div>
+      <div><label>Fournisseur</label><select id="pSup">${sel(sups,p.supplierId,'—')}</select></div>
+      <div><label>Seuil d'alerte</label><input id="pAlert" type="number" value="${p.alertQty!=null?p.alertQty:''}"></div>
+      <div><label>Prix d'achat (FCFA)</label><input id="pPP" type="number" value="${p.purchasePrice||0}"></div>
+      <div><label>Prix de vente (FCFA)</label><input id="pSP" type="number" value="${p.salePrice||0}"></div>
+      ${id?`<div><label>Stock actuel</label><input value="${stkQty(p.qty)}" disabled></div><div><label>Statut</label><select id="pAct"><option value="1" ${p.active!==false?'selected':''}>Actif</option><option value="0" ${p.active===false?'selected':''}>Inactif</option></select></div>`
+          :`<div><label>Stock initial</label><input id="pQty" type="number" value="0"></div>`}
+    </div>
+    <div class="err hidden" id="pErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockProductSave('${id||''}')">Enregistrer</button>
+      ${id?`<button class="btn ghost" style="color:var(--red)" onclick="stockProductDelete('${id}')">Supprimer</button>`:''}
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function stockProductSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={name:g("pName"),sku:g("pSku"),categoryId:g("pCat"),unitId:g("pUnit"),supplierId:g("pSup"),
+    alertQty:g("pAlert"),purchasePrice:g("pPP"),salePrice:g("pSP")};
+  if(id){ body.active=g("pAct")!=="0"; } else { body.qty=g("pQty"); }
+  try{ if(id) await api("/stock/products/"+id,{method:"PUT",body:JSON.stringify(body)});
+    else await api("/stock/products",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); stockProductsView(); }
+  catch(e){ const el=document.getElementById("pErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockProductDelete(id){ if(!confirm("Supprimer ce produit ? (l'historique de mouvements est conservé)")) return;
+  try{ await api("/stock/products/"+id,{method:"DELETE"}); document.querySelector(".modal-bg").remove(); stockProductsView(); }catch(e){ alert(e.message); } }
+
+/* ---- Référentiels simples (catégories, unités, fournisseurs) ---- */
+function stkRefView(opts){
+  // opts: {title, ep, cols:[{k,l}], fields:[{k,l,type}], key, back, render}
+  return async function(){
+    const list=await api("/stock/"+opts.ep).catch(()=>[]);
+    window["_stkref_"+opts.ep]=list;
+    view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+      <h1 style="margin-top:10px">${opts.title}</h1>
+      <div class="panel"><button class="btn p sm" style="float:right" onclick="stkRefModal('${opts.ep}')">+ Ajouter</button>
+        <b>${list.length} élément(s)</b>
+        <table style="margin-top:8px"><tr>${opts.cols.map(c=>`<th>${esc(c.l)}</th>`).join("")}<th></th></tr>
+        ${list.length?list.map(r=>`<tr>${opts.cols.map(c=>`<td>${esc(String(r[c.k]!=null?r[c.k]:''))}</td>`).join("")}
+          <td style="white-space:nowrap"><button class="btn ghost sm" onclick="stkRefModal('${opts.ep}','${r.id}')">✏️</button>
+            <button class="btn ghost sm" onclick="stkRefDelete('${opts.ep}','${r.id}')">✕</button></td></tr>`).join(""):`<tr><td colspan="${opts.cols.length+1}" style="color:var(--muted)">Aucun.</td></tr>`}
+        </table></div>`;
+  };
+}
+const STK_REF={
+  categories:{title:"🗃️ Catégories",ep:"categories",cols:[{k:"name",l:"Nom"}],fields:[{k:"name",l:"Nom",type:"text"}]},
+  units:{title:"📐 Unités",ep:"units",cols:[{k:"name",l:"Nom"},{k:"shortName",l:"Abrégé"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"shortName",l:"Nom court",type:"text"}]},
+  suppliers:{title:"🚚 Fournisseurs",ep:"suppliers",cols:[{k:"name",l:"Nom"},{k:"phone",l:"Téléphone"},{k:"email",l:"Email"}],fields:[{k:"name",l:"Nom / raison sociale",type:"text"},{k:"contact",l:"Contact",type:"text"},{k:"phone",l:"Téléphone",type:"text"},{k:"email",l:"Email",type:"text"},{k:"address",l:"Adresse",type:"text"}]},
+};
+const stockCatsView=stkRefView(STK_REF.categories);
+const stockUnitsView=stkRefView(STK_REF.units);
+const stockSuppliersView=stkRefView(STK_REF.suppliers);
+function stkRefModal(ep,id){
+  const cfg=STK_REF[ep]; const list=window["_stkref_"+ep]||[]; const r=id?(list.find(x=>x.id===id)||{}):{};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:440px"><h3 style="margin:0 0 8px">${id?'Modifier':'Nouveau'} — ${esc(cfg.title.replace(/^[^ ]+ /,''))}</h3>
+    ${cfg.fields.map(fl=>`<div style="margin-bottom:6px"><label>${esc(fl.l)}</label><input id="rf_${fl.k}" value="${esc(r[fl.k]!=null?r[fl.k]:'')}"></div>`).join("")}
+    <div class="err hidden" id="rfErr"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stkRefSave('${ep}','${id||''}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function stkRefSave(ep,id){
+  const cfg=STK_REF[ep]; const body={}; for(const fl of cfg.fields){ const el=document.getElementById("rf_"+fl.k); if(el) body[fl.k]=el.value; }
+  try{ if(id) await api("/stock/"+ep+"/"+id,{method:"PUT",body:JSON.stringify(body)});
+    else await api("/stock/"+ep,{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); go(({categories:'stockcats',units:'stockunits',suppliers:'stocksuppliers'})[ep]); }
+  catch(e){ const el=document.getElementById("rfErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stkRefDelete(ep,id){ if(!confirm("Supprimer cet élément ?")) return;
+  try{ await api("/stock/"+ep+"/"+id,{method:"DELETE"}); go(({categories:'stockcats',units:'stockunits',suppliers:'stocksuppliers'})[ep]); }catch(e){ alert(e.message); } }
+
+/* ---- Mouvements : entrées / sorties (éditeur de lignes) ---- */
+function stkProdOpts(cur){ return `<option value="">— produit —</option>`+(window._STK.prods||[]).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)} (stock ${stkQty(p.qty)})</option>`).join(""); }
+function stkLineAdd(){ window._STKLINES.push({productId:"",qty:"",price:""}); stkRenderLines(); }
+function stkLineDel(i){ window._STKLINES.splice(i,1); if(!window._STKLINES.length) window._STKLINES.push({productId:"",qty:"",price:""}); stkRenderLines(); }
+function stkLineSet(i,f,v){ window._STKLINES[i][f]=v; }
+function stkRenderLines(){
+  const box=document.getElementById("stkLines"); if(!box) return; const priceLabel=window._STKKIND==='out'?'PU vente':'Coût unitaire';
+  box.innerHTML=`<table><tr><th>Produit</th><th class="r">Quantité</th><th class="r">${priceLabel}</th><th></th></tr>
+    ${window._STKLINES.map((l,i)=>`<tr>
+      <td><select onchange="stkLineSet(${i},'productId',this.value)" style="margin:0;min-width:220px">${stkProdOpts(l.productId)}</select></td>
+      <td><input type="number" value="${l.qty}" oninput="stkLineSet(${i},'qty',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
+      <td><input type="number" value="${l.price}" oninput="stkLineSet(${i},'price',this.value)" style="margin:0;max-width:120px;text-align:right"></td>
+      <td><button class="btn ghost sm" onclick="stkLineDel(${i})">✕</button></td></tr>`).join("")}</table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="stkLineAdd()">+ Ligne</button>`;
+}
+async function stockInView(){
+  await stockLoadRefs(); window._STKKIND='in'; window._STKLINES=[{productId:"",qty:"",price:""}];
+  const sups=window._STK.sups||[];
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">⬇ Entrée de stock (achat / réception)</h1>
+    <div class="panel"><div class="grid3">
+      <div><label>Date</label><input id="inDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div><label>Fournisseur</label><select id="inSup"><option value="">—</option>${sups.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></div>
+      <div><label>N° pièce / réf</label><input id="inRef" placeholder="ex. BL / facture"></div>
+    </div><div id="stkLines" style="margin-top:8px"></div>
+    <div class="err hidden" id="inErr" style="margin-top:6px"></div>
+    <div style="margin-top:10px"><button class="btn p" onclick="stockInSubmit()">Valider l'entrée</button></div></div>`;
+  stkRenderLines();
+}
+async function stockInSubmit(){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const lines=window._STKLINES.filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:l.price!==""?Number(l.price):undefined}));
+  if(!lines.length){ const e=document.getElementById("inErr"); e.textContent="Ajoutez au moins une ligne (produit + quantité)."; e.classList.remove("hidden"); return; }
+  try{ const r=await api("/stock/movements/purchase",{method:"POST",body:JSON.stringify({date:g("inDate"),supplierId:g("inSup"),ref:g("inRef"),lines})});
+    alert(r.movements+" ligne(s) enregistrée(s)."); go('stockproducts'); }
+  catch(e){ const el=document.getElementById("inErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockOutView(){
+  await stockLoadRefs(); window._STKKIND='out'; window._STKLINES=[{productId:"",qty:"",price:""}];
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">⬆ Sortie de stock (vente / consommation)</h1>
+    <div class="panel"><div class="grid3">
+      <div><label>Date</label><input id="outDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div><label>Client / destination</label><input id="outCust" placeholder="ex. client, chantier, service"></div>
+      <div><label>N° pièce / réf</label><input id="outRef"></div>
+    </div><div id="stkLines" style="margin-top:8px"></div>
+    <label class="chk" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="outNeg" style="width:auto;margin:0"> autoriser le stock négatif</label>
+    <div class="err hidden" id="outErr" style="margin-top:6px"></div>
+    <div style="margin-top:10px"><button class="btn p" onclick="stockOutSubmit()">Valider la sortie</button></div></div>`;
+  stkRenderLines();
+}
+async function stockOutSubmit(){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const lines=window._STKLINES.filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitPrice:l.price!==""?Number(l.price):undefined}));
+  if(!lines.length){ const e=document.getElementById("outErr"); e.textContent="Ajoutez au moins une ligne (produit + quantité)."; e.classList.remove("hidden"); return; }
+  try{ const r=await api("/stock/movements/sale",{method:"POST",body:JSON.stringify({date:g("outDate"),customer:g("outCust"),ref:g("outRef"),allowNegative:document.getElementById("outNeg").checked,lines})});
+    alert(r.movements+" ligne(s) enregistrée(s)."); go('stockproducts'); }
+  catch(e){ const el=document.getElementById("outErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockAdjustView(){
+  await stockLoadRefs();
+  const pid=window._adjPid||""; window._adjPid="";
+  const prods=window._STK.prods||[]; const cur=prods.find(p=>p.id===pid);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">⚖️ Ajustement de stock</h1>
+    <div class="panel" style="max-width:560px"><div class="grid2">
+      <div style="grid-column:1/3"><label>Produit</label><select id="ajP" onchange="stockAdjPick(this.value)">${`<option value="">— produit —</option>`+prods.map(p=>`<option value="${p.id}" ${p.id===pid?'selected':''}>${esc(p.name)} (stock ${stkQty(p.qty)})</option>`).join("")}</select></div>
+      <div><label>Stock actuel</label><input id="ajCur" value="${cur?stkQty(cur.qty):''}" disabled></div>
+      <div><label>Mode</label><select id="ajMode"><option value="set">Fixer le stock à…</option><option value="delta">Ajouter / retirer (±)</option></select></div>
+      <div><label>Valeur</label><input id="ajVal" type="number" placeholder="ex. 12 ou -3"></div>
+      <div><label>Date</label><input id="ajDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div style="grid-column:1/3"><label>Motif</label><input id="ajReason" placeholder="inventaire, casse, perte…"></div>
+    </div>
+    <div class="err hidden" id="ajErr" style="margin-top:6px"></div>
+    <div style="margin-top:10px"><button class="btn p" onclick="stockAdjustSubmit()">Enregistrer l'ajustement</button></div></div>`;
+}
+function stockAdjPick(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); const el=document.getElementById("ajCur"); if(el) el.value=p?stkQty(p.qty):""; }
+async function stockAdjustSubmit(){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  if(!g("ajP")){ const e=document.getElementById("ajErr"); e.textContent="Choisissez un produit."; e.classList.remove("hidden"); return; }
+  try{ await api("/stock/movements/adjust",{method:"POST",body:JSON.stringify({productId:g("ajP"),mode:g("ajMode"),value:Number(g("ajVal")),reason:g("ajReason"),date:g("ajDate")})});
+    alert("Ajustement enregistré."); go('stockproducts'); }
+  catch(e){ const el=document.getElementById("ajErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockMovesView(){
+  await stockLoadRefs();
+  const t=window._mvType||""; const pid=window._mvPid||"";
+  const qs=[]; if(t) qs.push("type="+t); if(pid) qs.push("productId="+pid);
+  const rows=await api("/stock/movements"+(qs.length?"?"+qs.join("&"):"")).catch(()=>[]);
+  const typeTag=(x)=>({achat:'<span class="tag green">Entrée</span>',initial:'<span class="tag gray">Initial</span>',vente:'<span class="tag" style="background:#b45309;color:#fff">Sortie</span>',ajustement:'<span class="tag" style="background:#7c3aed;color:#fff">Ajust.</span>'})[x]||esc(x);
+  const seg=(v,l)=>`<button class="btn ${t===v?'p':'ghost'} sm" onclick="window._mvType='${v}';stockMovesView()">${l}</button>`;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">🧾 Journal des mouvements</h1>
+    <div class="panel"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${seg('','Tous')}${seg('achat','Entrées')}${seg('vente','Sorties')}${seg('ajustement','Ajustements')}
+      <span style="flex:1"></span>
+      <select onchange="window._mvPid=this.value;stockMovesView()" style="margin:0;min-width:200px"><option value="">— tous produits —</option>${(window._STK.prods||[]).map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select></div>
+      <table style="margin-top:8px"><tr><th>Date</th><th>Type</th><th>Produit</th><th class="r">Qté</th><th class="r">PU</th><th>Réf</th><th>Note / motif</th></tr>
+      ${rows.length?rows.map(m=>`<tr><td>${esc(m.date||'')}</td><td>${typeTag(m.type)}</td><td>${esc(m.productName)}</td>
+        <td class="r" style="color:${m.qty<0?'var(--red)':'var(--nav-active-color)'}">${m.qty>0?'+':''}${stkQty(m.qty)}</td>
+        <td class="r">${fCFA(m.unitCost)}</td><td>${esc(m.ref||'')}</td><td>${esc(m.reason||m.customer||m.note||'')}</td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
+      </table></div>`;
 }
 
 </script>
