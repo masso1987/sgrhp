@@ -2528,7 +2528,21 @@ async function paramsView() {
       <button class="btn ghost" onclick="previewBranding()">Aperçu</button>
       <button class="btn ghost" onclick="resetBranding()">Réinitialiser</button></div>
   </div>`;
+  if (ME && (ME.role === "ADM" || ME.role === "SADM")) view.insertAdjacentHTML("beforeend", `
+    <div class="panel"><b>💾 Sauvegarde des données</b>
+      <div class="note" style="margin:6px 0">Télécharge une sauvegarde complète (format JSON) de ${ME.role==="SADM"?"la plateforme (tous les tenants)":"votre organisation"} : comptabilité, paie, facturation, RH, référentiels et paramètres. Conservez ce fichier en lieu sûr.</div>
+      <button class="btn p sm" onclick="backupDownload()">⬇ Télécharger une sauvegarde</button></div>`);
   emailProviderFields();
+}
+async function backupDownload(){
+  try{
+    const r = await fetch("/api/data/backup", { headers: { Authorization: "Bearer " + TOKEN } });
+    if(!r.ok){ let m="Erreur"; try{ m=(await r.json()).error||m; }catch(e){} alert(m); return; }
+    const blob = await r.blob(); const a = document.createElement("a");
+    const dt = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    a.href = URL.createObjectURL(blob); a.download = "sgrhp_backup_"+dt+".json"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  }catch(e){ alert("Sauvegarde impossible : "+e.message); }
 }
 function colorField(label, key, val) {
   return `<div><label>${label}</label><div style="display:flex;gap:6px;align-items:center">

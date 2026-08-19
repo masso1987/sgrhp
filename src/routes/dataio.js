@@ -67,6 +67,22 @@ function exportRows(req) {
   });
 }
 
+router.get("/backup", allow("ADM", "SADM"), (req, res) => {
+  const isS = req.user.role === "SADM";
+  const tid = req.user.tenantId || "t1";
+  const out = { _backup: { version: 1, generatedAt: new Date().toISOString(), by: req.user.id, scope: isS ? "platform" : tid } };
+  for (const k of Object.keys(db)) {
+    const v = db[k];
+    if (Array.isArray(v)) out[k] = isS ? v : v.filter(x => (x.tenantId || "t1") === tid);
+    else if (k === "settings") out[k] = v;
+    else if (k !== "seq") out[k] = v;
+  }
+  audit(req.user, "EXPORTED", "Backup", "all", { scope: out._backup.scope });
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="sgrhp_backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.json"`);
+  res.send(JSON.stringify(out, null, 2));
+});
+
 router.get("/export", allow("CD", "RJ", "ADM"), (req, res) => {
   const fmt = (req.query.format || "xlsx").toLowerCase();
   const rows = exportRows(req);
