@@ -882,7 +882,11 @@ const NAV = [
   { k: "stockpo", label: "🧾 Bons de commande", sec: "Achats", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockpurchases", label: "📥 Achats (réceptions)", sec: "Achats", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
   { k: "stockreturns", label: "↩️ Retours d'achat", sec: "Achats", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockout", label: "⬆ Sorties (ventes)", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockso", label: "🧾 Commandes client", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stocksales", label: "🛒 Toutes les ventes", sec: "Ventes", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
+  { k: "stockpos", label: "🧮 POS (PDV)", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockquotes", label: "📝 Devis", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stocksalesreturns", label: "↩️ Retours de vente", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockadjust", label: "⚖️ Ajustement", sec: "Stock", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
@@ -985,7 +989,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6251,10 +6255,10 @@ function plNet(l){ const q=Number(l.qty)||0,pu=Number(l.unitCost)||0,d=Number(l.
 function plSub(){ return (window._PL||[]).reduce((s,l)=>s+plNet(l),0); }
 function plAdd(){ window._PL.push({productId:"",qty:"",unitCost:"",discountPct:""}); plRender(); }
 function plDel(i){ window._PL.splice(i,1); if(!window._PL.length) window._PL.push({productId:"",qty:"",unitCost:"",discountPct:""}); plRender(); }
-function plPick(i,v){ window._PL[i].productId=v; const p=(window._STK.prods||[]).find(x=>x.id===v); if(p&&!window._PL[i].unitCost) window._PL[i].unitCost=p.purchasePrice; plRender(); }
+function plPick(i,v){ window._PL[i].productId=v; const p=(window._STK.prods||[]).find(x=>x.id===v); if(p&&!window._PL[i].unitCost){ const sk=['so','sale','quote','salesreturn']; window._PL[i].unitCost= sk.includes(window._PLKIND)?p.salePrice:p.purchasePrice; } plRender(); }
 function plSet(i,f,v){ window._PL[i][f]=v; plTotals(); }
 function plRender(){
-  const box=document.getElementById("plBox"); if(!box) return; const disc=window._PLKIND!=='return';
+  const box=document.getElementById("plBox"); if(!box) return; const disc=!['return','salesreturn'].includes(window._PLKIND);
   box.innerHTML=`<table><tr><th>Produit</th><th class="r">Quantité</th><th class="r">Coût unitaire</th>${disc?'<th class="r">Remise %</th>':''}<th class="r">Total ligne</th><th></th></tr>
     ${window._PL.map((l,i)=>`<tr>
       <td><select onchange="plPick(${i},this.value)" style="margin:0;min-width:220px">${plProdOpts(l.productId)}</select></td>
@@ -6268,28 +6272,32 @@ function plRender(){
 function plTotals(){
   (window._PL||[]).forEach((l,i)=>{ const el=document.getElementById("plnet"+i); if(el) el.textContent=fCFA(plNet(l)); });
   const sub=plSub(); const g=(x)=>{const e=document.getElementById(x);return e?Number(e.value)||0:0;};
-  const tax=window._PLKIND==='return'?0:Math.round(sub*g("plTax")/100); const ship=window._PLKIND==='return'?0:g("plShip");
+  const noTax=['return','salesreturn'].includes(window._PLKIND);
+  const tax=noTax?0:Math.round(sub*g("plTax")/100); const ship=noTax?0:g("plShip");
   const set=(x,v)=>{const e=document.getElementById(x);if(e)e.textContent=fCFA(v);};
   set("plSubV",sub); set("plTaxV",tax); set("plTotV",sub+tax+ship);
 }
 function plCollect(){ return (window._PL||[]).filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:Number(l.unitCost)||0,discountPct:Number(l.discountPct)||0})); }
-function plHeaderHtml(kind){
-  const sups=window._STK.sups||[];
-  const showTax=kind!=='return';
+function plParty(party){
+  if(party==='customer'){ const cs=window._STK.clients||[]; return `<div><label>Client</label><select id="hdCust"><option value="">—</option>${cs.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></div>`; }
+  const ss=window._STK.sups||[]; return `<div><label>Fournisseur</label><select id="hdSup"><option value="">—</option>${ss.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></div>`;
+}
+function plHeaderHtml(kind,party){
+  party=party||'supplier';
   return `<div class="grid3">
-      <div><label>Fournisseur</label><select id="hdSup"><option value="">—</option>${sups.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></div>
+      ${plParty(party)}
       <div><label>Date</label><input id="hdDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
       <div><label>N° référence <span class="note">(auto si vide)</span></label><input id="hdRef" placeholder="auto"></div>
-      ${kind==='po'?`<div><label>Conditions de paiement</label><input id="hdTerms"></div><div><label>Lieu d'affaires</label><input id="hdLoc"></div><div><label>Délai de livraison</label><input id="hdDelay"></div>`:''}
+      ${(kind==='po'||kind==='so')?`<div><label>Conditions de paiement</label><input id="hdTerms"></div><div><label>${kind==='so'?'Livré à':'Lieu d\'affaires'}</label><input id="hdLoc"></div><div><label>Délai de livraison</label><input id="hdDelay"></div>`:''}
     </div>`;
 }
 function plTotalsHtml(kind){
-  const showTax=kind!=='return';
+  const showTax=!['return','salesreturn'].includes(kind);
   return `<div class="panel" style="max-width:360px;margin-left:auto;margin-top:10px">
     <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Sous-total</span><b id="plSubV">0</b></div>
     ${showTax?`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Taxe %</span><input id="plTax" type="number" value="0" style="max-width:80px;text-align:right;margin:0" oninput="plTotals()"> <b id="plTaxV">0</b></div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Frais d'expédition</span><input id="plShip" type="number" value="0" style="max-width:100px;text-align:right;margin:0" oninput="plTotals()"></div>`:''}
-    ${kind==='purchase'?`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Montant payé</span><input id="plPaid" type="number" value="0" style="max-width:100px;text-align:right;margin:0"></div>`:''}
+    ${['purchase','sale'].includes(kind)?`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Montant payé</span><input id="plPaid" type="number" value="0" style="max-width:100px;text-align:right;margin:0"></div>`:''}
     <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line);font-weight:700"><span>Total</span><b id="plTotV">0</b></div></div>`;
 }
 const stStatusTag=(st)=>({ordered:'<span class="tag" style="background:#2563eb;color:#fff">Commandé</span>',partial:'<span class="tag amber">Partiel</span>',completed:'<span class="tag green">Complet</span>',received:'<span class="tag green">Reçu</span>',due:'<span class="tag" style="background:#b45309;color:#fff">Dû</span>',paid:'<span class="tag green">Payé</span>'}[st]||esc(st));
@@ -6399,6 +6407,159 @@ async function stockReturnSubmit(){
   const lines=plCollect(); if(!lines.length){ const e=document.getElementById("reErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
   try{ await api("/stock/returns",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),lines})});
     go('stockreturns'); }catch(e){ const el=document.getElementById("reErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ================= Stock : Ventes (commande client, ventes, devis, retours, POS) ================= */
+function stCustName(id){ const c=(window._STK.clients||[]).find(x=>x.id===id); return c?c.name:""; }
+
+/* ---- Commandes client ---- */
+async function stockSOView(){
+  await stockLoadRefs(); const list=await api("/stock/so").catch(()=>[]);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">🧾 Commandes client</h1>
+    <div class="panel"><button class="btn p sm" style="float:right" onclick="stockSOForm()">+ Nouvelle commande</button><b>${list.length} commande(s)</b>
+      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Statut</th><th class="r">Qté restante</th><th class="r">Total</th><th></th></tr>
+      ${list.length?list.map(o=>`<tr><td><code>${esc(o.ref)}</code></td><td>${esc(o.date||'')}</td><td>${esc(stCustName(o.customerId))}</td><td>${stStatusTag(o.status)}</td><td class="r">${o.remaining}</td><td class="r">${fCFA(o.total)}</td>
+        <td style="white-space:nowrap">${o.status!=='completed'?`<button class="btn p sm" onclick="stockSODeliver('${o.id}','${esc(o.ref)}')">Livrer</button>`:''}${o.delivered<=0?`<button class="btn ghost sm" onclick="stockSODelete('${o.id}')">✕</button>`:''}</td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune commande.</td></tr>'}
+      </table></div>`;
+}
+function stockSOForm(){ window._PLKIND='so'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockso')">← Commandes client</button><h1 style="margin-top:10px">Nouvelle commande client</h1>
+    <div class="panel">${plHeaderHtml('so','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('so')}
+    <div class="err hidden" id="soErr" style="margin-top:6px"></div>
+    <div style="margin-top:10px"><button class="btn p" onclick="stockSOSubmit()">Enregistrer la commande</button></div></div>`;
+  plRender();
+}
+async function stockSOSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
+  if(!lines.length){ const e=document.getElementById("soErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
+  try{ await api("/stock/so",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),deliverTo:g("hdLoc"),deliveryDelay:g("hdDelay"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines})}); go('stockso'); }
+  catch(e){ const el=document.getElementById("soErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockSODeliver(id,ref){ if(!confirm("Livrer le reliquat de la commande "+ref+" ? Le stock sera décrémenté et une vente créée.")) return;
+  try{ const r=await api("/stock/so/"+id+"/deliver",{method:"POST",body:JSON.stringify({})}); alert("Livré — vente "+r.saleRef+" créée."); stockSOView(); }
+  catch(e){ if(/insuffisant/i.test(e.message)&&confirm(e.message+"\n\nForcer la livraison (stock négatif) ?")){ try{ const r=await api("/stock/so/"+id+"/deliver",{method:"POST",body:JSON.stringify({allowNegative:true})}); alert("Livré — vente "+r.saleRef); stockSOView(); }catch(e2){ alert(e2.message);} } else alert(e.message); } }
+async function stockSODelete(id){ if(!confirm("Supprimer cette commande ?")) return; try{ await api("/stock/so/"+id,{method:"DELETE"}); stockSOView(); }catch(e){ alert(e.message); } }
+
+/* ---- Toutes les ventes ---- */
+async function stockSalesView(){
+  await stockLoadRefs(); const list=await api("/stock/sales").catch(()=>[]);
+  const totDue=list.reduce((s,p)=>s+(p.total-p.amountPaid),0);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">🛒 Toutes les ventes</h1>
+    <div class="panel"><span style="float:right"><button class="btn ghost sm" onclick="go('stockpos')">🧮 POS</button> <button class="btn p sm" onclick="stockSaleForm()">+ Nouvelle vente</button></span><b>${list.length} vente(s)</b>
+      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th></th></tr>
+      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code>${p.soRef?` <span class="note">(CC ${esc(p.soRef)})</span>`:''}${p.channel==='pos'?' <span class="tag gray">POS</span>':''}</td><td>${esc(p.date||'')}</td><td>${esc(stCustName(p.customerId))}</td>
+        <td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
+        <td style="white-space:nowrap">${p.paymentStatus!=='paid'?`<button class="btn ghost sm" onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">Encaisser</button>`:''}<button class="btn ghost sm" onclick="stockSaleDelete('${p.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucune vente.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
+}
+function stockSaleForm(){ window._PLKIND='sale'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksales')">← Ventes</button><h1 style="margin-top:10px">Nouvelle vente</h1>
+    <div class="panel">${plHeaderHtml('sale','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('sale')}
+    <label class="chk" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="saNeg" style="width:auto;margin:0"> autoriser le stock négatif</label>
+    <div class="err hidden" id="saErr" style="margin-top:6px"></div>
+    <div style="margin-top:10px"><button class="btn p" onclick="stockSaleSubmit()">Enregistrer la vente</button></div></div>`;
+  plRender();
+}
+async function stockSaleSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
+  if(!lines.length){ const e=document.getElementById("saErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
+  try{ await api("/stock/sales",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,amountPaid:Number(g("plPaid"))||0,allowNegative:document.getElementById("saNeg").checked,lines})}); go('stocksales'); }
+  catch(e){ const el=document.getElementById("saErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+function stockSalePayModal(id,due){ const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:360px"><h3 style="margin:0 0 8px">Encaisser</h3><div class="note">Reste dû : ${fCFA(due)}</div>
+    <div style="margin-top:8px"><label>Montant</label><input id="spAmt" type="number" value="${due}"></div><div class="err hidden" id="spErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockSalePayDo('${id}')">Enregistrer</button><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg); }
+async function stockSalePayDo(id){ const amt=Number((document.getElementById("spAmt")||{}).value)||0;
+  try{ await api("/stock/sales/"+id+"/pay",{method:"POST",body:JSON.stringify({amount:amt})}); document.querySelector(".modal-bg").remove(); stockSalesView(); }catch(e){ const el=document.getElementById("spErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+async function stockSaleDelete(id){ if(!confirm("Supprimer cette vente ? Le stock vendu sera réintégré.")) return; try{ await api("/stock/sales/"+id,{method:"DELETE"}); stockSalesView(); }catch(e){ alert(e.message); } }
+
+/* ---- Devis ---- */
+async function stockQuotesView(){
+  await stockLoadRefs(); const list=await api("/stock/quotes").catch(()=>[]);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button><h1 style="margin-top:10px">📝 Devis</h1>
+    <div class="panel"><button class="btn p sm" style="float:right" onclick="stockQuoteForm()">+ Nouveau devis</button><b>${list.length} devis</b>
+      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Statut</th><th class="r">Total</th><th></th></tr>
+      ${list.length?list.map(q=>`<tr><td><code>${esc(q.ref)}</code></td><td>${esc(q.date||'')}</td><td>${esc(stCustName(q.customerId))}</td>
+        <td>${q.status==='converted'?'<span class="tag green">Converti</span>':'<span class="tag gray">Ouvert</span>'}</td><td class="r">${fCFA(q.total)}</td>
+        <td style="white-space:nowrap">${q.status!=='converted'?`<button class="btn p sm" onclick="stockQuoteConvert('${q.id}','${esc(q.ref)}')">Convertir</button>`:''}<button class="btn ghost sm" onclick="stockQuoteDelete('${q.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun devis.</td></tr>'}
+      </table></div>`;
+}
+function stockQuoteForm(){ window._PLKIND='quote'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockquotes')">← Devis</button><h1 style="margin-top:10px">Nouveau devis</h1>
+    <div class="panel">${plHeaderHtml('quote','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('quote')}
+    <div class="err hidden" id="qeErr" style="margin-top:6px"></div>
+    <div style="margin-top:10px"><button class="btn p" onclick="stockQuoteSubmit()">Enregistrer le devis</button></div></div>`;
+  plRender();
+}
+async function stockQuoteSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
+  if(!lines.length){ const e=document.getElementById("qeErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
+  try{ await api("/stock/quotes",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines})}); go('stockquotes'); }
+  catch(e){ const el=document.getElementById("qeErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockQuoteConvert(id,ref){ if(!confirm("Convertir le devis "+ref+" en vente ? Le stock sera décrémenté.")) return;
+  try{ const r=await api("/stock/quotes/"+id+"/convert",{method:"POST",body:JSON.stringify({})}); alert("Converti — vente "+r.saleRef); stockQuotesView(); }catch(e){ alert(e.message); } }
+async function stockQuoteDelete(id){ if(!confirm("Supprimer ce devis ?")) return; try{ await api("/stock/quotes/"+id,{method:"DELETE"}); stockQuotesView(); }catch(e){ alert(e.message); } }
+
+/* ---- Retours de vente ---- */
+async function stockSalesReturnsView(){
+  await stockLoadRefs(); const list=await api("/stock/salesreturns").catch(()=>[]);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button><h1 style="margin-top:10px">↩️ Retours de vente</h1>
+    <div class="panel"><button class="btn p sm" style="float:right" onclick="stockSalesReturnForm()">+ Nouveau retour</button><b>${list.length} retour(s)</b>
+      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th class="r">Total</th><th></th></tr>
+      ${list.length?list.map(r=>`<tr><td><code>${esc(r.ref)}</code></td><td>${esc(r.date||'')}</td><td>${esc(stCustName(r.customerId))}</td><td class="r">${fCFA(r.total)}</td>
+        <td><button class="btn ghost sm" onclick="stockSalesReturnDelete('${r.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="5" style="color:var(--muted)">Aucun retour.</td></tr>'}
+      </table></div>`;
+}
+function stockSalesReturnForm(){ window._PLKIND='salesreturn'; window._PL=[{productId:"",qty:"",unitCost:"",discountPct:""}];
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksalesreturns')">← Retours de vente</button><h1 style="margin-top:10px">Nouveau retour de vente</h1>
+    <div class="panel">${plHeaderHtml('salesreturn','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('salesreturn')}
+    <div class="err hidden" id="srErr" style="margin-top:6px"></div>
+    <div style="margin-top:10px"><button class="btn p" onclick="stockSalesReturnSubmit()">Enregistrer le retour</button></div></div>`;
+  plRender();
+}
+async function stockSalesReturnSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
+  if(!lines.length){ const e=document.getElementById("srErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
+  try{ await api("/stock/salesreturns",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),lines})}); go('stocksalesreturns'); }
+  catch(e){ const el=document.getElementById("srErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ---- POS (point de vente) ---- */
+async function stockPOSView(){
+  await stockLoadRefs(); window._POS={}; window._posQ="";
+  stockPOSRender();
+}
+function stockPOSRender(){
+  const prods=(window._STK.prods||[]).filter(p=>p.active!==false);
+  const q=(window._posQ||"").toLowerCase(); const shown=q?prods.filter(p=>((p.name||"")+" "+(p.sku||"")).toLowerCase().includes(q)):prods;
+  const cart=window._POS||{}; const clients=window._STK.clients||[];
+  const items=Object.keys(cart).map(id=>{const p=prods.find(x=>x.id===id)||{};return{id,name:p.name,price:p.salePrice||0,qty:cart[id]};});
+  const total=items.reduce((s,it)=>s+it.price*it.qty,0);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button><h1 style="margin-top:10px">🧮 Point de vente (POS)</h1>
+    <div class="grid2" style="align-items:start">
+      <div class="panel"><input placeholder="Rechercher produit / SKU…" value="${esc(window._posQ||'')}" oninput="window._posQ=this.value;stockPOSRender()" style="margin:0 0 8px;width:100%">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;max-height:56vh;overflow:auto">
+        ${shown.length?shown.slice(0,60).map(p=>`<button class="btn ghost" style="flex:0 0 auto;text-align:left;min-width:150px" onclick="stockPOSAdd('${p.id}')"><div style="font-weight:600;font-size:12px">${esc(p.name)}</div><div class="note">${fCFA(p.salePrice)} · stock ${stkQty(p.qty)}</div></button>`).join(""):'<span class="note">Aucun produit.</span>'}</div></div>
+      <div class="panel"><b>Panier</b>
+        <div style="margin:6px 0"><select id="posCust" style="width:100%"><option value="">Client — comptant</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></div>
+        <table><tr><th>Produit</th><th class="r">PU</th><th class="r">Qté</th><th class="r">Total</th><th></th></tr>
+        ${items.length?items.map(it=>`<tr><td>${esc(it.name)}</td><td class="r">${fCFA(it.price)}</td>
+          <td class="r"><button class="btn ghost sm" onclick="stockPOSQty('${it.id}',-1)">−</button> ${it.qty} <button class="btn ghost sm" onclick="stockPOSQty('${it.id}',1)">+</button></td>
+          <td class="r">${fCFA(it.price*it.qty)}</td><td><button class="btn ghost sm" onclick="stockPOSQty('${it.id}',-999)">✕</button></td></tr>`).join(""):'<tr><td colspan="5" style="color:var(--muted)">Panier vide — cliquez un produit.</td></tr>'}
+        <tr style="font-weight:700;border-top:2px solid #999"><td colspan="3">TOTAL</td><td class="r">${fCFA(total)}</td><td></td></tr></table>
+        <div style="margin-top:10px;display:flex;gap:8px"><button class="btn p" ${items.length?'':'disabled'} onclick="stockPOSCheckout()">💵 Encaisser ${fCFA(total)}</button>
+          <button class="btn ghost" onclick="window._POS={};stockPOSRender()">Vider</button></div></div></div>`;
+}
+function stockPOSAdd(id){ window._POS[id]=(window._POS[id]||0)+1; stockPOSRender(); }
+function stockPOSQty(id,d){ if(d===-999){ delete window._POS[id]; } else { window._POS[id]=(window._POS[id]||0)+d; if(window._POS[id]<=0) delete window._POS[id]; } stockPOSRender(); }
+async function stockPOSCheckout(){
+  const cart=window._POS||{}; const lines=Object.keys(cart).map(id=>({productId:id,qty:cart[id]}));
+  if(!lines.length) return; const cust=(document.getElementById("posCust")||{}).value||"";
+  const prods=window._STK.prods||[]; const total=lines.reduce((s,l)=>{const p=prods.find(x=>x.id===l.productId)||{};return s+(p.salePrice||0)*l.qty;},0);
+  const body={customerId:cust,channel:"pos",amountPaid:total,allowNegative:false,lines:lines.map(l=>{const p=prods.find(x=>x.id===l.productId)||{};return{productId:l.productId,qty:l.qty,unitCost:p.salePrice||0};})};
+  try{ const r=await api("/stock/sales",{method:"POST",body:JSON.stringify(body)}); alert("Vente "+r.ref+" encaissée ("+fCFA(r.total)+")."); window._POS={}; stockPOSRender(); }
+  catch(e){ alert(e.message); }
 }
 
 </script>
