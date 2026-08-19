@@ -270,6 +270,12 @@ function seqRef(req, col, prefix, field) {
   const n = mine(db[col], req).filter(x => String(x[field] || "").startsWith(prefix + yy)).length + 1;
   return prefix + yy + "/" + String(n).padStart(4, "0");
 }
+const PO_ORDER_STATUS = ["commande", "emballe", "expedie", "livre", "annule"];
+function attachOf(a) {
+  if (!a || !a.dataUrl) return null;
+  if (String(a.dataUrl).length > 8 * 1024 * 1024) return "TOO_BIG";
+  return { name: String(a.name || "document").slice(0, 160), size: Number(a.size) || 0, dataUrl: a.dataUrl };
+}
 function calcLines(lines) {
   let subtotal = 0;
   const out = (Array.isArray(lines) ? lines : []).filter(l => l.productId && Q(l.qty) > 0).map(l => {
@@ -307,8 +313,9 @@ router.post("/po", allow("ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines);
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
   const t = docTotals(subtotal, b.taxPct, b.shippingFee);
+  const att = attachOf(b.attachment); if (att === "TOO_BIG") return res.status(400).json({ error: "Document trop volumineux (max 5 Mo)" });
   const po = stamp({ id: id("po"), ref: b.ref || seqRef(req, "stockPOs", "PO", "ref"), supplierId: b.supplierId || "", date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
-    location: b.location || "", paymentTerms: b.paymentTerms || "", deliveryDelay: b.deliveryDelay || "", shippingStatus: b.shippingStatus || "", deliverTo: b.deliverTo || "", note: b.note || "",
+    location: b.location || "", paymentTerms: b.paymentTerms || "", deliveryDelay: b.deliveryDelay || "", orderStatus: PO_ORDER_STATUS.includes(b.orderStatus) ? b.orderStatus : "commande", deliverTo: b.deliverTo || "", note: b.note || "", attachment: att || null,
     taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee), subtotal, tax: t.tax, total: t.total, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockPOs.push(po); save(); audit(req.user, "CREATED", "StockPO", po.id, { ref: po.ref }); res.status(201).json(poOut(po));
 });
@@ -316,7 +323,9 @@ router.put("/po/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà partiellement reçu — non modifiable" });
   const b = req.body || {};
-  for (const f of ["supplierId", "date", "location", "paymentTerms", "deliveryDelay", "shippingStatus", "deliverTo", "note"]) if (b[f] !== undefined) po[f] = b[f];
+  for (const f of ["supplierId", "date", "location", "paymentTerms", "deliveryDelay", "deliverTo", "note"]) if (b[f] !== undefined) po[f] = b[f];
+  if (b.orderStatus !== undefined && PO_ORDER_STATUS.includes(b.orderStatus)) po.orderStatus = b.orderStatus;
+  if (b.attachment !== undefined) { const att = attachOf(b.attachment); if (att === "TOO_BIG") return res.status(400).json({ error: "Document trop volumineux (max 5 Mo)" }); po.attachment = att || null; }
   if (Array.isArray(b.lines)) { const { lines, subtotal } = calcLines(b.lines); po.lines = lines; po.subtotal = subtotal; const t = docTotals(subtotal, b.taxPct != null ? b.taxPct : po.taxPct, b.shippingFee != null ? b.shippingFee : po.shippingFee); po.tax = t.tax; po.total = t.total; }
   if (b.taxPct !== undefined) po.taxPct = Number(b.taxPct) || 0;
   if (b.shippingFee !== undefined) po.shippingFee = R2(b.shippingFee);
@@ -328,16 +337,20 @@ router.delete("/po/:id", allow("ADM", "CD"), (req, res) => {
   db.stockPOs.splice(db.stockPOs.indexOf(po), 1); save(); res.json({ ok: true });
 });
 // Réception d'un BC : reçoit le reliquat, incrémente le stock, crée un achat
+router.put("/po/:id/status", allow("ADM", "CD", "GPF"), (req, res) => {
+  const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
+  const st = (req.body || {}).orderStatus; if (!PO_ORDER_STATUS.includes(st)) return res.status(400).json({ error: "Statut invalide" });
+  po.orderStatus = st; save(); res.json({ ok: true, orderStatus: st });
+});
 router.post("/po/:id/receive", allow("ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   const date = (req.body && req.body.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const recvLines = [];
   for (const l of (po.lines || [])) { const rem = Q(Q(l.qty) - Q(l.receivedQty || 0)); if (rem <= 0) continue;
     recvLines.push({ productId: l.productId, qty: rem, unitCost: l.unitCost, discountPct: l.discountPct });
-    l.receivedQty = Q(l.qty);
   }
   if (!recvLines.length) return res.status(400).json({ error: "Rien à recevoir (BC déjà complet)" });
-  const pur = createPurchase(req, { supplierId: po.supplierId, date, poId: po.id, poRef: po.ref, lines: recvLines, taxPct: po.taxPct, shippingFee: 0, amountPaid: 0, note: "Réception BC " + po.ref });
+  const pur = createPurchase(req, { supplierId: po.supplierId, date, poId: po.id, poRef: po.ref, paymentTerms: po.paymentTerms, lines: recvLines, taxPct: po.taxPct, shippingFee: 0, amountPaid: 0, note: "Réception BC " + po.ref });
   save(); audit(req.user, "RECEIVED", "StockPO", po.id, { ref: po.ref, purchase: pur.ref }); res.json({ ok: true, po: poOut(po), purchaseRef: pur.ref });
 });
 
@@ -346,12 +359,14 @@ function createPurchase(req, b) {
   const { lines, subtotal } = calcLines(b.lines);
   const t = docTotals(subtotal, b.taxPct, b.shippingFee);
   const paid = R2(b.amountPaid);
+  const att = attachOf(b.attachment);
   const pur = stamp({ id: id("pur"), ref: b.ref || seqRef(req, "stockPurchases", "ACH", "ref"), supplierId: b.supplierId || "", poId: b.poId || "", poRef: b.poRef || "",
-    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), location: b.location || "", note: b.note || "",
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), location: b.location || "", paymentTerms: b.paymentTerms || "", note: b.note || "", attachment: att && att !== "TOO_BIG" ? att : null,
     taxPct: Number(b.taxPct) || 0, shippingFee: t.shipping, subtotal, tax: t.tax, total: t.total,
     amountPaid: Math.min(paid, t.total), paymentStatus: paid >= t.total && t.total > 0 ? "paid" : paid > 0 ? "partial" : "due",
     purchaseStatus: "received", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockPurchases.push(pur);
+  if (b.poId) { const po = mine(db.stockPOs, req).find(x => x.id === b.poId); if (po) { for (const pl of lines) { const l = (po.lines || []).find(x => x.productId === pl.productId); if (l) l.receivedQty = Q(Q(l.receivedQty || 0) + pl.qty); } if ((po.lines || []).every(l => Q(l.receivedQty || 0) >= Q(l.qty))) po.orderStatus = "livre"; } }
   for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) + l.qty); if (l.unitCost) p.purchasePrice = l.unitCost;
     logMove(req, { date: pur.date, type: "achat", productId: p.id, qty: l.qty, unitCost: l.unitCost, ref: pur.ref, supplierId: pur.supplierId, sourceType: "purchase", sourceId: pur.id });
   }
