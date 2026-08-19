@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockMovements"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockMovements"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -409,6 +409,130 @@ router.delete("/returns/:id", allow("ADM", "CD"), (req, res) => {
     const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1);
   }
   db.stockReturns.splice(db.stockReturns.indexOf(ret), 1); save(); res.json({ ok: true });
+});
+
+/* ============================ VENTES (commande client, ventes, devis, retours) ============================ */
+function cName(req, cid) { const c = mine(db.stockContacts, req).find(x => x.id === cid); return c ? c.name : ""; }
+function stockAvail(req, lines, allowNeg) {
+  if (allowNeg) return null;
+  for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; if (Q(l.qty) > Q(p.qty || 0)) return `Stock insuffisant pour « ${p.name} » (disponible ${Q(p.qty || 0)}, demandé ${Q(l.qty)})`; }
+  return null;
+}
+
+/* ---- Commande client (sales order) ---- */
+function soOut(so) {
+  const ordered = (so.lines || []).reduce((s, l) => s + Q(l.qty), 0);
+  const delivered = (so.lines || []).reduce((s, l) => s + Q(l.deliveredQty || 0), 0);
+  const remaining = Q(ordered - delivered);
+  const status = delivered <= 0 ? "ordered" : (remaining > 0 ? "partial" : "completed");
+  return Object.assign({}, so, { ordered, delivered, remaining, status });
+}
+router.get("/so", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSOs, req).map(soOut).sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.get("/so/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const so = mine(db.stockSOs, req).find(x => x.id === req.params.id); if (!so) return res.status(404).json({ error: "Commande introuvable" });
+  const o = soOut(so); o.lines = (o.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })); res.json(o);
+});
+router.post("/so", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  const t = docTotals(subtotal, b.taxPct, b.shippingFee);
+  const so = stamp({ id: id("so"), ref: b.ref || seqRef(req, "stockSOs", "CC", "ref"), customerId: b.customerId || "", date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    location: b.location || "", paymentTerms: b.paymentTerms || "", deliverTo: b.deliverTo || "", note: b.note || "", taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee),
+    subtotal, tax: t.tax, total: t.total, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockSOs.push(so); save(); audit(req.user, "CREATED", "StockSO", so.id, { ref: so.ref }); res.status(201).json(soOut(so));
+});
+router.delete("/so/:id", allow("ADM", "CD"), (req, res) => {
+  const so = mine(db.stockSOs, req).find(x => x.id === req.params.id); if (!so) return res.status(404).json({ error: "Introuvable" });
+  if ((so.lines || []).some(l => Q(l.deliveredQty || 0) > 0)) return res.status(409).json({ error: "Commande déjà livrée — non supprimable" });
+  db.stockSOs.splice(db.stockSOs.indexOf(so), 1); save(); res.json({ ok: true });
+});
+router.post("/so/:id/deliver", allow("ADM", "CD", "GPF"), (req, res) => {
+  const so = mine(db.stockSOs, req).find(x => x.id === req.params.id); if (!so) return res.status(404).json({ error: "Commande introuvable" });
+  const allowNeg = !!(req.body && req.body.allowNegative);
+  const lines = [];
+  for (const l of (so.lines || [])) { const rem = Q(Q(l.qty) - Q(l.deliveredQty || 0)); if (rem <= 0) continue; lines.push({ productId: l.productId, qty: rem, unitCost: l.unitCost, discountPct: l.discountPct }); }
+  if (!lines.length) return res.status(400).json({ error: "Rien à livrer (commande déjà complète)" });
+  const err = stockAvail(req, lines, allowNeg); if (err) return res.status(400).json({ error: err });
+  for (const l of (so.lines || [])) l.deliveredQty = Q(l.qty);
+  const sale = createSale(req, { customerId: so.customerId, date: (req.body && req.body.date) || new Date().toISOString().slice(0, 10), soId: so.id, soRef: so.ref, lines, taxPct: so.taxPct, shippingFee: 0, amountPaid: 0, allowNegative: true, note: "Livraison commande " + so.ref });
+  save(); res.json({ ok: true, so: soOut(so), saleRef: sale.ref });
+});
+
+/* ---- Ventes ---- */
+function createSale(req, b) {
+  const { lines, subtotal } = calcLines(b.lines);
+  const t = docTotals(subtotal, b.taxPct, b.shippingFee); const paid = R2(b.amountPaid);
+  const sale = stamp({ id: id("sal"), ref: b.ref || seqRef(req, "stockSales", "VTE", "ref"), customerId: b.customerId || "", soId: b.soId || "", soRef: b.soRef || "",
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), channel: b.channel || "vente", note: b.note || "",
+    taxPct: Number(b.taxPct) || 0, shippingFee: t.shipping, subtotal, tax: t.tax, total: t.total,
+    amountPaid: Math.min(paid, t.total), paymentStatus: paid >= t.total && t.total > 0 ? "paid" : paid > 0 ? "partial" : "due",
+    saleStatus: "final", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockSales.push(sale);
+  for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) - l.qty);
+    logMove(req, { date: sale.date, type: "vente", productId: p.id, qty: -l.qty, unitCost: l.unitCost, ref: sale.ref, customer: cName(req, sale.customerId), sourceType: "sale", sourceId: sale.id });
+  }
+  return sale;
+}
+router.get("/sales", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSales, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.get("/sales/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Vente introuvable" });
+  res.json(Object.assign({}, sale, { lines: (sale.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
+});
+router.post("/sales", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  const err = stockAvail(req, lines, !!b.allowNegative); if (err) return res.status(400).json({ error: err });
+  const sale = createSale(req, b); save(); audit(req.user, "STOCK_OUT", "StockSale", sale.id, { ref: sale.ref }); res.status(201).json(sale);
+});
+router.post("/sales/:id/pay", allow("ADM", "CD", "GPF"), (req, res) => {
+  const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Vente introuvable" });
+  sale.amountPaid = Math.min(R2(sale.amountPaid) + R2((req.body || {}).amount), sale.total);
+  sale.paymentStatus = sale.amountPaid >= sale.total && sale.total > 0 ? "paid" : sale.amountPaid > 0 ? "partial" : "due";
+  save(); res.json({ ok: true, amountPaid: sale.amountPaid, paymentStatus: sale.paymentStatus });
+});
+router.delete("/sales/:id", allow("ADM", "CD"), (req, res) => {
+  const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Introuvable" });
+  for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "sale" && m.sourceId === sale.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
+  if (sale.soId) { const so = mine(db.stockSOs, req).find(x => x.id === sale.soId); if (so) for (const l of (so.lines || [])) { const sl = (sale.lines || []).find(x => x.productId === l.productId); if (sl) l.deliveredQty = Q(Q(l.deliveredQty || 0) - Q(sl.qty)); } }
+  db.stockSales.splice(db.stockSales.indexOf(sale), 1); save(); res.json({ ok: true });
+});
+
+/* ---- Devis (quotations) ---- */
+router.get("/quotes", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockQuotes, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.get("/quotes/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const q = mine(db.stockQuotes, req).find(x => x.id === req.params.id); if (!q) return res.status(404).json({ error: "Devis introuvable" });
+  res.json(Object.assign({}, q, { lines: (q.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
+});
+router.post("/quotes", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne" });
+  const t = docTotals(subtotal, b.taxPct, b.shippingFee);
+  const q = stamp({ id: id("qte"), ref: b.ref || seqRef(req, "stockQuotes", "DEV", "ref"), customerId: b.customerId || "", date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    note: b.note || "", taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee), subtotal, tax: t.tax, total: t.total, status: "open", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockQuotes.push(q); save(); res.status(201).json(q);
+});
+router.delete("/quotes/:id", allow("ADM", "CD"), (req, res) => {
+  const q = mine(db.stockQuotes, req).find(x => x.id === req.params.id); if (!q) return res.status(404).json({ error: "Introuvable" });
+  db.stockQuotes.splice(db.stockQuotes.indexOf(q), 1); save(); res.json({ ok: true });
+});
+router.post("/quotes/:id/convert", allow("ADM", "CD", "GPF"), (req, res) => {
+  const q = mine(db.stockQuotes, req).find(x => x.id === req.params.id); if (!q) return res.status(404).json({ error: "Devis introuvable" });
+  const err = stockAvail(req, q.lines || [], !!(req.body && req.body.allowNegative)); if (err) return res.status(400).json({ error: err });
+  const sale = createSale(req, { customerId: q.customerId, date: new Date().toISOString().slice(0, 10), lines: q.lines, taxPct: q.taxPct, shippingFee: q.shippingFee, amountPaid: 0, allowNegative: true, note: "Devis " + q.ref });
+  q.status = "converted"; q.saleRef = sale.ref; save(); res.json({ ok: true, saleRef: sale.ref });
+});
+
+/* ---- Retours de vente ---- */
+router.get("/salesreturns", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSalesReturns, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.post("/salesreturns", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne" });
+  const ret = stamp({ id: id("sret"), ref: b.ref || seqRef(req, "stockSalesReturns", "RTV", "ref"), customerId: b.customerId || "", saleId: b.saleId || "",
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), note: b.note || "", subtotal, total: subtotal, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockSalesReturns.push(ret);
+  for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) + l.qty); logMove(req, { date: ret.date, type: "retourv", productId: p.id, qty: l.qty, unitCost: l.unitCost, ref: ret.ref, customer: cName(req, ret.customerId), sourceType: "salesreturn", sourceId: ret.id }); }
+  save(); res.status(201).json(ret);
+});
+router.delete("/salesreturns/:id", allow("ADM", "CD"), (req, res) => {
+  const ret = mine(db.stockSalesReturns, req).find(x => x.id === req.params.id); if (!ret) return res.status(404).json({ error: "Introuvable" });
+  for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "salesreturn" && m.sourceId === ret.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
+  db.stockSalesReturns.splice(db.stockSalesReturns.indexOf(ret), 1); save(); res.json({ ok: true });
 });
 
 module.exports = router;
