@@ -393,6 +393,75 @@ router.get("/budget-actual", allow("ADM", "CD", "RJ"), (req, res) => {
   res.json({ year: yy, rows });
 });
 
+/* ==================== Comptes tiers (soldes en direct) ==================== */
+router.get("/third-parties-usage", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const defined = {}; for (const t of mine(db.acctThirdParties, req)) defined[t.code] = t;
+  const agg = {};
+  for (const e of mine(db.acctEntries, req)) {
+    if (e.status === "draft") continue;
+    for (const l of (e.lines || [])) {
+      const tp = l.thirdParty; if (!tp) continue;
+      const acc = String(l.account);
+      const kind = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : "autre";
+      const g = (agg[tp] = agg[tp] || { code: tp, kind, debit: 0, credit: 0, count: 0 });
+      g.debit += R2(l.debit); g.credit += R2(l.credit); g.count++;
+    }
+  }
+  const rows = Object.values(agg).map(g => { const d = defined[g.code] || {}; return Object.assign({ name: d.name || "", collectiveAccount: d.collectiveAccount || "", terms: d.terms || "", defined: !!defined[g.code], solde: g.debit - g.credit }, g); });
+  for (const t of mine(db.acctThirdParties, req)) if (!agg[t.code]) rows.push({ code: t.code, name: t.name || "", kind: t.kind || "", collectiveAccount: t.collectiveAccount || "", terms: t.terms || "", defined: true, debit: 0, credit: 0, count: 0, solde: 0 });
+  rows.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  res.json(rows);
+});
+
+/* ==================== Relevé / grand-livre par tiers (États tiers) ==================== */
+router.get("/tiers-ledger", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const tp = (req.query.tp || "").toString(); if (!tp) return res.status(400).json({ error: "Tiers requis" });
+  const onlyVal = req.query.all !== "1"; const labels = _accLabel(req); const rows = [];
+  for (const e of mine(db.acctEntries, req)) {
+    if (onlyVal && e.status === "draft") continue;
+    for (const l of (e.lines || [])) if ((l.thirdParty || "") === tp) rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, account: l.account, accLabel: labels[l.account] || "", label: l.label || e.label || "", dueDate: l.dueDate || "", debit: R2(l.debit), credit: R2(l.credit), lettre: l.lettre || "" });
+  }
+  rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  let solde = 0, td = 0, tc = 0; for (const r of rows) { solde += r.debit - r.credit; r.solde = solde; td += r.debit; tc += r.credit; }
+  const t = mine(db.acctThirdParties, req).find(x => x.code === tp) || {};
+  res.json({ tp, name: t.name || "", rows, totalDebit: td, totalCredit: tc, solde });
+});
+
+/* ==================== Recherche d'écritures (multi-critères) ==================== */
+router.get("/entries-search", allow("ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const q = req.query || {};
+  const onlyVal = q.all !== "1";
+  const txt = (q.q || "").toString().trim().toLowerCase();
+  const acc = (q.account || "").toString().trim();
+  const tp = (q.thirdParty || "").toString().trim().toLowerCase();
+  const jr = (q.journal || "").toString().trim();
+  const df = (q.dateFrom || "").toString(); const dt = (q.dateTo || "").toString();
+  const mn = (q.min !== undefined && q.min !== "") ? Number(q.min) : null;
+  const mx = (q.max !== undefined && q.max !== "") ? Number(q.max) : null;
+  const rows = [];
+  for (const e of mine(db.acctEntries, req)) {
+    if (onlyVal && e.status === "draft") continue;
+    if (jr && e.journalCode !== jr) continue;
+    if (df && (e.date || "") < df) continue;
+    if (dt && (e.date || "") > dt) continue;
+    for (const l of (e.lines || [])) {
+      if (acc && !String(l.account).startsWith(acc)) continue;
+      if (tp && !String(l.thirdParty || "").toLowerCase().includes(tp)) continue;
+      const amt = Math.max(R2(l.debit), R2(l.credit));
+      if (mn !== null && amt < mn) continue;
+      if (mx !== null && amt > mx) continue;
+      if (txt) { const hay = ((l.label || "") + " " + (e.label || "") + " " + (e.pieceNo || "") + " " + (l.thirdParty || "") + " " + (l.account || "")).toLowerCase(); if (!hay.includes(txt)) continue; }
+      rows.push({ entryId: e.id, date: e.date, journal: e.journalCode, piece: e.pieceNo, status: e.status, account: String(l.account), thirdParty: l.thirdParty || "", label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) });
+    }
+  }
+  rows.sort((a, b) => (b.date || "").localeCompare(a.date || "") || (a.journal + a.piece).localeCompare(b.journal + b.piece));
+  const cap = rows.slice(0, 1000);
+  res.json({ rows: cap, count: rows.length, capped: rows.length > 1000, totalDebit: cap.reduce((s, r) => s + r.debit, 0), totalCredit: cap.reduce((s, r) => s + r.credit, 0) });
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;

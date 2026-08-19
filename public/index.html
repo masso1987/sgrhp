@@ -852,6 +852,8 @@ const NAV = [
   { k: "acctcloture", label: "🔒 Clôture & fiscal", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctanalytic", label: "📈 Analytique & budget", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctplan", label: "📋 Plan comptable", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
+  { k: "accttiers", label: "👥 Comptes tiers", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctsearch", label: "🔎 Recherche d'écritures", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "billingcfg", label: "⚙️ Config facturation", roles: ["ADM"], module: "invoicing", grp: "facturation" },
   { k: "templates", label: "📄 Modèles", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", roles: ["ADM"], grp: "admin" },
@@ -944,7 +946,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4780,6 +4782,8 @@ async function acctHome() {
       ${tile("✏️", "Saisie des écritures", "Grille débit / crédit par journal, équilibrage automatique", "acctsaisie")}
       ${tile("⚖️", "Balance des comptes", "Débit / crédit / solde par compte, contrôle d'équilibre", "acctbalance")}
       ${tile("📋", "Plan comptable", "Comptes OHADA, journaux, taux de TVA", "acctplan")}
+      ${tile("👥", "Comptes tiers", "Clients (411) et fournisseurs (401), soldes et relevés", "accttiers")}
+      ${tile("🔎", "Recherche d'écritures", "Retrouver une écriture par compte, tiers, montant, libellé…", "acctsearch")}
       ${tile("🧾", "Écritures automatiques", "Générées depuis Facturation & Paie (phase C2)", "acctsaisie")}
     </div>`;
 }
@@ -5081,6 +5085,138 @@ async function acctBudgetSave(){
   try{ await api("/accounting/budgets",{method:"POST",body:JSON.stringify({account:g("buAcc"),year:Number(g("buY")),amount:Number(g("buA"))})});
     document.querySelector(".modal-bg").remove(); window._acctYear=Number(g("buY")); acctAnalyticView(); }
   catch(e){ const el=document.getElementById("buErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ---- Comptabilité : Comptes tiers (clients 411 / fournisseurs 401) ---- */
+async function acctTiersView(){
+  const filt = window._acctTiersFilt || "all";
+  const [usage, ref] = await Promise.all([
+    api("/accounting/third-parties-usage").catch(()=>[]),
+    api("/accounting/third-parties").catch(()=>[])
+  ]);
+  window._acctTPREF = ref;
+  const idByCode = {}; for(const t of ref) idByCode[t.code]=t.id;
+  let rows = usage;
+  if(filt!=="all") rows = rows.filter(r=>r.kind===filt);
+  const q=(window._acctTiersQ||"").toLowerCase();
+  if(q) rows=rows.filter(r=>(r.code+" "+r.name).toLowerCase().includes(q));
+  const sum=(k)=>rows.reduce((a,r)=>a+(r[k]||0),0);
+  const kindTag=(k)=> k==="client"?'<span class="tag" style="background:#2563eb;color:#fff">Client</span>':k==="fournisseur"?'<span class="tag" style="background:#b45309;color:#fff">Fournisseur</span>':`<span class="tag gray">${esc(k||"—")}</span>`;
+  const seg=(v,l)=>`<button class="btn ${filt===v?'p':'ghost'} sm" onclick="window._acctTiersFilt='${v}';acctTiersView()">${l}</button>`;
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">👥 Comptes tiers</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      ${seg('all','Tous')} ${seg('client','Clients')} ${seg('fournisseur','Fournisseurs')}
+      <input placeholder="Rechercher code / nom…" value="${esc(window._acctTiersQ||'')}" oninput="window._acctTiersQ=this.value" onkeydown="if(event.key==='Enter')acctTiersView()" style="margin:0;min-width:200px">
+      <span style="flex:1"></span>
+      <button class="btn p sm" onclick="acctTiersModal()">+ Tiers</button></div></div>
+    <div class="panel"><table><tr><th>Code</th><th>Nom</th><th>Type</th><th>Collectif</th><th class="r">Mvts</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th><th></th></tr>
+      ${rows.length? rows.map(r=>`<tr>
+        <td><code>${esc(r.code)}</code>${r.defined?'':' <span class="tag amber" title="non enregistré dans le référentiel">auto</span>'}</td>
+        <td>${esc(r.name||"")}</td><td>${kindTag(r.kind)}</td><td>${esc(r.collectiveAccount||"")}</td>
+        <td class="r">${r.count||0}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td>
+        <td class="r"><b>${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</b></td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="acctTiersLedger('${esc(r.code)}')">Relevé</button>
+          <button class="btn ghost sm" onclick="acctTiersModal('${esc(r.code)}')">${r.defined?'✏️':'+ Enreg.'}</button></td></tr>`).join("")
+        : '<tr><td colspan="9" style="color:var(--muted)">Aucun tiers.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="5">TOTAUX (${rows.length})</td>
+        <td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
+        <td class="r">${fCFA(Math.abs(sum('debit')-sum('credit')))} ${sum('debit')-sum('credit')>=0?'D':'C'}</td><td></td></tr>
+    </table></div>`;
+}
+function acctTiersModal(code){
+  const ref = window._acctTPREF || [];
+  const t = code ? (ref.find(x=>x.code===code) || {code, name:"", kind:"client"}) : {code:"", name:"", kind:"client", collectiveAccount:"411100"};
+  const existing = code ? ref.find(x=>x.code===code) : null;
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const kOpt=(v,l)=>`<option value="${v}" ${t.kind===v?'selected':''}>${l}</option>`;
+  bg.innerHTML=`<div class="modal" style="width:480px"><h3 style="margin:0 0 8px">${existing?'Modifier':'Nouveau'} tiers</h3>
+    <div class="grid2">
+      <div><label>Code tiers</label><input id="tpCode" value="${esc(t.code||'')}" ${existing?'disabled':''} placeholder="ex. SOLEVO"></div>
+      <div><label>Type</label><select id="tpKind" onchange="var c=document.getElementById('tpColl');if(c&&!c._touched)c.value=this.value==='fournisseur'?'401110':'411100'">${kOpt('client','Client (411)')}${kOpt('fournisseur','Fournisseur (401)')}</select></div>
+      <div style="grid-column:1/3"><label>Nom / raison sociale</label><input id="tpName" value="${esc(t.name||'')}"></div>
+      <div><label>Compte collectif</label><input id="tpColl" value="${esc(t.collectiveAccount|| (t.kind==='fournisseur'?'401110':'411100'))}" oninput="this._touched=true"></div>
+      <div><label>Conditions règlement</label><input id="tpTerms" value="${esc(t.terms||'')}" placeholder="ex. 30 j fin de mois"></div>
+      <div><label>NIU</label><input id="tpNiu" value="${esc(t.niu||'')}"></div>
+      <div><label>RCCM</label><input id="tpRccm" value="${esc(t.rccm||'')}"></div>
+    </div>
+    <div class="err hidden" id="tpErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctTiersSave(${existing?JSON.stringify(existing.id):'null'})">Enregistrer</button>
+      ${existing?`<button class="btn ghost" style="color:var(--red)" onclick="acctTiersDelete('${existing.id}')">Supprimer</button>`:''}
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function acctTiersSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={code:g("tpCode"),name:g("tpName"),kind:g("tpKind"),collectiveAccount:g("tpColl"),terms:g("tpTerms"),niu:g("tpNiu"),rccm:g("tpRccm")};
+  try{ if(id) await api("/accounting/third-parties/"+id,{method:"PUT",body:JSON.stringify(body)});
+    else await api("/accounting/third-parties",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); acctTiersView(); }
+  catch(e){ const el=document.getElementById("tpErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function acctTiersDelete(id){
+  if(!confirm("Supprimer ce tiers du référentiel ? (les écritures ne sont pas modifiées)")) return;
+  try{ await api("/accounting/third-parties/"+id,{method:"DELETE"}); document.querySelector(".modal-bg").remove(); acctTiersView(); }
+  catch(e){ alert(e.message); }
+}
+async function acctTiersLedger(tp){
+  const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(tp)).catch(()=>({rows:[]}));
+  view.innerHTML=`<button class="btn ghost sm" onclick="acctTiersView()">← Comptes tiers</button>
+    <h1 style="margin-top:10px">📄 Relevé — ${esc(tp)}${d.name?' · '+esc(d.name):''}</h1>
+    <div class="panel"><table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
+      ${d.rows&&d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td>
+        <td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td>${esc(r.dueDate||"")}</td><td>${esc(r.lettre||"")}</td>
+        <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")
+        : '<tr><td colspan="10" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td>
+        <td class="r">${fCFA(Math.abs(d.solde||0))} ${(d.solde||0)>=0?'D':'C'}</td></tr>
+    </table></div>`;
+}
+
+/* ---- Comptabilité : Recherche d'écritures ---- */
+async function acctSearchView(){
+  await acctLoadRefs();
+  const f = window._acctSearch || {};
+  const jOpts = `<option value="">— tous journaux —</option>`+ACCT_JOURNALS.map(j=>`<option value="${j.code}" ${f.journal===j.code?'selected':''}>${esc(j.code)} — ${esc(j.label)}</option>`).join("");
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <h1 style="margin-top:10px">🔎 Recherche d'écritures</h1>
+    <div class="panel"><div class="grid3">
+      <div style="grid-column:1/3"><label>Texte (libellé, pièce, tiers, compte)</label><input id="seQ" value="${esc(f.q||'')}" onkeydown="if(event.key==='Enter')acctSearchRun()"></div>
+      <div><label>Journal</label><select id="seJr">${jOpts}</select></div>
+      <div><label>Compte (préfixe)</label><input id="seAcc" value="${esc(f.account||'')}" placeholder="ex. 411 ou 411100"></div>
+      <div><label>Tiers</label><input id="seTp" value="${esc(f.thirdParty||'')}" placeholder="code tiers"></div>
+      <div><label>Montant min</label><input id="seMin" type="number" value="${f.min!=null?f.min:''}"></div>
+      <div><label>Date début</label><input id="seDf" type="date" value="${esc(f.dateFrom||'')}"></div>
+      <div><label>Date fin</label><input id="seDt" type="date" value="${esc(f.dateTo||'')}"></div>
+      <div><label>Montant max</label><input id="seMax" type="number" value="${f.max!=null?f.max:''}"></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+      <button class="btn p sm" onclick="acctSearchRun()">🔎 Rechercher</button>
+      <label style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="seAll" ${f.all?'checked':''} style="width:auto;margin:0"> inclure brouillons</label>
+      <button class="btn ghost sm" onclick="window._acctSearch={};acctSearchView()">Réinitialiser</button></div></div>
+    <div id="acctSearchBox" class="panel"><small style="color:var(--muted)">Saisissez des critères puis lancez la recherche.</small></div>`;
+  if(f._ran) acctSearchRun(true);
+}
+async function acctSearchRun(keep){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const gc=(x)=>(document.getElementById(x)||{}).checked;
+  const f={ q:g("seQ"), journal:g("seJr"), account:g("seAcc"), thirdParty:g("seTp"),
+    dateFrom:g("seDf"), dateTo:g("seDt"), min:g("seMin"), max:g("seMax"), all:gc("seAll"), _ran:true };
+  window._acctSearch=f;
+  const qs=[]; for(const k of ["q","journal","account","thirdParty","dateFrom","dateTo","min","max"]) if(f[k]!=="") qs.push(k+"="+encodeURIComponent(f[k]));
+  if(f.all) qs.push("all=1");
+  const box=document.getElementById("acctSearchBox"); box.innerHTML='<small style="color:var(--muted)">Recherche…</small>';
+  const d=await api("/accounting/entries-search?"+qs.join("&")).catch(()=>({rows:[]}));
+  box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <b>${d.count||0} ligne(s)${d.capped?' — affichage limité à 1000':''}</b>
+      <span class="note">Débit ${fCFA(d.totalDebit||0)} · Crédit ${fCFA(d.totalCredit||0)}</span></div>
+    <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th>Statut</th><th class="r">Débit</th><th class="r">Crédit</th><th></th></tr>
+    ${d.rows&&d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td>
+      <td><code>${esc(r.account)}</code></td><td>${esc(r.thirdParty||"")}</td><td>${esc(r.label)}</td>
+      <td>${r.status==='validated'?'<span class="tag green">Val.</span>':r.status==='locked'?'<span class="tag gray">Clôt.</span>':'<span class="tag amber">Brln</span>'}</td>
+      <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td>
+      <td><button class="btn ghost sm" onclick="acctEntryModal('${r.entryId}')">Ouvrir</button></td></tr>`).join("")
+      : '<tr><td colspan="10" style="color:var(--muted)">Aucun résultat.</td></tr>'}</table>`;
 }
 
 </script>
