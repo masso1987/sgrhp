@@ -889,6 +889,7 @@ const NAV = [
   { k: "stocksalesreturns", label: "↩️ Retours de vente", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockadjust", label: "⚖️ Ajustement", sec: "Stock", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
+  { k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
 
@@ -989,7 +990,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6635,6 +6636,92 @@ async function stockPOSCheckout(){
   const body={customerId:cust,channel:"pos",amountPaid:total,allowNegative:false,lines:lines.map(l=>{const p=prods.find(x=>x.id===l.productId)||{};return{productId:l.productId,qty:l.qty,unitCost:p.salePrice||0};})};
   try{ const r=await api("/stock/sales",{method:"POST",body:JSON.stringify(body)}); alert("Vente "+r.ref+" encaissée ("+fCFA(r.total)+")."); window._POS={}; stockPOSRender(); }
   catch(e){ alert(e.message); }
+}
+
+/* ================= Stock : Rapports ================= */
+const STOCK_REPORTS=[
+  {k:"product-sales",l:"Vente de produit",f:["date","product","category","brand","customer"],tabs:[["detail","Détaillé"],["cost","Détaillé (à l'achat)"],["grouped","Groupé"],["category","Par catégorie"],["brand","Par marque"]]},
+  {k:"product-purchases",l:"Achat de produit",f:["date","product","category","brand","supplier"],tabs:[["detail","Détaillé"],["grouped","Groupé"]]},
+  {k:"profit-loss",l:"Profit / Perte",f:["date"]},
+  {k:"purchase-sale",l:"Achat & Vente",f:["date"]},
+  {k:"product-trend",l:"Tendance des produits",f:["date","category","brand"]},
+  {k:"stock",l:"Articles / Stock",f:["product","category","brand"]},
+  {k:"payments-sales",l:"Paiements de vente",f:["date","customer"]},
+  {k:"payments-purchase",l:"Paiements d'achat",f:["date","supplier"]},
+  {k:"cash",l:"Caisse (encaissements)",f:["date"]},
+  {k:"adjustments",l:"Ajustement",f:["date","product"]},
+  {k:"supplier-customer",l:"Fournisseur & Client",f:["date"]},
+  {k:"tax",l:"Impôt (TVA)",f:["date"]},
+  {k:"by-user",l:"Représentant (par utilisateur)",f:["date"]},
+  {k:"activity",l:"Journal d'activité",f:["date","product"]},
+];
+function repDef(){ return STOCK_REPORTS.find(r=>r.k===window._rep.type)||STOCK_REPORTS[0]; }
+async function stockReportsView(){
+  await stockLoadRefs();
+  const yy=new Date().getFullYear();
+  if(!window._rep) window._rep={type:"product-sales",tab:"detail",f:{from:yy+"-01-01",to:yy+"-12-31",productId:"",categoryId:"",brandId:"",customerId:"",supplierId:"",q:""}};
+  const def=repDef();
+  const cats=window._STK.cats||[],brands=window._STK.brands||[],clients=window._STK.clients||[],sups=window._STK.sups||[];
+  const F=window._rep.f;
+  const sel=(id,arr,val,ph)=>`<select id="${id}"><option value="">${ph}</option>${arr.map(x=>`<option value="${x.id}" ${val===x.id?'selected':''}>${esc(x.name)}</option>`).join("")}</select>`;
+  let filt='';
+  if(def.f.includes("date")) filt+=`<div><label>Du</label><input id="rF" type="date" value="${esc(F.from)}"></div><div><label>Au</label><input id="rT" type="date" value="${esc(F.to)}"></div>`;
+  if(def.f.includes("product")) filt+=`<div style="min-width:220px"><label>Rechercher un produit</label><input id="rQ" value="${esc(F.q)}" placeholder="Nom / SKU / code-barres"></div>`;
+  if(def.f.includes("category")) filt+=`<div><label>Catégorie</label>${sel("rCat",cats,F.categoryId,"Tout")}</div>`;
+  if(def.f.includes("brand")) filt+=`<div><label>Marque</label>${sel("rBr",brands,F.brandId,"Tout")}</div>`;
+  if(def.f.includes("customer")) filt+=`<div><label>Client</label>${sel("rCust",clients,F.customerId,"Aucun")}</div>`;
+  if(def.f.includes("supplier")) filt+=`<div><label>Fournisseur</label>${sel("rSup",sups,F.supplierId,"Aucun")}</div>`;
+  const tabs=def.tabs?`<div style="display:flex;gap:6px;margin:8px 0">${def.tabs.map(t=>`<button class="btn ${window._rep.tab===t[0]?'p':'ghost'} sm" onclick="window._rep.tab='${t[0]}';stockReportRun()">${t[1]}</button>`).join("")}</div>`:'';
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">📊 Rapports</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+      <div><label>Rapport</label><select id="rType" onchange="stockReportPick(this.value)" style="min-width:220px">${STOCK_REPORTS.map(r=>`<option value="${r.k}" ${window._rep.type===r.k?'selected':''}>${esc(r.l)}</option>`).join("")}</select></div>
+      ${filt}
+      <button class="btn p sm" onclick="stockReportRun()">Générer</button></div>${tabs}</div>
+    <div id="repBox" class="panel"><small style="color:var(--muted)">Choisissez les filtres puis cliquez « Générer ».</small></div>`;
+  stockReportRun();
+}
+function stockReportPick(t){ window._rep.type=t; const d=STOCK_REPORTS.find(r=>r.k===t); window._rep.tab=(d&&d.tabs)?d.tabs[0][0]:""; stockReportsView(); }
+function repReadFilters(){ const g=(x)=>{const e=document.getElementById(x);return e?e.value:"";}; const F=window._rep.f;
+  F.from=g("rF")||F.from; F.to=g("rT")||F.to; if(document.getElementById("rF")){F.from=g("rF");F.to=g("rT");}
+  F.q=g("rQ"); F.categoryId=g("rCat"); F.brandId=g("rBr"); F.customerId=g("rCust"); F.supplierId=g("rSup"); }
+async function stockReportRun(){
+  repReadFilters(); const F=window._rep.f;
+  const qs=[`type=${window._rep.type}`]; if(window._rep.tab)qs.push("tab="+window._rep.tab);
+  for(const[k,v]of[["from",F.from],["to",F.to],["q",F.q],["categoryId",F.categoryId],["brandId",F.brandId],["customerId",F.customerId],["supplierId",F.supplierId]]) if(v)qs.push(k+"="+encodeURIComponent(v));
+  const box=document.getElementById("repBox"); if(box)box.innerHTML='<small style="color:var(--muted)">Chargement…</small>';
+  const d=await api("/stock/reports?"+qs.join("&")).catch(()=>null);
+  if(!d){ if(box)box.innerHTML='<small style="color:var(--red)">Erreur de chargement.</small>'; return; }
+  window._repData=d;
+  const fmt=(v,f)=>f==="money"?fCFA(v):f==="qty"?stkQty(v):f==="pct"?(Number(v||0)+" %"):esc(v==null?"":String(v));
+  const hasTot=d.totals&&Object.keys(d.totals).length;
+  box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>${esc(d.title)}</b>
+      <span><button class="btn ghost sm" onclick="stockReportCSV()">⬇ CSV</button> <button class="btn ghost sm" onclick="stockReportPrint()">🖨️ Imprimer</button></span></div>
+    <div class="scroll" style="max-height:62vh"><table><tr>${d.columns.map(c=>`<th class="${c.align==='r'?'r':''}">${esc(c.l)}</th>`).join("")}</tr>
+    ${d.rows.length?d.rows.map(row=>`<tr>${d.columns.map(c=>`<td class="${c.align==='r'?'r':''}">${fmt(row[c.k],c.fmt)}</td>`).join("")}</tr>`).join("")
+      :`<tr><td colspan="${d.columns.length}" style="color:var(--muted)">Aucune donnée disponible.</td></tr>`}
+    ${hasTot?`<tr style="font-weight:700;border-top:2px solid #999">${d.columns.map((c,i)=>`<td class="${c.align==='r'?'r':''}">${i===0?'TOTAL':(d.totals[c.k]!=null?fmt(d.totals[c.k],c.fmt):'')}</td>`).join("")}</tr>`:''}
+    </table></div><div class="note" style="margin-top:6px">${d.rows.length} ligne(s)</div>`;
+}
+function stockReportCSV(){
+  const d=window._repData; if(!d) return;
+  const esc2=(v)=>{v=v==null?"":String(v); return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  let csv=d.columns.map(c=>esc2(c.l)).join(";")+"\n";
+  for(const r of d.rows) csv+=d.columns.map(c=>esc2(r[c.k])).join(";")+"\n";
+  const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"}); const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=(d.title||"rapport").replace(/[^\w]+/g,"_")+".csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+}
+function stockReportPrint(){
+  const d=window._repData; if(!d) return;
+  const fmt=(v,f)=>f==="money"?fCFA(v):f==="qty"?stkQty(v):f==="pct"?(Number(v||0)+" %"):(v==null?"":String(v));
+  const company=(window.ME&&ME.tenantName)||document.title||"";
+  const body=`<h2>${esc(d.title)}</h2><table><tr>${d.columns.map(c=>`<th style="text-align:${c.align==='r'?'right':'left'}">${esc(c.l)}</th>`).join("")}</tr>
+    ${d.rows.map(r=>`<tr>${d.columns.map(c=>`<td style="text-align:${c.align==='r'?'right':'left'}">${esc(fmt(r[c.k],c.fmt))}</td>`).join("")}</tr>`).join("")}
+    ${d.totals&&Object.keys(d.totals).length?`<tr class="tot">${d.columns.map((c,i)=>`<td style="text-align:${c.align==='r'?'right':'left'}">${i===0?'TOTAL':(d.totals[c.k]!=null?esc(fmt(d.totals[c.k],c.fmt)):'')}</td>`).join("")}</tr>`:''}</table>`;
+  const w=window.open("","_blank"); if(!w){alert("Autorisez les pop-ups pour imprimer.");return;}
+  const dt=new Date().toLocaleDateString("fr-FR");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.title)}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px}h1{font-size:16px;margin:0}h2{font-size:13px;margin:12px 0 6px}.sub{color:#555;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #bbb;padding:3px 6px}th{background:#eee}.tot{font-weight:700;background:#f3f3f3}@media print{body{margin:10mm}}</style></head><body><h1>${esc(company)}</h1><div class="sub">édité le ${dt}</div>${body}<script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
 }
 
 </script>
