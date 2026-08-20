@@ -894,6 +894,8 @@ const NAV = [
   { k: "stocktransfers", label: "🚚 Transferts de stock", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
     { k: "stockexpenses", label: "💸 Dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
   { k: "stockexpensecats", label: "🗃️ Catégories de dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
+  { k: "stockaccounts", label: "🏦 Comptes de paiement", sec: "Comptes", roles: ["ADM","CD","GPF"], cap: "stock.comptes", module: "stock", grp: "stock" },
+
 { k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], cap: "stock.rapports", module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
   { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
@@ -996,7 +998,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1401,7 +1403,7 @@ async function toggleActive(uid, active) {
 async function permModal(uid) {
   const u = (await api("/users")).find(x => x.id === uid);
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
-  const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.rapports", "📊 Rapports de stock"]];
+  const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -6556,6 +6558,7 @@ async function stockPurchaseForm(poId){
       <div style="align-self:end;text-align:right">Remise : (-) <b id="puRemV">0</b></div>
       <div><label>Taxe d'achat</label><select id="puTaxPct" onchange="puTotals()"><option value="0">Aucun</option><option value="19.25">TVA 19,25 %</option></select></div>
       <div><label>Montant payé</label><input id="puPaid" type="number" value="0"></div>
+      <div><label>Compte de paiement</label><select id="puAcc"><option value="">—</option>${(window._STK.accounts||[]).map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("")}</select></div>
       <div style="align-self:end;text-align:right">Taxe d'achat : (+) <b id="puTaxV">0</b></div>
       <div style="grid-column:1/3"><label>La Direction</label><textarea id="puNote" rows="2"></textarea></div>
       <div style="align-self:end;text-align:right;font-weight:700;font-size:16px">Total : <b id="puTotV">0</b></div>
@@ -6653,7 +6656,7 @@ async function stockPurchaseSubmit(){
   if(!lines.length){ const e=document.getElementById("puErr"); e.textContent="Ajoutez au moins un produit."; e.classList.remove("hidden"); return; }
   const body={supplierId:g("puSup"),date:g("puDate"),ref:g("puRef"),purchaseStatus:g("puStatus"),location:g("puLoc"),paymentTerms:g("puTerms"),
     poId:window._puPOId||"",poRef:window._puPORef||"",attachment:window._puAttach,discountType:g("puDiscType"),discountValue:Number(g("puDiscVal"))||0,
-    taxPct:Number(g("puTaxPct"))||0,amountPaid:Number(g("puPaid"))||0,note:g("puNote"),lines};
+    taxPct:Number(g("puTaxPct"))||0,amountPaid:Number(g("puPaid"))||0,paymentAccountId:g("puAcc"),note:g("puNote"),lines};
   try{ await api("/stock/purchases",{method:"POST",body:JSON.stringify(body)}); go('stockpurchases'); }
   catch(e){ const el=document.getElementById("puErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
@@ -6781,6 +6784,7 @@ async function stockSaleForm(){
       <div style="align-self:end;text-align:right">Remise : (-) <b id="suRemV">0</b></div>
       <div><label>Taxe de vente</label><select id="suTaxPct" onchange="suTotals()"><option value="0">Aucun</option><option value="19.25">TVA 19,25 %</option></select></div>
       <div><label>Montant payé</label><input id="suPaid" type="number" value="0"></div>
+      <div><label>Compte de paiement</label><select id="suAcc"><option value="">—</option>${(window._STK.accounts||[]).map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("")}</select></div>
       <div style="align-self:end;text-align:right">Taxe : (+) <b id="suTaxV">0</b></div>
       <div style="grid-column:1/3"><label>La Direction</label><textarea id="suNote" rows="2"></textarea></div>
       <div style="align-self:end;text-align:right;font-weight:700;font-size:16px">Total : <b id="suTotV">0</b></div>
@@ -6856,7 +6860,7 @@ async function stockSaleSubmit(){ const g=(x)=>(document.getElementById(x)||{}).
   const lines=(window._SUL||[]).filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:Number(l.unitCost)||0,discountMode:l.discountMode||"fixed",discountValue:Number(l.discountValue)||0,unitId:l.unitId||"",warrantyId:l.warrantyId||"",note:l.note||""}));
   if(!lines.length){ const e=document.getElementById("saErr"); e.textContent="Ajoutez au moins un produit."; e.classList.remove("hidden"); return; }
   const body={customerId:g("saCust"),date:g("saDate"),ref:g("saRef"),location:g("saLoc"),paymentTerms:g("saTerms"),soId:window._suSOId||"",soRef:window._suSORef||"",
-    discountType:g("suDiscType"),discountValue:Number(g("suDiscVal"))||0,taxPct:Number(g("suTaxPct"))||0,amountPaid:Number(g("suPaid"))||0,note:g("suNote"),
+    discountType:g("suDiscType"),discountValue:Number(g("suDiscVal"))||0,taxPct:Number(g("suTaxPct"))||0,amountPaid:Number(g("suPaid"))||0,paymentAccountId:g("suAcc"),note:g("suNote"),
     allowNegative:document.getElementById("saNeg").checked,lines};
   try{ await api("/stock/sales",{method:"POST",body:JSON.stringify(body)}); go('stocksales'); }
   catch(e){ const el=document.getElementById("saErr"); el.textContent=e.message; el.classList.remove("hidden"); }
@@ -7294,6 +7298,51 @@ async function stockExpenseSave(id){
   catch(e){ const el=document.getElementById("exErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stockExpenseDelete(id){ if(!confirm("Supprimer cette dépense ?")) return; try{ await api("/stock/expenses/"+id,{method:"DELETE"}); stockExpensesView(); }catch(e){ alert(e.message); } }
+
+/* ================= Comptes de paiement ================= */
+const ACC_TYPES={caisse:"Caisse",banque:"Banque",mobile:"Mobile money",autre:"Autre"};
+async function stockAccountsView(){
+  const list=await api("/stock/accounts").catch(()=>[]);
+  const tot=list.reduce((s,a)=>s+(a.balance||0),0);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">🏦 Comptes de paiement</h1>
+    <div class="panel"><button class="btn p sm" style="float:right" onclick="stockAccountModal()">+ Nouveau compte</button><b>${list.length} compte(s)</b>
+      <table style="margin-top:8px"><tr><th>Nom</th><th>Type</th><th class="r">Solde d'ouverture</th><th class="r">Solde actuel</th><th></th></tr>
+      ${list.length?list.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(ACC_TYPES[a.type]||a.type||'')}</td><td class="r">${fCFA(a.openingBalance)}</td><td class="r"><b>${fCFA(a.balance)}</b></td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="stockAccountStatement('${a.id}')">📄 Relevé</button><button class="btn ghost sm" onclick="stockAccountModal('${a.id}')">✏️</button><button class="btn ghost sm" onclick="stockAccountDelete('${a.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="5" style="color:var(--muted)">Aucun compte.</td></tr>'}
+      <tr style="font-weight:700;border-top:2px solid #999"><td colspan="3">SOLDE TOTAL</td><td class="r">${fCFA(tot)}</td><td></td></tr></table></div>`;
+  window._ACC=list;
+}
+function stockAccountModal(id){
+  const a=id?((window._ACC||[]).find(x=>x.id===id)||{}):{type:"caisse"};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const tOpt=Object.keys(ACC_TYPES).map(k=>`<option value="${k}" ${a.type===k?'selected':''}>${ACC_TYPES[k]}</option>`).join("");
+  bg.innerHTML=`<div class="modal" style="width:440px"><h3 style="margin:0 0 8px">${id?'Modifier':'Nouveau'} compte de paiement</h3>
+    <div class="grid2"><div style="grid-column:1/3"><label>Nom *</label><input id="acName" value="${esc(a.name||'')}"></div>
+      <div><label>Type</label><select id="acType">${tOpt}</select></div>
+      <div><label>Solde d'ouverture</label><input id="acOB" type="number" value="${a.openingBalance||0}"></div>
+      <div style="grid-column:1/3"><label>Note</label><input id="acNote" value="${esc(a.note||'')}"></div></div>
+    <div class="err hidden" id="acErr2" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockAccountSave('${id||''}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function stockAccountSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={name:g("acName"),type:g("acType"),openingBalance:g("acOB"),note:g("acNote")};
+  try{ if(id) await api("/stock/accounts/"+id,{method:"PUT",body:JSON.stringify(body)}); else await api("/stock/accounts",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); stockAccountsView(); }
+  catch(e){ const el=document.getElementById("acErr2"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockAccountDelete(id){ if(!confirm("Supprimer ce compte ?")) return; try{ await api("/stock/accounts/"+id,{method:"DELETE"}); stockAccountsView(); }catch(e){ alert(e.message); } }
+async function stockAccountStatement(id){
+  const d=await api("/stock/accounts/"+id+"/statement").catch(()=>null); if(!d) return;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockaccounts')">← Comptes</button>
+    <h1 style="margin-top:10px">📄 Relevé — ${esc(d.account.name)}</h1>
+    <div class="panel"><table><tr><th>Date</th><th>Type</th><th>Réf</th><th class="r">Entrée</th><th class="r">Sortie</th><th class="r">Solde</th></tr>
+      ${d.rows.length?d.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.type)}</td><td>${esc(r.ref||'')}</td><td class="r">${r.inflow?fCFA(r.inflow):''}</td><td class="r">${r.outflow?fCFA(r.outflow):''}</td><td class="r">${fCFA(r.balance)}</td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
+      <tr style="font-weight:700;border-top:2px solid #999"><td colspan="5">SOLDE</td><td class="r">${fCFA(d.balance)}</td></tr></table></div>`;
+}
 
 </script>
 </body>

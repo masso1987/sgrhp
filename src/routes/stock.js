@@ -401,7 +401,7 @@ function createPurchase(req, b) {
   const att = attachOf(b.attachment);
   const pStatus = ["received", "ordered", "pending"].includes(b.purchaseStatus) ? b.purchaseStatus : "received";
   const pur = stamp({ id: id("pur"), ref: b.ref || seqRef(req, "stockPurchases", "ACH", "ref"), supplierId: b.supplierId || "", poId: b.poId || "", poRef: b.poRef || "",
-    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), location: b.location || "", paymentTerms: b.paymentTerms || "", note: b.note || "", attachment: att && att !== "TOO_BIG" ? att : null,
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), location: b.location || "", paymentTerms: b.paymentTerms || "", paymentAccountId: b.paymentAccountId || "", note: b.note || "", attachment: att && att !== "TOO_BIG" ? att : null,
     taxPct, shippingFee: ship, discountType: dt, discountValue: R2(b.discountValue), discount, subtotal, tax, total,
     amountPaid: Math.min(paid, total), paymentStatus: paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "due",
     purchaseStatus: pStatus, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
@@ -524,7 +524,7 @@ function createSale(req, b) {
   const taxPct = Number(b.taxPct) || 0; const tax = Math.round(taxable * taxPct / 100); const ship = R2(b.shippingFee);
   const total = taxable + tax + ship; const paid = R2(b.amountPaid);
   const sale = stamp({ id: id("sal"), ref: b.ref || seqRef(req, "stockSales", "VTE", "ref"), customerId: b.customerId || "", soId: b.soId || "", soRef: b.soRef || "",
-    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), channel: b.channel || "vente", location: b.location || "", note: b.note || "",
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), channel: b.channel || "vente", location: b.location || "", paymentAccountId: b.paymentAccountId || "", note: b.note || "",
     taxPct, shippingFee: ship, discountType: dt, discountValue: R2(b.discountValue), discount, subtotal, tax, total,
     amountPaid: Math.min(paid, total), paymentStatus: paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "due",
     saleStatus: "final", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
@@ -664,6 +664,44 @@ router.put("/expenses/:id", allow("ADM", "CD", "GPF"), (req, res) => {
 router.delete("/expenses/:id", allow("ADM", "CD"), (req, res) => {
   const e = mine(db.stockExpenses, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
   db.stockExpenses.splice(db.stockExpenses.indexOf(e), 1); save(); res.json({ ok: true });
+});
+
+/* ============================ COMPTES DE PAIEMENT ============================ */
+function acctBalance(req, accId) {
+  const acc = mine(db.stockPaymentAccounts, req).find(a => a.id === accId); if (!acc) return 0;
+  let bal = R2(acc.openingBalance);
+  for (const x of mine(db.stockSales, req)) if (x.paymentAccountId === accId) bal += R2(x.amountPaid);
+  for (const x of mine(db.stockPurchases, req)) if (x.paymentAccountId === accId) bal -= R2(x.amountPaid);
+  for (const x of mine(db.stockExpenses, req)) if (x.paymentAccountId === accId) bal -= R2(x.amount);
+  return bal;
+}
+router.get("/accounts", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  res.json(mine(db.stockPaymentAccounts, req).map(a => Object.assign({}, a, { balance: acctBalance(req, a.id) })).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
+});
+router.post("/accounts", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; if (!b.name) return res.status(400).json({ error: "Nom obligatoire" });
+  const a = stamp({ id: id("pac"), name: b.name, type: b.type || "caisse", openingBalance: R2(b.openingBalance), note: b.note || "", createdAt: new Date().toISOString() }, req);
+  db.stockPaymentAccounts.push(a); save(); res.status(201).json(Object.assign({}, a, { balance: acctBalance(req, a.id) }));
+});
+router.put("/accounts/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+  const a = mine(db.stockPaymentAccounts, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {}; for (const k of ["name", "type", "note"]) if (b[k] !== undefined) a[k] = b[k]; if (b.openingBalance !== undefined) a.openingBalance = R2(b.openingBalance);
+  save(); res.json(Object.assign({}, a, { balance: acctBalance(req, a.id) }));
+});
+router.delete("/accounts/:id", allow("ADM", "CD"), (req, res) => {
+  const a = mine(db.stockPaymentAccounts, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  db.stockPaymentAccounts.splice(db.stockPaymentAccounts.indexOf(a), 1); save(); res.json({ ok: true });
+});
+router.get("/accounts/:id/statement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const a = mine(db.stockPaymentAccounts, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  const rows = [{ date: "", type: "Solde d'ouverture", ref: "", inflow: R2(a.openingBalance) > 0 ? R2(a.openingBalance) : 0, outflow: R2(a.openingBalance) < 0 ? -R2(a.openingBalance) : 0 }];
+  for (const x of mine(db.stockSales, req)) if (x.paymentAccountId === a.id && R2(x.amountPaid) > 0) rows.push({ date: x.date, type: "Encaissement vente", ref: x.ref, inflow: R2(x.amountPaid), outflow: 0 });
+  for (const x of mine(db.stockPurchases, req)) if (x.paymentAccountId === a.id && R2(x.amountPaid) > 0) rows.push({ date: x.date, type: "Paiement achat", ref: x.ref, inflow: 0, outflow: R2(x.amountPaid) });
+  for (const x of mine(db.stockExpenses, req)) if (x.paymentAccountId === a.id) rows.push({ date: x.date, type: "Dépense", ref: x.ref, inflow: 0, outflow: R2(x.amount) });
+  rows.sort((r1, r2) => (r1.date || "").localeCompare(r2.date || ""));
+  let bal = 0; for (const r of rows) { bal += r.inflow - r.outflow; r.balance = bal; }
+  res.json({ account: { id: a.id, name: a.name, type: a.type }, rows, balance: bal });
 });
 
 module.exports = router;
