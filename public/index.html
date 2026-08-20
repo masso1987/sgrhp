@@ -5870,16 +5870,16 @@ async function stockProductsView(){
       ${list.length?list.map(p=>`<tr${p.active===false?' style="opacity:.5"':''}><td><code>${esc(p.sku||'')}</code></td><td>${esc(p.name)}${p.low?' <span class="tag" style="background:var(--red);color:#fff">bas</span>':''}${p.out?' <span class="tag gray">rupture</span>':''}</td>
         <td>${esc(p.categoryName||'')}</td><td class="r">${fCFA(p.purchasePrice)}</td><td class="r">${fCFA(p.salePrice)}</td>
         <td class="r"><b>${stkQty(p.qty)}</b> ${esc(p.unitName||'')}</td><td class="r">${fCFA(p.stockValue)}</td>
-        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
-          <a onclick="stockProductLabel('${p.id}')">🏷️ Étiquettes</a>
-          <a onclick="stockProductView('${p.id}')">👁️ Voir</a>
-          <a onclick="stockProductModal('${p.id}')">✏️ Modifier</a>
-          <a onclick="stockProductDelete('${p.id}')">🗑️ Effacer</a>
-          <hr>
-          <a onclick="stockProductOpening('${p.id}')">📦 Ajouter/modifier le stock d'ouverture</a>
-          <a onclick="stockProductHistory('${p.id}')">🕘 Historique du stock produit</a>
-          <a onclick="stockProductDuplicate('${p.id}')">📑 Produit en double</a>
-        </div></details></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun produit.</td></tr>'}
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockProductLabel('${p.id}')">🏷️ Étiquettes</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockProductView('${p.id}')">👁️ Voir</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockProductModal('${p.id}')">✏️ Modifier</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockProductDelete('${p.id}')">🗑️ Effacer</button>
+          
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockProductOpening('${p.id}')">📦 Ajouter/modifier le stock d'ouverture</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockProductHistory('${p.id}')">🕘 Historique du stock produit</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockProductDuplicate('${p.id}')">📑 Produit en double</button>
+        </div></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun produit.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">VALEUR TOTALE (${list.length})</td><td class="r">${fCFA(totVal)}</td><td></td></tr>
       </table></div>`;
 }
@@ -6470,14 +6470,14 @@ async function stockPOView(){
         <td>${poStTag(po.orderStatus||'commande')}</td>
         <td class="r">${po.remaining}</td><td class="r">${fCFA(po.total)}</td>
         <td>${esc(po.addedBy||'')}</td>
-        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
-          <a onclick="stockPOViewDoc('${po.id}')">👁️ Voir</a>
-          <a onclick="stockPOPrint('${po.id}')">🖨️ Impression</a>
-          ${po.received<=0?`<a onclick="stockPOForm('${po.id}')">✏️ Modifier</a>`:''}
-          <a onclick="stockPOShipping('${po.id}')">🚚 Modifier l'expédition</a>
-          ${po.status!=='completed'?`<a onclick="stockPurchaseForm('${po.id}')">📥 Conclure l'achat</a>`:''}
-          ${po.received<=0?`<a onclick="stockPODelete('${po.id}')">🗑️ Effacer</a>`:''}
-        </div></details></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOViewDoc('${po.id}')">👁️ Voir</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOPrint('${po.id}')">🖨️ Impression</button>
+          ${po.received<=0?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOForm('${po.id}')">✏️ Modifier</button>`:''}
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOShipping('${po.id}')">🚚 Modifier l'expédition</button>
+          ${po.status!=='completed'?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPurchaseForm('${po.id}')">📥 Conclure l'achat</button>`:''}
+          ${po.received<=0?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPODelete('${po.id}')">🗑️ Effacer</button>`:''}
+        </div></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
       </table></div>`;
 }
 async function stockPOForm(id){
@@ -6522,13 +6522,13 @@ async function stockPurchasesView(){
       ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code> ${attachLink(p.attachment)}${p.poRef?` <span class="note">(BC ${esc(p.poRef)})</span>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td><td class="r">${stkQty(p.totalQty)}</td>
         <td>${stStatusTag(p.purchaseStatus)}</td><td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
         <td>${esc(p.addedBy||'')}</td>
-        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
-          <a onclick="stockDocView('purchase','${p.id}')">👁️ Voir</a>
-          <a onclick="stockDocPrint('purchase','${p.id}')">🖨️ Impression</a>
-          ${p.paymentStatus!=='paid'?`<a onclick="stockPayModal('${p.id}',${p.total-p.amountPaid})">💵 Payer</a>`:''}
-          <a onclick="stockPurchaseForm(null,'${p.id}')">✏️ Modifier</a>
-          <a onclick="stockPurchaseDelete('${p.id}')">🗑️ Effacer</a>
-        </div></details></td></tr>`).join(""):'<tr><td colspan="11" style="color:var(--muted)">Aucun achat.</td></tr>'}
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocView('purchase','${p.id}')">👁️ Voir</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocPrint('purchase','${p.id}')">🖨️ Impression</button>
+          ${p.paymentStatus!=='paid'?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPayModal('${p.id}',${p.total-p.amountPaid})">💵 Payer</button>`:''}
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPurchaseForm(null,'${p.id}')">✏️ Modifier</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPurchaseDelete('${p.id}')">🗑️ Effacer</button>
+        </div></td></tr>`).join(""):'<tr><td colspan="11" style="color:var(--muted)">Aucun achat.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="8">TOTAL DÛ</td><td class="r" colspan="3">${fCFA(totDue)}</td></tr></table></div>`;
 }
 async function stockPurchaseForm(poId, editId){
@@ -6719,13 +6719,13 @@ async function stockSOView(){
     <div class="panel"><button class="btn p sm" style="float:right" onclick="stockSOForm()">+ Nouvelle commande</button><b>${list.length} commande(s)</b>
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Statut</th><th class="r">Qté restante</th><th class="r">Total</th><th></th></tr>
       ${list.length?list.map(o=>`<tr><td><code>${esc(o.ref)}</code></td><td>${esc(o.date||'')}</td><td>${esc(stCustName(o.customerId))}</td><td>${stStatusTag(o.status)}</td><td class="r">${o.remaining}</td><td class="r">${fCFA(o.total)}</td>
-        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
-          <a onclick="stockDocView('so','${o.id}')">👁️ Voir</a>
-          <a onclick="stockDocPrint('so','${o.id}')">🖨️ Impression</a>
-          ${o.status!=='completed'?`<a onclick="stockSODeliver('${o.id}','${esc(o.ref)}')">📦 Livrer</a>`:''}
-          ${o.delivered<=0?`<a onclick="stockSOForm('${o.id}')">✏️ Modifier</a>`:''}
-          ${o.delivered<=0?`<a onclick="stockSODelete('${o.id}')">🗑️ Effacer</a>`:''}
-        </div></details></td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune commande.</td></tr>'}
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocView('so','${o.id}')">👁️ Voir</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocPrint('so','${o.id}')">🖨️ Impression</button>
+          ${o.status!=='completed'?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockSODeliver('${o.id}','${esc(o.ref)}')">📦 Livrer</button>`:''}
+          ${o.delivered<=0?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockSOForm('${o.id}')">✏️ Modifier</button>`:''}
+          ${o.delivered<=0?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockSODelete('${o.id}')">🗑️ Effacer</button>`:''}
+        </div></td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune commande.</td></tr>'}
       </table></div>`;
 }
 async function stockSOForm(editId){ await stockLoadRefs(); window._PLKIND='so'; window._PL=[]; window._plQ=""; window._soEditId=editId||"";
@@ -6758,13 +6758,13 @@ async function stockSalesView(){
       ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code>${p.soRef?` <span class="note">(CC ${esc(p.soRef)})</span>`:''}${p.channel==='pos'?' <span class="tag gray">POS</span>':''}</td><td>${esc(p.date||'')}</td><td>${esc(stCustName(p.customerId))}</td><td class="r">${stkQty(p.totalQty)}</td>
         <td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
         <td>${esc(p.addedBy||'')}</td>
-        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
-          <a onclick="stockDocView('sale','${p.id}')">👁️ Voir</a>
-          <a onclick="stockDocPrint('sale','${p.id}')">🖨️ Impression</a>
-          ${p.paymentStatus!=='paid'?`<a onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">💵 Encaisser</a>`:''}
-          <a onclick="stockSaleForm('${p.id}')">✏️ Modifier</a>
-          <a onclick="stockSaleDelete('${p.id}')">🗑️ Effacer</a>
-        </div></details></td></tr>`).join(""):'<tr><td colspan="10" style="color:var(--muted)">Aucune vente.</td></tr>'}
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocView('sale','${p.id}')">👁️ Voir</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocPrint('sale','${p.id}')">🖨️ Impression</button>
+          ${p.paymentStatus!=='paid'?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">💵 Encaisser</button>`:''}
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockSaleForm('${p.id}')">✏️ Modifier</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockSaleDelete('${p.id}')">🗑️ Effacer</button>
+        </div></td></tr>`).join(""):'<tr><td colspan="10" style="color:var(--muted)">Aucune vente.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAL DÛ</td><td class="r" colspan="3">${fCFA(totDue)}</td></tr></table></div>`;
 }
 async function stockSaleForm(editId){
@@ -6895,13 +6895,13 @@ async function stockQuotesView(){
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Statut</th><th class="r">Total</th><th></th></tr>
       ${list.length?list.map(q=>`<tr><td><code>${esc(q.ref)}</code></td><td>${esc(q.date||'')}</td><td>${esc(stCustName(q.customerId))}</td>
         <td>${q.status==='converted'?'<span class="tag green">Converti</span>':'<span class="tag gray">Ouvert</span>'}</td><td class="r">${fCFA(q.total)}</td>
-        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
-          <a onclick="stockDocView('quote','${q.id}')">👁️ Voir</a>
-          <a onclick="stockDocPrint('quote','${q.id}')">🖨️ Impression</a>
-          ${q.status!=='converted'?`<a onclick="stockQuoteConvert('${q.id}','${esc(q.ref)}')">➡️ Convertir en vente</a>`:''}
-          ${q.status!=='converted'?`<a onclick="stockQuoteForm('${q.id}')">✏️ Modifier</a>`:''}
-          <a onclick="stockQuoteDelete('${q.id}')">🗑️ Effacer</a>
-        </div></details></td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun devis.</td></tr>'}
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocView('quote','${q.id}')">👁️ Voir</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockDocPrint('quote','${q.id}')">🖨️ Impression</button>
+          ${q.status!=='converted'?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockQuoteConvert('${q.id}','${esc(q.ref)}')">➡️ Convertir en vente</button>`:''}
+          ${q.status!=='converted'?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockQuoteForm('${q.id}')">✏️ Modifier</button>`:''}
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockQuoteDelete('${q.id}')">🗑️ Effacer</button>
+        </div></td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun devis.</td></tr>'}
       </table></div>`;
 }
 async function stockQuoteForm(editId){ await stockLoadRefs(); window._PLKIND='quote'; window._PL=[]; window._plQ=""; window._qeEditId=editId||"";
@@ -7156,7 +7156,7 @@ function stockPODocHtml(po,company,opts){
     <div style="margin-top:8px"><b>La Direction:</b><div style="border:1px solid #ddd;padding:6px;border-radius:4px;margin-top:2px">${esc(po.note||"")}</div></div>
     ${acts}${bc}</div>`;
 }
-async function stockPOViewDoc(id){
+async function stockPOViewDoc(id){ try{
   await stockLoadRefs(); const company=await stockCompany();
   const po=await api("/stock/po/"+id).catch(e=>{alert("Impossible de charger le BC : "+e.message);return null;}); if(!po) return;
   let acts=[]; try{ acts=(await api("/audit?objectType=StockPO")).filter(a=>a.objectId===id); }catch(e){}
@@ -7165,7 +7165,7 @@ async function stockPOViewDoc(id){
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px"><button class="btn p sm" onclick="stockPOPrint('${id}')">🖨️ Imprimer</button><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">✕</button></div>
     ${stockPODocHtml(po,company,{activities:acts})}</div>`;
   document.body.appendChild(bg);
-}
+ }catch(_e){ alert("Erreur Voir BC : "+_e.message); } }
 async function stockPOPrint(id){
   await stockLoadRefs(); const company=await stockCompany();
   const po=await api("/stock/po/"+id).catch(e=>{alert("Impossible de charger le BC : "+e.message);return null;}); if(!po) return;
@@ -7244,7 +7244,7 @@ function stockDocHtml(kind,d,company,opts){
     ${d.note?`<div style="margin-top:10px"><b>Note:</b> ${esc(d.note)}</div>`:''}
     ${acts}${bc}</div>`;
 }
-async function stockDocView(kind,id){
+async function stockDocView(kind,id){ try{
   await stockLoadRefs(); const company=await stockCompany(); const cfg=STOCK_DOC[kind];
   const d=await api("/stock/"+cfg.ep+"/"+id).catch(e=>{alert("Impossible de charger le document : "+e.message);return null;}); if(!d) return;
   let acts=[]; if(cfg.at){ try{ acts=(await api("/audit?objectType="+cfg.at)).filter(a=>a.objectId===id); }catch(e){} }
@@ -7253,7 +7253,7 @@ async function stockDocView(kind,id){
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px"><button class="btn p sm" onclick="stockDocPrint('${kind}','${id}')">🖨️ Imprimer</button><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">✕</button></div>
     ${stockDocHtml(kind,d,company,{activities:cfg.at?acts:null})}</div>`;
   document.body.appendChild(bg);
-}
+ }catch(_e){ alert("Erreur Voir : "+_e.message); } }
 async function stockDocPrint(kind,id){
   await stockLoadRefs(); const company=await stockCompany(); const cfg=STOCK_DOC[kind];
   const d=await api("/stock/"+cfg.ep+"/"+id).catch(e=>{alert("Impossible de charger le document : "+e.message);return null;}); if(!d) return;
