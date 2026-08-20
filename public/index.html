@@ -6348,7 +6348,7 @@ function plDel(i){ window._PL.splice(i,1); if(!window._PL.length) window._PL.pus
 function plPick(i,v){ window._PL[i].productId=v; const p=(window._STK.prods||[]).find(x=>x.id===v); if(p&&!window._PL[i].unitCost){ const sk=['so','sale','quote','salesreturn']; window._PL[i].unitCost= sk.includes(window._PLKIND)?p.salePrice:p.purchasePrice; } plRender(); }
 function plSet(i,f,v){ window._PL[i][f]=v; plTotals(); }
 function plName(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); return p?p.name:"(produit supprimé)"; }
-function plRender(){
+function plRender(){ window._plAddFn=null;
   const box=document.getElementById("plBox"); if(!box) return; const disc=!['return','salesreturn'].includes(window._PLKIND);
   box.innerHTML=`
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
@@ -6401,7 +6401,7 @@ async function plNewProductSave(){
   if(!body.name){ const e=document.getElementById("npErr"); e.textContent="Nom obligatoire"; e.classList.remove("hidden"); return; }
   try{ const p=await api("/stock/products",{method:"POST",body:JSON.stringify(body)});
     window._STK.prods=await api("/stock/products").catch(()=>window._STK.prods);
-    document.querySelector(".modal-bg").remove(); window._plQ=""; plAddProduct(p.id); }
+    document.querySelector(".modal-bg").remove(); window._plQ=""; const add=window._plAddFn||plAddProduct; add(p.id); window._plAddFn=null; }
   catch(e){ const el=document.getElementById("npErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 function plTotals(){
@@ -6520,37 +6520,131 @@ async function stockPurchasesView(){
 async function stockPurchaseForm(poId){
   await stockLoadRefs();
   const pos=(await api("/stock/po").catch(()=>[])).filter(p=>p.status!=='completed' && p.orderStatus!=='annule');
-  window._puPOs=pos; window._PLKIND='purchase'; window._PL=[]; window._plQ=""; window._puAttach=null; window._puPOId=""; window._puPORef="";
+  window._puPOs=pos; window._PUL=[]; window._puQ=""; window._puAttach=null; window._puPOId=""; window._puPORef="";
+  const sups=window._STK.sups||[], locs=window._STK.locations||[];
+  const supOpt=sups.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+  const locOpt=locs.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpurchases')">← Achats</button>
-    <h1 style="margin-top:10px">Ajouter un achat (réception)</h1>
-    <div class="panel">
-      <div class="grid3">
-        <div><label>Bon de commande (charger les produits)</label><select id="puPO" onchange="stockPurchaseLoadPO(this.value)"><option value="">— aucun —</option>${pos.map(po=>`<option value="${po.id}">${esc(po.ref)} — ${esc(stSupName(po.supplierId))} · ${PO_ST_LABELS[po.orderStatus||'commande']} · reste ${po.remaining}</option>`).join("")}</select></div>
-        <div><label>Conditions de paiement</label><input id="puTerms"></div>
-        <div><label>Joindre un document (≤ 5 Mo)</label><input type="file" id="puFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_puAttach')"></div>
-      </div>
-      ${plHeaderHtml('purchase')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('purchase')}
+    <h1 style="margin-top:10px">Ajouter un achat</h1>
+    <div class="panel"><div class="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <div><label>Fournisseur *</label><div style="display:flex;gap:4px"><select id="puSup" onchange="puFillAddress()" style="flex:1"><option value="">Veuillez sélectionner</option>${supOpt}</select><button class="btn p sm" onclick="puQuickSupplier()" title="Nouveau fournisseur">+</button></div></div>
+      <div><label>Numéro de référence</label><input id="puRef" placeholder="auto"></div>
+      <div><label>Date d'achat *</label><input id="puDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div><label>Statut d'achat *</label><select id="puStatus"><option value="received">Reçu</option><option value="ordered">Commandé</option><option value="pending">En attente</option></select></div>
+      <div><label>Adresse</label><input id="puAddr" disabled></div>
+      <div><label>Lieu d'affaires</label><select id="puLoc"><option value="">Veuillez sélectionner</option>${locOpt}</select></div>
+      <div><label>Conditions de paiement</label><input id="puTerms"></div>
+      <div><label>Joindre un document (≤5 Mo)</label><input type="file" id="puFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_puAttach')"></div>
+      <div style="grid-column:1/3"><label>Bon de commande (charger les produits)</label><select id="puPO" onchange="stockPurchaseLoadPO(this.value)"><option value="">— aucun —</option>${pos.map(po=>`<option value="${po.id}">${esc(po.ref)} — ${esc(stSupName(po.supplierId))} · reste ${po.remaining}</option>`).join("")}</select></div>
+    </div></div>
+    <div class="panel"><div id="puLines"></div>
+      <div style="text-align:right;margin-top:6px"><span class="note">Articles au total :</span> <b id="puArtQty">0</b> &nbsp; <span class="note">Montant total net :</span> <b id="puSubV">0</b></div></div>
+    <div class="panel"><div class="grid3">
+      <div><label>Type de remise</label><select id="puDiscType" onchange="puTotals()"><option value="none">Aucun</option><option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option></select></div>
+      <div><label>Montant de remise</label><input id="puDiscVal" type="number" value="0" oninput="puTotals()"></div>
+      <div style="align-self:end;text-align:right">Remise : (-) <b id="puRemV">0</b></div>
+      <div><label>Taxe d'achat</label><select id="puTaxPct" onchange="puTotals()"><option value="0">Aucun</option><option value="19.25">TVA 19,25 %</option></select></div>
+      <div><label>Montant payé</label><input id="puPaid" type="number" value="0"></div>
+      <div style="align-self:end;text-align:right">Taxe d'achat : (+) <b id="puTaxV">0</b></div>
+      <div style="grid-column:1/3"><label>La Direction</label><textarea id="puNote" rows="2"></textarea></div>
+      <div style="align-self:end;text-align:right;font-weight:700;font-size:16px">Total : <b id="puTotV">0</b></div>
+    </div>
     <div class="err hidden" id="puErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockPurchaseSubmit()">Enregistrer l'achat</button></div></div>`;
-  plRender();
+  puRender();
   if(poId){ const sel=document.getElementById("puPO"); if(sel) sel.value=poId; stockPurchaseLoadPO(poId); }
-  if(window._prefillSup){ const el=document.getElementById("hdSup"); if(el) el.value=window._prefillSup; window._prefillSup=""; }
+  if(window._prefillSup){ const el=document.getElementById("puSup"); if(el){ el.value=window._prefillSup; puFillAddress(); } window._prefillSup=""; }
 }
+function puFillAddress(){ const id=(document.getElementById("puSup")||{}).value; const c=(window._STK.sups||[]).find(x=>x.id===id)||{}; const el=document.getElementById("puAddr"); if(el) el.value=[c.address1,c.city].filter(Boolean).join(", "); }
+function puRender(){ window._plAddFn=null;
+  const box=document.getElementById("puLines"); if(!box) return; const prods=window._STK.prods||[];
+  const nm=(id)=>{const p=prods.find(x=>x.id===id);return p?p.name:"(supprimé)";};
+  box.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <button class="btn ghost sm" onclick="puImportModal()">Importer des produits</button>
+      <input id="puSearch" placeholder="🔍 Entrez le nom du produit / SKU / code-barres…" value="${esc(window._puQ||'')}" oninput="window._puQ=this.value;puSearchRender()" onkeydown="if(event.key==='Enter'){event.preventDefault();puSearchAddFirst();}" style="margin:0;flex:1">
+      <button class="btn ghost sm" onclick="window._plAddFn=puAddProduct;plNewProduct()">+ Nouveau produit</button></div>
+    <div id="puSearchRes"></div>
+    <div class="scroll" style="overflow:auto"><table><tr style="background:#2e7d5b;color:#fff"><th>#</th><th>Nom du produit</th><th class="r">Qté d'achat</th><th class="r">Coût u. (av. remise)</th><th class="r">% escompte</th><th class="r">Coût u. (av. impôt)</th><th class="r">Total ligne</th><th class="r">Marge %</th><th class="r">Prix de vente</th><th>Date fab.</th><th>Date exp.</th><th></th></tr>
+    ${window._PUL.length?window._PUL.map((l,i)=>{const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;const puAfter=Math.round(pu*(1-disc/100));const net=Math.round(qty*puAfter);const sp=Number(l.salePrice)||0;const margin=puAfter?(((sp-puAfter)/puAfter)*100):0;
+      return `<tr><td>${i+1}</td><td>${esc(nm(l.productId))}</td>
+        <td><input type="number" value="${l.qty}" oninput="puSet(${i},'qty',this.value)" style="margin:0;max-width:80px;text-align:right"></td>
+        <td><input type="number" value="${l.unitCost}" oninput="puSet(${i},'unitCost',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
+        <td><input type="number" value="${l.discountPct}" oninput="puSet(${i},'discountPct',this.value)" style="margin:0;max-width:70px;text-align:right"></td>
+        <td class="r" id="puAfter${i}">${fCFA(puAfter)}</td><td class="r" id="puNet${i}">${fCFA(net)}</td><td class="r" id="puMar${i}">${margin.toFixed(1)}%</td>
+        <td><input type="number" value="${l.salePrice}" oninput="puSet(${i},'salePrice',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
+        <td><input type="date" value="${esc(l.mfgDate||'')}" oninput="puSet(${i},'mfgDate',this.value)" style="margin:0;max-width:140px"></td>
+        <td><input type="date" value="${esc(l.expDate||'')}" oninput="puSet(${i},'expDate',this.value)" style="margin:0;max-width:140px"></td>
+        <td><button class="btn ghost sm" onclick="puDel(${i})">✕</button></td></tr>`;}).join(""):'<tr><td colspan="12" style="color:var(--muted)">Recherchez un produit ci-dessus pour l\'ajouter.</td></tr>'}</table></div>`;
+  puSearchRender(); puTotals();
+}
+function puRow(i){ const l=window._PUL[i]; if(!l) return; const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;const puAfter=Math.round(pu*(1-disc/100));const net=Math.round(qty*puAfter);const sp=Number(l.salePrice)||0;const margin=puAfter?(((sp-puAfter)/puAfter)*100):0;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;}; set("puAfter"+i,fCFA(puAfter)); set("puNet"+i,fCFA(net)); set("puMar"+i,margin.toFixed(1)+"%"); }
+function puSet(i,f,v){ window._PUL[i][f]=v; if(['qty','unitCost','discountPct','salePrice'].includes(f)) puRow(i); puTotals(); }
+function puDel(i){ window._PUL.splice(i,1); puRender(); }
+function puSub(){ return (window._PUL||[]).reduce((s,l)=>{const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;return s+Math.round(qty*Math.round(pu*(1-disc/100)));},0); }
+function puTotals(){ const g=(x)=>{const e=document.getElementById(x);return e?e.value:"";}; const sub=puSub();
+  const dt=g("puDiscType"); const dv=Number(g("puDiscVal"))||0; const rem=dt==='percent'?Math.round(sub*dv/100):dt==='fixed'?Math.round(dv):0;
+  const taxable=Math.max(0,sub-rem); const taxPct=Number(g("puTaxPct"))||0; const tax=Math.round(taxable*taxPct/100); const total=taxable+tax;
+  const qty=(window._PUL||[]).reduce((s,l)=>s+(Number(l.qty)||0),0);
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set("puArtQty",qty); set("puSubV",fCFA(sub)); set("puRemV",fCFA(rem)); set("puTaxV",fCFA(tax)); set("puTotV",fCFA(total)); }
+function puAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); if(!p) return; const ex=(window._PUL||[]).find(l=>l.productId===id);
+  if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._PUL.push({productId:id,qty:1,unitCost:p.purchasePrice||0,discountPct:0,salePrice:p.salePrice||0,mfgDate:p.mfgDate||"",expDate:p.expDate||""});
+  window._puQ=""; puRender(); }
+function puSearchRender(){ const box=document.getElementById("puSearchRes"); if(!box) return; const q=(window._puQ||"").toLowerCase().trim(); if(!q){box.innerHTML="";return;}
+  const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
+  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="puAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">achat ${fCFA(p.purchasePrice)} · stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=puAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._puQ)} »</a></div>`}</div>`; }
+function puSearchAddFirst(){ const q=(window._puQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) puAddProduct(r.id); }
+function puQuickSupplier(){ const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:400px"><h3 style="margin:0 0 8px">Nouveau fournisseur</h3>
+    <div><label>Nom *</label><input id="qsName"></div><div style="margin-top:6px"><label>Mobile</label><input id="qsMob"></div>
+    <div class="err hidden" id="qsErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="puQuickSupplierSave()">Créer</button><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg); }
+async function puQuickSupplierSave(){ const g=(x)=>(document.getElementById(x)||{}).value; if(!g("qsName")){document.getElementById("qsErr").textContent="Nom requis";document.getElementById("qsErr").classList.remove("hidden");return;}
+  try{ const c=await api("/stock/contacts",{method:"POST",body:JSON.stringify({type:"fournisseur",name:g("qsName"),mobile:g("qsMob")})});
+    window._STK.sups=await api("/stock/contacts?type=fournisseur").catch(()=>window._STK.sups);
+    const sel=document.getElementById("puSup"); if(sel){ sel.innerHTML='<option value="">Veuillez sélectionner</option>'+(window._STK.sups||[]).map(x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}</option>`).join(""); puFillAddress(); }
+    document.querySelector(".modal-bg").remove(); }catch(e){ const el=document.getElementById("qsErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+function puImportModal(){ const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:560px"><h3 style="margin:0 0 6px">Importer des produits (CSV)</h3>
+    <div class="note">Colonnes : SKU (ou nom), Quantité, Coût unitaire. Les produits sont retrouvés par SKU/nom.</div>
+    <div style="margin:8px 0"><input type="file" id="puImpFile" accept=".csv,.txt" onchange="puImpParse(this)"></div>
+    <div id="puImpMap"></div><div class="err hidden" id="puImpErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="puImpDo()">Ajouter au bon</button><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg); }
+function puImpParse(input){ const fl=input.files&&input.files[0]; if(!fl)return; const rd=new FileReader(); rd.onload=()=>{ const t=rd.result; const d=bankGuessDelim(t); const rows=bankParseCSV(t,d); window._puImpRows=rows;
+  const hdr=rows[0]||[]; const opt=(sel)=>`<option value="">—</option>`+hdr.map((h,i)=>`<option value="${i}" ${sel===i?'selected':''}>${esc(String(h)||('col '+(i+1)))}</option>`).join("");
+  const guess=(kw)=>{const i=hdr.findIndex(h=>String(h).toLowerCase().includes(kw));return i<0?"":i;};
+  document.getElementById("puImpMap").innerHTML=`<div class="grid3"><div><label>SKU / Nom</label><select id="puImpSku">${opt(guess("sku")!==""?guess("sku"):guess("nom"))}</select></div><div><label>Quantité</label><select id="puImpQty">${opt(guess("quant")!==""?guess("quant"):guess("qte"))}</select></div><div><label>Coût unitaire</label><select id="puImpCost">${opt(guess("cout")!==""?guess("cout"):guess("prix"))}</select></div></div><div class="note" style="margin-top:4px">${rows.length-1} ligne(s)</div>`;
+  }; rd.readAsText(fl,"utf-8"); }
+function puImpDo(){ const rows=window._puImpRows||[]; const g=(x)=>{const e=document.getElementById(x);return e?e.value:"";}; const cs=g("puImpSku"),cq=g("puImpQty"),cc=g("puImpCost");
+  if(cs===""){document.getElementById("puImpErr").textContent="Sélectionnez la colonne SKU/Nom";document.getElementById("puImpErr").classList.remove("hidden");return;}
+  let added=0; for(let i=1;i<rows.length;i++){ const r=rows[i]; if(!r)continue; const key=String(r[cs]||"").trim().toLowerCase(); if(!key)continue;
+    const p=(window._STK.prods||[]).find(x=>(x.sku&&x.sku.toLowerCase()===key)||(x.name||"").toLowerCase()===key); if(!p)continue;
+    const qty=cq!==""?Number(bankNum(r[cq]))||1:1; const cost=cc!==""?Number(bankNum(r[cc]))||p.purchasePrice:p.purchasePrice;
+    const ex=window._PUL.find(l=>l.productId===p.id); if(ex){ex.qty=(Number(ex.qty)||0)+qty;} else window._PUL.push({productId:p.id,qty,unitCost:cost,discountPct:0,salePrice:p.salePrice||0,mfgDate:"",expDate:""}); added++; }
+  document.querySelector(".modal-bg").remove(); puRender(); if(!added) alert("Aucun produit correspondant trouvé."); }
 async function stockPurchaseLoadPO(id){
   if(!id){ window._puPOId=""; window._puPORef=""; return; }
   const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
   window._puPOId=po.id; window._puPORef=po.ref;
-  window._PL=(po.lines||[]).map(l=>({productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct})).filter(l=>l.qty>0);
-  if(!window._PL.length) window._PL=[]; window._plQ="";
-  const g=(x)=>document.getElementById(x); if(g("hdSup")) g("hdSup").value=po.supplierId||""; if(g("puTerms")) g("puTerms").value=po.paymentTerms||""; if(g("plTax")) g("plTax").value=po.taxPct||0;
-  plRender();
+  const prods=window._STK.prods||[];
+  window._PUL=(po.lines||[]).map(l=>{const p=prods.find(x=>x.id===l.productId)||{};return {productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct,salePrice:p.salePrice||0,mfgDate:"",expDate:""};}).filter(l=>l.qty>0);
+  window._puQ="";
+  const g=(x)=>document.getElementById(x); if(g("puSup")){ g("puSup").value=po.supplierId||""; puFillAddress(); } if(g("puTerms")) g("puTerms").value=po.paymentTerms||""; if(g("puTaxPct")) g("puTaxPct").value=String(po.taxPct||0);
+  puRender();
 }
 function Q_(n){ return Math.round((Number(n)||0)*1000)/1000; }
 async function stockPurchaseSubmit(){
   const g=(x)=>(document.getElementById(x)||{}).value;
-  const lines=plCollect(); if(!lines.length){ const e=document.getElementById("puErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
-  try{ await api("/stock/purchases",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),poId:window._puPOId||"",poRef:window._puPORef||"",paymentTerms:g("puTerms"),attachment:window._puAttach,taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,amountPaid:Number(g("plPaid"))||0,lines})});
-    go('stockpurchases'); }catch(e){ const el=document.getElementById("puErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+  const lines=(window._PUL||[]).filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:Number(l.unitCost)||0,discountPct:Number(l.discountPct)||0,salePrice:l.salePrice,mfgDate:l.mfgDate,expDate:l.expDate}));
+  if(!lines.length){ const e=document.getElementById("puErr"); e.textContent="Ajoutez au moins un produit."; e.classList.remove("hidden"); return; }
+  const body={supplierId:g("puSup"),date:g("puDate"),ref:g("puRef"),purchaseStatus:g("puStatus"),location:g("puLoc"),paymentTerms:g("puTerms"),
+    poId:window._puPOId||"",poRef:window._puPORef||"",attachment:window._puAttach,discountType:g("puDiscType"),discountValue:Number(g("puDiscVal"))||0,
+    taxPct:Number(g("puTaxPct"))||0,amountPaid:Number(g("puPaid"))||0,note:g("puNote"),lines};
+  try{ await api("/stock/purchases",{method:"POST",body:JSON.stringify(body)}); go('stockpurchases'); }
+  catch(e){ const el=document.getElementById("puErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 function stockPayModal(id,due){
   const bg=document.createElement("div"); bg.className="modal-bg";
@@ -6926,7 +7020,7 @@ function stockPODocHtml(po,company,opts){
     <table style="margin-top:14px;width:100%"><tr style="background:#2e7d5b;color:#fff"><th>#</th><th>Nom du produit</th><th>SKU</th><th class="r">Qté restante</th><th class="r">Qté commandée</th><th class="r">Coût u. (av. remise)</th><th class="r">% escompte</th><th class="r">Coût u. (av. impôt)</th><th class="r">Sous-total (av. impôt)</th><th class="r">Impôt</th><th class="r">P.U. de revient</th><th class="r">Total</th></tr>${rows}</table>
     <div style="margin-top:12px;margin-left:auto;max-width:420px">
       <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #ccc"><b>Montant total net:</b><span>${X(po.subtotal)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Remise: (-)</span><span>${X(0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Remise: (-)</span><span>${X(d.discount||0)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Taxe d'achat: (+)</span><span>${X(po.tax||0)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Frais de livraison: (+)</span><span>${X(po.shippingFee||0)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #999;font-weight:700"><span>Total d'achat:</span><span>${X(po.total)}</span></div>

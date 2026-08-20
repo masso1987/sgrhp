@@ -156,7 +156,7 @@ router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
 router.put("/products/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   const p = mine(db.stockProducts, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Produit introuvable" });
   const b = req.body || {};
-  for (const f of ["sku", "barcode", "name", "categoryId", "unitId", "supplierId", "brandId", "warrantyId", "priceGroupId", "note"]) if (b[f] !== undefined) p[f] = b[f];
+  for (const f of ["sku", "barcode", "name", "categoryId", "unitId", "supplierId", "brandId", "warrantyId", "priceGroupId", "note", "expDate", "mfgDate"]) if (b[f] !== undefined) p[f] = b[f];
   for (const f of ["purchasePrice", "salePrice"]) if (b[f] !== undefined) p[f] = R2(b[f]);
   if (b.alertQty !== undefined) p.alertQty = b.alertQty === "" ? "" : Q(b.alertQty);
   if (b.active !== undefined) p.active = !!b.active;
@@ -298,7 +298,9 @@ function calcLines(lines) {
   const out = (Array.isArray(lines) ? lines : []).filter(l => l.productId && Q(l.qty) > 0).map(l => {
     const qty = Q(l.qty), pu = R2(l.unitCost), disc = Number(l.discountPct) || 0;
     const net = Math.round(qty * pu * (1 - disc / 100));
-    return { productId: l.productId, qty, unitCost: pu, discountPct: disc, net, receivedQty: Q(l.receivedQty || 0) };
+    const extra = {}; if (l.salePrice !== undefined && l.salePrice !== "") extra.salePrice = R2(l.salePrice);
+    if (l.mfgDate) extra.mfgDate = String(l.mfgDate).slice(0, 10); if (l.expDate) extra.expDate = String(l.expDate).slice(0, 10);
+    return Object.assign({ productId: l.productId, qty, unitCost: pu, discountPct: disc, net, receivedQty: Q(l.receivedQty || 0) }, extra);
   });
   subtotal = out.reduce((s, l) => s + l.net, 0);
   return { lines: out, subtotal };
@@ -382,18 +384,28 @@ router.post("/po/:id/receive", allow("ADM", "CD", "GPF"), (req, res) => {
 /* ---- Achats (réceptions) ---- */
 function createPurchase(req, b) {
   const { lines, subtotal } = calcLines(b.lines);
-  const t = docTotals(subtotal, b.taxPct, b.shippingFee);
+  const dt = (b.discountType === "percent" || b.discountType === "fixed") ? b.discountType : "none";
+  const discount = dt === "percent" ? Math.round(subtotal * (Number(b.discountValue) || 0) / 100) : dt === "fixed" ? R2(b.discountValue) : 0;
+  const taxable = Math.max(0, subtotal - discount);
+  const taxPct = Number(b.taxPct) || 0;
+  const tax = Math.round(taxable * taxPct / 100);
+  const ship = R2(b.shippingFee);
+  const total = taxable + tax + ship;
   const paid = R2(b.amountPaid);
   const att = attachOf(b.attachment);
+  const pStatus = ["received", "ordered", "pending"].includes(b.purchaseStatus) ? b.purchaseStatus : "received";
   const pur = stamp({ id: id("pur"), ref: b.ref || seqRef(req, "stockPurchases", "ACH", "ref"), supplierId: b.supplierId || "", poId: b.poId || "", poRef: b.poRef || "",
     date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), location: b.location || "", paymentTerms: b.paymentTerms || "", note: b.note || "", attachment: att && att !== "TOO_BIG" ? att : null,
-    taxPct: Number(b.taxPct) || 0, shippingFee: t.shipping, subtotal, tax: t.tax, total: t.total,
-    amountPaid: Math.min(paid, t.total), paymentStatus: paid >= t.total && t.total > 0 ? "paid" : paid > 0 ? "partial" : "due",
-    purchaseStatus: "received", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+    taxPct, shippingFee: ship, discountType: dt, discountValue: R2(b.discountValue), discount, subtotal, tax, total,
+    amountPaid: Math.min(paid, total), paymentStatus: paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "due",
+    purchaseStatus: pStatus, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockPurchases.push(pur);
   if (b.poId) { const po = mine(db.stockPOs, req).find(x => x.id === b.poId); if (po) { for (const pl of lines) { const l = (po.lines || []).find(x => x.productId === pl.productId); if (l) l.receivedQty = Q(Q(l.receivedQty || 0) + pl.qty); } if ((po.lines || []).every(l => Q(l.receivedQty || 0) >= Q(l.qty))) po.orderStatus = "livre"; } }
-  for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) + l.qty); if (l.unitCost) p.purchasePrice = l.unitCost;
-    logMove(req, { date: pur.date, type: "achat", productId: p.id, qty: l.qty, unitCost: l.unitCost, ref: pur.ref, supplierId: pur.supplierId, sourceType: "purchase", sourceId: pur.id });
+  for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue;
+    if (l.unitCost) p.purchasePrice = l.unitCost;
+    if (l.salePrice) p.salePrice = l.salePrice; if (l.expDate) p.expDate = l.expDate; if (l.mfgDate) p.mfgDate = l.mfgDate;
+    if (pStatus === "received") { p.qty = Q((p.qty || 0) + l.qty);
+      logMove(req, { date: pur.date, type: "achat", productId: p.id, qty: l.qty, unitCost: l.unitCost, ref: pur.ref, supplierId: pur.supplierId, sourceType: "purchase", sourceId: pur.id }); }
   }
   return pur;
 }
