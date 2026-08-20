@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockLocations", "stockTransfers", "stockMovements"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockLocations", "stockTransfers", "stockExpenseCats", "stockExpenses", "stockPaymentAccounts", "stockMovements"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -46,6 +46,7 @@ crud("warranties", "stockWarranties", ["name", "duration", "description"], "name
 crud("pricegroups", "stockPriceGroups", ["name", "note"], "name", ["ADM", "CD", "GPF"]);
 crud("variations", "stockVariations", ["name", "values"], "name", ["ADM", "CD", "GPF"]);
 crud("locations", "stockLocations", ["name", "address"], "name", ["ADM", "CD", "GPF"]);
+crud("expensecats", "stockExpenseCats", ["name"], "name", ["ADM", "CD", "GPF"]);
 
 /* ============================ CONTACTS (fournisseurs & clients) ============================ */
 const CONTACT_FIELDS = ["type", "entityType", "contactId", "name", "firstName", "mobile", "altPhone", "landline", "email",
@@ -632,6 +633,39 @@ router.delete("/transfers/:id", allow("ADM", "CD"), (req, res) => {
   db.stockTransfers.splice(db.stockTransfers.indexOf(t), 1); save(); res.json({ ok: true });
 });
 
+/* ============================ DÉPENSES ============================ */
+function expOut(req, e) {
+  const c = mine(db.stockExpenseCats, req).find(x => x.id === e.categoryId);
+  const acc = mine(db.stockPaymentAccounts, req).find(x => x.id === e.paymentAccountId);
+  return Object.assign({}, e, { categoryName: c ? c.name : "", supplierName: cName(req, e.supplierId), accountName: acc ? acc.name : "", addedBy: uName(e.createdBy) });
+}
+router.get("/expenses", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  let list = mine(db.stockExpenses, req);
+  if (req.query.from) list = list.filter(e => (e.date || "") >= req.query.from);
+  if (req.query.to) list = list.filter(e => (e.date || "") <= req.query.to);
+  if (req.query.categoryId) list = list.filter(e => e.categoryId === req.query.categoryId);
+  res.json(list.map(e => expOut(req, e)).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+});
+router.post("/expenses", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; if (!(R2(b.amount) > 0)) return res.status(400).json({ error: "Montant obligatoire" });
+  const e = stamp({ id: id("exp"), ref: b.ref || seqRef(req, "stockExpenses", "DEP", "ref"), date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    categoryId: b.categoryId || "", amount: R2(b.amount), supplierId: b.supplierId || "", location: b.location || "", paymentAccountId: b.paymentAccountId || "", note: b.note || "",
+    createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockExpenses.push(e); save(); audit(req.user, "CREATED", "StockExpense", e.id, { amount: e.amount }); res.status(201).json(expOut(req, e));
+});
+router.put("/expenses/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+  const e = mine(db.stockExpenses, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Dépense introuvable" });
+  const b = req.body || {};
+  for (const k of ["date", "categoryId", "supplierId", "location", "paymentAccountId", "note"]) if (b[k] !== undefined) e[k] = b[k];
+  if (b.amount !== undefined) e.amount = R2(b.amount);
+  save(); res.json(expOut(req, e));
+});
+router.delete("/expenses/:id", allow("ADM", "CD"), (req, res) => {
+  const e = mine(db.stockExpenses, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
+  db.stockExpenses.splice(db.stockExpenses.indexOf(e), 1); save(); res.json({ ok: true });
+});
+
 module.exports = router;
 module.exports.seedStock = seedStock;
 
@@ -840,6 +874,15 @@ router.get("/reports", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
       .map(t => ({ ref: t.ref, date: t.date, from: locName(req, t.fromId), to: locName(req, t.toId), status: ({ en_cours: "En cours", termine: "Terminé", annule: "Annulé" })[t.status] || t.status, total: R2(t.total) }))
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     out.totals = { total: sum(out.rows, "total") };
+  }
+  else if (type === "expenses") {
+    const cats = _nameMap(mine(db.stockExpenseCats, req));
+    out.title = "Rapport de dépenses";
+    out.columns = [C("ref", "Réf"), C("date", "Date"), C("categoryName", "Catégorie"), C("supplierName", "Bénéficiaire"), C("note", "Note"), C("amount", "Montant", "money")];
+    out.rows = mine(db.stockExpenses, req).filter(e => (!f.from || (e.date || "") >= f.from) && (!f.to || (e.date || "") <= f.to) && (!f.categoryId || e.categoryId === f.categoryId))
+      .map(e => ({ ref: e.ref, date: e.date, categoryName: cats[e.categoryId] || "", supplierName: cName(req, e.supplierId), note: e.note || "", amount: R2(e.amount) }))
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    out.totals = { amount: sum(out.rows, "amount") };
   }
   else return res.status(400).json({ error: "Type de rapport inconnu" });
   res.json(out);

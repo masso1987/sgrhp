@@ -892,7 +892,9 @@ const NAV = [
   { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
   { k: "stocklocations", label: "📍 Emplacements", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
   { k: "stocktransfers", label: "🚚 Transferts de stock", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
-  { k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], cap: "stock.rapports", module: "stock", grp: "stock" },
+    { k: "stockexpenses", label: "💸 Dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
+  { k: "stockexpensecats", label: "🗃️ Catégories de dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
+{ k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], cap: "stock.rapports", module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
   { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
 
@@ -994,7 +996,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1399,7 +1401,7 @@ async function toggleActive(uid, active) {
 async function permModal(uid) {
   const u = (await api("/users")).find(x => x.id === uid);
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
-  const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.rapports", "📊 Rapports de stock"]];
+  const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -5819,7 +5821,8 @@ async function stockLoadRefs(){
     api("/stock/categories").catch(()=>[]), api("/stock/units").catch(()=>[]),
     api("/stock/contacts?type=fournisseur").catch(()=>[]), api("/stock/contacts?type=client").catch(()=>[]),
     api("/stock/products").catch(()=>[]), api("/stock/brands").catch(()=>[]), api("/stock/warranties").catch(()=>[]), api("/stock/pricegroups").catch(()=>[]), api("/stock/locations").catch(()=>[])]);
-  window._STK={cats,units,sups,clients,prods,brands,warranties,pricegroups,locations};
+  const [expensecats,accounts]=await Promise.all([api("/stock/expensecats").catch(()=>[]),api("/stock/accounts").catch(()=>[])]);
+  window._STK={cats,units,sups,clients,prods,brands,warranties,pricegroups,locations,expensecats,accounts};
 }
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
@@ -5990,7 +5993,8 @@ const STK_REF={
   warranties:{title:"🛡️ Garanties",ep:"warranties",cols:[{k:"name",l:"Nom"},{k:"duration",l:"Durée"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"duration",l:"Durée (ex. 12 mois)",type:"text"},{k:"description",l:"Description",type:"text"}]},
   pricegroups:{title:"💲 Groupes de prix de vente",ep:"pricegroups",cols:[{k:"name",l:"Nom"},{k:"note",l:"Note"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"note",l:"Note",type:"text"}]},
   variations:{title:"🎨 Variations",ep:"variations",cols:[{k:"name",l:"Variation"},{k:"values",l:"Valeurs"}],fields:[{k:"name",l:"Nom de la variation (ex. Taille)",type:"text"},{k:"values",l:"Valeurs (séparées par des virgules)",type:"text"}]},
-  locations:{title:"📍 Emplacements",ep:"locations",cols:[{k:"name",l:"Nom"},{k:"address",l:"Adresse"}],fields:[{k:"name",l:"Nom du lieu",type:"text"},{k:"address",l:"Adresse",type:"text"}]}
+  locations:{title:"📍 Emplacements",ep:"locations",cols:[{k:"name",l:"Nom"},{k:"address",l:"Adresse"}],fields:[{k:"name",l:"Nom du lieu",type:"text"},{k:"address",l:"Adresse",type:"text"}]},
+  expensecats:{title:"🗃️ Catégories de dépenses",ep:"expensecats",cols:[{k:"name",l:"Nom"}],fields:[{k:"name",l:"Nom",type:"text"}]}
 };
 const stockCatsView=stkRefView(STK_REF.categories);
 const stockUnitsView=stkRefView(STK_REF.units);
@@ -5999,6 +6003,7 @@ const stockWarrantiesView=stkRefView(STK_REF.warranties);
 const stockPriceGroupsView=stkRefView(STK_REF.pricegroups);
 const stockVariationsView=stkRefView(STK_REF.variations);
 const stockLocationsView=stkRefView(STK_REF.locations);
+const stockExpenseCatsView=stkRefView(STK_REF.expensecats);
 const stockSuppliersView=()=>stockContactsView("fournisseur");
 const stockClientsView=()=>stockContactsView("client");
 function stkRefModal(ep,id){
@@ -6015,11 +6020,11 @@ async function stkRefSave(ep,id){
   const cfg=STK_REF[ep]; const body={}; for(const fl of cfg.fields){ const el=document.getElementById("rf_"+fl.k); if(el) body[fl.k]=el.value; }
   try{ if(id) await api("/stock/"+ep+"/"+id,{method:"PUT",body:JSON.stringify(body)});
     else await api("/stock/"+ep,{method:"POST",body:JSON.stringify(body)});
-    document.querySelector(".modal-bg").remove(); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations'})[ep]); }
+    document.querySelector(".modal-bg").remove(); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations',expensecats:'stockexpensecats'})[ep]); }
   catch(e){ const el=document.getElementById("rfErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stkRefDelete(ep,id){ if(!confirm("Supprimer cet élément ?")) return;
-  try{ await api("/stock/"+ep+"/"+id,{method:"DELETE"}); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations'})[ep]); }catch(e){ alert(e.message); } }
+  try{ await api("/stock/"+ep+"/"+id,{method:"DELETE"}); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations',expensecats:'stockexpensecats'})[ep]); }catch(e){ alert(e.message); } }
 
 /* ---- Mouvements : entrées / sorties (éditeur de lignes) ---- */
 function stkProdOpts(cur){ return `<option value="">— produit —</option>`+(window._STK.prods||[]).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)} (stock ${stkQty(p.qty)})</option>`).join(""); }
@@ -6972,6 +6977,7 @@ const STOCK_REPORTS=[
   {k:"supplier-customer",l:"Fournisseur & Client",f:["date"]},
   {k:"tax",l:"Impôt (TVA)",f:["date"]},
   {k:"by-user",l:"Représentant (par utilisateur)",f:["date"]},
+  {k:"expenses",l:"Dépenses",f:["date"]},
   {k:"expiry",l:"Expiration du stock",f:["product","category","brand"]},
   {k:"transfers",l:"Transferts de stock",f:["date"]},
   {k:"activity",l:"Journal d'activité",f:["date","product"]},
@@ -7239,6 +7245,55 @@ async function stockDocPrint(kind,id){
     <script>window.onload=function(){try{JsBarcode("#docBarcode",${JSON.stringify(d.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
   w.document.close();
 }
+
+/* ================= Dépenses ================= */
+async function stockExpensesView(){
+  await stockLoadRefs();
+  const from=window._expFrom||"", to=window._expTo||"";
+  const qs=[]; if(from)qs.push("from="+from); if(to)qs.push("to="+to);
+  const list=await api("/stock/expenses"+(qs.length?"?"+qs.join("&"):"")).catch(()=>[]);
+  const tot=list.reduce((s,e)=>s+(e.amount||0),0);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">💸 Dépenses</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+      <div><label>Du</label><input type="date" value="${esc(from)}" onchange="window._expFrom=this.value;stockExpensesView()"></div>
+      <div><label>Au</label><input type="date" value="${esc(to)}" onchange="window._expTo=this.value;stockExpensesView()"></div>
+      <span style="flex:1"></span><button class="btn ghost sm" onclick="go('stockexpensecats')">🗃️ Catégories</button>
+      <button class="btn p sm" onclick="stockExpenseModal()">+ Nouvelle dépense</button></div>
+      <table style="margin-top:8px"><tr><th>Réf</th><th>Date</th><th>Catégorie</th><th>Bénéficiaire</th><th>Compte</th><th>Note</th><th class="r">Montant</th><th>Ajouté par</th><th></th></tr>
+      ${list.length?list.map(e=>`<tr><td><code>${esc(e.ref)}</code></td><td>${esc(e.date||'')}</td><td>${esc(e.categoryName||'')}</td><td>${esc(e.supplierName||'')}</td><td>${esc(e.accountName||'')}</td><td>${esc(e.note||'')}</td>
+        <td class="r">${fCFA(e.amount)}</td><td>${esc(e.addedBy||'')}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="stockExpenseModal('${e.id}')">✏️</button><button class="btn ghost sm" onclick="stockExpenseDelete('${e.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucune dépense.</td></tr>'}
+      <tr style="font-weight:700;border-top:2px solid #999"><td colspan="6">TOTAL (${list.length})</td><td class="r">${fCFA(tot)}</td><td colspan="2"></td></tr></table></div>`;
+  window._EXP=list;
+}
+function stockExpenseModal(id){
+  const e=id?((window._EXP||[]).find(x=>x.id===id)||{}):{date:new Date().toISOString().slice(0,10)};
+  const cats=window._STK.expensecats||[], sups=window._STK.sups||[], accs=window._STK.accounts||[];
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const sel=(arr,cur,ph)=>`<option value="">${ph}</option>`+arr.map(x=>`<option value="${x.id}" ${cur===x.id?'selected':''}>${esc(x.name)}</option>`).join("");
+  bg.innerHTML=`<div class="modal" style="width:500px"><h3 style="margin:0 0 8px">${id?'Modifier':'Nouvelle'} dépense</h3>
+    <div class="grid2">
+      <div><label>Date</label><input id="exDate" type="date" value="${esc(e.date||'')}"></div>
+      <div><label>Montant (FCFA) *</label><input id="exAmt" type="number" value="${e.amount||0}"></div>
+      <div><label>Catégorie</label><select id="exCat">${sel(cats,e.categoryId,'—')}</select></div>
+      <div><label>Bénéficiaire (fournisseur)</label><select id="exSup">${sel(sups,e.supplierId,'—')}</select></div>
+      <div><label>Compte de paiement</label><select id="exAcc">${sel(accs,e.paymentAccountId,'—')}</select></div>
+      <div style="grid-column:1/3"><label>Note</label><input id="exNote" value="${esc(e.note||'')}"></div>
+    </div>
+    <div class="err hidden" id="exErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockExpenseSave('${id||''}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function stockExpenseSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={date:g("exDate"),amount:g("exAmt"),categoryId:g("exCat"),supplierId:g("exSup"),paymentAccountId:g("exAcc"),note:g("exNote")};
+  try{ if(id) await api("/stock/expenses/"+id,{method:"PUT",body:JSON.stringify(body)}); else await api("/stock/expenses",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); stockExpensesView(); }
+  catch(e){ const el=document.getElementById("exErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function stockExpenseDelete(id){ if(!confirm("Supprimer cette dépense ?")) return; try{ await api("/stock/expenses/"+id,{method:"DELETE"}); stockExpensesView(); }catch(e){ alert(e.message); } }
 
 </script>
 </body>
