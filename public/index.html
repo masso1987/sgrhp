@@ -6509,8 +6509,12 @@ async function stockPurchasesView(){
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th></th></tr>
       ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code> ${attachLink(p.attachment)}${p.poRef?` <span class="note">(BC ${esc(p.poRef)})</span>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td>
         <td>${stStatusTag(p.purchaseStatus)}</td><td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
-        <td style="white-space:nowrap">${p.paymentStatus!=='paid'?`<button class="btn ghost sm" onclick="stockPayModal('${p.id}',${p.total-p.amountPaid})">Payer</button>`:''}
-          <button class="btn ghost sm" onclick="stockPurchaseDelete('${p.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucun achat.</td></tr>'}
+        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
+          <a onclick="stockDocView('purchase','${p.id}')">👁️ Voir</a>
+          <a onclick="stockDocPrint('purchase','${p.id}')">🖨️ Impression</a>
+          ${p.paymentStatus!=='paid'?`<a onclick="stockPayModal('${p.id}',${p.total-p.amountPaid})">💵 Payer</a>`:''}
+          <a onclick="stockPurchaseDelete('${p.id}')">🗑️ Effacer</a>
+        </div></details></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucun achat.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
 }
 async function stockPurchaseForm(poId){
@@ -6602,7 +6606,12 @@ async function stockSOView(){
     <div class="panel"><button class="btn p sm" style="float:right" onclick="stockSOForm()">+ Nouvelle commande</button><b>${list.length} commande(s)</b>
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Statut</th><th class="r">Qté restante</th><th class="r">Total</th><th></th></tr>
       ${list.length?list.map(o=>`<tr><td><code>${esc(o.ref)}</code></td><td>${esc(o.date||'')}</td><td>${esc(stCustName(o.customerId))}</td><td>${stStatusTag(o.status)}</td><td class="r">${o.remaining}</td><td class="r">${fCFA(o.total)}</td>
-        <td style="white-space:nowrap">${o.status!=='completed'?`<button class="btn p sm" onclick="stockSODeliver('${o.id}','${esc(o.ref)}')">Livrer</button>`:''}${o.delivered<=0?`<button class="btn ghost sm" onclick="stockSODelete('${o.id}')">✕</button>`:''}</td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune commande.</td></tr>'}
+        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
+          <a onclick="stockDocView('so','${o.id}')">👁️ Voir</a>
+          <a onclick="stockDocPrint('so','${o.id}')">🖨️ Impression</a>
+          ${o.status!=='completed'?`<a onclick="stockSODeliver('${o.id}','${esc(o.ref)}')">📦 Livrer</a>`:''}
+          ${o.delivered<=0?`<a onclick="stockSODelete('${o.id}')">🗑️ Effacer</a>`:''}
+        </div></details></td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune commande.</td></tr>'}
       </table></div>`;
 }
 function stockSOForm(){ window._PLKIND='so'; window._PL=[]; window._plQ="";
@@ -6632,7 +6641,12 @@ async function stockSalesView(){
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th></th></tr>
       ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code>${p.soRef?` <span class="note">(CC ${esc(p.soRef)})</span>`:''}${p.channel==='pos'?' <span class="tag gray">POS</span>':''}</td><td>${esc(p.date||'')}</td><td>${esc(stCustName(p.customerId))}</td>
         <td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
-        <td style="white-space:nowrap">${p.paymentStatus!=='paid'?`<button class="btn ghost sm" onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">Encaisser</button>`:''}<button class="btn ghost sm" onclick="stockSaleDelete('${p.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucune vente.</td></tr>'}
+        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
+          <a onclick="stockDocView('sale','${p.id}')">👁️ Voir</a>
+          <a onclick="stockDocPrint('sale','${p.id}')">🖨️ Impression</a>
+          ${p.paymentStatus!=='paid'?`<a onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">💵 Encaisser</a>`:''}
+          <a onclick="stockSaleDelete('${p.id}')">🗑️ Effacer</a>
+        </div></details></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucune vente.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
 }
 function stockSaleForm(){ window._PLKIND='sale'; window._PL=[]; window._plQ="";
@@ -6666,7 +6680,12 @@ async function stockQuotesView(){
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Statut</th><th class="r">Total</th><th></th></tr>
       ${list.length?list.map(q=>`<tr><td><code>${esc(q.ref)}</code></td><td>${esc(q.date||'')}</td><td>${esc(stCustName(q.customerId))}</td>
         <td>${q.status==='converted'?'<span class="tag green">Converti</span>':'<span class="tag gray">Ouvert</span>'}</td><td class="r">${fCFA(q.total)}</td>
-        <td style="white-space:nowrap">${q.status!=='converted'?`<button class="btn p sm" onclick="stockQuoteConvert('${q.id}','${esc(q.ref)}')">Convertir</button>`:''}<button class="btn ghost sm" onclick="stockQuoteDelete('${q.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun devis.</td></tr>'}
+        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
+          <a onclick="stockDocView('quote','${q.id}')">👁️ Voir</a>
+          <a onclick="stockDocPrint('quote','${q.id}')">🖨️ Impression</a>
+          ${q.status!=='converted'?`<a onclick="stockQuoteConvert('${q.id}','${esc(q.ref)}')">➡️ Convertir en vente</a>`:''}
+          <a onclick="stockQuoteDelete('${q.id}')">🗑️ Effacer</a>
+        </div></details></td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun devis.</td></tr>'}
       </table></div>`;
 }
 function stockQuoteForm(){ window._PLKIND='quote'; window._PL=[]; window._plQ="";
@@ -6959,6 +6978,71 @@ async function stockPOShippingSave(id){
   try{ await api("/stock/po/"+id+"/shipping",{method:"PUT",body:JSON.stringify({orderStatus:g("shSt"),shippingFee:Number(g("shFee"))||0,deliveryDelay:g("shDelay"),deliverTo:g("shTo")})});
     document.querySelector(".modal-bg").remove(); stockPOView(); }
   catch(e){ const el=document.getElementById("shErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ================= Documents génériques (achat, vente, commande, devis) ================= */
+const STOCK_DOC={
+  purchase:{ep:"purchases",party:"sups",pf:"supplierId",pl:"Fournisseur",title:"Bon de réception / Achat",pay:true,at:"StockPurchase"},
+  sale:{ep:"sales",party:"clients",pf:"customerId",pl:"Client",title:"Facture de vente",pay:true,at:"StockSale"},
+  so:{ep:"so",party:"clients",pf:"customerId",pl:"Client",title:"Commande client",at:"StockSO"},
+  quote:{ep:"quotes",party:"clients",pf:"customerId",pl:"Client",title:"Devis"}
+};
+const PAY_LBL={due:"Dû",partial:"Partiel",paid:"Payé"};
+function stockDocHtml(kind,d,company,opts){
+  opts=opts||{}; const cfg=STOCK_DOC[kind]; const prods=window._STK.prods||[];
+  const party=(window._STK[cfg.party]||[]).find(x=>x.id===d[cfg.pf])||{};
+  const skuOf=(pid)=>{ const p=prods.find(x=>x.id===pid); return p?(p.sku||""):""; };
+  const X=(n)=>"XAF "+fCFA(n); const puL=kind==="purchase"?"Coût unitaire":"Prix unitaire";
+  const rows=(d.lines||[]).map((l,i)=>{ const qty=Number(l.qty)||0; const disc=Number(l.discountPct)||0; const net=l.net!=null?l.net:Math.round(qty*(Number(l.unitCost)||0)*(1-disc/100)); const tax=Math.round(net*(Number(d.taxPct)||0)/100);
+    return `<tr><td>${i+1}</td><td>${esc(l.productName||"")}</td><td>${esc(skuOf(l.productId))}</td><td class="r">${qty}</td><td class="r">${X(l.unitCost)}</td><td class="r">${disc.toFixed(2)} %</td><td class="r">${X(net)}</td><td class="r">${X(tax)}</td><td class="r">${X(net+tax)}</td></tr>`;
+  }).join("");
+  let statusHtml="";
+  if(kind==="purchase") statusHtml=`<b>Paiement:</b> ${esc(PAY_LBL[d.paymentStatus]||d.paymentStatus||"")}${d.poRef?"<br><b>BC:</b> "+esc(d.poRef):""}`;
+  else if(kind==="sale") statusHtml=`<b>Paiement:</b> ${esc(PAY_LBL[d.paymentStatus]||d.paymentStatus||"")}${d.soRef?"<br><b>Commande:</b> "+esc(d.soRef):""}${d.channel==="pos"?"<br>POS":""}`;
+  else if(kind==="so") statusHtml=`<b>Statut:</b> ${esc(({ordered:"Commandé",partial:"Partiel",completed:"Livré"})[d.status]||d.status||"")}${d.remaining!=null?"<br><b>Reste à livrer:</b> "+d.remaining:""}`;
+  else statusHtml=`<b>Statut:</b> ${d.status==="converted"?"Converti":"Ouvert"}`;
+  const payRows=cfg.pay?`<div style="display:flex;justify-content:space-between;padding:3px 0"><span>Payé:</span><span>${X(d.amountPaid||0)}</span></div><div style="display:flex;justify-content:space-between;padding:3px 0;font-weight:600"><span>Reste dû:</span><span>${X((d.total||0)-(d.amountPaid||0))}</span></div>`:"";
+  const acts=opts.activities?`<div style="margin-top:14px"><b>Activités :</b><table style="margin-top:4px;width:100%"><tr><th>Date</th><th>Action</th><th>Par</th></tr>
+    ${opts.activities.length?opts.activities.map(a=>`<tr><td>${esc((a.at||"").replace("T"," ").slice(0,16))}</td><td>${esc((PO_ACT_LABELS&&PO_ACT_LABELS[a.action])||a.action)}</td><td>${esc(a.userName||"")}</td></tr>`).join(""):'<tr><td colspan="3" style="color:var(--muted)">—</td></tr>'}</table></div>`:'';
+  const bc=opts.barcode?`<div style="text-align:center;margin-top:16px"><svg id="docBarcode" data-code="${esc(d.ref)}"></svg><div style="font-family:monospace;font-size:11px">${esc(d.ref)}</div></div>`:'';
+  return `<div style="font-size:12.5px;color:#111"><div style="text-align:center;font-weight:700;font-size:15px">${esc(cfg.title)}</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:8px">
+      <div style="flex:1;min-width:180px"><b>${esc(cfg.pl)}:</b><br>${esc(party.name||"")}<br>${party.mobile?"Mobile: "+esc(party.mobile)+"<br>":""}${party.email?"Email: "+esc(party.email):""}</div>
+      <div style="flex:1;min-width:180px"><b>Entreprise:</b><br><b>${esc(company.name||"")}</b><br>${esc(company.address||"")}${company.city?"<br>"+esc(company.city):""}${company.niu?"<br>NIU:: "+esc(company.niu):""}${company.rccm?"<br>RCCM:: "+esc(company.rccm):""}${company.phone?"<br>Mobile: "+esc(company.phone):""}</div>
+      <div style="flex:1;min-width:180px"><b>N° référence:</b> #${esc(d.ref)}<br><b>Date:</b> ${esc(d.date||"")}<br>${statusHtml}</div>
+    </div>
+    <table style="margin-top:14px;width:100%"><tr style="background:#2e7d5b;color:#fff"><th>#</th><th>Produit</th><th>SKU</th><th class="r">Qté</th><th class="r">${puL} (av. remise)</th><th class="r">% escompte</th><th class="r">Sous-total (HT)</th><th class="r">Impôt</th><th class="r">Total</th></tr>${rows}</table>
+    <div style="margin-top:12px;margin-left:auto;max-width:420px">
+      <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #ccc"><b>Montant net:</b><span>${X(d.subtotal)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Remise: (-)</span><span>${X(0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Taxe: (+)</span><span>${X(d.tax||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Frais: (+)</span><span>${X(d.shippingFee||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #999;font-weight:700"><span>Total:</span><span>${X(d.total)}</span></div>
+      ${payRows}
+    </div>
+    ${d.note?`<div style="margin-top:10px"><b>Note:</b> ${esc(d.note)}</div>`:''}
+    ${acts}${bc}</div>`;
+}
+async function stockDocView(kind,id){
+  await stockLoadRefs(); const company=await stockCompany(); const cfg=STOCK_DOC[kind];
+  const d=await api("/stock/"+cfg.ep+"/"+id).catch(()=>null); if(!d) return;
+  let acts=[]; if(cfg.at){ try{ acts=(await api("/audit?objectType="+cfg.at)).filter(a=>a.objectId===id); }catch(e){} }
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:min(980px,96vw);max-height:92vh;overflow:auto">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px"><button class="btn p sm" onclick="stockDocPrint('${kind}','${id}')">🖨️ Imprimer</button><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">✕</button></div>
+    ${stockDocHtml(kind,d,company,{activities:cfg.at?acts:null})}</div>`;
+  document.body.appendChild(bg);
+}
+async function stockDocPrint(kind,id){
+  await stockLoadRefs(); const company=await stockCompany(); const cfg=STOCK_DOC[kind];
+  const d=await api("/stock/"+cfg.ep+"/"+id).catch(()=>null); if(!d) return;
+  const doc=stockDocHtml(kind,d,company,{barcode:true});
+  const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.ref)}</title>
+    <style>body{font-family:Arial,sans-serif;margin:16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:10mm}}</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${doc}
+    <script>window.onload=function(){try{JsBarcode("#docBarcode",${JSON.stringify(d.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
+  w.document.close();
 }
 
 </script>
