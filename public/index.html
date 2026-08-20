@@ -6457,11 +6457,12 @@ async function stockPOView(){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
     <h1 style="margin-top:10px">🧾 Bons de commande</h1>
     <div class="panel"><button class="btn p sm" style="float:right" onclick="stockPOForm()">+ Nouveau BC</button><b>${list.length} bon(s) de commande</b>
-      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Fournisseur</th><th>Réception</th><th>Statut commande</th><th class="r">Qté restante</th><th class="r">Total</th><th></th></tr>
+      <table style="margin-top:8px"><tr><th>Numéro de référence</th><th>Date</th><th>Fournisseur</th><th>Réception</th><th>Statut d'envoi</th><th class="r">Quantité restante</th><th class="r">Total</th><th>Ajouté par</th><th></th></tr>
       ${list.length?list.map(po=>`<tr><td><code>${esc(po.ref)}</code> ${attachLink(po.attachment)}</td><td>${esc(po.date||'')}</td><td>${esc(stSupName(po.supplierId))}</td>
         <td>${stStatusTag(po.status)}</td>
         <td>${poStTag(po.orderStatus||'commande')}</td>
         <td class="r">${po.remaining}</td><td class="r">${fCFA(po.total)}</td>
+        <td>${esc(po.addedBy||'')}</td>
         <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
           <a onclick="stockPOViewDoc('${po.id}')">👁️ Voir</a>
           <a onclick="stockPOPrint('${po.id}')">🖨️ Impression</a>
@@ -6469,7 +6470,7 @@ async function stockPOView(){
           <a onclick="stockPOShipping('${po.id}')">🚚 Modifier l'expédition</a>
           ${po.status!=='completed'?`<a onclick="stockPurchaseForm('${po.id}')">📥 Conclure l'achat</a>`:''}
           ${po.received<=0?`<a onclick="stockPODelete('${po.id}')">🗑️ Effacer</a>`:''}
-        </div></details></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
+        </div></details></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
       </table></div>`;
 }
 async function stockPOForm(id){
@@ -6510,16 +6511,17 @@ async function stockPurchasesView(){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
     <h1 style="margin-top:10px">📥 Achats (réceptions)</h1>
     <div class="panel"><button class="btn p sm" style="float:right" onclick="stockPurchaseForm()">+ Nouvel achat</button><b>${list.length} achat(s)</b>
-      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th></th></tr>
-      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code> ${attachLink(p.attachment)}${p.poRef?` <span class="note">(BC ${esc(p.poRef)})</span>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td>
+      <table style="margin-top:8px"><tr><th>Numéro de référence</th><th>Date</th><th>Fournisseur</th><th class="r">Quantité</th><th>Statut</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th>Ajouté par</th><th></th></tr>
+      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code> ${attachLink(p.attachment)}${p.poRef?` <span class="note">(BC ${esc(p.poRef)})</span>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td><td class="r">${stkQty(p.totalQty)}</td>
         <td>${stStatusTag(p.purchaseStatus)}</td><td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
+        <td>${esc(p.addedBy||'')}</td>
         <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
           <a onclick="stockDocView('purchase','${p.id}')">👁️ Voir</a>
           <a onclick="stockDocPrint('purchase','${p.id}')">🖨️ Impression</a>
           ${p.paymentStatus!=='paid'?`<a onclick="stockPayModal('${p.id}',${p.total-p.amountPaid})">💵 Payer</a>`:''}
           <a onclick="stockPurchaseDelete('${p.id}')">🗑️ Effacer</a>
-        </div></details></td></tr>`).join(""):'<tr><td colspan="9" style="color:var(--muted)">Aucun achat.</td></tr>'}
-      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
+        </div></details></td></tr>`).join(""):'<tr><td colspan="11" style="color:var(--muted)">Aucun achat.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="8">TOTAL DÛ</td><td class="r" colspan="3">${fCFA(totDue)}</td></tr></table></div>`;
 }
 async function stockPurchaseForm(poId){
   await stockLoadRefs();
@@ -6736,16 +6738,17 @@ async function stockSalesView(){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
     <h1 style="margin-top:10px">🛒 Toutes les ventes</h1>
     <div class="panel"><span style="float:right"><button class="btn ghost sm" onclick="go('stockpos')">🧮 POS</button> <button class="btn p sm" onclick="stockSaleForm()">+ Nouvelle vente</button></span><b>${list.length} vente(s)</b>
-      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Client</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th></th></tr>
-      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code>${p.soRef?` <span class="note">(CC ${esc(p.soRef)})</span>`:''}${p.channel==='pos'?' <span class="tag gray">POS</span>':''}</td><td>${esc(p.date||'')}</td><td>${esc(stCustName(p.customerId))}</td>
+      <table style="margin-top:8px"><tr><th>Numéro de référence</th><th>Date</th><th>Client</th><th class="r">Quantité</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th>Ajouté par</th><th></th></tr>
+      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code>${p.soRef?` <span class="note">(CC ${esc(p.soRef)})</span>`:''}${p.channel==='pos'?' <span class="tag gray">POS</span>':''}</td><td>${esc(p.date||'')}</td><td>${esc(stCustName(p.customerId))}</td><td class="r">${stkQty(p.totalQty)}</td>
         <td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
+        <td>${esc(p.addedBy||'')}</td>
         <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
           <a onclick="stockDocView('sale','${p.id}')">👁️ Voir</a>
           <a onclick="stockDocPrint('sale','${p.id}')">🖨️ Impression</a>
           ${p.paymentStatus!=='paid'?`<a onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">💵 Encaisser</a>`:''}
           <a onclick="stockSaleDelete('${p.id}')">🗑️ Effacer</a>
-        </div></details></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucune vente.</td></tr>'}
-      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
+        </div></details></td></tr>`).join(""):'<tr><td colspan="10" style="color:var(--muted)">Aucune vente.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAL DÛ</td><td class="r" colspan="3">${fCFA(totDue)}</td></tr></table></div>`;
 }
 async function stockSaleForm(){
   await stockLoadRefs();

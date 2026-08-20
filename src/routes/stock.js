@@ -309,6 +309,8 @@ function calcLines(lines) {
   return { lines: out, subtotal };
 }
 function pName(req, pid) { const p = _prod(req, pid); return p ? p.name : ""; }
+function uName(uid) { const u = (db.users || []).find(x => x.id === uid); return u ? (u.fullName || u.email || "") : ""; }
+function lineQty(d) { return (d.lines || []).reduce((s, l) => s + Q(l.qty), 0); }
 function docTotals(subtotal, taxPct, shippingFee) {
   const tax = Math.round(subtotal * (Number(taxPct) || 0) / 100);
   const ship = R2(shippingFee);
@@ -325,7 +327,7 @@ function poOut(po) {
 }
 router.get("/po", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
-  res.json(mine(db.stockPOs, req).map(poOut).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+  res.json(mine(db.stockPOs, req).map(po => Object.assign(poOut(po), { addedBy: uName(po.createdBy) })).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
 });
 router.get("/po/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
@@ -414,7 +416,7 @@ function createPurchase(req, b) {
 }
 router.get("/purchases", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
-  res.json(mine(db.stockPurchases, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+  res.json(mine(db.stockPurchases, req).map(p => Object.assign({}, p, { addedBy: uName(p.createdBy), totalQty: lineQty(p) })).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
 });
 router.get("/purchases/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Achat introuvable" });
@@ -531,7 +533,7 @@ function createSale(req, b) {
   }
   return sale;
 }
-router.get("/sales", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSales, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.get("/sales", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSales, req).map(p => Object.assign({}, p, { addedBy: uName(p.createdBy), totalQty: lineQty(p) })).sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
 router.get("/sales/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Vente introuvable" });
   res.json(Object.assign({}, sale, { lines: (sale.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
