@@ -512,11 +512,15 @@ router.post("/so/:id/deliver", allow("ADM", "CD", "GPF"), (req, res) => {
 /* ---- Ventes ---- */
 function createSale(req, b) {
   const { lines, subtotal } = calcLines(b.lines);
-  const t = docTotals(subtotal, b.taxPct, b.shippingFee); const paid = R2(b.amountPaid);
+  const dt = (b.discountType === "percent" || b.discountType === "fixed") ? b.discountType : "none";
+  const discount = dt === "percent" ? Math.round(subtotal * (Number(b.discountValue) || 0) / 100) : dt === "fixed" ? R2(b.discountValue) : 0;
+  const taxable = Math.max(0, subtotal - discount);
+  const taxPct = Number(b.taxPct) || 0; const tax = Math.round(taxable * taxPct / 100); const ship = R2(b.shippingFee);
+  const total = taxable + tax + ship; const paid = R2(b.amountPaid);
   const sale = stamp({ id: id("sal"), ref: b.ref || seqRef(req, "stockSales", "VTE", "ref"), customerId: b.customerId || "", soId: b.soId || "", soRef: b.soRef || "",
-    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), channel: b.channel || "vente", note: b.note || "",
-    taxPct: Number(b.taxPct) || 0, shippingFee: t.shipping, subtotal, tax: t.tax, total: t.total,
-    amountPaid: Math.min(paid, t.total), paymentStatus: paid >= t.total && t.total > 0 ? "paid" : paid > 0 ? "partial" : "due",
+    date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), channel: b.channel || "vente", location: b.location || "", note: b.note || "",
+    taxPct, shippingFee: ship, discountType: dt, discountValue: R2(b.discountValue), discount, subtotal, tax, total,
+    amountPaid: Math.min(paid, total), paymentStatus: paid >= total && total > 0 ? "paid" : paid > 0 ? "partial" : "due",
     saleStatus: "final", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockSales.push(sale);
   for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) - l.qty);

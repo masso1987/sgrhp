@@ -6743,18 +6743,104 @@ async function stockSalesView(){
         </div></details></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucune vente.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">TOTAL DÛ</td><td class="r" colspan="2">${fCFA(totDue)}</td></tr></table></div>`;
 }
-function stockSaleForm(){ window._PLKIND='sale'; window._PL=[]; window._plQ="";
-  view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksales')">← Ventes</button><h1 style="margin-top:10px">Nouvelle vente</h1>
-    <div class="panel">${plHeaderHtml('sale','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('sale')}
+async function stockSaleForm(){
+  await stockLoadRefs();
+  const sos=(await api("/stock/so").catch(()=>[])).filter(x=>x.status!=='completed');
+  window._sos=sos; window._SUL=[]; window._suQ=""; window._saAttach=null; window._suSOId=""; window._suSORef="";
+  const clients=window._STK.clients||[], locs=window._STK.locations||[];
+  const cOpt=clients.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+  const lOpt=locs.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksales')">← Ventes</button><h1 style="margin-top:10px">Ajouter une vente</h1>
+    <div class="panel"><div class="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <div><label>Client *</label><div style="display:flex;gap:4px"><select id="saCust" onchange="suFillAddress()" style="flex:1"><option value="">Veuillez sélectionner</option>${cOpt}</select><button class="btn p sm" onclick="suQuickClient()" title="Nouveau client">+</button></div></div>
+      <div><label>Numéro de référence</label><input id="saRef" placeholder="auto"></div>
+      <div><label>Date de vente *</label><input id="saDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div><label>Lieu d'affaires</label><select id="saLoc"><option value="">Veuillez sélectionner</option>${lOpt}</select></div>
+      <div><label>Adresse</label><input id="saAddr" disabled></div>
+      <div><label>Conditions de paiement</label><input id="saTerms"></div>
+      <div><label>Joindre un document (≤5 Mo)</label><input type="file" id="saFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_saAttach')"></div>
+      <div><label>Commande client (charger)</label><select id="saSO" onchange="stockSaleLoadSO(this.value)"><option value="">— aucune —</option>${sos.map(o=>`<option value="${o.id}">${esc(o.ref)} — ${esc(stCustName(o.customerId))} · reste ${o.remaining}</option>`).join("")}</select></div>
+    </div></div>
+    <div class="panel"><div id="suLines"></div>
+      <div style="text-align:right;margin-top:6px"><span class="note">Articles au total :</span> <b id="suArtQty">0</b> &nbsp; <span class="note">Montant total net :</span> <b id="suSubV">0</b></div></div>
+    <div class="panel"><div class="grid3">
+      <div><label>Type de remise</label><select id="suDiscType" onchange="suTotals()"><option value="none">Aucun</option><option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option></select></div>
+      <div><label>Montant de remise</label><input id="suDiscVal" type="number" value="0" oninput="suTotals()"></div>
+      <div style="align-self:end;text-align:right">Remise : (-) <b id="suRemV">0</b></div>
+      <div><label>Taxe de vente</label><select id="suTaxPct" onchange="suTotals()"><option value="0">Aucun</option><option value="19.25">TVA 19,25 %</option></select></div>
+      <div><label>Montant payé</label><input id="suPaid" type="number" value="0"></div>
+      <div style="align-self:end;text-align:right">Taxe : (+) <b id="suTaxV">0</b></div>
+      <div style="grid-column:1/3"><label>La Direction</label><textarea id="suNote" rows="2"></textarea></div>
+      <div style="align-self:end;text-align:right;font-weight:700;font-size:16px">Total : <b id="suTotV">0</b></div>
+    </div>
     <label class="chk" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="saNeg" style="width:auto;margin:0"> autoriser le stock négatif</label>
     <div class="err hidden" id="saErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockSaleSubmit()">Enregistrer la vente</button></div></div>`;
-  plRender();
-  if(window._prefillCust){ const el=document.getElementById("hdCust"); if(el) el.value=window._prefillCust; window._prefillCust=""; }
+  suRender();
+  if(window._prefillCust){ const el=document.getElementById("saCust"); if(el){ el.value=window._prefillCust; suFillAddress(); } window._prefillCust=""; }
 }
-async function stockSaleSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
-  if(!lines.length){ const e=document.getElementById("saErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
-  try{ await api("/stock/sales",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,amountPaid:Number(g("plPaid"))||0,allowNegative:document.getElementById("saNeg").checked,lines})}); go('stocksales'); }
+function suFillAddress(){ const id=(document.getElementById("saCust")||{}).value; const c=(window._STK.clients||[]).find(x=>x.id===id)||{}; const el=document.getElementById("saAddr"); if(el) el.value=[c.address1,c.city].filter(Boolean).join(", "); }
+function suRender(){ window._plAddFn=null;
+  const box=document.getElementById("suLines"); if(!box) return; const prods=window._STK.prods||[];
+  const nm=(id)=>{const p=prods.find(x=>x.id===id);return p?p.name:"(supprimé)";};
+  const cost=(id)=>{const p=prods.find(x=>x.id===id);return p?(p.purchasePrice||0):0;};
+  box.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <input id="suSearch" placeholder="🔍 Entrez le nom du produit / SKU / code-barres…" value="${esc(window._suQ||'')}" oninput="window._suQ=this.value;suSearchRender()" onkeydown="if(event.key==='Enter'){event.preventDefault();suSearchAddFirst();}" style="margin:0;flex:1">
+      <button class="btn ghost sm" onclick="window._plAddFn=suAddProduct;plNewProduct()">+ Nouveau produit</button></div>
+    <div id="suSearchRes"></div>
+    <div class="scroll" style="overflow:auto"><table><tr style="background:#2e7d5b;color:#fff"><th>#</th><th>Nom du produit</th><th class="r">Qté</th><th class="r">Stock</th><th class="r">Prix u. (av. remise)</th><th class="r">% escompte</th><th class="r">Prix u. (av. impôt)</th><th class="r">Total ligne</th><th class="r">Marge %</th><th></th></tr>
+    ${window._SUL.length?window._SUL.map((l,i)=>{const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;const puAfter=Math.round(pu*(1-disc/100));const net=Math.round(qty*puAfter);const c=cost(l.productId);const margin=puAfter?(((puAfter-c)/puAfter)*100):0;const p=prods.find(x=>x.id===l.productId)||{};
+      return `<tr><td>${i+1}</td><td>${esc(nm(l.productId))}</td>
+        <td><input type="number" value="${l.qty}" oninput="suSet(${i},'qty',this.value)" style="margin:0;max-width:80px;text-align:right"></td>
+        <td class="r" style="color:${(Number(p.qty)||0)<qty?'var(--red)':'inherit'}">${stkQty(p.qty)}</td>
+        <td><input type="number" value="${l.unitCost}" oninput="suSet(${i},'unitCost',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
+        <td><input type="number" value="${l.discountPct}" oninput="suSet(${i},'discountPct',this.value)" style="margin:0;max-width:70px;text-align:right"></td>
+        <td class="r" id="suAfter${i}">${fCFA(puAfter)}</td><td class="r" id="suNet${i}">${fCFA(net)}</td><td class="r" id="suMar${i}">${margin.toFixed(1)}%</td>
+        <td><button class="btn ghost sm" onclick="suDel(${i})">✕</button></td></tr>`;}).join(""):'<tr><td colspan="10" style="color:var(--muted)">Recherchez un produit ci-dessus pour l\'ajouter.</td></tr>'}</table></div>`;
+  suSearchRender(); suTotals();
+}
+function suRow(i){ const l=window._SUL[i]; if(!l) return; const prods=window._STK.prods||[]; const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;const puAfter=Math.round(pu*(1-disc/100));const net=Math.round(qty*puAfter);const p=prods.find(x=>x.id===l.productId)||{};const c=p.purchasePrice||0;const margin=puAfter?(((puAfter-c)/puAfter)*100):0;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;}; set("suAfter"+i,fCFA(puAfter)); set("suNet"+i,fCFA(net)); set("suMar"+i,margin.toFixed(1)+"%"); }
+function suSet(i,f,v){ window._SUL[i][f]=v; suRow(i); suTotals(); }
+function suDel(i){ window._SUL.splice(i,1); suRender(); }
+function suSub(){ return (window._SUL||[]).reduce((s,l)=>{const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;return s+Math.round(qty*Math.round(pu*(1-disc/100)));},0); }
+function suTotals(){ const g=(x)=>{const e=document.getElementById(x);return e?e.value:"";}; const sub=suSub();
+  const dt=g("suDiscType"); const dv=Number(g("suDiscVal"))||0; const rem=dt==='percent'?Math.round(sub*dv/100):dt==='fixed'?Math.round(dv):0;
+  const taxable=Math.max(0,sub-rem); const taxPct=Number(g("suTaxPct"))||0; const tax=Math.round(taxable*taxPct/100); const total=taxable+tax;
+  const qty=(window._SUL||[]).reduce((s,l)=>s+(Number(l.qty)||0),0);
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set("suArtQty",qty); set("suSubV",fCFA(sub)); set("suRemV",fCFA(rem)); set("suTaxV",fCFA(tax)); set("suTotV",fCFA(total)); }
+function suAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); if(!p) return; const ex=(window._SUL||[]).find(l=>l.productId===id);
+  if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._SUL.push({productId:id,qty:1,unitCost:p.salePrice||0,discountPct:0});
+  window._suQ=""; suRender(); }
+function suSearchRender(){ const box=document.getElementById("suSearchRes"); if(!box) return; const q=(window._suQ||"").toLowerCase().trim(); if(!q){box.innerHTML="";return;}
+  const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
+  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="suAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">vente ${fCFA(p.salePrice)} · stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=suAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._suQ)} »</a></div>`}</div>`; }
+function suSearchAddFirst(){ const q=(window._suQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) suAddProduct(r.id); }
+function suQuickClient(){ const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:400px"><h3 style="margin:0 0 8px">Nouveau client</h3>
+    <div><label>Nom *</label><input id="qcName"></div><div style="margin-top:6px"><label>Mobile</label><input id="qcMob"></div>
+    <div class="err hidden" id="qcErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="suQuickClientSave()">Créer</button><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg); }
+async function suQuickClientSave(){ const g=(x)=>(document.getElementById(x)||{}).value; if(!g("qcName")){document.getElementById("qcErr").textContent="Nom requis";document.getElementById("qcErr").classList.remove("hidden");return;}
+  try{ const c=await api("/stock/contacts",{method:"POST",body:JSON.stringify({type:"client",name:g("qcName"),mobile:g("qcMob")})});
+    window._STK.clients=await api("/stock/contacts?type=client").catch(()=>window._STK.clients);
+    const sel=document.getElementById("saCust"); if(sel){ sel.innerHTML='<option value="">Veuillez sélectionner</option>'+(window._STK.clients||[]).map(x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.name)}</option>`).join(""); suFillAddress(); }
+    document.querySelector(".modal-bg").remove(); }catch(e){ const el=document.getElementById("qcErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+async function stockSaleLoadSO(id){ if(!id){ window._suSOId=""; window._suSORef=""; return; }
+  const so=await api("/stock/so/"+id).catch(()=>null); if(!so) return; window._suSOId=so.id; window._suSORef=so.ref;
+  window._SUL=(so.lines||[]).map(l=>({productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct})).filter(l=>l.qty>0); window._suQ="";
+  const g=(x)=>document.getElementById(x); if(g("saCust")){ g("saCust").value=so.customerId||""; suFillAddress(); } if(g("saTerms")) g("saTerms").value=so.paymentTerms||""; if(g("suTaxPct")) g("suTaxPct").value=String(so.taxPct||0);
+  suRender();
+}
+async function stockSaleSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const lines=(window._SUL||[]).filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:Number(l.unitCost)||0,discountPct:Number(l.discountPct)||0}));
+  if(!lines.length){ const e=document.getElementById("saErr"); e.textContent="Ajoutez au moins un produit."; e.classList.remove("hidden"); return; }
+  const body={customerId:g("saCust"),date:g("saDate"),ref:g("saRef"),location:g("saLoc"),paymentTerms:g("saTerms"),soId:window._suSOId||"",soRef:window._suSORef||"",
+    discountType:g("suDiscType"),discountValue:Number(g("suDiscVal"))||0,taxPct:Number(g("suTaxPct"))||0,amountPaid:Number(g("suPaid"))||0,note:g("suNote"),
+    allowNegative:document.getElementById("saNeg").checked,lines};
+  try{ await api("/stock/sales",{method:"POST",body:JSON.stringify(body)}); go('stocksales'); }
   catch(e){ const el=document.getElementById("saErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 function stockSalePayModal(id,due){ const bg=document.createElement("div"); bg.className="modal-bg";
