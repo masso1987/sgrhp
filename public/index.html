@@ -6753,10 +6753,10 @@ async function stockSaleForm(){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksales')">← Ventes</button><h1 style="margin-top:10px">Ajouter une vente</h1>
     <div class="panel"><div class="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
       <div><label>Client *</label><div style="display:flex;gap:4px"><select id="saCust" onchange="suFillAddress()" style="flex:1"><option value="">Veuillez sélectionner</option>${cOpt}</select><button class="btn p sm" onclick="suQuickClient()" title="Nouveau client">+</button></div></div>
-      <div><label>Numéro de référence</label><input id="saRef" placeholder="auto"></div>
+      <div><label>Numéro de commande</label><input id="saRef" placeholder="Gardez le blanc pour générer automatiquement"></div>
       <div><label>Date de vente *</label><input id="saDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
       <div><label>Lieu d'affaires</label><select id="saLoc"><option value="">Veuillez sélectionner</option>${lOpt}</select></div>
-      <div><label>Adresse</label><input id="saAddr" disabled></div>
+      <div><label>Adresse de facturation</label><input id="saAddr" disabled></div>
       <div><label>Conditions de paiement</label><input id="saTerms"></div>
       <div><label>Joindre un document (≤5 Mo)</label><input type="file" id="saFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_saAttach')"></div>
       <div><label>Commande client (charger)</label><select id="saSO" onchange="stockSaleLoadSO(this.value)"><option value="">— aucune —</option>${sos.map(o=>`<option value="${o.id}">${esc(o.ref)} — ${esc(stCustName(o.customerId))} · reste ${o.remaining}</option>`).join("")}</select></div>
@@ -6780,30 +6780,36 @@ async function stockSaleForm(){
   if(window._prefillCust){ const el=document.getElementById("saCust"); if(el){ el.value=window._prefillCust; suFillAddress(); } window._prefillCust=""; }
 }
 function suFillAddress(){ const id=(document.getElementById("saCust")||{}).value; const c=(window._STK.clients||[]).find(x=>x.id===id)||{}; const el=document.getElementById("saAddr"); if(el) el.value=[c.address1,c.city].filter(Boolean).join(", "); }
+function suNet(l){ const qty=Number(l.qty)||0,pu=Number(l.unitCost)||0; const dv=Number(l.discountValue)||0; const disc=l.discountMode==='fixed'?Math.round(dv):Math.round(qty*pu*dv/100); return Math.max(0,Math.round(qty*pu)-disc); }
 function suRender(){ window._plAddFn=null;
-  const box=document.getElementById("suLines"); if(!box) return; const prods=window._STK.prods||[];
+  const box=document.getElementById("suLines"); if(!box) return; const prods=window._STK.prods||[]; const units=window._STK.units||[]; const warr=window._STK.warranties||[];
   const nm=(id)=>{const p=prods.find(x=>x.id===id);return p?p.name:"(supprimé)";};
-  const cost=(id)=>{const p=prods.find(x=>x.id===id);return p?(p.purchasePrice||0):0;};
+  const uOpt=(cur)=>`<option value="">— unité —</option>`+units.map(u=>`<option value="${u.id}" ${cur===u.id?'selected':''}>${esc(u.shortName||u.name)}</option>`).join("");
+  const wOpt=(cur)=>`<option value="">Veuillez sélectionner</option>`+warr.map(w=>`<option value="${w.id}" ${cur===w.id?'selected':''}>${esc(w.name)}</option>`).join("");
   box.innerHTML=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-      <input id="suSearch" placeholder="🔍 Entrez le nom du produit / SKU / code-barres…" value="${esc(window._suQ||'')}" oninput="window._suQ=this.value;suSearchRender()" onkeydown="if(event.key==='Enter'){event.preventDefault();suSearchAddFirst();}" style="margin:0;flex:1">
-      <button class="btn ghost sm" onclick="window._plAddFn=suAddProduct;plNewProduct()">+ Nouveau produit</button></div>
+      <input id="suSearch" placeholder="🔍 Entrez le nom du produit / SKU / Code à barres…" value="${esc(window._suQ||'')}" oninput="window._suQ=this.value;suSearchRender()" onkeydown="if(event.key==='Enter'){event.preventDefault();suSearchAddFirst();}" style="margin:0;flex:1">
+      <button class="btn p sm" onclick="window._plAddFn=suAddProduct;plNewProduct()" title="Nouveau produit">+</button></div>
     <div id="suSearchRes"></div>
-    <div class="scroll" style="overflow:auto"><table><tr style="background:#2e7d5b;color:#fff"><th>#</th><th>Nom du produit</th><th class="r">Qté</th><th class="r">Stock</th><th class="r">Prix u. (av. remise)</th><th class="r">% escompte</th><th class="r">Prix u. (av. impôt)</th><th class="r">Total ligne</th><th class="r">Marge %</th><th></th></tr>
-    ${window._SUL.length?window._SUL.map((l,i)=>{const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;const puAfter=Math.round(pu*(1-disc/100));const net=Math.round(qty*puAfter);const c=cost(l.productId);const margin=puAfter?(((puAfter-c)/puAfter)*100):0;const p=prods.find(x=>x.id===l.productId)||{};
-      return `<tr><td>${i+1}</td><td>${esc(nm(l.productId))}</td>
-        <td><input type="number" value="${l.qty}" oninput="suSet(${i},'qty',this.value)" style="margin:0;max-width:80px;text-align:right"></td>
-        <td class="r" style="color:${(Number(p.qty)||0)<qty?'var(--red)':'inherit'}">${stkQty(p.qty)}</td>
-        <td><input type="number" value="${l.unitCost}" oninput="suSet(${i},'unitCost',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
-        <td><input type="number" value="${l.discountPct}" oninput="suSet(${i},'discountPct',this.value)" style="margin:0;max-width:70px;text-align:right"></td>
-        <td class="r" id="suAfter${i}">${fCFA(puAfter)}</td><td class="r" id="suNet${i}">${fCFA(net)}</td><td class="r" id="suMar${i}">${margin.toFixed(1)}%</td>
-        <td><button class="btn ghost sm" onclick="suDel(${i})">✕</button></td></tr>`;}).join(""):'<tr><td colspan="10" style="color:var(--muted)">Recherchez un produit ci-dessus pour l\'ajouter.</td></tr>'}</table></div>`;
+    <div class="scroll" style="overflow:auto"><table><tr style="background:#f3f3f3"><th>Produit</th><th class="r">Quantité</th><th class="r">Prix unitaire</th><th class="r">Remise</th><th>Garantie</th><th class="r">Total</th><th></th></tr>
+    ${window._SUL.length?window._SUL.map((l,i)=>{const p=prods.find(x=>x.id===l.productId)||{};const stkLow=(Number(p.qty)||0)<(Number(l.qty)||0);
+      return `<tr style="vertical-align:top">
+        <td style="min-width:230px"><b>${esc(nm(l.productId))}</b>${p.sku?' <span class="note">'+esc(p.sku)+'</span>':''}
+          <div class="note" style="color:${stkLow?'var(--red)':'var(--muted)'}">Stock : ${stkQty(p.qty)}</div>
+          <textarea placeholder="Ajouter le produit IMEI, le numéro de série ou d'autres informations ici." oninput="suSet(${i},'note',this.value)" style="width:100%;margin-top:4px;min-height:40px">${esc(l.note||'')}</textarea></td>
+        <td class="r"><div style="display:flex;gap:2px;justify-content:flex-end;align-items:center"><button class="btn ghost sm" onclick="suQty(${i},-1)">−</button><input type="number" value="${l.qty}" oninput="suSet(${i},'qty',this.value)" style="margin:0;max-width:70px;text-align:right"><button class="btn ghost sm" style="color:var(--nav-active-color)" onclick="suQty(${i},1)">+</button></div>
+          <select onchange="suSet(${i},'unitId',this.value)" style="margin:4px 0 0;width:100%">${uOpt(l.unitId)}</select></td>
+        <td class="r"><input type="number" value="${l.unitCost}" oninput="suSet(${i},'unitCost',this.value)" style="margin:0;max-width:110px;text-align:right"></td>
+        <td class="r"><input type="number" value="${l.discountValue||0}" oninput="suSet(${i},'discountValue',this.value)" style="margin:0;max-width:100px;text-align:right"><select onchange="suSet(${i},'discountMode',this.value)" style="margin:4px 0 0;width:100%"><option value="fixed" ${l.discountMode!=='percent'?'selected':''}>Fixé</option><option value="percent" ${l.discountMode==='percent'?'selected':''}>Pourcentage</option></select></td>
+        <td><select onchange="suSet(${i},'warrantyId',this.value)" style="margin:0">${wOpt(l.warrantyId)}</select></td>
+        <td class="r" id="suNet${i}">XAF ${fCFA(suNet(l))}</td>
+        <td><button class="btn ghost sm" style="color:var(--red)" onclick="suDel(${i})">✕</button></td></tr>`;}).join(""):'<tr><td colspan="7" style="color:var(--muted)">Recherchez un produit ci-dessus pour l\'ajouter.</td></tr>'}</table></div>`;
   suSearchRender(); suTotals();
 }
-function suRow(i){ const l=window._SUL[i]; if(!l) return; const prods=window._STK.prods||[]; const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;const puAfter=Math.round(pu*(1-disc/100));const net=Math.round(qty*puAfter);const p=prods.find(x=>x.id===l.productId)||{};const c=p.purchasePrice||0;const margin=puAfter?(((puAfter-c)/puAfter)*100):0;
-  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;}; set("suAfter"+i,fCFA(puAfter)); set("suNet"+i,fCFA(net)); set("suMar"+i,margin.toFixed(1)+"%"); }
-function suSet(i,f,v){ window._SUL[i][f]=v; suRow(i); suTotals(); }
+function suRow(i){ const l=window._SUL[i]; if(!l) return; const e=document.getElementById("suNet"+i); if(e) e.textContent="XAF "+fCFA(suNet(l)); }
+function suSet(i,f,v){ window._SUL[i][f]=v; if(f==='discountMode') suRender(); else { suRow(i); suTotals(); } }
+function suQty(i,d){ window._SUL[i].qty=Math.max(0,(Number(window._SUL[i].qty)||0)+d); suRender(); }
 function suDel(i){ window._SUL.splice(i,1); suRender(); }
-function suSub(){ return (window._SUL||[]).reduce((s,l)=>{const pu=Number(l.unitCost)||0,disc=Number(l.discountPct)||0,qty=Number(l.qty)||0;return s+Math.round(qty*Math.round(pu*(1-disc/100)));},0); }
+function suSub(){ return (window._SUL||[]).reduce((s,l)=>s+suNet(l),0); }
 function suTotals(){ const g=(x)=>{const e=document.getElementById(x);return e?e.value:"";}; const sub=suSub();
   const dt=g("suDiscType"); const dv=Number(g("suDiscVal"))||0; const rem=dt==='percent'?Math.round(sub*dv/100):dt==='fixed'?Math.round(dv):0;
   const taxable=Math.max(0,sub-rem); const taxPct=Number(g("suTaxPct"))||0; const tax=Math.round(taxable*taxPct/100); const total=taxable+tax;
@@ -6811,7 +6817,7 @@ function suTotals(){ const g=(x)=>{const e=document.getElementById(x);return e?e
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   set("suArtQty",qty); set("suSubV",fCFA(sub)); set("suRemV",fCFA(rem)); set("suTaxV",fCFA(tax)); set("suTotV",fCFA(total)); }
 function suAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); if(!p) return; const ex=(window._SUL||[]).find(l=>l.productId===id);
-  if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._SUL.push({productId:id,qty:1,unitCost:p.salePrice||0,discountPct:0});
+  if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._SUL.push({productId:id,qty:1,unitCost:p.salePrice||0,discountMode:"fixed",discountValue:0,unitId:p.unitId||"",warrantyId:"",note:""});
   window._suQ=""; suRender(); }
 function suSearchRender(){ const box=document.getElementById("suSearchRes"); if(!box) return; const q=(window._suQ||"").toLowerCase().trim(); if(!q){box.innerHTML="";return;}
   const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
@@ -6830,12 +6836,12 @@ async function suQuickClientSave(){ const g=(x)=>(document.getElementById(x)||{}
     document.querySelector(".modal-bg").remove(); }catch(e){ const el=document.getElementById("qcErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
 async function stockSaleLoadSO(id){ if(!id){ window._suSOId=""; window._suSORef=""; return; }
   const so=await api("/stock/so/"+id).catch(()=>null); if(!so) return; window._suSOId=so.id; window._suSORef=so.ref;
-  window._SUL=(so.lines||[]).map(l=>({productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct})).filter(l=>l.qty>0); window._suQ="";
+  window._SUL=(so.lines||[]).map(l=>{const p=(window._STK.prods||[]).find(x=>x.id===l.productId)||{};return {productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountMode:l.discountMode||"fixed",discountValue:l.discountValue||0,unitId:l.unitId||p.unitId||"",warrantyId:l.warrantyId||"",note:l.note||""};}).filter(l=>l.qty>0); window._suQ="";
   const g=(x)=>document.getElementById(x); if(g("saCust")){ g("saCust").value=so.customerId||""; suFillAddress(); } if(g("saTerms")) g("saTerms").value=so.paymentTerms||""; if(g("suTaxPct")) g("suTaxPct").value=String(so.taxPct||0);
   suRender();
 }
 async function stockSaleSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value;
-  const lines=(window._SUL||[]).filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:Number(l.unitCost)||0,discountPct:Number(l.discountPct)||0}));
+  const lines=(window._SUL||[]).filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:Number(l.unitCost)||0,discountMode:l.discountMode||"fixed",discountValue:Number(l.discountValue)||0,unitId:l.unitId||"",warrantyId:l.warrantyId||"",note:l.note||""}));
   if(!lines.length){ const e=document.getElementById("saErr"); e.textContent="Ajoutez au moins un produit."; e.classList.remove("hidden"); return; }
   const body={customerId:g("saCust"),date:g("saDate"),ref:g("saRef"),location:g("saLoc"),paymentTerms:g("saTerms"),soId:window._suSOId||"",soRef:window._suSORef||"",
     discountType:g("suDiscType"),discountValue:Number(g("suDiscVal"))||0,taxPct:Number(g("suTaxPct"))||0,amountPaid:Number(g("suPaid"))||0,note:g("suNote"),

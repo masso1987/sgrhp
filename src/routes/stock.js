@@ -297,9 +297,12 @@ function calcLines(lines) {
   let subtotal = 0;
   const out = (Array.isArray(lines) ? lines : []).filter(l => l.productId && Q(l.qty) > 0).map(l => {
     const qty = Q(l.qty), pu = R2(l.unitCost), disc = Number(l.discountPct) || 0;
-    const net = Math.round(qty * pu * (1 - disc / 100));
+    let lineDisc; if (l.discountMode === "fixed") lineDisc = R2(l.discountValue); else if (l.discountMode === "percent") lineDisc = Math.round(qty * pu * (Number(l.discountValue) || 0) / 100); else lineDisc = Math.round(qty * pu * disc / 100);
+    const net = Math.max(0, Math.round(qty * pu) - lineDisc);
     const extra = {}; if (l.salePrice !== undefined && l.salePrice !== "") extra.salePrice = R2(l.salePrice);
     if (l.mfgDate) extra.mfgDate = String(l.mfgDate).slice(0, 10); if (l.expDate) extra.expDate = String(l.expDate).slice(0, 10);
+    if (l.unitId) extra.unitId = l.unitId; if (l.warrantyId) extra.warrantyId = l.warrantyId; if (l.note) extra.note = String(l.note).slice(0, 300);
+    if (l.discountMode) extra.discountMode = l.discountMode; if (l.discountValue !== undefined) extra.discountValue = R2(l.discountValue);
     return Object.assign({ productId: l.productId, qty, unitCost: pu, discountPct: disc, net, receivedQty: Q(l.receivedQty || 0) }, extra);
   });
   subtotal = out.reduce((s, l) => s + l.net, 0);
