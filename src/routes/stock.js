@@ -423,9 +423,15 @@ router.get("/purchases/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Achat introuvable" });
   res.json(Object.assign({}, pur, { lines: (pur.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
 });
+function reversePurchase(req, pur) {
+  for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "purchase" && m.sourceId === pur.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
+  if (pur.poId) { const po = mine(db.stockPOs, req).find(x => x.id === pur.poId); if (po) for (const l of (po.lines || [])) { const pl = (pur.lines || []).find(x => x.productId === l.productId); if (pl) l.receivedQty = Q(Q(l.receivedQty || 0) - Q(pl.qty)); } }
+  db.stockPurchases.splice(db.stockPurchases.indexOf(pur), 1);
+}
 router.post("/purchases", allow("ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines } = calcLines(b.lines);
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  if (b.replaceId) { const old = mine(db.stockPurchases, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; reversePurchase(req, old); } }
   const pur = createPurchase(req, b); save(); audit(req.user, "STOCK_IN", "StockPurchase", pur.id, { ref: pur.ref }); res.status(201).json(pur);
 });
 router.post("/purchases/:id/pay", allow("ADM", "CD", "GPF"), (req, res) => {
@@ -539,8 +545,13 @@ router.get("/sales/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Vente introuvable" });
   res.json(Object.assign({}, sale, { lines: (sale.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
 });
+function reverseSale(req, sale) {
+  for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "sale" && m.sourceId === sale.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
+  db.stockSales.splice(db.stockSales.indexOf(sale), 1);
+}
 router.post("/sales", allow("ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  if (b.replaceId) { const old = mine(db.stockSales, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; reverseSale(req, old); } }
   const err = stockAvail(req, lines, !!b.allowNegative); if (err) return res.status(400).json({ error: err });
   const sale = createSale(req, b); save(); audit(req.user, "STOCK_OUT", "StockSale", sale.id, { ref: sale.ref }); res.status(201).json(sale);
 });

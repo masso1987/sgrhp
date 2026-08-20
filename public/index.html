@@ -6526,19 +6526,20 @@ async function stockPurchasesView(){
           <a onclick="stockDocView('purchase','${p.id}')">👁️ Voir</a>
           <a onclick="stockDocPrint('purchase','${p.id}')">🖨️ Impression</a>
           ${p.paymentStatus!=='paid'?`<a onclick="stockPayModal('${p.id}',${p.total-p.amountPaid})">💵 Payer</a>`:''}
+          <a onclick="stockPurchaseForm(null,'${p.id}')">✏️ Modifier</a>
           <a onclick="stockPurchaseDelete('${p.id}')">🗑️ Effacer</a>
         </div></details></td></tr>`).join(""):'<tr><td colspan="11" style="color:var(--muted)">Aucun achat.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="8">TOTAL DÛ</td><td class="r" colspan="3">${fCFA(totDue)}</td></tr></table></div>`;
 }
-async function stockPurchaseForm(poId){
-  await stockLoadRefs();
+async function stockPurchaseForm(poId, editId){
+  await stockLoadRefs(); window._puEditId=editId||"";
   const pos=(await api("/stock/po").catch(()=>[])).filter(p=>p.status!=='completed' && p.orderStatus!=='annule');
   window._puPOs=pos; window._PUL=[]; window._puQ=""; window._puAttach=null; window._puPOId=""; window._puPORef="";
   const sups=window._STK.sups||[], locs=window._STK.locations||[];
   const supOpt=sups.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
   const locOpt=locs.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpurchases')">← Achats</button>
-    <h1 style="margin-top:10px">Ajouter un achat</h1>
+    <h1 style="margin-top:10px">${editId?"Modifier l'achat":"Ajouter un achat"}</h1>
     <div class="panel"><div class="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
       <div><label>Fournisseur *</label><div style="display:flex;gap:4px"><select id="puSup" onchange="puFillAddress()" style="flex:1"><option value="">Veuillez sélectionner</option>${supOpt}</select><button class="btn p sm" onclick="puQuickSupplier()" title="Nouveau fournisseur">+</button></div></div>
       <div><label>Numéro de référence</label><input id="puRef" placeholder="auto"></div>
@@ -6568,6 +6569,10 @@ async function stockPurchaseForm(poId){
   puRender();
   if(poId){ const sel=document.getElementById("puPO"); if(sel) sel.value=poId; stockPurchaseLoadPO(poId); }
   if(window._prefillSup){ const el=document.getElementById("puSup"); if(el){ el.value=window._prefillSup; puFillAddress(); } window._prefillSup=""; }
+  if(editId){ const d=await api("/stock/purchases/"+editId).catch(()=>null); if(d){
+    window._PUL=(d.lines||[]).map(l=>{const p=(window._STK.prods||[]).find(x=>x.id===l.productId)||{};return {productId:l.productId,qty:l.qty,unitCost:l.unitCost,discountPct:l.discountPct||0,salePrice:l.salePrice||p.salePrice||0,mfgDate:l.mfgDate||"",expDate:l.expDate||""};});
+    const g=(x)=>document.getElementById(x); if(g("puSup")){g("puSup").value=d.supplierId||"";puFillAddress();} if(g("puRef"))g("puRef").value=d.ref||""; if(g("puDate"))g("puDate").value=d.date||""; if(g("puStatus"))g("puStatus").value=d.purchaseStatus||"received"; if(g("puLoc"))g("puLoc").value=d.location||""; if(g("puTerms"))g("puTerms").value=d.paymentTerms||""; if(g("puAcc"))g("puAcc").value=d.paymentAccountId||""; if(g("puTaxPct"))g("puTaxPct").value=String(d.taxPct||0); if(g("puDiscType"))g("puDiscType").value=d.discountType||"none"; if(g("puDiscVal"))g("puDiscVal").value=d.discountValue||0; if(g("puPaid"))g("puPaid").value=d.amountPaid||0;
+    puRender(); } }
 }
 function puFillAddress(){ const id=(document.getElementById("puSup")||{}).value; const c=(window._STK.sups||[]).find(x=>x.id===id)||{}; const el=document.getElementById("puAddr"); if(el) el.value=[c.address1,c.city].filter(Boolean).join(", "); }
 function puRender(){ window._plAddFn=null;
@@ -6641,7 +6646,7 @@ function puImpDo(){ const rows=window._puImpRows||[]; const g=(x)=>{const e=docu
   document.querySelector(".modal-bg").remove(); puRender(); if(!added) alert("Aucun produit correspondant trouvé."); }
 async function stockPurchaseLoadPO(id){
   if(!id){ window._puPOId=""; window._puPORef=""; return; }
-  const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
+  const po=await api("/stock/po/"+id).catch(e=>{alert("Impossible de charger le BC : "+e.message);return null;}); if(!po) return;
   window._puPOId=po.id; window._puPORef=po.ref;
   const prods=window._STK.prods||[];
   window._PUL=(po.lines||[]).map(l=>{const p=prods.find(x=>x.id===l.productId)||{};return {productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct,salePrice:p.salePrice||0,mfgDate:"",expDate:""};}).filter(l=>l.qty>0);
@@ -6656,7 +6661,7 @@ async function stockPurchaseSubmit(){
   if(!lines.length){ const e=document.getElementById("puErr"); e.textContent="Ajoutez au moins un produit."; e.classList.remove("hidden"); return; }
   const body={supplierId:g("puSup"),date:g("puDate"),ref:g("puRef"),purchaseStatus:g("puStatus"),location:g("puLoc"),paymentTerms:g("puTerms"),
     poId:window._puPOId||"",poRef:window._puPORef||"",attachment:window._puAttach,discountType:g("puDiscType"),discountValue:Number(g("puDiscVal"))||0,
-    taxPct:Number(g("puTaxPct"))||0,amountPaid:Number(g("puPaid"))||0,paymentAccountId:g("puAcc"),note:g("puNote"),lines};
+    taxPct:Number(g("puTaxPct"))||0,amountPaid:Number(g("puPaid"))||0,paymentAccountId:g("puAcc"),note:g("puNote"),replaceId:window._puEditId||"",lines};
   try{ await api("/stock/purchases",{method:"POST",body:JSON.stringify(body)}); go('stockpurchases'); }
   catch(e){ const el=document.getElementById("puErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
@@ -6754,18 +6759,19 @@ async function stockSalesView(){
           <a onclick="stockDocView('sale','${p.id}')">👁️ Voir</a>
           <a onclick="stockDocPrint('sale','${p.id}')">🖨️ Impression</a>
           ${p.paymentStatus!=='paid'?`<a onclick="stockSalePayModal('${p.id}',${p.total-p.amountPaid})">💵 Encaisser</a>`:''}
+          <a onclick="stockSaleForm('${p.id}')">✏️ Modifier</a>
           <a onclick="stockSaleDelete('${p.id}')">🗑️ Effacer</a>
         </div></details></td></tr>`).join(""):'<tr><td colspan="10" style="color:var(--muted)">Aucune vente.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAL DÛ</td><td class="r" colspan="3">${fCFA(totDue)}</td></tr></table></div>`;
 }
-async function stockSaleForm(){
-  await stockLoadRefs();
+async function stockSaleForm(editId){
+  await stockLoadRefs(); window._saEditId=editId||"";
   const sos=(await api("/stock/so").catch(()=>[])).filter(x=>x.status!=='completed');
   window._sos=sos; window._SUL=[]; window._suQ=""; window._saAttach=null; window._suSOId=""; window._suSORef="";
   const clients=window._STK.clients||[], locs=window._STK.locations||[];
   const cOpt=clients.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
   const lOpt=locs.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
-  view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksales')">← Ventes</button><h1 style="margin-top:10px">Ajouter une vente</h1>
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stocksales')">← Ventes</button><h1 style="margin-top:10px">${editId?"Modifier la vente":"Ajouter une vente"}</h1>
     <div class="panel"><div class="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
       <div><label>Client *</label><div style="display:flex;gap:4px"><select id="saCust" onchange="suFillAddress()" style="flex:1"><option value="">Veuillez sélectionner</option>${cOpt}</select><button class="btn p sm" onclick="suQuickClient()" title="Nouveau client">+</button></div></div>
       <div><label>Numéro de commande</label><input id="saRef" placeholder="Gardez le blanc pour générer automatiquement"></div>
@@ -6794,6 +6800,10 @@ async function stockSaleForm(){
     <div style="margin-top:10px"><button class="btn p" onclick="stockSaleSubmit()">Enregistrer la vente</button></div></div>`;
   suRender();
   if(window._prefillCust){ const el=document.getElementById("saCust"); if(el){ el.value=window._prefillCust; suFillAddress(); } window._prefillCust=""; }
+  if(editId){ const d=await api("/stock/sales/"+editId).catch(()=>null); if(d){
+    window._SUL=(d.lines||[]).map(l=>{const p=(window._STK.prods||[]).find(x=>x.id===l.productId)||{};return {productId:l.productId,qty:l.qty,unitCost:l.unitCost,discountMode:l.discountMode||"fixed",discountValue:l.discountValue||0,unitId:l.unitId||p.unitId||"",warrantyId:l.warrantyId||"",note:l.note||""};});
+    const g=(x)=>document.getElementById(x); if(g("saCust")){g("saCust").value=d.customerId||"";suFillAddress();} if(g("saRef"))g("saRef").value=d.ref||""; if(g("saDate"))g("saDate").value=d.date||""; if(g("saLoc"))g("saLoc").value=d.location||""; if(g("saTerms"))g("saTerms").value=d.paymentTerms||""; if(g("suAcc"))g("suAcc").value=d.paymentAccountId||""; if(g("suTaxPct"))g("suTaxPct").value=String(d.taxPct||0); if(g("suDiscType"))g("suDiscType").value=d.discountType||"none"; if(g("suDiscVal"))g("suDiscVal").value=d.discountValue||0; if(g("suPaid"))g("suPaid").value=d.amountPaid||0;
+    suRender(); } }
 }
 function suFillAddress(){ const id=(document.getElementById("saCust")||{}).value; const c=(window._STK.clients||[]).find(x=>x.id===id)||{}; const el=document.getElementById("saAddr"); if(el) el.value=[c.address1,c.city].filter(Boolean).join(", "); }
 function suNet(l){ const qty=Number(l.qty)||0,pu=Number(l.unitCost)||0; const dv=Number(l.discountValue)||0; const disc=l.discountMode==='fixed'?Math.round(dv):Math.round(qty*pu*dv/100); return Math.max(0,Math.round(qty*pu)-disc); }
@@ -6860,7 +6870,7 @@ async function stockSaleSubmit(){ const g=(x)=>(document.getElementById(x)||{}).
   const lines=(window._SUL||[]).filter(l=>l.productId&&Number(l.qty)>0).map(l=>({productId:l.productId,qty:Number(l.qty),unitCost:Number(l.unitCost)||0,discountMode:l.discountMode||"fixed",discountValue:Number(l.discountValue)||0,unitId:l.unitId||"",warrantyId:l.warrantyId||"",note:l.note||""}));
   if(!lines.length){ const e=document.getElementById("saErr"); e.textContent="Ajoutez au moins un produit."; e.classList.remove("hidden"); return; }
   const body={customerId:g("saCust"),date:g("saDate"),ref:g("saRef"),location:g("saLoc"),paymentTerms:g("saTerms"),soId:window._suSOId||"",soRef:window._suSORef||"",
-    discountType:g("suDiscType"),discountValue:Number(g("suDiscVal"))||0,taxPct:Number(g("suTaxPct"))||0,amountPaid:Number(g("suPaid"))||0,paymentAccountId:g("suAcc"),note:g("suNote"),
+    discountType:g("suDiscType"),discountValue:Number(g("suDiscVal"))||0,taxPct:Number(g("suTaxPct"))||0,amountPaid:Number(g("suPaid"))||0,paymentAccountId:g("suAcc"),note:g("suNote"),replaceId:window._saEditId||"",
     allowNegative:document.getElementById("saNeg").checked,lines};
   try{ await api("/stock/sales",{method:"POST",body:JSON.stringify(body)}); go('stocksales'); }
   catch(e){ const el=document.getElementById("saErr"); el.textContent=e.message; el.classList.remove("hidden"); }
@@ -7142,7 +7152,7 @@ function stockPODocHtml(po,company,opts){
 }
 async function stockPOViewDoc(id){
   await stockLoadRefs(); const company=await stockCompany();
-  const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
+  const po=await api("/stock/po/"+id).catch(e=>{alert("Impossible de charger le BC : "+e.message);return null;}); if(!po) return;
   let acts=[]; try{ acts=(await api("/audit?objectType=StockPO")).filter(a=>a.objectId===id); }catch(e){}
   const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="width:min(1050px,96vw);max-height:92vh;overflow:auto">
@@ -7152,11 +7162,11 @@ async function stockPOViewDoc(id){
 }
 async function stockPOPrint(id){
   await stockLoadRefs(); const company=await stockCompany();
-  const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
+  const po=await api("/stock/po/"+id).catch(e=>{alert("Impossible de charger le BC : "+e.message);return null;}); if(!po) return;
   const doc=stockPODocHtml(po,company,{barcode:true});
   const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(po.ref)}</title>
-    <style>body{font-family:Arial,sans-serif;margin:16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:10mm}}</style>
+    <style>body{font-family:Arial,sans-serif;margin:28mm 16mm 16mm 16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:22mm 12mm 12mm}}</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${doc}
     <script>window.onload=function(){try{JsBarcode("#poBarcode",${JSON.stringify(po.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
   w.document.close();
@@ -7230,7 +7240,7 @@ function stockDocHtml(kind,d,company,opts){
 }
 async function stockDocView(kind,id){
   await stockLoadRefs(); const company=await stockCompany(); const cfg=STOCK_DOC[kind];
-  const d=await api("/stock/"+cfg.ep+"/"+id).catch(()=>null); if(!d) return;
+  const d=await api("/stock/"+cfg.ep+"/"+id).catch(e=>{alert("Impossible de charger le document : "+e.message);return null;}); if(!d) return;
   let acts=[]; if(cfg.at){ try{ acts=(await api("/audit?objectType="+cfg.at)).filter(a=>a.objectId===id); }catch(e){} }
   const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="width:min(980px,96vw);max-height:92vh;overflow:auto">
@@ -7240,11 +7250,11 @@ async function stockDocView(kind,id){
 }
 async function stockDocPrint(kind,id){
   await stockLoadRefs(); const company=await stockCompany(); const cfg=STOCK_DOC[kind];
-  const d=await api("/stock/"+cfg.ep+"/"+id).catch(()=>null); if(!d) return;
+  const d=await api("/stock/"+cfg.ep+"/"+id).catch(e=>{alert("Impossible de charger le document : "+e.message);return null;}); if(!d) return;
   const doc=stockDocHtml(kind,d,company,{barcode:true});
   const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.ref)}</title>
-    <style>body{font-family:Arial,sans-serif;margin:16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:10mm}}</style>
+    <style>body{font-family:Arial,sans-serif;margin:28mm 16mm 16mm 16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:22mm 12mm 12mm}}</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${doc}
     <script>window.onload=function(){try{JsBarcode("#docBarcode",${JSON.stringify(d.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
   w.document.close();
