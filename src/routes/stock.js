@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockMovements"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockLocations", "stockTransfers", "stockMovements"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -45,6 +45,7 @@ crud("brands", "stockBrands", ["name", "note"], "name", ["ADM", "CD", "GPF"]);
 crud("warranties", "stockWarranties", ["name", "duration", "description"], "name", ["ADM", "CD", "GPF"]);
 crud("pricegroups", "stockPriceGroups", ["name", "note"], "name", ["ADM", "CD", "GPF"]);
 crud("variations", "stockVariations", ["name", "values"], "name", ["ADM", "CD", "GPF"]);
+crud("locations", "stockLocations", ["name", "address"], "name", ["ADM", "CD", "GPF"]);
 
 /* ============================ CONTACTS (fournisseurs & clients) ============================ */
 const CONTACT_FIELDS = ["type", "entityType", "contactId", "name", "firstName", "mobile", "altPhone", "landline", "email",
@@ -548,6 +549,42 @@ router.delete("/salesreturns/:id", allow("ADM", "CD"), (req, res) => {
   const ret = mine(db.stockSalesReturns, req).find(x => x.id === req.params.id); if (!ret) return res.status(404).json({ error: "Introuvable" });
   for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "salesreturn" && m.sourceId === ret.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
   db.stockSalesReturns.splice(db.stockSalesReturns.indexOf(ret), 1); save(); res.json({ ok: true });
+});
+
+/* ============================ TRANSFERTS DE STOCK ============================ */
+const TRF_STATUS = ["en_cours", "termine", "annule"];
+function locName(req, id) { const l = mine(db.stockLocations, req).find(x => x.id === id); return l ? l.name : ""; }
+router.get("/transfers", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  res.json(mine(db.stockTransfers, req).map(t => Object.assign({}, t, { fromName: locName(req, t.fromId), toName: locName(req, t.toId) })).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
+});
+router.get("/transfers/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const t = mine(db.stockTransfers, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Transfert introuvable" });
+  res.json(Object.assign({}, t, { fromName: locName(req, t.fromId), toName: locName(req, t.toId), lines: (t.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
+});
+router.post("/transfers", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines);
+  if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  if (!b.fromId || !b.toId) return res.status(400).json({ error: "Lieu (Du) et Lieu (Au) obligatoires" });
+  if (b.fromId === b.toId) return res.status(400).json({ error: "Le lieu de départ et d'arrivée doivent être différents" });
+  const ship = R2(b.shippingFee);
+  const t = stamp({ id: id("trf"), ref: b.ref || seqRef(req, "stockTransfers", "TRF", "ref"), date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
+    status: TRF_STATUS.includes(b.status) ? b.status : "en_cours", fromId: b.fromId, toId: b.toId, shippingFee: ship, note: b.note || "",
+    subtotal, total: subtotal + ship, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.stockTransfers.push(t);
+  const label = "Transfert " + t.ref + " : " + locName(req, t.fromId) + " → " + locName(req, t.toId);
+  for (const l of lines) logMove(req, { date: t.date, type: "transfert", productId: l.productId, qty: l.qty, unitCost: l.unitCost, ref: t.ref, note: label, sourceType: "transfer", sourceId: t.id });
+  save(); audit(req.user, "STOCK_TRANSFER", "StockTransfer", t.id, { ref: t.ref }); res.status(201).json(t);
+});
+router.put("/transfers/:id/status", allow("ADM", "CD", "GPF"), (req, res) => {
+  const t = mine(db.stockTransfers, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  const st = (req.body || {}).status; if (!TRF_STATUS.includes(st)) return res.status(400).json({ error: "Statut invalide" });
+  t.status = st; save(); res.json({ ok: true, status: st });
+});
+router.delete("/transfers/:id", allow("ADM", "CD"), (req, res) => {
+  const t = mine(db.stockTransfers, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "transfer" && m.sourceId === t.id)) db.stockMovements.splice(db.stockMovements.indexOf(m), 1);
+  db.stockTransfers.splice(db.stockTransfers.indexOf(t), 1); save(); res.json({ ok: true });
 });
 
 module.exports = router;
