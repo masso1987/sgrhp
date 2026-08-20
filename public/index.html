@@ -6723,20 +6723,23 @@ async function stockSOView(){
           <a onclick="stockDocView('so','${o.id}')">👁️ Voir</a>
           <a onclick="stockDocPrint('so','${o.id}')">🖨️ Impression</a>
           ${o.status!=='completed'?`<a onclick="stockSODeliver('${o.id}','${esc(o.ref)}')">📦 Livrer</a>`:''}
+          ${o.delivered<=0?`<a onclick="stockSOForm('${o.id}')">✏️ Modifier</a>`:''}
           ${o.delivered<=0?`<a onclick="stockSODelete('${o.id}')">🗑️ Effacer</a>`:''}
         </div></details></td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune commande.</td></tr>'}
       </table></div>`;
 }
-function stockSOForm(){ window._PLKIND='so'; window._PL=[]; window._plQ="";
-  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockso')">← Commandes client</button><h1 style="margin-top:10px">Nouvelle commande client</h1>
+async function stockSOForm(editId){ await stockLoadRefs(); window._PLKIND='so'; window._PL=[]; window._plQ=""; window._soEditId=editId||"";
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockso')">← Commandes client</button><h1 style="margin-top:10px">${editId?"Modifier la commande":"Nouvelle commande client"}</h1>
     <div class="panel">${plHeaderHtml('so','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('so')}
     <div class="err hidden" id="soErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockSOSubmit()">Enregistrer la commande</button></div></div>`;
   plRender();
+  if(editId){ const d=await api("/stock/so/"+editId).catch(()=>null); if(d){ window._PL=(d.lines||[]).map(l=>({productId:l.productId,qty:l.qty,unitCost:l.unitCost,discountPct:l.discountPct||0}));
+    const g=(x)=>document.getElementById(x); if(g("hdCust"))g("hdCust").value=d.customerId||""; if(g("hdRef"))g("hdRef").value=d.ref||""; if(g("hdDate"))g("hdDate").value=d.date||""; if(g("hdTerms"))g("hdTerms").value=d.paymentTerms||""; if(g("hdLoc"))g("hdLoc").value=d.deliverTo||""; if(g("hdDelay"))g("hdDelay").value=d.deliveryDelay||""; if(g("plTax"))g("plTax").value=d.taxPct||0; if(g("plShip"))g("plShip").value=d.shippingFee||0; plRender(); } }
 }
 async function stockSOSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
   if(!lines.length){ const e=document.getElementById("soErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
-  try{ await api("/stock/so",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),deliverTo:g("hdLoc"),deliveryDelay:g("hdDelay"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines})}); go('stockso'); }
+  try{ await api("/stock/so",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),deliverTo:g("hdLoc"),deliveryDelay:g("hdDelay"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,replaceId:window._soEditId||"",lines})}); go('stockso'); }
   catch(e){ const el=document.getElementById("soErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stockSODeliver(id,ref){ if(!confirm("Livrer le reliquat de la commande "+ref+" ? Le stock sera décrémenté et une vente créée.")) return;
@@ -6896,20 +6899,23 @@ async function stockQuotesView(){
           <a onclick="stockDocView('quote','${q.id}')">👁️ Voir</a>
           <a onclick="stockDocPrint('quote','${q.id}')">🖨️ Impression</a>
           ${q.status!=='converted'?`<a onclick="stockQuoteConvert('${q.id}','${esc(q.ref)}')">➡️ Convertir en vente</a>`:''}
+          ${q.status!=='converted'?`<a onclick="stockQuoteForm('${q.id}')">✏️ Modifier</a>`:''}
           <a onclick="stockQuoteDelete('${q.id}')">🗑️ Effacer</a>
         </div></details></td></tr>`).join(""):'<tr><td colspan="6" style="color:var(--muted)">Aucun devis.</td></tr>'}
       </table></div>`;
 }
-function stockQuoteForm(){ window._PLKIND='quote'; window._PL=[]; window._plQ="";
-  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockquotes')">← Devis</button><h1 style="margin-top:10px">Nouveau devis</h1>
+async function stockQuoteForm(editId){ await stockLoadRefs(); window._PLKIND='quote'; window._PL=[]; window._plQ=""; window._qeEditId=editId||"";
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockquotes')">← Devis</button><h1 style="margin-top:10px">${editId?"Modifier le devis":"Nouveau devis"}</h1>
     <div class="panel">${plHeaderHtml('quote','customer')}<div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('quote')}
     <div class="err hidden" id="qeErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockQuoteSubmit()">Enregistrer le devis</button></div></div>`;
   plRender();
+  if(editId){ const d=await api("/stock/quotes/"+editId).catch(()=>null); if(d){ window._PL=(d.lines||[]).map(l=>({productId:l.productId,qty:l.qty,unitCost:l.unitCost,discountPct:l.discountPct||0}));
+    const g=(x)=>document.getElementById(x); if(g("hdCust"))g("hdCust").value=d.customerId||""; if(g("hdRef"))g("hdRef").value=d.ref||""; if(g("hdDate"))g("hdDate").value=d.date||""; if(g("plTax"))g("plTax").value=d.taxPct||0; if(g("plShip"))g("plShip").value=d.shippingFee||0; plRender(); } }
 }
 async function stockQuoteSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
   if(!lines.length){ const e=document.getElementById("qeErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
-  try{ await api("/stock/quotes",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines})}); go('stockquotes'); }
+  try{ await api("/stock/quotes",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,replaceId:window._qeEditId||"",lines})}); go('stockquotes'); }
   catch(e){ const el=document.getElementById("qeErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stockQuoteConvert(id,ref){ if(!confirm("Convertir le devis "+ref+" en vente ? Le stock sera décrémenté.")) return;

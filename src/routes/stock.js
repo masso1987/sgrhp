@@ -498,6 +498,7 @@ router.get("/so/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 });
 router.post("/so", allow("ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
+  if (b.replaceId) { const old = mine(db.stockSOs, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; db.stockSOs.splice(db.stockSOs.indexOf(old), 1); } }
   const t = docTotals(subtotal, b.taxPct, b.shippingFee);
   const so = stamp({ id: id("so"), ref: b.ref || seqRef(req, "stockSOs", "CC", "ref"), customerId: b.customerId || "", date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
     location: b.location || "", paymentTerms: b.paymentTerms || "", deliverTo: b.deliverTo || "", note: b.note || "", taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee),
@@ -576,6 +577,7 @@ router.get("/quotes/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 });
 router.post("/quotes", allow("ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne" });
+  if (b.replaceId) { const old = mine(db.stockQuotes, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; db.stockQuotes.splice(db.stockQuotes.indexOf(old), 1); } }
   const t = docTotals(subtotal, b.taxPct, b.shippingFee);
   const q = stamp({ id: id("qte"), ref: b.ref || seqRef(req, "stockQuotes", "DEV", "ref"), customerId: b.customerId || "", date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
     note: b.note || "", taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee), subtotal, tax: t.tax, total: t.total, status: "open", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
