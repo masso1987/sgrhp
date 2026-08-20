@@ -6873,6 +6873,8 @@ const STOCK_REPORTS=[
   {k:"supplier-customer",l:"Fournisseur & Client",f:["date"]},
   {k:"tax",l:"Impôt (TVA)",f:["date"]},
   {k:"by-user",l:"Représentant (par utilisateur)",f:["date"]},
+  {k:"expiry",l:"Expiration du stock",f:["product","category","brand"]},
+  {k:"transfers",l:"Transferts de stock",f:["date"]},
   {k:"activity",l:"Journal d'activité",f:["date","product"]},
 ];
 function repDef(){ return STOCK_REPORTS.find(r=>r.k===window._rep.type)||STOCK_REPORTS[0]; }

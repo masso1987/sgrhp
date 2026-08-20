@@ -147,7 +147,7 @@ router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
     id: id("prd"), sku: b.sku || "", barcode: b.barcode || "", name: b.name, categoryId: b.categoryId || "", unitId: b.unitId || "", supplierId: b.supplierId || "",
     brandId: b.brandId || "", warrantyId: b.warrantyId || "", priceGroupId: b.priceGroupId || "",
     purchasePrice: R2(b.purchasePrice), salePrice: R2(b.salePrice), qty: initial, alertQty: b.alertQty != null ? Q(b.alertQty) : "",
-    active: b.active !== false, note: b.note || "", createdAt: new Date().toISOString()
+    active: b.active !== false, note: b.note || "", expDate: b.expDate || "", mfgDate: b.mfgDate || "", createdAt: new Date().toISOString()
   }, req);
   db.stockProducts.push(p);
   if (initial) db.stockMovements.push(stamp({ id: id("mov"), date: new Date().toISOString().slice(0, 10), type: "initial", productId: p.id, qty: initial, unitCost: p.purchasePrice, ref: "Stock initial", note: "", createdBy: req.user.id, createdAt: new Date().toISOString() }, req));
@@ -814,6 +814,23 @@ router.get("/reports", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
     out.columns = [C("date", "Date"), C("type", "Type"), C("productName", "Produit"), C("qty", "Quantité", "qty"), C("ref", "Réf")];
     out.rows = mine(db.stockMovements, req).filter(m => (!f.from || (m.date || "") >= f.from) && (!f.to || (m.date || "") <= f.to) && (!f.productId || m.productId === f.productId))
       .map(m => ({ date: m.date, type: m.type, productName: (prods[m.productId] || {}).name || "", qty: Q(m.qty), ref: m.ref || "" })).sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 1000);
+  }
+  else if (type === "expiry") {
+    const today = new Date().toISOString().slice(0, 10);
+    const cats = _nameMap(mine(db.stockCategories, req)), brands = _nameMap(mine(db.stockBrands, req));
+    out.title = "Rapport d'expiration du stock";
+    out.columns = [C("name", "Produit"), C("sku", "SKU"), C("categoryName", "Catégorie"), C("qty", "Stock", "qty"), C("expDate", "Date d'expiration"), C("days", "Jours restants", "qty"), C("status", "Statut")];
+    out.rows = mine(db.stockProducts, req).filter(p => p.expDate && (!f.categoryId || p.categoryId === f.categoryId) && (!f.brandId || p.brandId === f.brandId) && (!f.q || ((p.name || "") + " " + (p.sku || "")).toLowerCase().includes(f.q)))
+      .map(p => { const d = Math.ceil((new Date(p.expDate) - new Date(today)) / 86400000); return { name: p.name, sku: p.sku, categoryName: cats[p.categoryId] || "", qty: Q(p.qty), expDate: p.expDate, days: d, status: d < 0 ? "Expiré" : d <= 30 ? "Bientôt (≤30j)" : "OK" }; })
+      .sort((a, b) => a.days - b.days);
+  }
+  else if (type === "transfers") {
+    out.title = "Rapport de transferts de stock";
+    out.columns = [C("ref", "Réf"), C("date", "Date"), C("from", "Lieu (Du)"), C("to", "Lieu (Au)"), C("status", "Statut"), C("total", "Total", "money")];
+    out.rows = mine(db.stockTransfers, req).filter(t => (!f.from || (t.date || "") >= f.from) && (!f.to || (t.date || "") <= f.to))
+      .map(t => ({ ref: t.ref, date: t.date, from: locName(req, t.fromId), to: locName(req, t.toId), status: ({ en_cours: "En cours", termine: "Terminé", annule: "Annulé" })[t.status] || t.status, total: R2(t.total) }))
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    out.totals = { total: sum(out.rows, "total") };
   }
   else return res.status(400).json({ error: "Type de rapport inconnu" });
   res.json(out);
