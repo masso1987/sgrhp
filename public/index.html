@@ -20,6 +20,7 @@ body{background:var(--bg);color:var(--text);font-size:14px}
 .sb-modtitle{padding:8px 16px 2px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .sb-subsec{padding:10px 16px 3px;margin-top:4px;font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);opacity:.75;border-top:1px solid var(--border)}
 .sb-subsec:first-of-type{border-top:none;margin-top:0}
+.rowmenu{position:relative;display:inline-block}.rowmenu>summary{list-style:none;cursor:pointer;display:inline-block}.rowmenu>summary::-webkit-details-marker{display:none}.rowmenu-pop{position:absolute;right:0;z-index:60;background:var(--sidebar-bg,#fff);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.18);min-width:220px;padding:4px;text-align:left}.rowmenu-pop a{display:block;padding:7px 10px;cursor:pointer;border-radius:5px;font-size:13px;white-space:nowrap;color:inherit}.rowmenu-pop a:hover{background:var(--nav-active-bg)}.rowmenu-pop hr{border:none;border-top:1px solid var(--line);margin:4px 0}
 .nav:hover{background:var(--nav-active-bg)}.nav.active{color:var(--nav-active-color);border-left-color:var(--nav-active-border);background:var(--nav-active-bg);font-weight:600}
 .main{margin-left:210px;padding:22px;flex:1}
 h1{font-size:19px;margin-bottom:14px}
@@ -5860,8 +5861,16 @@ async function stockProductsView(){
       ${list.length?list.map(p=>`<tr${p.active===false?' style="opacity:.5"':''}><td><code>${esc(p.sku||'')}</code></td><td>${esc(p.name)}${p.low?' <span class="tag" style="background:var(--red);color:#fff">bas</span>':''}${p.out?' <span class="tag gray">rupture</span>':''}</td>
         <td>${esc(p.categoryName||'')}</td><td class="r">${fCFA(p.purchasePrice)}</td><td class="r">${fCFA(p.salePrice)}</td>
         <td class="r"><b>${stkQty(p.qty)}</b> ${esc(p.unitName||'')}</td><td class="r">${fCFA(p.stockValue)}</td>
-        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="stockProductModal('${p.id}')">✏️</button>
-          <button class="btn ghost sm" onclick="go('stockadjust');setTimeout(()=>{window._adjPid='${p.id}';stockAdjustView();},50)">Ajuster</button></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun produit.</td></tr>'}
+        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
+          <a onclick="stockProductLabel('${p.id}')">🏷️ Étiquettes</a>
+          <a onclick="stockProductView('${p.id}')">👁️ Voir</a>
+          <a onclick="stockProductModal('${p.id}')">✏️ Modifier</a>
+          <a onclick="stockProductDelete('${p.id}')">🗑️ Effacer</a>
+          <hr>
+          <a onclick="stockProductOpening('${p.id}')">📦 Ajouter/modifier le stock d'ouverture</a>
+          <a onclick="stockProductHistory('${p.id}')">🕘 Historique du stock produit</a>
+          <a onclick="stockProductDuplicate('${p.id}')">📑 Produit en double</a>
+        </div></details></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun produit.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">VALEUR TOTALE (${list.length})</td><td class="r">${fCFA(totVal)}</td><td></td></tr>
       </table></div>`;
 }
@@ -5905,6 +5914,53 @@ async function stockProductSave(id){
 }
 async function stockProductDelete(id){ if(!confirm("Supprimer ce produit ? (l'historique de mouvements est conservé)")) return;
   try{ await api("/stock/products/"+id,{method:"DELETE"}); document.querySelector(".modal-bg").remove(); stockProductsView(); }catch(e){ alert(e.message); } }
+function _prod(id){ return (window._STK.prods||[]).find(x=>x.id===id); }
+function stockProductLabel(id){ const p=_prod(id); if(!p) return; const code=p.barcode||p.sku||"";
+  const card=`<div class="lbl"><div class="nm">${esc(p.name)}</div>${code?`<svg class="bc" data-code="${esc(code)}"></svg><div class="cd">${esc(code)}</div>`:''}<div class="pr">${Number(p.salePrice||0).toLocaleString("fr-FR")} FCFA</div></div>`;
+  _labelWindow(card); }
+async function stockProductView(id){
+  await stockLoadRefs(); const p=_prod(id); if(!p) return;
+  const moves=await api("/stock/movements?productId="+id).catch(()=>[]);
+  const typeTag=(x)=>({achat:'Entrée',initial:'Initial',vente:'Sortie',ajustement:'Ajust.',retour:'Retour achat',retourv:'Retour vente',transfert:'Transfert'})[x]||x;
+  const row=(l,v)=>`<tr><td style="color:var(--muted)">${esc(l)}</td><td>${v==null?'':v}</td></tr>`;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockproducts')">← Produits</button>
+    <h1 style="margin-top:10px">${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</h1>
+    <div class="grid2">
+      <div class="panel"><b>Fiche produit</b><table style="margin-top:6px">
+        ${row("SKU",esc(p.sku||''))}${row("Code-barres",esc(p.barcode||''))}${row("Catégorie",esc(p.categoryName||''))}${row("Unité",esc(p.unitName||''))}${row("Marque",esc(p.brandName||''))}
+        ${row("Prix d'achat",fCFA(p.purchasePrice))}${row("Prix de vente",fCFA(p.salePrice))}
+        ${row("Stock actuel","<b>"+stkQty(p.qty)+"</b> "+esc(p.unitName||''))}${row("Seuil d'alerte",p.alertQty!==""&&p.alertQty!=null?stkQty(p.alertQty):"—")}
+        ${row("Valeur du stock",fCFA(p.stockValue))}${row("Statut",p.active===false?'<span class="tag gray">Inactif</span>':'<span class="tag green">Actif</span>')}
+      </table><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="stockProductModal('${id}')">✏️ Modifier</button>
+        <button class="btn ghost sm" onclick="stockProductLabel('${id}')">🏷️ Étiquette</button>
+        <button class="btn ghost sm" onclick="stockProductOpening('${id}')">📦 Stock d'ouverture</button></div></div>
+      <div class="panel"><b>Historique du stock</b><table style="margin-top:6px"><tr><th>Date</th><th>Type</th><th class="r">Qté</th><th>Réf</th></tr>
+        ${moves.length?moves.slice(0,25).map(m=>`<tr><td>${esc(m.date||'')}</td><td>${esc(typeTag(m.type))}</td><td class="r" style="color:${m.qty<0?'var(--red)':'var(--nav-active-color)'}">${m.qty>0?'+':''}${stkQty(m.qty)}</td><td>${esc(m.ref||'')}</td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
+      </table></div></div>`;
+}
+function stockProductHistory(id){ window._mvPid=id; window._mvType=""; go('stockmoves'); }
+async function stockProductDuplicate(id){ const p=_prod(id); if(!p) return;
+  const body={name:p.name+" (copie)",sku:"",barcode:"",categoryId:p.categoryId,unitId:p.unitId,supplierId:p.supplierId,brandId:p.brandId,warrantyId:p.warrantyId,priceGroupId:p.priceGroupId,purchasePrice:p.purchasePrice,salePrice:p.salePrice,alertQty:p.alertQty,qty:0};
+  try{ await api("/stock/products",{method:"POST",body:JSON.stringify(body)}); stockProductsView(); }catch(e){ alert(e.message); } }
+function stockProductOpening(id){ const p=_prod(id)||{};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:420px"><h3 style="margin:0 0 8px">Stock d'ouverture — ${esc(p.name||'')}</h3>
+    <div class="grid2"><div><label>Stock actuel</label><input value="${stkQty(p.qty)}" disabled></div>
+      <div><label>Nouveau stock d'ouverture</label><input id="opQty" type="number" value="${p.qty||0}"></div>
+      <div><label>Coût unitaire (optionnel)</label><input id="opCost" type="number" value="${p.purchasePrice||0}"></div>
+      <div><label>Date</label><input id="opDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="err hidden" id="opErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockProductOpeningSave('${id}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function stockProductOpeningSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  try{ const cost=g("opCost"); if(cost!=="") await api("/stock/products/"+id,{method:"PUT",body:JSON.stringify({purchasePrice:Number(cost)||0})});
+    await api("/stock/movements/adjust",{method:"POST",body:JSON.stringify({productId:id,mode:"set",value:Number(g("opQty"))||0,reason:"Stock d'ouverture",date:g("opDate")})});
+    document.querySelector(".modal-bg").remove(); stockProductsView(); }
+  catch(e){ const el=document.getElementById("opErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
 
 /* ---- Référentiels simples (catégories, unités, fournisseurs) ---- */
 function stkRefView(opts){
@@ -6267,6 +6323,9 @@ function stockLabelsPrint(){
       ${showBar&&code?`<svg class="bc" data-code="${esc(code)}"></svg><div class="cd">${esc(code)}</div>`:(code?`<div class="cd">${esc(code)}</div>`:"")}
       ${showPrice?`<div class="pr">${Number(p.salePrice||0).toLocaleString("fr-FR")} FCFA</div>`:""}</div>`;
   }
+  _labelWindow(cards);
+}
+function _labelWindow(cards){
   const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Étiquettes</title>
     <style>body{font-family:Arial,sans-serif;margin:8mm}.grid{display:flex;flex-wrap:wrap;gap:4mm}
