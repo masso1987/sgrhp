@@ -93,10 +93,12 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
 
 // ADM grants employee edit/delete capabilities to a user.
 const EMP_CAPS = ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"];
+const STOCK_CAPS = ["stock.catalogue", "stock.tiers", "stock.achats", "stock.ventes", "stock.mouvements", "stock.transferts", "stock.rapports"];
+const ALL_CAPS = EMP_CAPS.concat(STOCK_CAPS);
 router.put("/:id/permissions", allow("ADM", "SADM"), (req, res) => {
   const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
-  u.permissions = [...new Set((req.body.permissions || []).filter(p => EMP_CAPS.includes(p)))];
+  u.permissions = [...new Set((req.body.permissions || []).filter(p => ALL_CAPS.includes(p)))];
   save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { permissions: u.permissions });
   res.json({ id: u.id, permissions: u.permissions });

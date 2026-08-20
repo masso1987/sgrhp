@@ -870,31 +870,31 @@ const NAV = [
   { k: "accttiers", label: "👥 Comptes tiers", sec: "Structure", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctimport", label: "📥 Import Sage / FEC", sec: "Données", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "stockhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
-  { k: "stockproducts", label: "📦 Produits", sec: "Catalogue", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
-  { k: "stockunits", label: "📐 Unités", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockcats", label: "🗃️ Catégories", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockbrands", label: "🏷️ Marques", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockwarranties", label: "🛡️ Garanties", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockvariations", label: "🎨 Variations", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockpricegroups", label: "💲 Groupes de prix", sec: "Catalogue", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockimport", label: "⬆ Importer des produits", sec: "Outils", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockopening", label: "⬆ Importer stock d'ouverture", sec: "Outils", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stocklabels", label: "🖨️ Imprimer les étiquettes", sec: "Outils", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
-  { k: "stockpo", label: "🧾 Bons de commande", sec: "Achats", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockpurchases", label: "📥 Achats (réceptions)", sec: "Achats", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
-  { k: "stockreturns", label: "↩️ Retours d'achat", sec: "Achats", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockso", label: "🧾 Commandes client", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stocksales", label: "🛒 Toutes les ventes", sec: "Ventes", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
-  { k: "stockpos", label: "🧮 POS (PDV)", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockquotes", label: "📝 Devis", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stocksalesreturns", label: "↩️ Retours de vente", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockadjust", label: "⚖️ Ajustement", sec: "Stock", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
-  { k: "stocklocations", label: "📍 Emplacements", sec: "Transferts", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stocktransfers", label: "🚚 Transferts de stock", sec: "Transferts", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
-  { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
-  { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stockproducts", label: "📦 Produits", sec: "Catalogue", roles: ["ADM","CD","RJ","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockunits", label: "📐 Unités", sec: "Catalogue", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockcats", label: "🗃️ Catégories", sec: "Catalogue", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockbrands", label: "🏷️ Marques", sec: "Catalogue", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockwarranties", label: "🛡️ Garanties", sec: "Catalogue", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockvariations", label: "🎨 Variations", sec: "Catalogue", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockpricegroups", label: "💲 Groupes de prix", sec: "Catalogue", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockimport", label: "⬆ Importer des produits", sec: "Outils", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockopening", label: "⬆ Importer stock d'ouverture", sec: "Outils", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stocklabels", label: "🖨️ Imprimer les étiquettes", sec: "Outils", roles: ["ADM","CD","RJ","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
+  { k: "stockpo", label: "🧾 Bons de commande", sec: "Achats", roles: ["ADM","CD","GPF"], cap: "stock.achats", module: "stock", grp: "stock" },
+  { k: "stockpurchases", label: "📥 Achats (réceptions)", sec: "Achats", roles: ["ADM","CD","RJ","GPF"], cap: "stock.achats", module: "stock", grp: "stock" },
+  { k: "stockreturns", label: "↩️ Retours d'achat", sec: "Achats", roles: ["ADM","CD","GPF"], cap: "stock.achats", module: "stock", grp: "stock" },
+  { k: "stockso", label: "🧾 Commandes client", sec: "Ventes", roles: ["ADM","CD","GPF"], cap: "stock.ventes", module: "stock", grp: "stock" },
+  { k: "stocksales", label: "🛒 Toutes les ventes", sec: "Ventes", roles: ["ADM","CD","RJ","GPF"], cap: "stock.ventes", module: "stock", grp: "stock" },
+  { k: "stockpos", label: "🧮 POS (PDV)", sec: "Ventes", roles: ["ADM","CD","GPF"], cap: "stock.ventes", module: "stock", grp: "stock" },
+  { k: "stockquotes", label: "📝 Devis", sec: "Ventes", roles: ["ADM","CD","GPF"], cap: "stock.ventes", module: "stock", grp: "stock" },
+  { k: "stocksalesreturns", label: "↩️ Retours de vente", sec: "Ventes", roles: ["ADM","CD","GPF"], cap: "stock.ventes", module: "stock", grp: "stock" },
+  { k: "stockadjust", label: "⚖️ Ajustement", sec: "Stock", roles: ["ADM","CD","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
+  { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
+  { k: "stocklocations", label: "📍 Emplacements", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
+  { k: "stocktransfers", label: "🚚 Transferts de stock", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
+  { k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], cap: "stock.rapports", module: "stock", grp: "stock" },
+  { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
+  { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
 
   { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -938,7 +938,8 @@ async function boot() {
   startAccessPolling();
 }
 function buildNav() {
-  NAV_VISIBLE = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)));
+  const _adm = ME.role === "ADM" || ME.role === "SADM";
+  NAV_VISIBLE = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.cap || _adm || (ME.permissions || []).includes(n.cap)));
   NAV_PRESENT = NAV_GROUPS.filter(G => NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
   const mb = document.getElementById("modbar");
   if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
@@ -1398,10 +1399,13 @@ async function toggleActive(uid, active) {
 async function permModal(uid) {
   const u = (await api("/users")).find(x => x.id === uid);
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
+  const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.rapports", "📊 Rapports de stock"]];
+  const hasStock = (u.modules || []).includes("stock");
   const bg = document.createElement("div"); bg.className = "modal-bg";
-  bg.innerHTML = `<div class="modal"><b>Droits sur les employés — ${esc(u.fullName)}</b>
-    <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger (modifier) ou supprimer des dossiers employés.</div>
-    <div class="scroll">${caps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""}><span>${lbl}</span></label>`).join("")}</div>
+  bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
+    <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger ou supprimer des dossiers, et attribuez les fonctionnalités du module Stock.</div>
+    <div class="scroll"><b style="font-size:12px;color:var(--muted)">RH & PAIE</b>${caps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""}><span>${lbl}</span></label>`).join("")}
+      <b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">GESTION DE STOCK ${hasStock ? "" : "<span class=\"note\">(activez d'abord le module Stock)</span>"}</b>${stockCaps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""} ${hasStock ? "" : "disabled"}><span>${lbl}</span></label>`).join("")}</div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
       <button class="btn p sm" onclick="savePerms('${uid}', this)">Enregistrer</button></div></div>`;
