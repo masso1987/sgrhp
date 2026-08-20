@@ -6082,7 +6082,10 @@ async function stockContactsView(type){
       ${list.length?list.map(c=>`<tr><td><code>${esc(c.contactId||'')}</code></td><td>${esc(c.name||'')}</td>
         <td>${c.entityType==='company'?'<span class="tag gray">Entreprise</span>':'<span class="tag gray">Individuel</span>'}</td>
         <td>${esc(c.mobile||'')}</td><td>${esc(c.email||'')}</td><td>${esc(c.taxId||'')}</td><td class="r">${fCFA(c.openingBalance)}</td>
-        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="stockContactModal('${type}','${c.id}')">✏️</button>
+        <td style="white-space:nowrap">
+          <button class="btn ghost sm" onclick="stockContactStatement('${c.id}')">📋 Relevé</button>
+          <button class="btn ghost sm" onclick="stockContactNew('${type}','${c.id}')">${isC?'+ Vente':'+ Achat'}</button>
+          <button class="btn ghost sm" onclick="stockContactModal('${type}','${c.id}')">✏️</button>
           <button class="btn ghost sm" onclick="stockContactDelete('${type}','${c.id}')">✕</button></td></tr>`).join(""):`<tr><td colspan="8" style="color:var(--muted)">Aucun ${isC?'client':'fournisseur'}.</td></tr>`}
       </table></div>`;
 }
@@ -6139,6 +6142,29 @@ async function stockContactSave(id){
 }
 async function stockContactDelete(type,id){ if(!confirm("Supprimer ce contact ?")) return;
   try{ await api("/stock/contacts/"+id,{method:"DELETE"}); stockContactsView(type); }catch(e){ alert(e.message); } }
+async function stockContactNew(type,id){ await stockLoadRefs(); if(type==='client'){ window._prefillCust=id; stockSaleForm(); } else { window._prefillSup=id; stockPurchaseForm(); } }
+async function stockContactStatement(id){
+  const d=await api("/stock/contacts/"+id+"/statement").catch(()=>null); if(!d) return;
+  const kind=d.contact.kind; let solde=0;
+  const rowsHtml=d.rows.length?d.rows.map(r=>{ solde+=r.due; return `<tr><td>${esc(r.date||'')}</td><td>${esc(r.type)}</td><td><code>${esc(r.ref||'')}</code></td><td class="r">${fCFA(r.total)}</td><td class="r">${fCFA(r.paid)}</td><td class="r">${fCFA(r.due)}</td><td class="r">${fCFA(solde)}</td></tr>`;}).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucune opération.</td></tr>';
+  window._stmt=d;
+  view.innerHTML=`<button class="btn ghost sm" onclick="stockContactsView('${kind}')">← ${kind==='client'?'Clients':'Fournisseurs'}</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin-top:10px">📋 Relevé — ${esc(d.contact.name)} <span class="note">${esc(d.contact.code||'')}</span></h1>
+      <span><button class="btn ghost sm" onclick="stockContactNew('${kind==='client'?'client':'fournisseur'}','${d.contact.id}')">${kind==='client'?'+ Vente':'+ Achat'}</button> <button class="btn ghost sm" onclick="stockContactStatementPrint()">🖨️ Imprimer</button></span></div>
+    <div class="panel"><table><tr><th>Date</th><th>Type</th><th>Réf</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th class="r">Solde</th></tr>
+    ${rowsHtml}
+    <tr style="font-weight:700;border-top:2px solid #999"><td colspan="3">TOTAUX</td><td class="r">${fCFA(d.totals.total)}</td><td class="r">${fCFA(d.totals.paid)}</td><td class="r">${fCFA(d.totals.due)}</td><td class="r">${fCFA(d.totals.due)}</td></tr></table>
+    <div style="margin-top:8px;font-weight:700">Solde ${kind==='client'?'client (créance)':'fournisseur (dette)'} : ${fCFA(d.totals.due)} FCFA</div></div>`;
+}
+function stockContactStatementPrint(){
+  const d=window._stmt; if(!d||typeof acctPrintWindow!=='function') return; let solde=0;
+  const body=`<h2>Relevé — ${esc(d.contact.name)} (${esc(d.contact.code||'')})</h2>
+    <table><tr><th>Date</th><th>Type</th><th>Réf</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th class="r">Solde</th></tr>
+    ${d.rows.map(r=>{solde+=r.due;return `<tr><td>${esc(r.date||'')}</td><td>${esc(r.type)}</td><td>${esc(r.ref||'')}</td><td class="r">${fCFA(r.total)}</td><td class="r">${fCFA(r.paid)}</td><td class="r">${fCFA(r.due)}</td><td class="r">${fCFA(solde)}</td></tr>`;}).join("")}
+    <tr class="tot"><td colspan="3">TOTAUX</td><td class="r">${fCFA(d.totals.total)}</td><td class="r">${fCFA(d.totals.paid)}</td><td class="r">${fCFA(d.totals.due)}</td><td class="r">${fCFA(d.totals.due)}</td></tr></table>
+    <p><b>Solde : ${fCFA(d.totals.due)} FCFA</b></p>`;
+  acctPrintWindow("Relevé de compte", body);
+}
 
 /* ---- Stock : outils (import produits, stock d'ouverture, étiquettes) ---- */
 const STOCK_IMP={
@@ -6431,6 +6457,7 @@ async function stockPurchaseForm(poId){
     <div style="margin-top:10px"><button class="btn p" onclick="stockPurchaseSubmit()">Enregistrer l'achat</button></div></div>`;
   plRender();
   if(poId){ const sel=document.getElementById("puPO"); if(sel) sel.value=poId; stockPurchaseLoadPO(poId); }
+  if(window._prefillSup){ const el=document.getElementById("hdSup"); if(el) el.value=window._prefillSup; window._prefillSup=""; }
 }
 async function stockPurchaseLoadPO(id){
   if(!id){ window._puPOId=""; window._puPORef=""; return; }
@@ -6542,6 +6569,7 @@ function stockSaleForm(){ window._PLKIND='sale'; window._PL=[]; window._plQ="";
     <div class="err hidden" id="saErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockSaleSubmit()">Enregistrer la vente</button></div></div>`;
   plRender();
+  if(window._prefillCust){ const el=document.getElementById("hdCust"); if(el) el.value=window._prefillCust; window._prefillCust=""; }
 }
 async function stockSaleSubmit(){ const g=(x)=>(document.getElementById(x)||{}).value; const lines=plCollect();
   if(!lines.length){ const e=document.getElementById("saErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }

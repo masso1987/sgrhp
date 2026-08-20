@@ -92,6 +92,22 @@ router.delete("/contacts/:id", allow("ADM", "CD"), (req, res) => {
   const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   db.stockContacts.splice(db.stockContacts.indexOf(c), 1); save(); res.json({ ok: true });
 });
+router.get("/contacts/:id/statement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Contact introuvable" });
+  const kind = c.type || "fournisseur"; const rows = [];
+  const ob = R2(c.openingBalance);
+  if (ob) rows.push({ type: "Solde d'ouverture", ref: "", date: "", total: ob, paid: 0, due: ob });
+  if (kind === "client") {
+    for (const x of mine(db.stockSales, req).filter(y => y.customerId === c.id)) rows.push({ type: "Vente", ref: x.ref, date: x.date, total: R2(x.total), paid: R2(x.amountPaid), due: R2(x.total) - R2(x.amountPaid) });
+    for (const x of mine(db.stockSalesReturns, req).filter(y => y.customerId === c.id)) rows.push({ type: "Retour vente", ref: x.ref, date: x.date, total: -R2(x.total), paid: 0, due: -R2(x.total) });
+  } else {
+    for (const x of mine(db.stockPurchases, req).filter(y => y.supplierId === c.id)) rows.push({ type: "Achat", ref: x.ref, date: x.date, total: R2(x.total), paid: R2(x.amountPaid), due: R2(x.total) - R2(x.amountPaid) });
+    for (const x of mine(db.stockReturns, req).filter(y => y.supplierId === c.id)) rows.push({ type: "Retour achat", ref: x.ref, date: x.date, total: -R2(x.total), paid: 0, due: -R2(x.total) });
+  }
+  rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const totals = { total: rows.reduce((s, r) => s + r.total, 0), paid: rows.reduce((s, r) => s + r.paid, 0), due: rows.reduce((s, r) => s + r.due, 0) };
+  res.json({ contact: { id: c.id, code: c.contactId, name: c.name, kind, openingBalance: ob, mobile: c.mobile || "", email: c.email || "" }, rows, totals });
+});
 // Back-compat alias: suppliers = contacts of type fournisseur
 router.get("/suppliers", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
