@@ -552,3 +552,196 @@ router.delete("/salesreturns/:id", allow("ADM", "CD"), (req, res) => {
 
 module.exports = router;
 module.exports.seedStock = seedStock;
+
+/* ============================ RAPPORTS ============================ */
+function _nameMap(list) { const m = {}; for (const x of list) m[x.id] = x.name; return m; }
+function flattenSales(req, f) {
+  const prods = {}; for (const p of mine(db.stockProducts, req)) prods[p.id] = p;
+  const cats = _nameMap(mine(db.stockCategories, req)), brands = _nameMap(mine(db.stockBrands, req));
+  const rows = [];
+  for (const s of mine(db.stockSales, req)) {
+    if (f.from && (s.date || "") < f.from) continue; if (f.to && (s.date || "") > f.to) continue;
+    if (f.customerId && s.customerId !== f.customerId) continue;
+    if (f.createdBy && s.createdBy !== f.createdBy) continue;
+    for (const l of (s.lines || [])) {
+      const p = prods[l.productId] || {};
+      if (f.productId && l.productId !== f.productId) continue;
+      if (f.categoryId && p.categoryId !== f.categoryId) continue;
+      if (f.brandId && p.brandId !== f.brandId) continue;
+      if (f.q) { const hay = ((p.name || "") + " " + (p.sku || "") + " " + (p.barcode || "")).toLowerCase(); if (!hay.includes(f.q)) continue; }
+      const net = l.net != null ? l.net : Math.round(Q(l.qty) * R2(l.unitCost) * (1 - (Number(l.discountPct) || 0) / 100));
+      const tax = Math.round(net * (Number(s.taxPct) || 0) / 100);
+      rows.push({ date: s.date, ref: s.ref, docId: s.id, customerId: s.customerId, customerName: cName(req, s.customerId),
+        productId: l.productId, productName: p.name || "", sku: p.sku || "", categoryName: cats[p.categoryId] || "", brandName: brands[p.brandId] || "",
+        qty: Q(l.qty), pu: R2(l.unitCost), disc: Number(l.discountPct) || 0, net, tax, ttc: net + tax, cost: Math.round(Q(l.qty) * (Number(p.purchasePrice) || 0)),
+        createdBy: s.createdBy, channel: s.channel || "vente", paymentStatus: s.paymentStatus, amountPaid: R2(s.amountPaid), total: R2(s.total) });
+    }
+  }
+  return rows;
+}
+function flattenPurchases(req, f) {
+  const prods = {}; for (const p of mine(db.stockProducts, req)) prods[p.id] = p;
+  const cats = _nameMap(mine(db.stockCategories, req)), brands = _nameMap(mine(db.stockBrands, req));
+  const rows = [];
+  for (const s of mine(db.stockPurchases, req)) {
+    if (f.from && (s.date || "") < f.from) continue; if (f.to && (s.date || "") > f.to) continue;
+    if (f.supplierId && s.supplierId !== f.supplierId) continue;
+    for (const l of (s.lines || [])) {
+      const p = prods[l.productId] || {};
+      if (f.productId && l.productId !== f.productId) continue;
+      if (f.categoryId && p.categoryId !== f.categoryId) continue;
+      if (f.brandId && p.brandId !== f.brandId) continue;
+      if (f.q) { const hay = ((p.name || "") + " " + (p.sku || "") + " " + (p.barcode || "")).toLowerCase(); if (!hay.includes(f.q)) continue; }
+      const net = l.net != null ? l.net : Math.round(Q(l.qty) * R2(l.unitCost) * (1 - (Number(l.discountPct) || 0) / 100));
+      const tax = Math.round(net * (Number(s.taxPct) || 0) / 100);
+      rows.push({ date: s.date, ref: s.ref, docId: s.id, supplierId: s.supplierId, supplierName: cName(req, s.supplierId),
+        productId: l.productId, productName: p.name || "", sku: p.sku || "", categoryName: cats[p.categoryId] || "", brandName: brands[p.brandId] || "",
+        qty: Q(l.qty), pu: R2(l.unitCost), disc: Number(l.discountPct) || 0, net, tax, ttc: net + tax,
+        paymentStatus: s.paymentStatus, amountPaid: R2(s.amountPaid), total: R2(s.total) });
+    }
+  }
+  return rows;
+}
+const C = (k, l, fmt, align) => ({ k, l, fmt: fmt || "text", align: align || (fmt === "money" || fmt === "qty" || fmt === "pct" ? "r" : "l") });
+function groupBy(rows, keyField, nameField, aggs) {
+  const g = {};
+  for (const r of rows) { const k = r[keyField] || "—"; const o = g[k] || (g[k] = { _name: r[nameField] || k }); for (const a of aggs) o[a] = (o[a] || 0) + (r[a] || 0); }
+  return Object.entries(g).map(([k, v]) => Object.assign({ key: k, name: v._name }, v));
+}
+router.get("/reports", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedStock(req.user.tenantId || "t1");
+  const q = req.query || {};
+  const f = { from: q.from || "", to: q.to || "", productId: q.productId || "", categoryId: q.categoryId || "", brandId: q.brandId || "", customerId: q.customerId || "", supplierId: q.supplierId || "", createdBy: q.createdBy || "", q: (q.q || "").toLowerCase().trim() };
+  const type = q.type || "product-sales"; const tab = q.tab || "detail";
+  const sum = (rows, k) => rows.reduce((s, r) => s + (r[k] || 0), 0);
+  let out = { title: "", columns: [], rows: [], totals: {} };
+
+  if (type === "product-sales") {
+    const S = flattenSales(req, f);
+    if (tab === "grouped") {
+      out.title = "Rapport de vente de produit — Groupé";
+      out.columns = [C("name", "Produit"), C("sku", "SKU"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money"), C("marge", "Marge", "money")];
+      const g = {}; for (const r of S) { const o = g[r.productId] || (g[r.productId] = { name: r.productName, sku: r.sku, qty: 0, net: 0, tax: 0, ttc: 0, cost: 0 }); o.qty += r.qty; o.net += r.net; o.tax += r.tax; o.ttc += r.ttc; o.cost += r.cost; }
+      out.rows = Object.values(g).map(o => Object.assign(o, { marge: o.net - o.cost }));
+    } else if (tab === "category" || tab === "brand") {
+      const nf = tab === "category" ? "categoryName" : "brandName";
+      out.title = "Rapport de vente de produit — Par " + (tab === "category" ? "catégorie" : "marque");
+      out.columns = [C("name", tab === "category" ? "Catégorie" : "Marque"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money"), C("marge", "Marge", "money")];
+      const g = {}; for (const r of S) { const key = r[nf] || "—"; const o = g[key] || (g[key] = { name: key, qty: 0, net: 0, tax: 0, ttc: 0, cost: 0 }); o.qty += r.qty; o.net += r.net; o.tax += r.tax; o.ttc += r.ttc; o.cost += r.cost; }
+      out.rows = Object.values(g).map(o => Object.assign(o, { marge: o.net - o.cost }));
+    } else {
+      const atCost = tab === "cost";
+      out.title = "Rapport de vente de produit — Détaillé" + (atCost ? " (à l'achat)" : "");
+      out.columns = [C("productName", "Produit"), C("sku", "SKU"), C("customerName", "Client"), C("ref", "Réf n°"), C("date", "Date"), C("qty", "Quantité", "qty"), C("pu", "Prix unitaire", "money"), C("tax", "Impôt", "money"), C("ttc", "Prix TTC", "money"), atCost ? C("cost", "Coût", "money") : C("net", "Total HT", "money")];
+      out.rows = S;
+    }
+    out.totals = { qty: sum(out.rows, "qty"), net: sum(out.rows, "net"), tax: sum(out.rows, "tax"), ttc: sum(out.rows, "ttc"), marge: sum(out.rows, "marge"), cost: sum(out.rows, "cost") };
+  }
+  else if (type === "product-purchases") {
+    const P = flattenPurchases(req, f);
+    if (tab === "grouped") {
+      out.title = "Rapport d'achat de produit — Groupé";
+      out.columns = [C("name", "Produit"), C("sku", "SKU"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money")];
+      const g = {}; for (const r of P) { const o = g[r.productId] || (g[r.productId] = { name: r.productName, sku: r.sku, qty: 0, net: 0, tax: 0, ttc: 0 }); o.qty += r.qty; o.net += r.net; o.tax += r.tax; o.ttc += r.ttc; }
+      out.rows = Object.values(g);
+    } else {
+      out.title = "Rapport d'achat de produit — Détaillé";
+      out.columns = [C("productName", "Produit"), C("sku", "SKU"), C("supplierName", "Fournisseur"), C("ref", "Réf n°"), C("date", "Date"), C("qty", "Quantité", "qty"), C("pu", "Coût unitaire", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money")];
+      out.rows = P;
+    }
+    out.totals = { qty: sum(out.rows, "qty"), net: sum(out.rows, "net"), tax: sum(out.rows, "tax"), ttc: sum(out.rows, "ttc") };
+  }
+  else if (type === "stock") {
+    out.title = "Rapport d'articles / de stock";
+    out.columns = [C("name", "Produit"), C("sku", "SKU"), C("categoryName", "Catégorie"), C("brandName", "Marque"), C("qty", "Stock", "qty"), C("purchasePrice", "PU achat", "money"), C("salePrice", "PU vente", "money"), C("value", "Valeur stock", "money")];
+    const cats = _nameMap(mine(db.stockCategories, req)), brands = _nameMap(mine(db.stockBrands, req));
+    out.rows = mine(db.stockProducts, req).filter(p => (!f.categoryId || p.categoryId === f.categoryId) && (!f.brandId || p.brandId === f.brandId) && (!f.q || ((p.name || "") + " " + (p.sku || "")).toLowerCase().includes(f.q)))
+      .map(p => ({ name: p.name, sku: p.sku, categoryName: cats[p.categoryId] || "", brandName: brands[p.brandId] || "", qty: Q(p.qty), purchasePrice: R2(p.purchasePrice), salePrice: R2(p.salePrice), value: Math.round(Q(p.qty) * R2(p.purchasePrice)) }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    out.totals = { qty: sum(out.rows, "qty"), value: sum(out.rows, "value") };
+  }
+  else if (type === "profit-loss") {
+    const S = flattenSales(req, f);
+    const revenue = sum(S, "net"), cogs = sum(S, "cost"), taxColl = sum(S, "tax");
+    out.title = "Rapport Profit / Perte";
+    out.columns = [C("label", "Élément"), C("amount", "Montant", "money")];
+    out.rows = [{ label: "Ventes (HT)", amount: revenue }, { label: "Coût des marchandises vendues (CMV)", amount: -cogs }, { label: "= Marge brute", amount: revenue - cogs }, { label: "TVA collectée (mémo)", amount: taxColl }];
+    out.totals = { amount: revenue - cogs };
+  }
+  else if (type === "purchase-sale") {
+    const S = flattenSales(req, f), P = flattenPurchases(req, f);
+    out.title = "Achat & Vente";
+    out.columns = [C("label", "Élément"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money")];
+    out.rows = [
+      { label: "Achats", qty: sum(P, "qty"), net: sum(P, "net"), tax: sum(P, "tax"), ttc: sum(P, "ttc") },
+      { label: "Ventes", qty: sum(S, "qty"), net: sum(S, "net"), tax: sum(S, "tax"), ttc: sum(S, "ttc") },
+      { label: "Marge (ventes − CMV)", qty: 0, net: sum(S, "net") - sum(S, "cost"), tax: 0, ttc: 0 }];
+  }
+  else if (type === "product-trend") {
+    const S = flattenSales(req, f);
+    out.title = "Tendance des produits (meilleures ventes)";
+    out.columns = [C("name", "Produit"), C("sku", "SKU"), C("qty", "Quantité vendue", "qty"), C("net", "CA HT", "money"), C("marge", "Marge", "money")];
+    const g = {}; for (const r of S) { const o = g[r.productId] || (g[r.productId] = { name: r.productName, sku: r.sku, qty: 0, net: 0, cost: 0 }); o.qty += r.qty; o.net += r.net; o.cost += r.cost; }
+    out.rows = Object.values(g).map(o => Object.assign(o, { marge: o.net - o.cost })).sort((a, b) => b.qty - a.qty);
+    out.totals = { qty: sum(out.rows, "qty"), net: sum(out.rows, "net"), marge: sum(out.rows, "marge") };
+  }
+  else if (type === "payments-sales" || type === "payments-purchase") {
+    const isSale = type === "payments-sales";
+    const list = mine(isSale ? db.stockSales : db.stockPurchases, req).filter(d => (!f.from || (d.date || "") >= f.from) && (!f.to || (d.date || "") <= f.to) && (isSale ? (!f.customerId || d.customerId === f.customerId) : (!f.supplierId || d.supplierId === f.supplierId)));
+    out.title = isSale ? "Rapport de paiement de vente" : "Rapport de paiement d'achat";
+    out.columns = [C("ref", "Réf"), C("date", "Date"), C("party", isSale ? "Client" : "Fournisseur"), C("status", "Statut"), C("total", "Total", "money"), C("paid", "Payé", "money"), C("due", "Dû", "money")];
+    out.rows = list.map(d => ({ ref: d.ref, date: d.date, party: cName(req, isSale ? d.customerId : d.supplierId), status: d.paymentStatus, total: R2(d.total), paid: R2(d.amountPaid), due: R2(d.total) - R2(d.amountPaid) })).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    out.totals = { total: sum(out.rows, "total"), paid: sum(out.rows, "paid"), due: sum(out.rows, "due") };
+  }
+  else if (type === "cash") {
+    const S = mine(db.stockSales, req).filter(d => (!f.from || (d.date || "") >= f.from) && (!f.to || (d.date || "") <= f.to));
+    out.title = "Rapport de caisse (encaissements)";
+    out.columns = [C("ref", "Réf"), C("date", "Date"), C("customer", "Client"), C("channel", "Canal"), C("paid", "Encaissé", "money")];
+    out.rows = S.filter(d => R2(d.amountPaid) > 0).map(d => ({ ref: d.ref, date: d.date, customer: cName(req, d.customerId), channel: d.channel || "vente", paid: R2(d.amountPaid) })).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    out.totals = { paid: sum(out.rows, "paid") };
+  }
+  else if (type === "adjustments") {
+    const prods = {}; for (const p of mine(db.stockProducts, req)) prods[p.id] = p;
+    out.title = "Rapport d'ajustement de stock";
+    out.columns = [C("date", "Date"), C("productName", "Produit"), C("qty", "Variation", "qty"), C("reason", "Motif"), C("ref", "Réf")];
+    out.rows = mine(db.stockMovements, req).filter(m => m.type === "ajustement" && (!f.from || (m.date || "") >= f.from) && (!f.to || (m.date || "") <= f.to) && (!f.productId || m.productId === f.productId))
+      .map(m => ({ date: m.date, productName: (prods[m.productId] || {}).name || "", qty: Q(m.qty), reason: m.reason || "", ref: m.ref || "" })).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  }
+  else if (type === "supplier-customer") {
+    const P = flattenPurchases(req, f), S = flattenSales(req, f);
+    out.title = "Rapport fournisseur & client";
+    out.columns = [C("name", "Tiers"), C("role", "Type"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("paid", "Payé", "money"), C("due", "Dû", "money")];
+    const g = {};
+    for (const d of mine(db.stockPurchases, req)) { if (f.from && (d.date || "") < f.from) continue; if (f.to && (d.date || "") > f.to) continue; const key = "F:" + d.supplierId; const o = g[key] || (g[key] = { name: cName(req, d.supplierId), role: "Fournisseur", qty: 0, net: 0, paid: 0, due: 0 }); o.net += R2(d.subtotal); o.paid += R2(d.amountPaid); o.due += R2(d.total) - R2(d.amountPaid); }
+    for (const d of mine(db.stockSales, req)) { if (f.from && (d.date || "") < f.from) continue; if (f.to && (d.date || "") > f.to) continue; const key = "C:" + d.customerId; const o = g[key] || (g[key] = { name: cName(req, d.customerId), role: "Client", qty: 0, net: 0, paid: 0, due: 0 }); o.net += R2(d.subtotal); o.paid += R2(d.amountPaid); o.due += R2(d.total) - R2(d.amountPaid); }
+    for (const r of P) { const key = "F:" + r.supplierId; if (g[key]) g[key].qty += r.qty; }
+    for (const r of S) { const key = "C:" + r.customerId; if (g[key]) g[key].qty += r.qty; }
+    out.rows = Object.values(g).filter(o => o.name).sort((a, b) => a.role.localeCompare(b.role) || String(a.name).localeCompare(String(b.name)));
+    out.totals = { net: sum(out.rows, "net"), paid: sum(out.rows, "paid"), due: sum(out.rows, "due") };
+  }
+  else if (type === "tax") {
+    const S = flattenSales(req, f), P = flattenPurchases(req, f);
+    const collected = sum(S, "tax"), deductible = sum(P, "tax");
+    out.title = "Rapport d'impôt (TVA)";
+    out.columns = [C("label", "Élément"), C("base", "Base HT", "money"), C("tax", "Impôt", "money")];
+    out.rows = [{ label: "TVA collectée (ventes)", base: sum(S, "net"), tax: collected }, { label: "TVA déductible (achats)", base: sum(P, "net"), tax: deductible }, { label: "= TVA nette", base: 0, tax: collected - deductible }];
+    out.totals = { tax: collected - deductible };
+  }
+  else if (type === "by-user") {
+    const S = flattenSales(req, f); const users = {}; for (const u of (db.users || [])) users[u.id] = u.fullName || u.email;
+    out.title = "Rapport du représentant (par utilisateur)";
+    out.columns = [C("name", "Utilisateur"), C("qty", "Quantité", "qty"), C("net", "CA HT", "money"), C("ttc", "CA TTC", "money")];
+    const g = {}; for (const r of S) { const key = r.createdBy || "—"; const o = g[key] || (g[key] = { name: users[key] || "—", qty: 0, net: 0, ttc: 0 }); o.qty += r.qty; o.net += r.net; o.ttc += r.ttc; }
+    out.rows = Object.values(g).sort((a, b) => b.net - a.net);
+    out.totals = { qty: sum(out.rows, "qty"), net: sum(out.rows, "net"), ttc: sum(out.rows, "ttc") };
+  }
+  else if (type === "activity") {
+    const prods = {}; for (const p of mine(db.stockProducts, req)) prods[p.id] = p;
+    out.title = "Journal d'activité (mouvements de stock)";
+    out.columns = [C("date", "Date"), C("type", "Type"), C("productName", "Produit"), C("qty", "Quantité", "qty"), C("ref", "Réf")];
+    out.rows = mine(db.stockMovements, req).filter(m => (!f.from || (m.date || "") >= f.from) && (!f.to || (m.date || "") <= f.to) && (!f.productId || m.productId === f.productId))
+      .map(m => ({ date: m.date, type: m.type, productName: (prods[m.productId] || {}).name || "", qty: Q(m.qty), ref: m.ref || "" })).sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 1000);
+  }
+  else return res.status(400).json({ error: "Type de rapport inconnu" });
+  res.json(out);
+});
