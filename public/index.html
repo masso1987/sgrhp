@@ -6456,28 +6456,42 @@ async function stockPOView(){
       <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Fournisseur</th><th>Réception</th><th>Statut commande</th><th class="r">Qté restante</th><th class="r">Total</th><th></th></tr>
       ${list.length?list.map(po=>`<tr><td><code>${esc(po.ref)}</code> ${attachLink(po.attachment)}</td><td>${esc(po.date||'')}</td><td>${esc(stSupName(po.supplierId))}</td>
         <td>${stStatusTag(po.status)}</td>
-        <td><select onchange="stockPOSetStatus('${po.id}',this.value)" style="margin:0;padding:2px 4px;font-size:12px">${poStOpts(po.orderStatus||'commande')}</select></td>
+        <td>${poStTag(po.orderStatus||'commande')}</td>
         <td class="r">${po.remaining}</td><td class="r">${fCFA(po.total)}</td>
-        <td style="white-space:nowrap">${po.status!=='completed'?`<button class="btn p sm" onclick="stockPurchaseForm('${po.id}')">Conclure l'achat</button>`:''}
-          ${po.received<=0?`<button class="btn ghost sm" onclick="stockPODelete('${po.id}')">✕</button>`:''}</td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
+        <td><details class="rowmenu"><summary class="btn ghost sm">Actions ▾</summary><div class="rowmenu-pop">
+          <a onclick="stockPOViewDoc('${po.id}')">👁️ Voir</a>
+          <a onclick="stockPOPrint('${po.id}')">🖨️ Impression</a>
+          ${po.received<=0?`<a onclick="stockPOForm('${po.id}')">✏️ Modifier</a>`:''}
+          <a onclick="stockPOShipping('${po.id}')">🚚 Modifier l'expédition</a>
+          ${po.status!=='completed'?`<a onclick="stockPurchaseForm('${po.id}')">📥 Conclure l'achat</a>`:''}
+          ${po.received<=0?`<a onclick="stockPODelete('${po.id}')">🗑️ Effacer</a>`:''}
+        </div></details></td></tr>`).join(""):'<tr><td colspan="8" style="color:var(--muted)">Aucun bon de commande.</td></tr>'}
       </table></div>`;
 }
-function stockPOForm(){
-  window._PLKIND='po'; window._PL=[]; window._plQ="";
+async function stockPOForm(id){
+  await stockLoadRefs(); window._PLKIND='po'; window._PL=[]; window._plQ=""; window._poAttach=null; window._poEditId=id||"";
+  let po=null; if(id) po=await api("/stock/po/"+id).catch(()=>null);
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpo')">← Bons de commande</button>
-    <h1 style="margin-top:10px">Ajouter un bon de commande</h1>
+    <h1 style="margin-top:10px">${id?'Modifier le bon de commande':'Ajouter un bon de commande'}</h1>
     <div class="panel">${plHeaderHtml('po')}
-    <div class="grid3" style="margin-top:6px"><div><label>Statut de commande</label><select id="poStatus">${poStOpts('commande')}</select></div>
-      <div><label>Joindre un document (≤ 5 Mo)</label><input type="file" id="poFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_poAttach')"></div></div>
+    <div class="grid3" style="margin-top:6px"><div><label>Statut de commande</label><select id="poStatus">${poStOpts(po?po.orderStatus:'commande')}</select></div>
+      <div><label>Joindre un document (≤ 5 Mo)</label><input type="file" id="poFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_poAttach')">${po&&po.attachment?` ${attachLink(po.attachment)}`:''}</div></div>
     <div id="plBox" style="margin-top:8px"></div>${plTotalsHtml('po')}
     <div class="err hidden" id="poErr" style="margin-top:6px"></div>
-    <div style="margin-top:10px"><button class="btn p" onclick="stockPOSubmit()">Enregistrer le BC</button></div></div>`;
+    <div style="margin-top:10px"><button class="btn p" onclick="stockPOSubmit('${id||''}')">${id?'Mettre à jour le BC':'Enregistrer le BC'}</button></div></div>`;
+  if(po){ window._PL=(po.lines||[]).map(l=>({productId:l.productId,qty:l.qty,unitCost:l.unitCost,discountPct:l.discountPct})); }
   plRender();
+  if(po){ const g=(x)=>document.getElementById(x);
+    if(g("hdSup")) g("hdSup").value=po.supplierId||""; if(g("hdDate")) g("hdDate").value=po.date||""; if(g("hdRef")) g("hdRef").value=po.ref||"";
+    if(g("hdTerms")) g("hdTerms").value=po.paymentTerms||""; if(g("hdLoc")) g("hdLoc").value=po.location||""; if(g("hdDelay")) g("hdDelay").value=po.deliveryDelay||"";
+    if(g("plTax")) g("plTax").value=po.taxPct||0; if(g("plShip")) g("plShip").value=po.shippingFee||0; plTotals(); }
 }
-async function stockPOSubmit(){
+async function stockPOSubmit(id){
   const g=(x)=>(document.getElementById(x)||{}).value;
   const lines=plCollect(); if(!lines.length){ const e=document.getElementById("poErr"); e.textContent="Ajoutez au moins une ligne."; e.classList.remove("hidden"); return; }
-  try{ await api("/stock/po",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),location:g("hdLoc"),deliveryDelay:g("hdDelay"),orderStatus:g("poStatus"),attachment:window._poAttach,taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines})});
+  const body={supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),location:g("hdLoc"),deliveryDelay:g("hdDelay"),orderStatus:g("poStatus"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,lines};
+  if(window._poAttach) body.attachment=window._poAttach;
+  try{ if(id) await api("/stock/po/"+id,{method:"PUT",body:JSON.stringify(body)}); else await api("/stock/po",{method:"POST",body:JSON.stringify(body)});
     go('stockpo'); }catch(e){ const el=document.getElementById("poErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stockPOReceive(id,ref){ if(!confirm("Recevoir le reliquat du BC "+ref+" ? Le stock sera incrémenté et un achat créé.")) return;
@@ -6864,6 +6878,88 @@ async function stockTransferSubmit(){
 }
 async function stockTransferStatus(id,st){ try{ await api("/stock/transfers/"+id+"/status",{method:"PUT",body:JSON.stringify({status:st})}); }catch(e){ alert(e.message); stockTransfersView(); } }
 async function stockTransferDelete(id){ if(!confirm("Supprimer ce transfert ?")) return; try{ await api("/stock/transfers/"+id,{method:"DELETE"}); stockTransfersView(); }catch(e){ alert(e.message); } }
+
+/* ================= Bon de commande : Voir / Imprimer / Expédition ================= */
+async function stockCompany(){ if(window._STKCOMPANY) return window._STKCOMPANY;
+  try{ const st=await api("/settings"); const lh=(st.branding&&st.branding.letterhead)||{}; const c=Object.assign({},(st.branding&&st.branding.company)||{},lh.company||{}); window._STKCOMPANY=c; return c; }catch(e){ return {}; } }
+const PO_ACT_LABELS={CREATED:"Ajouté",UPDATED:"Édité",RECEIVED:"Reçu",STATUS:"Statut modifié",SHIPPING:"Expédition modifiée",POSTED:"Comptabilisé",DELETED:"Supprimé"};
+function poAchatStatus(st){ return {ordered:"Ordered (Commandé)",partial:"Partiel",completed:"Reçu"}[st]||st; }
+function stockPODocHtml(po,company,opts){
+  opts=opts||{}; const sup=(window._STK.sups||[]).find(x=>x.id===po.supplierId)||{}; const prods=window._STK.prods||[];
+  const skuOf=(pid)=>{ const p=prods.find(x=>x.id===pid); return p?(p.sku||""):""; };
+  const X=(n)=>"XAF "+fCFA(n);
+  const rows=(po.lines||[]).map((l,i)=>{ const qty=Number(l.qty)||0; const rec=Number(l.receivedQty)||0; const rem=qty-rec; const disc=Number(l.discountPct)||0;
+    const puAfterDisc=Math.round((Number(l.unitCost)||0)*(1-disc/100)); const net=l.net!=null?l.net:Math.round(qty*puAfterDisc); const tax=Math.round(net*(Number(po.taxPct)||0)/100);
+    const revient=qty?Math.round((net+tax)/qty):0;
+    return `<tr><td>${i+1}</td><td>${esc(l.productName||"")}</td><td>${esc(skuOf(l.productId))}</td><td class="r">${rem}</td><td class="r">${qty}</td><td class="r">${X(l.unitCost)}</td><td class="r">${disc.toFixed(2)} %</td><td class="r">${X(puAfterDisc)}</td><td class="r">${X(net)}</td><td class="r">${X(tax)}</td><td class="r">${X(revient)}</td><td class="r">${X(net+tax)}</td></tr>`;
+  }).join("");
+  const acts=opts.activities?`<div style="margin-top:14px"><b>Activités :</b>
+    <table style="margin-top:4px;width:100%"><tr><th>Date</th><th>Action</th><th>Par</th><th>Remarque</th></tr>
+    ${opts.activities.length?opts.activities.map(a=>`<tr><td>${esc((a.at||"").replace("T"," ").slice(0,16))}</td><td>${esc(PO_ACT_LABELS[a.action]||a.action)}</td><td>${esc(a.userName||"")}</td><td>${esc((a.detail&&a.detail.orderStatus)?PO_ST_LABELS[a.detail.orderStatus]:"")}</td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">—</td></tr>'}</table></div>`:'';
+  const bc=opts.barcode?`<div style="text-align:center;margin-top:16px"><svg id="poBarcode" data-code="${esc(po.ref)}"></svg><div style="font-family:monospace;font-size:11px">${esc(po.ref)}</div></div>`:'';
+  return `<div style="font-size:12.5px;color:#111">
+    <div style="text-align:right;font-weight:600">Date: ${esc(po.date||"")}</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:6px">
+      <div style="flex:1;min-width:180px"><b>Fournisseur:</b><br>${esc(sup.name||"")}<br>${sup.mobile?"Mobile: "+esc(sup.mobile)+"<br>":""}${sup.email?"Email: "+esc(sup.email):""}</div>
+      <div style="flex:1;min-width:180px"><b>Entreprise:</b><br><b>${esc(company.name||"")}</b><br>${esc(company.address||"")}${company.city?"<br>"+esc(company.city):""}${company.niu?"<br>NIU:: "+esc(company.niu):""}${company.rccm?"<br>RCCM:: "+esc(company.rccm):""}${company.phone?"<br>Mobile: "+esc(company.phone):""}</div>
+      <div style="flex:1;min-width:180px"><b>Numéro de référence:</b><br>#${esc(po.ref)}<br><b>Date:</b> ${esc(po.date||"")}<br><b>Statut d'achat:</b> ${esc(poAchatStatus(po.status))}<br><b>Expédition:</b> ${poStTag(po.orderStatus||"commande")}${po.paymentTerms?"<br>"+esc(po.paymentTerms):""}${po.deliverTo?"<br><b>Livré à:</b> "+esc(po.deliverTo):""}</div>
+    </div>
+    <table style="margin-top:14px;width:100%"><tr style="background:#2e7d5b;color:#fff"><th>#</th><th>Nom du produit</th><th>SKU</th><th class="r">Qté restante</th><th class="r">Qté commandée</th><th class="r">Coût u. (av. remise)</th><th class="r">% escompte</th><th class="r">Coût u. (av. impôt)</th><th class="r">Sous-total (av. impôt)</th><th class="r">Impôt</th><th class="r">P.U. de revient</th><th class="r">Total</th></tr>${rows}</table>
+    <div style="margin-top:12px;margin-left:auto;max-width:420px">
+      <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #ccc"><b>Montant total net:</b><span>${X(po.subtotal)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Remise: (-)</span><span>${X(0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Taxe d'achat: (+)</span><span>${X(po.tax||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Frais de livraison: (+)</span><span>${X(po.shippingFee||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #999;font-weight:700"><span>Total d'achat:</span><span>${X(po.total)}</span></div>
+    </div>
+    <div style="margin-top:12px"><b>Délai de livraison:</b><div style="border:1px solid #ddd;padding:6px;border-radius:4px;margin-top:2px">${esc(po.deliveryDelay||"")}</div></div>
+    <div style="margin-top:8px"><b>La Direction:</b><div style="border:1px solid #ddd;padding:6px;border-radius:4px;margin-top:2px">${esc(po.note||"")}</div></div>
+    ${acts}${bc}</div>`;
+}
+async function stockPOViewDoc(id){
+  await stockLoadRefs(); const company=await stockCompany();
+  const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
+  let acts=[]; try{ acts=(await api("/audit?objectType=StockPO")).filter(a=>a.objectId===id); }catch(e){}
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:min(1050px,96vw);max-height:92vh;overflow:auto">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px"><button class="btn p sm" onclick="stockPOPrint('${id}')">🖨️ Imprimer</button><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">✕</button></div>
+    ${stockPODocHtml(po,company,{activities:acts})}</div>`;
+  document.body.appendChild(bg);
+}
+async function stockPOPrint(id){
+  await stockLoadRefs(); const company=await stockCompany();
+  const po=await api("/stock/po/"+id).catch(()=>null); if(!po) return;
+  const doc=stockPODocHtml(po,company,{barcode:true});
+  const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(po.ref)}</title>
+    <style>body{font-family:Arial,sans-serif;margin:16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:10mm}}</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${doc}
+    <script>window.onload=function(){try{JsBarcode("#poBarcode",${JSON.stringify(po.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
+  w.document.close();
+}
+function stockPOShipping(id){
+  const po=(window._puPOs||[]).find(x=>x.id===id);
+  api("/stock/po/"+id).then(po=>{
+    const bg=document.createElement("div"); bg.className="modal-bg";
+    bg.innerHTML=`<div class="modal" style="width:460px"><h3 style="margin:0 0 8px">Modifier l'expédition — ${esc(po.ref)}</h3>
+      <div class="grid2">
+        <div><label>Statut d'expédition</label><select id="shSt">${poStOpts(po.orderStatus||'commande')}</select></div>
+        <div><label>Frais d'expédition</label><input id="shFee" type="number" value="${po.shippingFee||0}"></div>
+        <div style="grid-column:1/3"><label>Délai de livraison</label><input id="shDelay" value="${esc(po.deliveryDelay||'')}"></div>
+        <div style="grid-column:1/3"><label>Livré à</label><input id="shTo" value="${esc(po.deliverTo||'')}"></div>
+      </div>
+      <div class="err hidden" id="shErr" style="margin-top:6px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockPOShippingSave('${id}')">Enregistrer</button>
+        <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+    document.body.appendChild(bg);
+  }).catch(e=>alert(e.message));
+}
+async function stockPOShippingSave(id){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  try{ await api("/stock/po/"+id+"/shipping",{method:"PUT",body:JSON.stringify({orderStatus:g("shSt"),shippingFee:Number(g("shFee"))||0,deliveryDelay:g("shDelay"),deliverTo:g("shTo")})});
+    document.querySelector(".modal-bg").remove(); stockPOView(); }
+  catch(e){ const el=document.getElementById("shErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
 
 </script>
 </body>

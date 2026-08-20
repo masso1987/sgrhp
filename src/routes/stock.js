@@ -346,7 +346,15 @@ router.put("/po/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   if (Array.isArray(b.lines)) { const { lines, subtotal } = calcLines(b.lines); po.lines = lines; po.subtotal = subtotal; const t = docTotals(subtotal, b.taxPct != null ? b.taxPct : po.taxPct, b.shippingFee != null ? b.shippingFee : po.shippingFee); po.tax = t.tax; po.total = t.total; }
   if (b.taxPct !== undefined) po.taxPct = Number(b.taxPct) || 0;
   if (b.shippingFee !== undefined) po.shippingFee = R2(b.shippingFee);
-  save(); res.json(poOut(po));
+  save(); audit(req.user, "UPDATED", "StockPO", po.id, { ref: po.ref }); res.json(poOut(po));
+});
+router.put("/po/:id/shipping", allow("ADM", "CD", "GPF"), (req, res) => {
+  const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
+  const b = req.body || {};
+  if (b.orderStatus !== undefined && PO_ORDER_STATUS.includes(b.orderStatus)) po.orderStatus = b.orderStatus;
+  for (const k of ["deliveryDelay", "deliverTo"]) if (b[k] !== undefined) po[k] = b[k];
+  if (b.shippingFee !== undefined) { po.shippingFee = R2(b.shippingFee); po.total = po.subtotal + po.tax + po.shippingFee; }
+  save(); audit(req.user, "SHIPPING", "StockPO", po.id, {}); res.json(poOut(po));
 });
 router.delete("/po/:id", allow("ADM", "CD"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "Introuvable" });
@@ -357,7 +365,7 @@ router.delete("/po/:id", allow("ADM", "CD"), (req, res) => {
 router.put("/po/:id/status", allow("ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   const st = (req.body || {}).orderStatus; if (!PO_ORDER_STATUS.includes(st)) return res.status(400).json({ error: "Statut invalide" });
-  po.orderStatus = st; save(); res.json({ ok: true, orderStatus: st });
+  po.orderStatus = st; save(); audit(req.user, "STATUS", "StockPO", po.id, { orderStatus: st }); res.json({ ok: true, orderStatus: st });
 });
 router.post("/po/:id/receive", allow("ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
