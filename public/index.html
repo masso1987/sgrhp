@@ -889,6 +889,8 @@ const NAV = [
   { k: "stocksalesreturns", label: "↩️ Retours de vente", sec: "Ventes", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockadjust", label: "⚖️ Ajustement", sec: "Stock", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockmoves", label: "🧾 Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
+  { k: "stocklocations", label: "📍 Emplacements", sec: "Transferts", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
+  { k: "stocktransfers", label: "🚚 Transferts de stock", sec: "Transferts", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
   { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], module: "stock", grp: "stock" },
@@ -990,7 +992,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -5808,11 +5810,11 @@ async function acctJournalSave(id){
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};
 async function stockLoadRefs(){
-  const [cats,units,sups,clients,prods]=await Promise.all([
+  const [cats,units,sups,clients,prods,brands,warranties,pricegroups,locations]=await Promise.all([
     api("/stock/categories").catch(()=>[]), api("/stock/units").catch(()=>[]),
     api("/stock/contacts?type=fournisseur").catch(()=>[]), api("/stock/contacts?type=client").catch(()=>[]),
-    api("/stock/products").catch(()=>[])]);
-  window._STK={cats,units,sups,clients,prods};
+    api("/stock/products").catch(()=>[]), api("/stock/brands").catch(()=>[]), api("/stock/warranties").catch(()=>[]), api("/stock/pricegroups").catch(()=>[]), api("/stock/locations").catch(()=>[])]);
+  window._STK={cats,units,sups,clients,prods,brands,warranties,pricegroups,locations};
 }
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
@@ -5927,7 +5929,8 @@ const STK_REF={
   brands:{title:"🏷️ Marques",ep:"brands",cols:[{k:"name",l:"Nom"},{k:"note",l:"Note"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"note",l:"Note",type:"text"}]},
   warranties:{title:"🛡️ Garanties",ep:"warranties",cols:[{k:"name",l:"Nom"},{k:"duration",l:"Durée"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"duration",l:"Durée (ex. 12 mois)",type:"text"},{k:"description",l:"Description",type:"text"}]},
   pricegroups:{title:"💲 Groupes de prix de vente",ep:"pricegroups",cols:[{k:"name",l:"Nom"},{k:"note",l:"Note"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"note",l:"Note",type:"text"}]},
-  variations:{title:"🎨 Variations",ep:"variations",cols:[{k:"name",l:"Variation"},{k:"values",l:"Valeurs"}],fields:[{k:"name",l:"Nom de la variation (ex. Taille)",type:"text"},{k:"values",l:"Valeurs (séparées par des virgules)",type:"text"}]}
+  variations:{title:"🎨 Variations",ep:"variations",cols:[{k:"name",l:"Variation"},{k:"values",l:"Valeurs"}],fields:[{k:"name",l:"Nom de la variation (ex. Taille)",type:"text"},{k:"values",l:"Valeurs (séparées par des virgules)",type:"text"}]},
+  locations:{title:"📍 Emplacements",ep:"locations",cols:[{k:"name",l:"Nom"},{k:"address",l:"Adresse"}],fields:[{k:"name",l:"Nom du lieu",type:"text"},{k:"address",l:"Adresse",type:"text"}]}
 };
 const stockCatsView=stkRefView(STK_REF.categories);
 const stockUnitsView=stkRefView(STK_REF.units);
@@ -5935,6 +5938,7 @@ const stockBrandsView=stkRefView(STK_REF.brands);
 const stockWarrantiesView=stkRefView(STK_REF.warranties);
 const stockPriceGroupsView=stkRefView(STK_REF.pricegroups);
 const stockVariationsView=stkRefView(STK_REF.variations);
+const stockLocationsView=stkRefView(STK_REF.locations);
 const stockSuppliersView=()=>stockContactsView("fournisseur");
 const stockClientsView=()=>stockContactsView("client");
 function stkRefModal(ep,id){
@@ -5951,11 +5955,11 @@ async function stkRefSave(ep,id){
   const cfg=STK_REF[ep]; const body={}; for(const fl of cfg.fields){ const el=document.getElementById("rf_"+fl.k); if(el) body[fl.k]=el.value; }
   try{ if(id) await api("/stock/"+ep+"/"+id,{method:"PUT",body:JSON.stringify(body)});
     else await api("/stock/"+ep,{method:"POST",body:JSON.stringify(body)});
-    document.querySelector(".modal-bg").remove(); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations'})[ep]); }
+    document.querySelector(".modal-bg").remove(); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations'})[ep]); }
   catch(e){ const el=document.getElementById("rfErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stkRefDelete(ep,id){ if(!confirm("Supprimer cet élément ?")) return;
-  try{ await api("/stock/"+ep+"/"+id,{method:"DELETE"}); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations'})[ep]); }catch(e){ alert(e.message); } }
+  try{ await api("/stock/"+ep+"/"+id,{method:"DELETE"}); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations'})[ep]); }catch(e){ alert(e.message); } }
 
 /* ---- Mouvements : entrées / sorties (éditeur de lignes) ---- */
 function stkProdOpts(cur){ return `<option value="">— produit —</option>`+(window._STK.prods||[]).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)} (stock ${stkQty(p.qty)})</option>`).join(""); }
@@ -6318,8 +6322,9 @@ async function plNewProductSave(){
 function plTotals(){
   (window._PL||[]).forEach((l,i)=>{ const el=document.getElementById("plnet"+i); if(el) el.textContent=fCFA(plNet(l)); });
   const sub=plSub(); const g=(x)=>{const e=document.getElementById(x);return e?Number(e.value)||0:0;};
-  const noTax=['return','salesreturn'].includes(window._PLKIND);
-  const tax=noTax?0:Math.round(sub*g("plTax")/100); const ship=noTax?0:g("plShip");
+  const noTax=['return','salesreturn','transfer'].includes(window._PLKIND);
+  const noShip=['return','salesreturn'].includes(window._PLKIND);
+  const tax=noTax?0:Math.round(sub*g("plTax")/100); const ship=noShip?0:g("plShip");
   const set=(x,v)=>{const e=document.getElementById(x);if(e)e.textContent=fCFA(v);};
   set("plSubV",sub); set("plTaxV",tax); set("plTotV",sub+tax+ship);
 }
@@ -6338,11 +6343,12 @@ function plHeaderHtml(kind,party){
     </div>`;
 }
 function plTotalsHtml(kind){
-  const showTax=!['return','salesreturn'].includes(kind);
+  const showTax=!['return','salesreturn','transfer'].includes(kind);
+  const showShip=!['return','salesreturn'].includes(kind);
   return `<div class="panel" style="max-width:360px;margin-left:auto;margin-top:10px">
     <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Sous-total</span><b id="plSubV">0</b></div>
-    ${showTax?`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Taxe %</span><input id="plTax" type="number" value="0" style="max-width:80px;text-align:right;margin:0" oninput="plTotals()"> <b id="plTaxV">0</b></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Frais d'expédition</span><input id="plShip" type="number" value="0" style="max-width:100px;text-align:right;margin:0" oninput="plTotals()"></div>`:''}
+    ${showTax?`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Taxe %</span><input id="plTax" type="number" value="0" style="max-width:80px;text-align:right;margin:0" oninput="plTotals()"> <b id="plTaxV">0</b></div>`:''}
+    ${showShip?`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Frais d'expédition</span><input id="plShip" type="number" value="0" style="max-width:100px;text-align:right;margin:0" oninput="plTotals()"></div>`:''}
     ${['purchase','sale'].includes(kind)?`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0"><span>Montant payé</span><input id="plPaid" type="number" value="0" style="max-width:100px;text-align:right;margin:0"></div>`:''}
     <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line);font-weight:700"><span>Total</span><b id="plTotV">0</b></div></div>`;
 }
@@ -6723,6 +6729,54 @@ function stockReportPrint(){
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.title)}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px}h1{font-size:16px;margin:0}h2{font-size:13px;margin:12px 0 6px}.sub{color:#555;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #bbb;padding:3px 6px}th{background:#eee}.tot{font-weight:700;background:#f3f3f3}@media print{body{margin:10mm}}</style></head><body><h1>${esc(company)}</h1><div class="sub">édité le ${dt}</div>${body}<script>window.onload=function(){window.print();}<\/script></body></html>`);
   w.document.close();
 }
+
+/* ================= Stock : Transferts de stock ================= */
+const TRF_ST_LABELS={en_cours:"En cours",termine:"Terminé",annule:"Annulé"};
+function trfStTag(st){ const c={en_cours:"#2563eb",termine:"#16a34a",annule:"#9ca3af"}[st]||"#9ca3af"; return `<span class="tag" style="background:${c};color:#fff">${TRF_ST_LABELS[st]||st||'—'}</span>`; }
+async function stockTransfersView(){
+  await stockLoadRefs(); const list=await api("/stock/transfers").catch(()=>[]);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
+    <h1 style="margin-top:10px">🚚 Transferts de stock</h1>
+    <div class="panel"><button class="btn p sm" style="float:right" onclick="stockTransferForm()">+ Ajouter un transfert</button><b>${list.length} transfert(s)</b>
+      <table style="margin-top:8px"><tr><th>N° réf</th><th>Date</th><th>Lieu (Du)</th><th>Lieu (Au)</th><th>Statut</th><th class="r">Montant total</th><th></th></tr>
+      ${list.length?list.map(t=>`<tr><td><code>${esc(t.ref)}</code></td><td>${esc(t.date||'')}</td><td>${esc(t.fromName||'')}</td><td>${esc(t.toName||'')}</td>
+        <td><select onchange="stockTransferStatus('${t.id}',this.value)" style="margin:0;padding:2px 4px;font-size:12px">${Object.keys(TRF_ST_LABELS).map(k=>`<option value="${k}" ${t.status===k?'selected':''}>${TRF_ST_LABELS[k]}</option>`).join("")}</select></td>
+        <td class="r">${fCFA(t.total)}</td><td><button class="btn ghost sm" onclick="stockTransferDelete('${t.id}')">✕</button></td></tr>`).join(""):'<tr><td colspan="7" style="color:var(--muted)">Aucun transfert.</td></tr>'}
+      </table></div>`;
+}
+async function stockTransferForm(){
+  await stockLoadRefs(); window._PLKIND='transfer'; window._PL=[]; window._plQ="";
+  const locs=window._STK.locations||[];
+  const locOpts=(id)=>`<option value="">Veuillez sélectionner</option>${locs.map(l=>`<option value="${l.id}" ${id===l.id?'selected':''}>${esc(l.name)}</option>`).join("")}`;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('stocktransfers')">← Transferts</button>
+    <h1 style="margin-top:10px">Ajouter un transfert de stock</h1>
+    <div class="panel">
+      <div class="grid3">
+        <div><label>Date</label><input id="hdDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div><label>N° référence <span class="note">(auto si vide)</span></label><input id="hdRef" placeholder="auto"></div>
+        <div><label>Statut *</label><select id="trStatus">${Object.keys(TRF_ST_LABELS).map(k=>`<option value="${k}">${TRF_ST_LABELS[k]}</option>`).join("")}</select></div>
+        <div><label>Lieu (Du) *</label><select id="trFrom">${locOpts('')}</select></div>
+        <div><label>Lieu (Au) *</label><select id="trTo">${locOpts('')}</select></div>
+      </div>
+      ${locs.length?'':'<div class="note" style="margin-top:6px">Aucun emplacement défini. Créez-en dans « 📍 Emplacements » d\'abord.</div>'}
+      <h3 style="margin:12px 0 4px">Recherche des produits</h3>
+      <div id="plBox"></div>${plTotalsHtml('transfer')}
+      <div style="margin-top:6px"><label>La Direction / note</label><input id="trNote"></div>
+      <div class="err hidden" id="trErr" style="margin-top:6px"></div>
+      <div style="margin-top:10px"><button class="btn p" onclick="stockTransferSubmit()">Sauvegarder</button></div></div>`;
+  plRender();
+}
+async function stockTransferSubmit(){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const lines=plCollect(); const err=(m)=>{ const e=document.getElementById("trErr"); e.textContent=m; e.classList.remove("hidden"); };
+  if(!g("trFrom")||!g("trTo")) return err("Sélectionnez le lieu de départ et d'arrivée.");
+  if(g("trFrom")===g("trTo")) return err("Les deux lieux doivent être différents.");
+  if(!lines.length) return err("Ajoutez au moins un produit.");
+  try{ await api("/stock/transfers",{method:"POST",body:JSON.stringify({date:g("hdDate"),ref:g("hdRef"),status:g("trStatus"),fromId:g("trFrom"),toId:g("trTo"),shippingFee:Number(g("plShip"))||0,note:g("trNote"),lines})});
+    go('stocktransfers'); }catch(e){ err(e.message); }
+}
+async function stockTransferStatus(id,st){ try{ await api("/stock/transfers/"+id+"/status",{method:"PUT",body:JSON.stringify({status:st})}); }catch(e){ alert(e.message); stockTransfersView(); } }
+async function stockTransferDelete(id){ if(!confirm("Supprimer ce transfert ?")) return; try{ await api("/stock/transfers/"+id,{method:"DELETE"}); stockTransfersView(); }catch(e){ alert(e.message); } }
 
 </script>
 </body>
