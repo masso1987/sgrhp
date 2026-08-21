@@ -762,6 +762,8 @@ const api = async (path, opts = {}) => {
   if (r.status === 429) throw new Error("Trop de requêtes — patientez quelques secondes");
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(j.error || `Erreur ${r.status}`); Object.assign(e, j); throw e; }
+  // Invalidate stock reference cache after any mutating /stock call so lists stay fresh.
+  try { const m=(opts.method||"GET").toUpperCase(); if(m!=="GET" && /^\/stock\b/.test(path) && typeof stockRefsReset==="function") stockRefsReset(); } catch(_){}
   return j;
 };
 
@@ -5818,13 +5820,15 @@ async function acctJournalSave(id){
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};
-async function stockLoadRefs(){
+function stockRefsReset(){ window._STK={}; window._STKREFS_AT=0; }
+async function stockLoadRefs(force){
+  if(!force && window._STK && window._STK.prods && (Date.now()-(window._STKREFS_AT||0)<60000)) return;
   const [cats,units,sups,clients,prods,brands,warranties,pricegroups,locations]=await Promise.all([
     api("/stock/categories").catch(()=>[]), api("/stock/units").catch(()=>[]),
     api("/stock/contacts?type=fournisseur").catch(()=>[]), api("/stock/contacts?type=client").catch(()=>[]),
     api("/stock/products").catch(()=>[]), api("/stock/brands").catch(()=>[]), api("/stock/warranties").catch(()=>[]), api("/stock/pricegroups").catch(()=>[]), api("/stock/locations").catch(()=>[])]);
   const [expensecats,accounts]=await Promise.all([api("/stock/expensecats").catch(()=>[]),api("/stock/accounts").catch(()=>[])]);
-  window._STK={cats,units,sups,clients,prods,brands,warranties,pricegroups,locations,expensecats,accounts};
+  window._STK={cats,units,sups,clients,prods,brands,warranties,pricegroups,locations,expensecats,accounts}; window._STKREFS_AT=Date.now();
 }
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
@@ -7147,7 +7151,7 @@ function stockPODocHtml(po,company,opts){
     <table style="margin-top:14px;width:100%"><tr style="background:#2e7d5b;color:#fff"><th>#</th><th>Nom du produit</th><th>SKU</th><th class="r">Qté restante</th><th class="r">Qté commandée</th><th class="r">Coût u. (av. remise)</th><th class="r">% escompte</th><th class="r">Coût u. (av. impôt)</th><th class="r">Sous-total (av. impôt)</th><th class="r">Impôt</th><th class="r">P.U. de revient</th><th class="r">Total</th></tr>${rows}</table>
     <div style="margin-top:12px;margin-left:auto;max-width:420px">
       <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #ccc"><b>Montant total net:</b><span>${X(po.subtotal)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Remise: (-)</span><span>${X(d.discount||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Remise: (-)</span><span>${X(po.discount||0)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Taxe d'achat: (+)</span><span>${X(po.tax||0)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Frais de livraison: (+)</span><span>${X(po.shippingFee||0)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #999;font-weight:700"><span>Total d'achat:</span><span>${X(po.total)}</span></div>
