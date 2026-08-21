@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -387,6 +387,8 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       partiesInteressees: mine(db.smqStakeholders, req).length, aRevoir: aRevoir.length,
       fiches: mine(db.smqImprovements, req).length,
       fichesOuvertes: mine(db.smqImprovements, req).filter(x => x.statut !== "cloturee").length,
+      evenements: mine(db.smqEvents, req).length,
+      evenementsNonRevus: mine(db.smqEvents, req).filter(x => !x.reviewed).length,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
@@ -491,6 +493,43 @@ router.get("/improvements-summary", allow(...RO), (req, res) => {
   for (const r of rows) for (const a of (r.actions || []))
     if (a.echeance && a.echeance < today && !["cloturee", "verifiee", "faite"].includes(a.statut)) enRetard++;
   res.json({ grid, totals, origines: IMP_ORIGINES, enRetard, ouvertes: totals.total - totals.cloturee });
+});
+
+/* ============================ Traçabilité qualité (événements) + configuration ============================ */
+router.get("/events", allow(...RO), (req, res) => {
+  let rows = mine(db.smqEvents, req).slice();
+  const q = req.query || {};
+  if (q.objectType) rows = rows.filter(r => r.objectType === q.objectType);
+  if (q.reviewed === "0") rows = rows.filter(r => !r.reviewed);
+  if (q.changed === "1") rows = rows.filter(r => r.changed);
+  rows.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  res.json(rows.slice(0, 500));
+});
+router.get("/events-summary", allow(...RO), (req, res) => {
+  const rows = mine(db.smqEvents, req);
+  const changed = rows.filter(r => r.changed).length;
+  const withFiche = rows.filter(r => r.improvementId).length;
+  const nonReviewed = rows.filter(r => !r.reviewed).length;
+  const byType = {}; rows.forEach(r => { byType[r.objectType || "?"] = (byType[r.objectType || "?"] || 0) + 1; });
+  res.json({ total: rows.length, changed, withFiche, nonReviewed, byType });
+});
+router.put("/events/:id/review", allow(...RW), (req, res) => {
+  const e = mine(db.smqEvents, req).find(r => r.id === req.params.id);
+  if (!e) return res.status(404).json({ error: "Introuvable" });
+  e.reviewed = req.body && req.body.reviewed === false ? false : true; save(); res.json(e);
+});
+router.get("/config", allow(...RO), (req, res) => {
+  if (!db.smqConfig) db.smqConfig = [];
+  let c = mine(db.smqConfig, req)[0];
+  if (!c) { c = stamp({ id: id("smq"), autoRaiseOnChange: true, createdAt: now() }, req); db.smqConfig.push(c); save(); }
+  res.json(c);
+});
+router.put("/config", allow(...RW), (req, res) => {
+  if (!db.smqConfig) db.smqConfig = [];
+  let c = mine(db.smqConfig, req)[0];
+  if (!c) { c = stamp({ id: id("smq"), createdAt: now() }, req); db.smqConfig.push(c); }
+  if (req.body.autoRaiseOnChange !== undefined) c.autoRaiseOnChange = !!req.body.autoRaiseOnChange;
+  c.updatedAt = now(); save(); res.json(c);
 });
 
 module.exports = router;

@@ -757,11 +757,30 @@ router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
   if (Array.isArray(req.body.lines)) inv.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
   save(); audit(req.user, "UPDATED", "BillingInvoice", inv.id, {}); res.json(withInvTotals(inv));
 });
+const invSnap = (inv) => { const t = invTotals(inv); return { number: inv.number, HT: t.HT, TVA: t.TVA, TTC: t.TTC, totalDu: t.totalDu }; };
 router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
-  inv.status = inv.status === "validated" ? "draft" : "validated";
+  const { qualityEvent } = require("../quality");
+  if (inv.status === "validated") {
+    // Réouverture d'une facture validée = correction contrôlée (motif requis) — on capture l'état avant.
+    const motif = (req.body && req.body.motif || "").trim();
+    if (!motif) return res.status(400).json({ error: "Motif de correction obligatoire pour rouvrir une facture validée." });
+    inv.status = "draft";
+    inv._reopen = { at: new Date().toISOString(), by: req.user.fullName, motif, before: invSnap(inv) };
+    save(); audit(req.user, "REOPENED", "BillingInvoice", inv.id, { motif });
+    qualityEvent(req, { objectType: "Facture", objectId: inv.id, ref: inv.number, action: "reouverture_apres_validation", motif, before: inv._reopen.before, after: inv._reopen.before, changed: false });
+    return res.json(withInvTotals(inv));
+  }
+  // Passage à validé : si la facture avait été rouverte, on détecte le changement de valeurs.
+  inv.status = "validated";
+  if (inv._reopen) {
+    const before = inv._reopen.before, after = invSnap(inv);
+    const changed = JSON.stringify(before) !== JSON.stringify(after);
+    qualityEvent(req, { objectType: "Facture", objectId: inv.id, ref: inv.number, action: "modif_apres_validation", motif: inv._reopen.motif, before, after, changed });
+    delete inv._reopen;
+  }
   save(); audit(req.user, "VALIDATED", "BillingInvoice", inv.id, { status: inv.status });
-  if (inv.status === "validated") { try { require("./accounting").generateInvoiceEntry(req, inv.id); } catch (e) {} }
+  try { require("./accounting").generateInvoiceEntry(req, inv.id); } catch (e) {}
   res.json(withInvTotals(inv));
 });
 router.delete("/invoices/:id", allow("ADM","CD","RJ"), (req, res) => {

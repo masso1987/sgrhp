@@ -911,6 +911,7 @@ const NAV = [
   { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
   { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
+  { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
   { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -1010,7 +1011,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1417,7 +1418,7 @@ async function permModal(uid) {
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
-  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.clauses","📚 Bibliothèque de clauses"]];
+  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.clauses","📚 Bibliothèque de clauses"]];
   const hasQuality = (u.modules || []).includes("quality");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -4776,7 +4777,14 @@ async function invoiceSave() {
     alert("Facture enregistrée."); } catch (e) { alert(e.message); }
 }
 async function invoiceValidate() {
-  try { const v = await api("/billing/invoices/" + INV_EDIT.id + "/validate", { method: "POST" }); INV_EDIT = await api("/billing/invoices/" + INV_EDIT.id); invoiceOpen(INV_EDIT.id); }
+  let body = {};
+  if (INV_EDIT.status === "validated") {
+    const motif = prompt("Rouvrir une facture VALIDÉE est une correction contrôlée (tracée par le SMQ).\nMotif de la correction :");
+    if (motif === null) return;
+    if (!motif.trim()) { alert("Le motif est obligatoire."); return; }
+    body = { motif: motif.trim() };
+  }
+  try { await api("/billing/invoices/" + INV_EDIT.id + "/validate", { method: "POST", body: JSON.stringify(body) }); INV_EDIT = await api("/billing/invoices/" + INV_EDIT.id); invoiceOpen(INV_EDIT.id); }
   catch (e) { alert(e.message); }
 }
 async function invoiceCompareRun() {
@@ -6335,6 +6343,32 @@ async function smqImpSpawn(idv){ if(!confirm("Ouvrir une nouvelle fiche liée (e
   try{ const r=await api("/smq/improvements/"+idv+"/spawn",{method:"POST"}); smqImpForm(r.id); }catch(e){ alert(e.message); } }
 function smqImpPrint(idv){ const el=document.getElementById("impDoc"); if(!el)return;
   const w=window.open("","_blank"); w.document.write(`<html><head><title>Fiche d'amélioration</title><style>body{font-family:Arial;margin:22mm 14mm;font-size:12px;color:#111}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px;text-align:left}h1{font-size:18px}.note{color:#666;font-size:11px}.tag{padding:1px 6px;border-radius:8px;font-size:11px}</style></head><body>${el.innerHTML.replace(/<button[\s\S]*?<\/button>/g,"")}</body></html>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
+
+/* ---------- Traçabilité qualité (événements de changement après validation) ---------- */
+const SMQ_EV_ACTION={reouverture_apres_validation:"Réouverture après validation",modif_apres_validation:"Modification après validation",devalidation:"Dévalidation",reouverture:"Réouverture"};
+async function smqEventsView(){
+  const [rows,sum,cfg]=await Promise.all([api("/smq/events").catch(()=>[]),api("/smq/events-summary").catch(()=>null),api("/smq/config").catch(()=>({autoRaiseOnChange:true}))]);
+  view.innerHTML=`<h1>🧭 Traçabilité qualité</h1>
+    <div class="panel" style="margin-bottom:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+      <div class="note">Chaque modification d'une donnée <b>validée/verrouillée</b> (facture, paie…) est journalisée ici. Un changement réel de valeurs peut ouvrir automatiquement une fiche d'amélioration.</div>
+      <label class="chk" style="margin:0"><input type="checkbox" id="smqAuto" ${cfg.autoRaiseOnChange!==false?"checked":""} onchange="smqCfgSave(this.checked)"><span>Ouvrir une fiche automatiquement en cas de changement</span></label></div>
+    ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      ${[["Événements",sum.total],["Avec changement",sum.changed],["Fiches auto ouvertes",sum.withFiche],["Non revus",sum.nonReviewed]].map(([l,v])=>`<div style="flex:1;min-width:130px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
+    <div class="panel"><table style="width:100%"><tr><th>Date</th><th>Objet</th><th>Réf</th><th>Action</th><th>Motif</th><th>Changement</th><th>Auteur</th><th>Fiche</th><th></th></tr>
+      ${rows.length?rows.map(e=>`<tr style="${e.changed&&!e.reviewed?'background:rgba(220,38,38,.06)':''}">
+        <td>${esc((e.at||"").replace("T"," ").slice(0,16))}</td><td>${esc(e.objectType||"")}</td><td>${esc(e.ref||"")}</td>
+        <td>${esc(SMQ_EV_ACTION[e.action]||e.action||"")}</td><td>${esc(e.motif||"")}</td>
+        <td>${e.changed?smqDiffCell(e):'<span class="note">—</span>'}</td><td>${esc(e.userName||"")}</td>
+        <td>${e.improvementId?'<span class="tag" style="background:#b45309;color:#fff">NC ouverte</span>':'<span class="note">—</span>'}</td>
+        <td>${e.reviewed?'<span class="tag green">Revu</span>':`<button class="btn ghost sm" onclick="smqEvReview('${e.id}')">Marquer revu</button>`}</td></tr>`).join(""):'<tr><td colspan="9" class="note">Aucun événement de traçabilité.</td></tr>'}</table></div>`;
+}
+function smqDiffCell(e){
+  if(!e.before||!e.after)return '<span class="tag amber">Modifié</span>';
+  const keys=[...new Set([...Object.keys(e.before),...Object.keys(e.after)])].filter(k=>JSON.stringify(e.before[k])!==JSON.stringify(e.after[k]));
+  return keys.map(k=>`<div style="font-size:12px">${esc(k)}: <s>${esc(String(e.before[k]))}</s> → <b>${esc(String(e.after[k]))}</b></div>`).join("")||'<span class="tag amber">Modifié</span>';
+}
+async function smqEvReview(id){ try{ await api("/smq/events/"+id+"/review",{method:"PUT",body:JSON.stringify({reviewed:true})}); smqEventsView(); }catch(e){ alert(e.message); } }
+async function smqCfgSave(v){ try{ await api("/smq/config",{method:"PUT",body:JSON.stringify({autoRaiseOnChange:v})}); }catch(e){ alert(e.message); } }
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};
