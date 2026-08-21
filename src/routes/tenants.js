@@ -21,6 +21,7 @@ const MODULES = [
   { key: "accounting", label: "Comptabilité", core: false },
   { key: "invoicing", label: "Facturation", core: false },
   { key: "stock", label: "Gestion de stock", core: false },
+  { key: "quality", label: "Qualité (SMQ)", core: false },
 ];
 
 const LEGAL_FORMS = ["SARL", "SA", "SAS", "SNC", "SCS", "GIE", "EI", "Établissement", "Association", "Coopérative"];

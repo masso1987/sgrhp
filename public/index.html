@@ -902,6 +902,14 @@ const NAV = [
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
   { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
 
+  { k: "smqhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "quality", grp: "qualite" },
+  { k: "smqprocesses", label: "🗺️ Cartographie & processus", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.processes", module: "quality", grp: "qualite" },
+  { k: "smqaxes", label: "🎯 Politique & axes", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
+  { k: "smqstakeholders", label: "🤝 Parties intéressées", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite" },
+  { k: "smqscope", label: "📐 Domaine & exclusions", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite" },
+  { k: "smqdocs", label: "📄 Maîtrise documentaire", sec: "Documentation", roles: ["ADM","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
+  { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
+  { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
   { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -917,6 +925,7 @@ const NAV_GROUPS = [
   { g: "facturation", label: "Facturation" },
   { g: "comptabilite", label: "Comptabilité" },
   { g: "stock", label: "Stock" },
+  { g: "qualite", label: "Qualité" },
   { g: "rapports", label: "Rapports" },
   { g: "admin", label: "Admin" },
   { g: "plateforme", label: "Plateforme" },
@@ -1000,7 +1009,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1339,7 +1348,7 @@ async function pfSave(id) {
 }
 
 /* ---------- Users (ADM) ---------- */
-const MODULE_LABELS = { payroll: "💵 Paie", accounting: "📒 Comptabilité", invoicing: "🧾 Facturation", stock: "📦 Gestion de stock" };
+const MODULE_LABELS = { payroll: "💵 Paie", accounting: "📒 Comptabilité", invoicing: "🧾 Facturation", stock: "📦 Gestion de stock", quality: "✅ Qualité (SMQ)" };
 async function modModal(uid) {
   const list = await api("/users"); const u = list.find(x => x.id === uid);
   const me = await api("/me");
@@ -1407,11 +1416,13 @@ async function permModal(uid) {
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
+  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.clauses","📚 Bibliothèque de clauses"]];
+  const hasQuality = (u.modules || []).includes("quality");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
     <div class="note" style="margin-top:6px">Autorisez cet utilisateur à corriger ou supprimer des dossiers, et attribuez les fonctionnalités du module Stock.</div>
     <div class="scroll"><b style="font-size:12px;color:var(--muted)">RH & PAIE</b>${caps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""}><span>${lbl}</span></label>`).join("")}
-      <b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">GESTION DE STOCK ${hasStock ? "" : "<span class=\"note\">(activez d'abord le module Stock)</span>"}</b>${stockCaps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""} ${hasStock ? "" : "disabled"}><span>${lbl}</span></label>`).join("")}</div>
+      <b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">GESTION DE STOCK ${hasStock ? "" : "<span class=\"note\">(activez d'abord le module Stock)</span>"}</b>${stockCaps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""} ${hasStock ? "" : "disabled"}><span>${lbl}</span></label>`).join("")}<b style="font-size:12px;color:var(--muted);display:block;margin-top:8px">QUALITÉ (SMQ) ${hasQuality ? "" : `<span class="note">(activez le module Qualité au préalable)</span>`}</b>${smqCaps.map(([k, lbl]) => `<label class="chk"><input type="checkbox" data-perm="${k}" ${(u.permissions || []).includes(k) ? "checked" : ""} ${hasQuality ? "" : "disabled"}><span>${lbl}</span></label>`).join("")}</div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
       <button class="btn p sm" onclick="savePerms('${uid}', this)">Enregistrer</button></div></div>`;
@@ -5816,6 +5827,365 @@ async function acctJournalSave(id){
     else await api("/accounting/journals",{method:"POST",body:JSON.stringify(body)});
     document.querySelector(".modal-bg").remove(); acctJournalsView(); }
   catch(e){ const el=document.getElementById("jErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ================= SMQ — Système de Management de la Qualité ================= */
+window._SMQ = window._SMQ || {};
+async function smqLoadRefs(force){
+  if(!force && window._SMQ.procs && (Date.now()-(window._SMQ._at||0)<60000)) return;
+  const [procs,axes,doctypes,clauses]=await Promise.all([
+    api("/smq/processes").catch(()=>[]), api("/smq/axes").catch(()=>[]),
+    api("/smq/doctypes").catch(()=>[]), api("/smq/clauses").catch(()=>[])]);
+  window._SMQ={procs,axes,doctypes,clauses,_at:Date.now()};
+}
+const SMQ_TYPE={M:"Management",R:"Réalisation",S:"Support"};
+const SMQ_TYPE_TAG={M:'<span class="tag blue">Management</span>',R:'<span class="tag green">Réalisation</span>',S:'<span class="tag" style="background:#7c3aed;color:#fff">Support</span>'};
+const SMQ_DOC_STATUS={brouillon:'<span class="tag gray">Brouillon</span>',verifie:'<span class="tag blue">Vérifié</span>',en_vigueur:'<span class="tag green">En vigueur</span>',obsolete:'<span class="tag" style="background:#9ca3af;color:#fff">Obsolète</span>'};
+function smqProcName(id){ const p=(window._SMQ.procs||[]).find(x=>x.id===id); return p?(p.code+" — "+p.intitule):""; }
+
+/* ---------- Tableau de bord ---------- */
+async function smqHome(){
+  const d=await api("/smq/dashboard").catch(()=>null);
+  if(!d){ view.innerHTML='<h1>✅ Qualité (SMQ)</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
+  const k=d.kpi;
+  const kpi=(l,v,dest,warn)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:140px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px;${warn&&v>0?'color:var(--red)':''}">${v}</div></div>`;
+  const empty = k.processes===0;
+  view.innerHTML=`<h1>✅ Qualité (SMQ)</h1>
+    ${empty?`<div class="panel" style="border-left:4px solid var(--accent)"><b>Bienvenue dans le module Qualité.</b>
+      <div class="note" style="margin:6px 0">Aucun processus défini. Vous pouvez partir du modèle CIBLE RH (cartographie réelle : 8 processus, 5 axes) puis l'adapter, ou créer vos processus manuellement.</div>
+      <button class="btn p" onclick="smqSeedCRHE()">⚡ Charger le modèle CIBLE RH</button>
+      <button class="btn ghost" onclick="go('smqprocesses')">Créer manuellement</button></div>`:''}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 6px">
+      ${kpi("Processus",k.processes,"smqprocesses")}
+      ${kpi("Documents",k.documents,"smqdocs")}
+      ${kpi("En vigueur",k.enVigueur)}
+      ${kpi("Brouillons",k.brouillon)}
+      ${kpi("Indicateurs",k.indicateurs,"smqindicators")}
+      ${kpi("Parties intéressées",k.partiesInteressees,"smqstakeholders")}
+      ${kpi("Docs à revoir (60 j)",k.aRevoir,null,true)}</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
+      <div class="panel" style="flex:2;min-width:320px"><b>🗺️ Cartographie des processus</b>
+        ${["M","R","S"].map(t=>{ const ps=(d.processes||[]).filter(p=>p.type===t); if(!ps.length)return""; return `<div style="margin-top:8px"><div style="font-size:12px;color:var(--muted);margin-bottom:3px">${SMQ_TYPE[t]}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${ps.map(p=>`<div onclick="smqLivret('${p.id}')" title="${esc(p.intitule)}" style="cursor:pointer;border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--bg)"><b>${esc(p.code)}</b> <span style="font-size:12px">${esc(p.intitule)}</span>${p.piloteName?`<div class="note" style="font-size:11px">👤 ${esc(p.piloteName)}</div>`:''}</div>`).join("")}</div></div>`; }).join("")||'<div class="note">Aucun processus.</div>'}
+      </div>
+      <div class="panel" style="flex:1;min-width:240px"><b>🔔 Documents à revoir</b>
+        ${(d.aRevoir||[]).length?`<table style="margin-top:6px;width:100%"><tr><th>Réf</th><th>Échéance</th></tr>${d.aRevoir.map(x=>`<tr><td>${esc(x.ref)}<div class="note" style="font-size:11px">${esc(x.titre)}</div></td><td>${x.enRetard?'<span class="tag" style="background:#dc2626;color:#fff">'+esc(x.nextReviewDate)+'</span>':esc(x.nextReviewDate)}</td></tr>`).join("")}</table>`:'<div class="note" style="margin-top:6px">Rien à revoir sous 60 jours.</div>'}
+      </div></div>`;
+}
+async function smqSeedCRHE(){ if(!confirm("Charger la cartographie CIBLE RH (8 processus + 5 axes) ?"))return;
+  try{ const r=await api("/smq/seed-crhe",{method:"POST"}); window._SMQ._at=0; alert("Modèle chargé : "+r.processes+" processus, "+r.axes+" axes."); smqHome(); }catch(e){ alert(e.message); } }
+
+/* ---------- Cartographie & fiches processus ---------- */
+async function smqProcessesView(){
+  await smqLoadRefs(true);
+  const ps=window._SMQ.procs||[];
+  view.innerHTML=`<h1>🗺️ Cartographie & processus</h1>
+    <div style="margin-bottom:10px"><button class="btn p" onclick="smqProcForm()">+ Nouveau processus</button>
+      ${ps.length?'':'<button class="btn ghost" onclick="smqSeedCRHE()">⚡ Charger le modèle CIBLE RH</button>'}</div>
+    ${["M","R","S"].map(t=>{ const rows=ps.filter(p=>p.type===t); if(!rows.length)return""; return `<div class="panel" style="margin-bottom:10px"><b>${SMQ_TYPE[t]}</b>
+      <table style="margin-top:6px;width:100%"><tr><th>Code</th><th>Intitulé</th><th>Pilote</th><th>Statut</th><th></th></tr>
+      ${rows.map(p=>`<tr><td><b>${esc(p.code)}</b></td><td>${esc(p.intitule)}</td><td>${esc(p.piloteName||"")}</td><td>${p.statut==="sommeil"?'<span class="tag gray">En sommeil</span>':'<span class="tag green">Actif</span>'}</td>
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqLivret('${p.id}')">📘 Livret</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqProcForm('${p.id}')">✏️ Modifier</button>
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;color:var(--red)" onclick="smqProcDelete('${p.id}')">🗑</button>
+        </div></td></tr>`).join("")}</table></div>`; }).join("")||'<div class="panel note">Aucun processus. Créez-en un ou chargez le modèle CIBLE RH.</div>'}`;
+}
+async function smqProcForm(pid){
+  await smqLoadRefs();
+  const p=pid?(window._SMQ.procs||[]).find(x=>x.id===pid):{};
+  const axes=window._SMQ.axes||[];
+  const objs=(p&&p.objectifs)||[];
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:640px"><b>${pid?"Modifier":"Nouveau"} processus</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Code *</label><input id="pCode" value="${esc(p.code||"")}" placeholder="ex. R4"></div>
+      <div><label>Type *</label><select id="pType">${Object.keys(SMQ_TYPE).map(t=>`<option value="${t}" ${p.type===t?"selected":""}>${SMQ_TYPE[t]}</option>`).join("")}</select></div>
+    </div>
+    <label>Intitulé *</label><input id="pInt" value="${esc(p.intitule||"")}">
+    <div class="grid2"><div><label>Pilote</label><input id="pPil" value="${esc(p.piloteName||"")}"></div>
+      <div><label>Co-pilote</label><input id="pCo" value="${esc(p.coPiloteName||"")}"></div></div>
+    <label>Finalité</label><textarea id="pFin" rows="2">${esc(p.finalite||"")}</textarea>
+    <label>Objectifs du processus <span class="note">(un par ligne : libellé | axe)</span></label>
+    <textarea id="pObj" rows="3" placeholder="Fidéliser les clients | Axe 1">${objs.map(o=>(o.libelle||"")+(o.axeCode?" | "+o.axeCode:"")).join("\n")}</textarea>
+    <div class="grid2"><div><label>Entrées</label><textarea id="pEnt" rows="2">${esc(p.entrees||"")}</textarea></div>
+      <div><label>Sorties</label><textarea id="pSor" rows="2">${esc(p.sorties||"")}</textarea></div></div>
+    <label>Missions principales du pilote</label><textarea id="pMis" rows="2">${esc(p.missionsPrincipales||"")}</textarea>
+    <label>Statut</label><select id="pStat"><option value="active" ${p.statut!=="sommeil"?"selected":""}>Actif</option><option value="sommeil" ${p.statut==="sommeil"?"selected":""}>En sommeil</option></select>
+    <div class="err hidden" id="pErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="smqProcSave('${pid||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
+}
+async function smqProcSave(pid,btn){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const objs=g("pObj").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const [lib,ax]=l.split("|");return {libelle:(lib||"").trim(),axeCode:(ax||"").trim()};});
+  const body={code:g("pCode"),type:g("pType"),intitule:g("pInt"),piloteName:g("pPil"),coPiloteName:g("pCo"),finalite:g("pFin"),objectifs:objs,entrees:g("pEnt"),sorties:g("pSor"),missionsPrincipales:g("pMis"),statut:g("pStat")};
+  if(!body.code||!body.intitule){const e=document.getElementById("pErr");e.textContent="Code et intitulé obligatoires";e.classList.remove("hidden");return;}
+  try{ await api("/smq/processes"+(pid?"/"+pid:""),{method:pid?"PUT":"POST",body:JSON.stringify(body)}); window._SMQ._at=0; btn.closest(".modal-bg").remove(); smqProcessesView(); }
+  catch(e){ const el=document.getElementById("pErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function smqProcDelete(pid){ if(!confirm("Supprimer ce processus ?"))return; try{ await api("/smq/processes/"+pid,{method:"DELETE"}); window._SMQ._at=0; smqProcessesView(); }catch(e){ alert(e.message); } }
+
+async function smqLivret(pid){
+  const d=await api("/smq/processes/"+pid+"/livret").catch(e=>{alert(e.message);return null;}); if(!d)return;
+  const p=d.processus, inds=d.indicateurs||[];
+  const objRows=(p.objectifs||[]).map(o=>`<tr><td>${esc(o.libelle||"")}</td><td>${esc(o.axeCode||"")}</td></tr>`).join("")||'<tr><td colspan="2" class="note">—</td></tr>';
+  const indRows=inds.map(i=>`<tr><td>${esc(i.libelle)}</td><td>${esc(i.modeCalcul||"")}</td><td class="r">${esc(i.cible||"")}${i.unite?" "+esc(i.unite):""}</td><td class="r">${i.derniere?esc(String(i.derniere.valeur))+(i.unite?" "+esc(i.unite):""):'<span class="note">—</span>'}</td><td>${esc(i.frequence||"")}</td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucun indicateur.</td></tr>';
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('smqprocesses')">← Processus</button>
+    <div class="panel" style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div><h1 style="margin:0">📘 ${esc(p.code)} — ${esc(p.intitule)}</h1>
+          <div class="note">${SMQ_TYPE[p.type]||""} · Pilote : ${esc(p.piloteName||"—")}${p.coPiloteName?" · Co-pilote : "+esc(p.coPiloteName):""}</div></div>
+        <button class="btn ghost sm" onclick="smqProcForm('${p.id}')">✏️ Modifier</button></div>
+      ${p.finalite?`<div style="margin-top:8px"><b>Finalité</b><div>${esc(p.finalite)}</div></div>`:''}
+      <div style="margin-top:10px"><b>Objectifs de performance</b>
+        <table style="margin-top:4px;width:100%"><tr><th>Objectif</th><th>Cohérence (axe)</th></tr>${objRows}</table></div>
+      <div style="margin-top:10px"><b>Indicateurs clés de performance</b>
+        <table style="margin-top:4px;width:100%"><tr><th>Indicateur</th><th>Mode de calcul</th><th class="r">Cible</th><th class="r">Dernière mesure</th><th>Fréquence</th></tr>${indRows}</table>
+        <button class="btn ghost sm" style="margin-top:6px" onclick="go('smqindicators')">Gérer les indicateurs →</button></div>
+      ${p.missionsPrincipales?`<div style="margin-top:10px"><b>Responsabilités du pilote</b><div>${esc(p.missionsPrincipales)}</div></div>`:''}
+      <div class="note" style="margin-top:10px">📄 La génération PDF du « Livret du processus » (avec cartouche) arrive en phase Documentation avancée.</div>
+    </div>`;
+}
+
+/* ---------- Maîtrise documentaire ---------- */
+async function smqDocsView(){
+  await smqLoadRefs();
+  const docs=await api("/smq/documents").catch(()=>[]);
+  view.innerHTML=`<h1>📄 Maîtrise documentaire</h1>
+    <div style="margin-bottom:10px"><button class="btn p" onclick="smqDocForm()">+ Nouveau document</button>
+      <button class="btn ghost" onclick="go('smqdoctypes')" title="Types & numérotation">⚙️ Types de documents</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Titre</th><th>Type</th><th>Version</th><th>Statut</th><th>Prochaine revue</th><th></th></tr>
+      ${docs.length?docs.map(d=>`<tr><td><b>${esc(d.ref)}</b></td><td>${esc(d.titre)}<div class="note" style="font-size:11px">${d.processId?esc(smqProcName(d.processId)):""}</div></td>
+        <td>${esc(d.typeCode)}</td><td>${esc(d.versionCourante||"")} <span class="note">(${d.nbVersions})</span></td>
+        <td>${SMQ_DOC_STATUS[d.statutCourant]||esc(d.statutCourant)}</td>
+        <td>${d.nextReviewDate?esc(d.nextReviewDate):'<span class="note">—</span>'}</td>
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqDocOpen('${d.id}')">📂 Versions</button>
+        </div></td></tr>`).join(""):'<tr><td colspan="7" class="note">Aucun document. Créez le premier (Manuel, Livret, Procédure…).</td></tr>'}</table></div>`;
+}
+async function smqDocForm(){
+  await smqLoadRefs();
+  const types=window._SMQ.doctypes||[], procs=window._SMQ.procs||[];
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Nouveau document</b>
+    <label>Titre *</label><input id="dTitre">
+    <div class="grid2"><div><label>Type *</label><select id="dType">${types.map(t=>`<option value="${t.code}">${esc(t.code)} — ${esc(t.libelle)}</option>`).join("")}</select></div>
+      <div><label>Processus lié</label><select id="dProc"><option value="">—</option>${procs.map(p=>`<option value="${p.id}">${esc(p.code)} — ${esc(p.intitule)}</option>`).join("")}</select></div></div>
+    <div class="grid2"><div><label>Rédacteur</label><input id="dRed" value="${esc((ME&&ME.fullName)||"")}"></div>
+      <div><label>Approbateur</label><input id="dApp"></div></div>
+    <label>Résumé de la modification</label><input id="dRes" value="Création">
+    <label>Contenu / notes <span class="note">(ou joignez un fichier plus tard)</span></label><textarea id="dCont" rows="4"></textarea>
+    <div class="err hidden" id="dErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="smqDocCreate(this)">Créer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});
+  document.body.appendChild(bg);
+}
+async function smqDocCreate(btn){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={titre:g("dTitre"),typeCode:g("dType"),processId:g("dProc")||null,redacteurName:g("dRed"),approbateurName:g("dApp"),resumeModif:g("dRes"),contenu:g("dCont")};
+  if(!body.titre){const e=document.getElementById("dErr");e.textContent="Titre obligatoire";e.classList.remove("hidden");return;}
+  try{ const r=await api("/smq/documents",{method:"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqDocOpen(r.document.id); }
+  catch(e){ const el=document.getElementById("dErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function smqDocOpen(id){
+  const d=await api("/smq/documents/"+id).catch(e=>{alert(e.message);return null;}); if(!d)return;
+  const doc=d.document, revs=d.revisions||[];
+  const wf=(r)=>{ const b=[]; if(r.statut==="brouillon"){b.push(`<button class="btn ghost sm" onclick="smqRevAct('${r.id}','submit','${id}')">→ Vérifier</button>`);b.push(`<button class="btn ghost sm" onclick="smqRevEdit('${r.id}','${id}')">✏️ Éditer</button>`);}
+    if(r.statut==="verifie"){b.push(`<button class="btn p sm" onclick="smqRevAct('${r.id}','approve','${id}')">✔ Approuver (en vigueur)</button>`);}
+    if(r.statut==="brouillon"){b.push(`<button class="btn p sm" onclick="smqRevAct('${r.id}','approve','${id}')">✔ Approuver</button>`);}
+    if(r.statut==="en_vigueur"){b.push(`<button class="btn ghost sm" style="color:var(--red)" onclick="smqRevAct('${r.id}','obsolete','${id}')">Rendre obsolète</button>`);}
+    return b.join(" "); };
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('smqdocs')">← Documents</button>
+    <div class="panel" style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div><h1 style="margin:0">${esc(doc.ref)}</h1><div>${esc(doc.titre)}</div>
+          <div class="note">Type ${esc(doc.typeCode)}${doc.processId?" · "+esc(smqProcName(doc.processId)):""} · Version courante ${esc(doc.versionCourante||"")} ${SMQ_DOC_STATUS[doc.statutCourant]||""}</div></div>
+        <button class="btn p sm" onclick="smqDocRevise('${doc.id}')">➕ Nouvelle version</button></div>
+    </div>
+    <div class="panel" style="margin-top:10px"><b>Historique des versions</b>
+      <table style="margin-top:6px;width:100%"><tr><th>Version</th><th>Réf</th><th>Statut</th><th>Rédacteur</th><th>Modif.</th><th>Résumé</th><th></th></tr>
+      ${revs.map(r=>`<tr><td><b>${esc(r.version)}</b></td><td>${esc(r.ref)}</td><td>${SMQ_DOC_STATUS[r.statut]||esc(r.statut)}</td>
+        <td>${esc(r.redacteurName||"")}</td><td>${esc(r.dateModification||"")}</td><td>${esc(r.resumeModif||"")}</td>
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">${wf(r)}</div></td></tr>`).join("")}</table></div>`;
+}
+async function smqRevAct(rid,act,docId){
+  const msg={submit:"Passer en vérifié ?",approve:"Approuver et mettre en vigueur ? (les versions antérieures deviendront obsolètes)",obsolete:"Rendre cette version obsolète ?"}[act];
+  if(!confirm(msg))return;
+  try{ await api("/smq/revisions/"+rid+"/"+act,{method:"POST"}); smqDocOpen(docId); }catch(e){ alert(e.message); }
+}
+async function smqRevEdit(rid,docId){
+  const cont=prompt("Contenu / notes de cette version :"); if(cont===null)return;
+  try{ await api("/smq/revisions/"+rid,{method:"PUT",body:JSON.stringify({contenu:cont})}); smqDocOpen(docId); }catch(e){ alert(e.message); }
+}
+async function smqDocRevise(docId){
+  const res=prompt("Résumé de la modification (nouvelle version) :"); if(res===null)return;
+  try{ await api("/smq/documents/"+docId+"/revise",{method:"POST",body:JSON.stringify({resumeModif:res})}); smqDocOpen(docId); }catch(e){ alert(e.message); }
+}
+
+/* ---------- Types de documents ---------- */
+async function smqDocTypesView(){
+  const types=await api("/smq/doctypes").catch(()=>[]);
+  view.innerHTML=`<h1>⚙️ Types de documents & numérotation</h1>
+    <div class="note" style="margin-bottom:8px">Motifs : <code>{TYPE} {PROCESS} {SEQ} {REV} {VERSION} {YYYY}</code>. Ex. <code>LP-{PROCESS}-{SEQ}{REV}</code> → LP-S4-09b ; <code>SMQ-MQ-{VERSION}</code> → SMQ-MQ-2.4.</div>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqDocTypeForm()">+ Nouveau type</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Code</th><th>Libellé</th><th>Motif</th><th>Visas</th><th>Revue (mois)</th><th></th></tr>
+      ${types.map(t=>`<tr><td><b>${esc(t.code)}</b></td><td>${esc(t.libelle)}</td><td><code>${esc(t.pattern)}</code></td><td>${esc(String(t.visas||2))}</td><td>${esc(String(t.reviewFreqMonths||""))}</td>
+        <td><button class="btn ghost sm" onclick="smqDocTypeForm('${t.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqDocTypeDel('${t.id}')">🗑</button></td></tr>`).join("")}</table></div>`;
+}
+async function smqDocTypeForm(id){
+  const types=await api("/smq/doctypes").catch(()=>[]); const t=id?types.find(x=>x.id===id):{};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal"><b>${id?"Modifier":"Nouveau"} type de document</b>
+    <div class="grid2"><div><label>Code *</label><input id="tCode" value="${esc(t.code||"")}"></div><div><label>Visas</label><select id="tVisa"><option ${t.visas==2?"selected":""}>2</option><option ${t.visas==3?"selected":""}>3</option></select></div></div>
+    <label>Libellé *</label><input id="tLib" value="${esc(t.libelle||"")}">
+    <label>Motif de numérotation</label><input id="tPat" value="${esc(t.pattern||"{TYPE}-{SEQ}{REV}")}">
+    <label>Fréquence de revue (mois)</label><input id="tFreq" type="number" value="${esc(String(t.reviewFreqMonths||24))}">
+    <div class="err hidden" id="tErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqDocTypeSave('${id||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();}); document.body.appendChild(bg);
+}
+async function smqDocTypeSave(id,btn){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={code:g("tCode"),libelle:g("tLib"),pattern:g("tPat"),visas:Number(g("tVisa")),reviewFreqMonths:Number(g("tFreq"))};
+  if(!body.code||!body.libelle){const e=document.getElementById("tErr");e.textContent="Code et libellé obligatoires";e.classList.remove("hidden");return;}
+  try{ await api("/smq/doctypes"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); window._SMQ._at=0; btn.closest(".modal-bg").remove(); smqDocTypesView(); }catch(e){ const el=document.getElementById("tErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function smqDocTypeDel(id){ if(!confirm("Supprimer ce type ?"))return; try{ await api("/smq/doctypes/"+id,{method:"DELETE"}); smqDocTypesView(); }catch(e){ alert(e.message); } }
+
+/* ---------- Politique & axes stratégiques ---------- */
+async function smqAxesView(){
+  const [axes,policy]=await Promise.all([api("/smq/axes").catch(()=>[]),api("/smq/policy").catch(()=>[])]);
+  const cur=policy.find(p=>p.enVigueur)||policy[0];
+  view.innerHTML=`<h1>🎯 Politique & axes stratégiques</h1>
+    <div class="panel"><div style="display:flex;justify-content:space-between"><b>Axes de la politique qualité</b><button class="btn p sm" onclick="smqAxeForm()">+ Axe</button></div>
+      <table style="margin-top:6px;width:100%"><tr><th>Code</th><th>Libellé</th><th></th></tr>
+      ${axes.sort((a,b)=>(a.ordre||0)-(b.ordre||0)).map(a=>`<tr><td><b>${esc(a.code)}</b></td><td>${esc(a.libelle)}</td><td><button class="btn ghost sm" onclick="smqAxeForm('${a.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqAxeDel('${a.id}')">🗑</button></td></tr>`).join("")||'<tr><td colspan="3" class="note">Aucun axe.</td></tr>'}</table></div>
+    <div class="panel" style="margin-top:10px"><div style="display:flex;justify-content:space-between"><b>Politique qualité ${cur?"(v"+esc(cur.version)+")":""}</b><button class="btn p sm" onclick="smqPolicyForm()">+ Nouvelle version</button></div>
+      ${cur?`<div style="margin-top:6px;white-space:pre-wrap">${esc(cur.texte||"")}</div><div class="note" style="margin-top:4px">Version ${esc(cur.version)} · ${esc(cur.date||"")}</div>`:'<div class="note" style="margin-top:6px">Aucune politique saisie.</div>'}
+      ${policy.length>1?`<div class="note" style="margin-top:8px">Versions : ${policy.map(p=>esc(p.version)).join(", ")}</div>`:''}</div>`;
+}
+async function smqAxeForm(id){
+  const axes=await api("/smq/axes").catch(()=>[]); const a=id?axes.find(x=>x.id===id):{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal"><b>${id?"Modifier":"Nouvel"} axe</b>
+    <div class="grid2"><div><label>Code</label><input id="aCode" value="${esc(a.code||"")}" placeholder="Axe 1"></div><div><label>Ordre</label><input id="aOrd" type="number" value="${esc(String(a.ordre||axes.length+1))}"></div></div>
+    <label>Libellé *</label><textarea id="aLib" rows="2">${esc(a.libelle||"")}</textarea>
+    <div class="err hidden" id="aErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqAxeSave('${id||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqAxeSave(id,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={code:g("aCode"),libelle:g("aLib"),ordre:Number(g("aOrd"))};
+  if(!body.libelle){const e=document.getElementById("aErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/axes"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); window._SMQ._at=0; btn.closest(".modal-bg").remove(); smqAxesView(); }catch(e){ const el=document.getElementById("aErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqAxeDel(id){ if(!confirm("Supprimer cet axe ?"))return; try{ await api("/smq/axes/"+id,{method:"DELETE"}); window._SMQ._at=0; smqAxesView(); }catch(e){ alert(e.message); } }
+async function smqPolicyForm(){
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Nouvelle version de la politique qualité</b>
+    <div class="grid2"><div><label>Version</label><input id="poVer" value="1.0"></div><div><label>Date</label><input id="poDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
+    <label>Texte de la politique</label><textarea id="poTxt" rows="6"></textarea>
+    <label class="chk"><input type="checkbox" id="poEnv" checked><span>Mettre en vigueur</span></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqPolicySave(this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqPolicySave(btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={version:g("poVer"),date:g("poDate"),texte:g("poTxt"),enVigueur:document.getElementById("poEnv").checked};
+  try{ await api("/smq/policy",{method:"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqAxesView(); }catch(e){ alert(e.message); } }
+
+/* ---------- Parties intéressées ---------- */
+async function smqStakeholdersView(){
+  const rows=await api("/smq/stakeholders").catch(()=>[]);
+  view.innerHTML=`<h1>🤝 Parties intéressées (§4.2)</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqStkForm()">+ Partie intéressée</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Partie</th><th>Besoins & attentes</th><th>Fréquence de revue</th><th></th></tr>
+      ${rows.map(s=>`<tr><td><b>${esc(s.partie)}</b></td><td>${esc(s.besoins||"")}${s.attentes?" · "+esc(s.attentes):""}</td><td>${esc(s.frequenceRevue||"")}</td>
+        <td><button class="btn ghost sm" onclick="smqStkForm('${s.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqStkDel('${s.id}')">🗑</button></td></tr>`).join("")||'<tr><td colspan="4" class="note">Aucune partie intéressée.</td></tr>'}</table></div>`;
+}
+async function smqStkForm(id){
+  const rows=await api("/smq/stakeholders").catch(()=>[]); const s=id?rows.find(x=>x.id===id):{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal"><b>${id?"Modifier":"Nouvelle"} partie intéressée</b>
+    <label>Partie *</label><input id="sPar" value="${esc(s.partie||"")}" placeholder="Clients, Personnel, État, Fournisseurs…">
+    <label>Besoins</label><textarea id="sBes" rows="2">${esc(s.besoins||"")}</textarea>
+    <label>Attentes</label><textarea id="sAtt" rows="2">${esc(s.attentes||"")}</textarea>
+    <label>Fréquence de revue</label><input id="sFreq" value="${esc(s.frequenceRevue||"Annuelle")}">
+    <div class="err hidden" id="sErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqStkSave('${id||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqStkSave(id,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={partie:g("sPar"),besoins:g("sBes"),attentes:g("sAtt"),frequenceRevue:g("sFreq")};
+  if(!body.partie){const e=document.getElementById("sErr");e.textContent="Partie obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/stakeholders"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqStakeholdersView(); }catch(e){ const el=document.getElementById("sErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqStkDel(id){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/stakeholders/"+id,{method:"DELETE"}); smqStakeholdersView(); }catch(e){ alert(e.message); } }
+
+/* ---------- Domaine d'application & exclusions ---------- */
+async function smqScopeView(){
+  const [scope,clauses]=await Promise.all([api("/smq/scope").catch(()=>({})),api("/smq/clauses").catch(()=>[])]);
+  const exc=scope.exclusions||[];
+  view.innerHTML=`<h1>📐 Domaine d'application & exclusions (§4.3)</h1>
+    <div class="panel"><label>Périmètre du SMQ</label><textarea id="scPer" rows="2">${esc(scope.perimetre||"")}</textarea>
+      <label>Sites concernés</label><input id="scSites" value="${esc(scope.sites||"")}">
+      <div style="margin-top:8px"><b>Exclusions de clauses</b> <span class="note">(ex. 8.3 Conception & développement)</span>
+        <div id="scExc" style="margin-top:4px">${exc.map((e,i)=>smqExcRow(e,i)).join("")}</div>
+        <button class="btn ghost sm" onclick="smqAddExc()">+ Ajouter une exclusion</button></div>
+      <div style="margin-top:10px"><button class="btn p" onclick="smqScopeSave()">💾 Enregistrer</button></div></div>
+    <div class="panel" style="margin-top:10px"><b>Bibliothèque de clauses ISO 9001:2015</b>
+      <div class="note">${clauses.length} clauses préchargées — utilisées pour les audits et le tableau de conformité (phases suivantes).</div>
+      <table style="margin-top:6px;width:100%"><tr><th>Clause</th><th>Intitulé</th></tr>${clauses.sort((a,b)=>String(a.code).localeCompare(String(b.code),"fr",{numeric:true})).map(c=>`<tr><td><b>${esc(c.code)}</b></td><td>${esc(c.titre)}</td></tr>`).join("")}</table></div>`;
+  window._SMQ_CLAUSES=clauses;
+}
+function smqExcRow(e,i){ const cs=window._SMQ_CLAUSES||[];
+  return `<div class="excrow" style="display:flex;gap:6px;margin-bottom:4px"><input class="excCl" value="${esc(e.clause||"")}" placeholder="Clause (8.3)" style="max-width:120px"><input class="excJu" value="${esc(e.justification||"")}" placeholder="Justification" style="flex:1"><button class="btn ghost sm" onclick="this.parentElement.remove()">🗑</button></div>`; }
+function smqAddExc(){ document.getElementById("scExc").insertAdjacentHTML("beforeend",smqExcRow({},0)); }
+async function smqScopeSave(){
+  const exclusions=[...document.querySelectorAll("#scExc .excrow")].map(r=>({clause:r.querySelector(".excCl").value.trim(),justification:r.querySelector(".excJu").value.trim()})).filter(e=>e.clause);
+  const body={perimetre:document.getElementById("scPer").value,sites:document.getElementById("scSites").value,exclusions};
+  try{ await api("/smq/scope",{method:"PUT",body:JSON.stringify(body)}); alert("Domaine enregistré."); }catch(e){ alert(e.message); }
+}
+
+/* ---------- Indicateurs ---------- */
+async function smqIndicatorsView(){
+  await smqLoadRefs();
+  const inds=await api("/smq/indicators").catch(()=>[]);
+  const procs=window._SMQ.procs||[];
+  view.innerHTML=`<h1>📈 Indicateurs de performance</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqIndForm()">+ Indicateur</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Processus</th><th>Indicateur</th><th>Mode de calcul</th><th class="r">Cible</th><th>Fréquence</th><th>Source</th><th></th></tr>
+      ${inds.map(i=>`<tr><td>${esc((procs.find(p=>p.id===i.processId)||{}).code||"")}</td><td>${esc(i.libelle)}</td><td>${esc(i.modeCalcul||"")}</td><td class="r">${esc(i.cible||"")}${i.unite?" "+esc(i.unite):""}</td><td>${esc(i.frequence||"")}</td><td>${i.source==="auto"?'<span class="tag blue">Auto</span>':'<span class="tag gray">Manuel</span>'}</td>
+        <td><button class="btn ghost sm" onclick="smqMeasureForm('${i.id}')">＋ Mesure</button> <button class="btn ghost sm" onclick="smqIndForm('${i.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqIndDel('${i.id}')">🗑</button></td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucun indicateur.</td></tr>'}</table>
+      <div class="note" style="margin-top:8px">🔌 Les indicateurs « Auto » (branchés sur Facturation, Paie, Comptabilité, RH) seront calculés automatiquement en phase Instrumentation.</div></div>`;
+}
+async function smqIndForm(id){
+  await smqLoadRefs();
+  const inds=id?await api("/smq/indicators").catch(()=>[]):[]; const i=id?inds.find(x=>x.id===id):{};
+  const procs=window._SMQ.procs||[];
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${id?"Modifier":"Nouvel"} indicateur</b>
+    <label>Processus</label><select id="iProc"><option value="">—</option>${procs.map(p=>`<option value="${p.id}" ${i.processId===p.id?"selected":""}>${esc(p.code)} — ${esc(p.intitule)}</option>`).join("")}</select>
+    <label>Libellé *</label><input id="iLib" value="${esc(i.libelle||"")}">
+    <label>Mode de calcul</label><input id="iMode" value="${esc(i.modeCalcul||"")}" placeholder="100 × (conformes / total)">
+    <div class="grid2"><div><label>Cible</label><input id="iCib" value="${esc(i.cible||"")}"></div><div><label>Unité</label><input id="iUni" value="${esc(i.unite||"%")}"></div></div>
+    <div class="grid2"><div><label>Fréquence</label><select id="iFreq">${["mensuel","trimestriel","annuel"].map(f=>`<option ${i.frequence===f?"selected":""}>${f}</option>`).join("")}</select></div>
+      <div><label>Source</label><select id="iSrc"><option value="manuel" ${i.source!=="auto"?"selected":""}>Manuel</option><option value="auto" ${i.source==="auto"?"selected":""}>Auto (à brancher)</option></select></div></div>
+    <div class="err hidden" id="iErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqIndSave('${id||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqIndSave(id,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={processId:g("iProc")||null,libelle:g("iLib"),modeCalcul:g("iMode"),cible:g("iCib"),unite:g("iUni"),frequence:g("iFreq"),source:g("iSrc")};
+  if(!body.libelle){const e=document.getElementById("iErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/indicators"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqIndicatorsView(); }catch(e){ const el=document.getElementById("iErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqIndDel(id){ if(!confirm("Supprimer cet indicateur ?"))return; try{ await api("/smq/indicators/"+id,{method:"DELETE"}); smqIndicatorsView(); }catch(e){ alert(e.message); } }
+async function smqMeasureForm(id){
+  const per=prompt("Période (AAAA-MM ou AAAA-Tn) :",new Date().toISOString().slice(0,7)); if(per===null)return;
+  const val=prompt("Valeur mesurée :"); if(val===null)return;
+  try{ await api("/smq/indicators/"+id+"/measures",{method:"POST",body:JSON.stringify({periode:per,valeur:Number(val)})}); alert("Mesure enregistrée."); }catch(e){ alert(e.message); }
 }
 
 /* ================= Gestion de stock ================= */

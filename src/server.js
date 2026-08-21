@@ -105,6 +105,7 @@ app.use("/api/payroll", requireModule("payroll"), require("./routes/payroll"));
 app.use("/api/billing", requireModule("invoicing"), require("./routes/billing"));
 app.use("/api/accounting", requireModule("accounting"), require("./routes/accounting"));
 app.use("/api/stock", requireModule("stock"), require("./routes/stock"));
+app.use("/api/smq", requireModule("quality"), require("./routes/smq"));
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
