@@ -92,6 +92,15 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
 });
 
 // ADM grants employee edit/delete capabilities to a user.
+// ADM resets a user's password -> returns a one-time temporary password.
+router.post("/:id/reset", allow("ADM", "SADM"), (req, res) => {
+  const u = targetUser(req, req.params.id);
+  if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  const tmp = "Cible" + Math.random().toString(36).slice(2, 7) + new Date().getFullYear() + "!";
+  u.password = hash(tmp); u.failedLogins = 0; u.lockedUntil = null; save();
+  audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true });
+  res.json({ ok: true, tempPassword: tmp });
+});
 const EMP_CAPS = ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"];
 const STOCK_CAPS = ["stock.catalogue", "stock.tiers", "stock.achats", "stock.ventes", "stock.mouvements", "stock.transferts", "stock.depenses", "stock.comptes", "stock.rapports"];
 const SMQ_CAPS = ["smq.processes", "smq.documents", "smq.axes", "smq.stakeholders", "smq.indicators", "smq.scope", "smq.clauses", "smq.policy", "smq.improvements", "smq.tracability", "smq.audits", "smq.risks", "smq.satisfaction", "smq.claims", "smq.competences", "smq.suppliers", "smq.equipment", "smq.reviews", "smq.conformity", "smq.admin"];

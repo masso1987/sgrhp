@@ -105,6 +105,10 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
   <label>Mot de passe</label><input id="lPass" type="password" value="demo123" onkeydown="if(event.key==='Enter')doLogin()">
   <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
     <input id="lTotp" inputmode="numeric" maxlength="6" placeholder="123456" onkeydown="if(event.key==='Enter')doLogin()"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px;font-size:13px">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0"><input type="checkbox" id="lRemember" style="width:auto;margin:0"> Se souvenir de moi</label>
+    <a href="#" onclick="forgotPassword();return false" style="color:var(--accent)">Mot de passe oublié ?</a>
+  </div>
   <div class="err hidden" id="lErr"></div>
   <button class="btn p" style="width:100%" onclick="doLogin()">Se connecter</button>
 
@@ -734,7 +738,7 @@ function watchI18n() {
   }).observe(document.body, { childList: true, subtree: true });
 }
 
-let TOKEN = sessionStorage.getItem("t"), ME = JSON.parse(sessionStorage.getItem("me") || "null");
+let TOKEN = sessionStorage.getItem("t") || localStorage.getItem("t"), ME = JSON.parse(sessionStorage.getItem("me") || localStorage.getItem("me") || "null");
 
 /* ================= Auto-déconnexion pour inactivité ================= */
 let IDLE_MIN = 30, _idleTimer = null;
@@ -744,7 +748,7 @@ function armIdle(mins) {
     clearTimeout(_idleTimer);
     if (!TOKEN) return;
     _idleTimer = setTimeout(() => {
-      sessionStorage.clear(); TOKEN = null; ME = null;
+      sessionStorage.clear(); localStorage.removeItem("t"); localStorage.removeItem("me"); TOKEN = null; ME = null;
       const l = document.getElementById("login");
       document.getElementById("app").classList.add("hidden");
       l.classList.remove("hidden");
@@ -816,6 +820,9 @@ async function doLogin() {
 
     TOKEN = j.token; ME = j.user;
     sessionStorage.setItem("t", TOKEN); sessionStorage.setItem("me", JSON.stringify(ME));
+    const _rem = document.getElementById("lRemember");
+    if (_rem && _rem.checked) { localStorage.setItem("t", TOKEN); localStorage.setItem("me", JSON.stringify(ME)); localStorage.setItem("rememberEmail", body.email); }
+    else { localStorage.removeItem("t"); localStorage.removeItem("me"); localStorage.removeItem("rememberEmail"); }
     armIdle(j.idleMinutes || 30);
     boot();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
@@ -848,7 +855,7 @@ async function confirm2fa() {
     lTotp.focus();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
 }
-function logout() { sessionStorage.clear(); TOKEN = null; ME = null; location.href = "/"; }
+function logout() { sessionStorage.clear(); localStorage.removeItem("t"); localStorage.removeItem("me"); TOKEN = null; ME = null; location.href = "/"; }
 
 const NAV = [
   { k: "tenants", label: "🏢 Tenants (plateforme)", roles: ["SADM"], grp: "plateforme" },
@@ -1027,7 +1034,8 @@ function showLauncher(){
   const tiles=(NAV_PRESENT||[]).map(G=>{ const m=GROUP_META[G.g]||{svg:"▦",c:"#6366f1"};
     return `<div class="app-tile" onclick="enterModule('${G.g}')"><div class="app-ico" style="background:${m.c}">${m.svg}</div><div class="app-lbl">${esc(G.label)}</div></div>`;
   }).join("");
-  el.innerHTML=`<div class="launcher-top"><div class="l-title">Applications</div><button class="launcher-close" onclick="hideLauncher()">✕ Fermer</button></div>
+  const closeBtn = window.CURRENT_VIEW ? `<button class="launcher-close" onclick="hideLauncher()">✕ Fermer</button>` : "";
+  el.innerHTML=`<div class="launcher-top"><div class="l-title">Applications</div>${closeBtn}</div>
     <div class="launcher-grid">${tiles||'<div class="note">Aucun module disponible.</div>'}</div>`;
   el.classList.remove("hidden");
 }
@@ -1445,6 +1453,7 @@ async function users() {
       <td><span class="tag ${u.active ? "green" : "red"}">${u.active ? "Actif" : "Désactivé"}</span></td>
       <td>${u.id === ME.id ? '<span style="color:var(--muted)">—</span>'
         : `<button class="btn ${u.active ? "ghost" : "p"} sm" onclick="toggleActive('${u.id}', ${!u.active})">${u.active ? "Désactiver" : "Activer"}</button>
+           <button class="btn ghost sm" onclick="resetUserPw('${u.id}','${esc(u.fullName)}')">🔑 Réinitialiser</button>
            ${u.role !== "ADM" ? `<button class="btn ghost sm" onclick="permModal('${u.id}')">🛡 Droits</button>` : ""}`}</td>
     </tr>`).join("")}
     </table></div>
@@ -1487,6 +1496,12 @@ async function savePerms(uid, btn) {
   const permissions = [...btn.closest(".modal").querySelectorAll("input[data-perm]")].filter(c => c.checked).map(c => c.dataset.perm);
   try { await api(`/users/${uid}/permissions`, { method: "PUT", body: JSON.stringify({ permissions }) }); btn.closest(".modal-bg").remove(); users(); }
   catch (e) { alert(e.message); }
+}
+async function resetUserPw(uid,name){
+  if(!confirm("Réinitialiser le mot de passe de "+name+" ?\nUn mot de passe temporaire sera généré."))return;
+  try{ const r=await api("/users/"+uid+"/reset",{method:"POST",body:JSON.stringify({})});
+    prompt("Mot de passe temporaire pour "+name+" (à communiquer et à changer à la première connexion) :", r.tempPassword); }
+  catch(e){ alert(e.message); }
 }
 async function pfModal(uid) {
   const [list, pfs] = await Promise.all([api("/users"), api("/portfolios")]);
@@ -1646,6 +1661,20 @@ if (TOKEN) {
         err.classList.remove("hidden");
       }
     });
+}
+/* Prefill remembered email + check "Se souvenir de moi" if a remembered session exists */
+(function(){ try{ const re=localStorage.getItem("rememberEmail"); if(re){ const e=document.getElementById("lEmail"); if(e)e.value=re; const c=document.getElementById("lRemember"); if(c)c.checked=true; } }catch(_){} })();
+async function forgotPassword(){
+  const email=(document.getElementById("lEmail").value||"").trim();
+  const em=prompt("Entrez votre email pour réinitialiser votre mot de passe :", email);
+  if(em===null) return;
+  if(!em.trim()){ const e=document.getElementById("lErr"); e.textContent="Email requis."; e.classList.remove("hidden"); return; }
+  try{
+    const r=await fetch("/api/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:em.trim()})});
+    const j=await r.json().catch(()=>({}));
+    const e=document.getElementById("lErr"); e.classList.remove("err"); e.style.color="var(--nav-active-color)";
+    e.textContent=j.message||"Si un compte existe pour cet email, les instructions ont été envoyées."; e.classList.remove("hidden");
+  }catch(err){ const e=document.getElementById("lErr"); e.textContent="Service indisponible."; e.classList.remove("hidden"); }
 }
 
 /* ================= M2: workflow ================= */
@@ -3190,7 +3219,7 @@ async function payHome(){
       ${card("Paies clôturées",k.clotures+" / "+k.runs,"","payroll")}
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <div class="panel" style="flex:2;min-width:320px"><b>Évolution de la masse salariale</b><canvas id="payChart" height="150" style="margin-top:8px"></canvas></div>
+      <div class="panel" style="flex:2;min-width:320px"><b>Évolution de la masse salariale</b><div style="position:relative;height:180px;margin-top:8px"><canvas id="payChart"></canvas></div></div>
       <div class="panel" style="flex:1;min-width:220px"><b>Dernière paie</b>
         ${d.lastRun?`<div style="margin-top:6px"><b>${esc(d.lastRun.label||d.lastRun.period)}</b> <span class="tag ${d.lastRun.status==="CLOSED"?"green":"amber"}">${esc(d.lastRun.status)}</span>
           <table style="margin-top:6px;width:100%">
@@ -5968,10 +5997,10 @@ async function smqHome(){
         ${(d.aRevoir||[]).length?`<table style="margin-top:6px;width:100%"><tr><th>Réf</th><th>Échéance</th></tr>${d.aRevoir.map(x=>`<tr><td>${esc(x.ref)}<div class="note" style="font-size:11px">${esc(x.titre)}</div></td><td>${x.enRetard?'<span class="tag" style="background:#dc2626;color:#fff">'+esc(x.nextReviewDate)+'</span>':esc(x.nextReviewDate)}</td></tr>`).join("")}</table>`:'<div class="note" style="margin-top:6px">Rien à revoir sous 60 jours.</div>'}
       </div></div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px">
-      <div class="panel" style="flex:1;min-width:240px"><b>🏅 Conformité ISO 9001 par chapitre</b><canvas id="smqConfCh" height="150" style="margin-top:8px"></canvas></div>
-      <div class="panel" style="flex:1;min-width:220px"><b>🛠️ Fiches par origine</b><canvas id="smqCapaCh" height="150" style="margin-top:8px"></canvas></div>
-      <div class="panel" style="flex:1;min-width:200px"><b>⚠️ Risques par criticité</b><canvas id="smqRiskCh" height="150" style="margin-top:8px"></canvas></div>
-      <div class="panel" style="flex:1;min-width:180px"><b>📈 Indicateurs (feu)</b><canvas id="smqFeuCh" height="150" style="margin-top:8px"></canvas></div>
+      <div class="panel" style="flex:1;min-width:240px"><b>🏅 Conformité ISO 9001 par chapitre</b><div style="position:relative;height:180px;margin-top:8px"><canvas id="smqConfCh"></canvas></div></div>
+      <div class="panel" style="flex:1;min-width:220px"><b>🛠️ Fiches par origine</b><div style="position:relative;height:180px;margin-top:8px"><canvas id="smqCapaCh"></canvas></div></div>
+      <div class="panel" style="flex:1;min-width:200px"><b>⚠️ Risques par criticité</b><div style="position:relative;height:180px;margin-top:8px"><canvas id="smqRiskCh"></canvas></div></div>
+      <div class="panel" style="flex:1;min-width:180px"><b>📈 Indicateurs (feu)</b><div style="position:relative;height:180px;margin-top:8px"><canvas id="smqFeuCh"></canvas></div></div>
     </div>`;
   smqHomeCharts();
 }
@@ -6703,7 +6732,7 @@ async function smqIndicatorsView(){
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqKpiTrend('${i.id}')">📊</button>
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqMeasureForm('${i.id}')">＋</button>
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqIndForm('${i.id}')">✏️</button></div></div>
-          <canvas id="spark_${i.id}" height="34" style="margin-top:6px"></canvas></div>`).join("")}</div></div>`).join(""):'<div class="panel note">Aucun indicateur. Créez-en un lié à un processus.</div>'}
+          <div style="position:relative;height:40px;margin-top:6px"><canvas id="spark_${i.id}"></canvas></div></div>`).join("")}</div></div>`).join(""):'<div class="panel note">Aucun indicateur. Créez-en un lié à un processus.</div>'}
     <div class="note" style="margin-top:6px">🔌 Les indicateurs « auto » (Facturation, Paie, Comptabilité, RH) seront calculés automatiquement en phase Instrumentation (4bis).</div>`;
   // sparklines
   if(rows.some(r=>r.serie&&r.serie.length)&&await ensureChartJs()&&window.Chart){
@@ -6717,7 +6746,7 @@ async function smqKpiTrend(id){
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:640px"><b>📊 ${esc(i.libelle||"Indicateur")}</b>
     <div class="note">${esc(i.modeCalcul||"")} · Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"—")}${i.unite?" "+esc(i.unite):""}</div>
-    <canvas id="kpiChart" height="200" style="margin-top:8px"></canvas>
+    <div style="position:relative;height:230px;margin-top:8px"><canvas id="kpiChart"></canvas></div>
     <table style="width:100%;margin-top:8px"><tr><th>Période</th><th class="r">Valeur</th><th>Commentaire</th></tr>
       ${ms.map(m=>`<tr><td>${esc(m.periode)}</td><td class="r">${esc(String(m.valeur))}${i.unite?" "+esc(i.unite):""}</td><td>${esc(m.commentaire||"")}</td></tr>`).join("")||'<tr><td colspan="3" class="note">Aucune mesure.</td></tr>'}</table>
     <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
@@ -6798,7 +6827,7 @@ async function smqIndicatorsView(){
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqKpiTrend('${i.id}')">📊</button>
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqMeasureForm('${i.id}')">＋</button>
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqIndForm('${i.id}')">✏️</button></div></div>
-          <canvas id="spark_${i.id}" height="34" style="margin-top:6px"></canvas></div>`).join("")}</div></div>`).join(""):'<div class="panel note">Aucun indicateur. Créez-en un lié à un processus.</div>'}
+          <div style="position:relative;height:40px;margin-top:6px"><canvas id="spark_${i.id}"></canvas></div></div>`).join("")}</div></div>`).join(""):'<div class="panel note">Aucun indicateur. Créez-en un lié à un processus.</div>'}
     <div class="note" style="margin-top:6px">⚡ Les indicateurs « auto » se calculent depuis Facturation, Comptabilité, Paie, RH et Qualité.</div>`;
   if(rows.some(r=>r.serie&&r.serie.length)&&await ensureChartJs()&&window.Chart){
     rows.forEach(i=>{ const c=document.getElementById("spark_"+i.id); if(!c||!i.serie.length)return;
@@ -6846,7 +6875,7 @@ async function smqSatisfactionView(){
       <div class="panel" style="flex:1;min-width:200px;text-align:center"><div class="note">Satisfaction moyenne</div>
         <div style="font-size:40px;font-weight:700;color:${sum.moyenne>=80?'#16a34a':sum.moyenne>=60?'#f97316':'#dc2626'}">${sum.moyenne}%</div>
         <div class="note">${sum.total} réponse(s)</div></div>
-      <div class="panel" style="flex:2;min-width:280px"><b>Tendance</b><canvas id="satChart" height="120" style="margin-top:6px"></canvas></div>
+      <div class="panel" style="flex:2;min-width:280px"><b>Tendance</b><div style="position:relative;height:150px;margin-top:8px"><canvas id="satChart"></canvas></div></div>
       <div class="panel" style="flex:1;min-width:180px"><b>Par canal</b>${sum.canaux.map(c=>`<div style="display:flex;justify-content:space-between;padding:2px 0"><span>${esc(c.canal)}</span><b>${c.moyenne}%</b> <span class="note">(${c.n})</span></div>`).join("")||'<div class="note">—</div>'}</div></div>`:''}
     <div class="panel"><table style="width:100%"><tr><th>Date</th><th>Client</th><th>Période</th><th>Canal</th><th class="r">Score</th><th>Note</th><th></th></tr>
       ${rows.map(r=>{const max=Number(r.scoreMax)||100;const p=max?Math.round((Number(r.score)||0)/max*100):0;return `<tr><td>${esc(r.date||"")}</td><td>${esc(r.clientName||"")}</td><td>${esc(r.periode||"")}</td><td>${esc(r.canal||"")}</td>
@@ -7115,7 +7144,7 @@ async function smqConformityView(){
       <div class="panel" style="flex:1;min-width:200px;text-align:center"><div class="note">Taux de conformité</div>
         <div style="font-size:44px;font-weight:700;color:${gauge>=85?'#16a34a':gauge>=60?'#f97316':'#dc2626'}">${gauge}%</div>
         <div class="note">${sum.applicable} clauses applicables</div></div>
-      <div class="panel" style="flex:2;min-width:280px"><b>Conformité par chapitre</b><canvas id="confChart" height="130" style="margin-top:6px"></canvas></div>
+      <div class="panel" style="flex:2;min-width:280px"><b>Conformité par chapitre</b><div style="position:relative;height:160px;margin-top:8px"><canvas id="confChart"></canvas></div></div>
       <div class="panel" style="flex:1;min-width:180px"><b>Répartition</b>${Object.keys(CONF_STAT).map(k=>`<div style="display:flex;justify-content:space-between;padding:2px 0"><span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CONF_STAT[k].c}"></span> ${CONF_STAT[k].l}</span><b>${sum.byStatut[k]||0}</b></div>`).join("")}</div></div>`:''}
     <div style="margin-bottom:8px"><button class="btn ghost" onclick="smqConfGap()">📋 Rapport d'écart (gaps)</button> <button class="btn ghost" onclick="smqConfPrint()">🖨 Imprimer la matrice</button></div>
     <div id="confMatrix">${Object.keys(byCh).sort((a,b)=>a-b).map(ch=>`<div class="panel" style="margin-bottom:10px"><b>Chapitre ${ch} — ${esc(CH_TITLES[ch]||"")}</b>

@@ -29,6 +29,7 @@ const apiLimiter = RPM > 0
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.post("/api/login", loginLimiter, login);
+app.post("/api/forgot-password", loginLimiter, require("./auth").forgotPassword);
 app.post("/api/2fa/setup", loginLimiter, require("./auth").totpSetup);
 app.post("/api/2fa/confirm", loginLimiter, require("./auth").totpConfirm);
 

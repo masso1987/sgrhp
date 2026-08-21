@@ -186,6 +186,21 @@ function changePassword(req, res) {
   res.json({ ok: true });
 }
 
+function forgotPassword(req, res) {
+  const mailer = require("./mailer");
+  const email = ((req.body && req.body.email) || "").trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: "Email requis" });
+  if (!(mailer.cfg() || {}).enabled)
+    return res.json({ ok: true, message: "Réinitialisation par email indisponible. Contactez votre administrateur pour réinitialiser votre mot de passe." });
+  const generic = { ok: true, message: "Si un compte existe pour cet email, un mot de passe temporaire vient d'être envoyé." };
+  const user = db.users.find(u => (u.email || "").toLowerCase() === email);
+  if (!user || user.active === false) return res.json(generic);
+  const tmp = "Cible" + Math.random().toString(36).slice(2, 7) + new Date().getFullYear() + "!";
+  user.password = hash(tmp); user.failedLogins = 0; user.lockedUntil = null; save();
+  try { mailer.trySend(user.email, "Réinitialisation de votre mot de passe", `Bonjour ${user.fullName},\n\nVotre mot de passe temporaire est : ${tmp}\n\nConnectez-vous puis changez-le dans « Mon compte » dès que possible.`); } catch (e) {}
+  return res.json(generic);
+}
+
 function totpDisable(req, res) {
   const user = db.users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: "Introuvable" });
@@ -198,4 +213,4 @@ function totpDisable(req, res) {
 }
 
 module.exports = { login, authenticate, hash, verifyPw, me, passwordPolicy,
-  totpSetup, totpConfirm, totpDisable, changePassword, policy, twoFaRequiredFor };
+  totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor };
