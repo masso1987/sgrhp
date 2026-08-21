@@ -132,7 +132,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
   <div class="modbar" id="modbar"></div>
   <div style="font-size:13px;display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="width:52px;height:28px;padding:2px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.15);color:#fff;font-size:12px;cursor:pointer;flex:0 0 auto">
-      <option value="fr">FR</option><option value="en">EN</option></select><span id="bell" style="cursor:pointer" onclick="showNotifs()">🔔</span><span id="who"></span><button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
+      <option value="fr">FR</option><option value="en">EN</option></select><span id="chatBell" style="cursor:pointer" onclick="go('discussion')" title="Messages">💬</span><span id="bell" style="cursor:pointer" onclick="showNotifs()">🔔</span><span id="who"></span><button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
 <div class="layout">
   <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
   <div class="sidebar" id="nav"></div>
@@ -974,6 +974,7 @@ const NAV = [
   { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
   { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
   { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
+  { k: "discussion", label: "💬 Messages", sec: "Messagerie", roles: ["GPF","CD","RJ","UI","ADM"], grp: "discussion" },
   { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -984,6 +985,7 @@ const NAV = [
 ];
 const NAV_GROUPS = [
   { g: "principal", label: "Principal" },
+  { g: "discussion", label: "Discussion" },
   { g: "rh", label: "RH" },
   { g: "paie", label: "Paie" },
   { g: "facturation", label: "Facturation" },
@@ -1016,6 +1018,9 @@ async function boot() {
   launcherPlaceholder();
   showLauncher();
   startAccessPolling();
+  connectChat();
+  refreshChatUnread();
+  if(!window._chatPoll) window._chatPoll=setInterval(refreshChatUnread, 30000);
 }
 function buildNav() {
   const _adm = ME.role === "ADM" || ME.role === "SADM";
@@ -1047,6 +1052,7 @@ function goGroup(g) {
 }
 const _SVG=(p)=>`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const GROUP_META = {
+  discussion:{c:"#e11d48",svg:_SVG('<path d="M4 5h16v11H9l-4 3v-3H4z"/><path d="M8 9h8M8 12h5"/>')},
   principal:{c:"#f97316",svg:_SVG('<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>')},
   rh:{c:"#0ea5e9",svg:_SVG('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14.2c2.6.2 4.5 2.4 4.5 5"/>')},
   paie:{c:"#22c55e",svg:_SVG('<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9v6M18 9v6"/>')},
@@ -1100,7 +1106,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6068,6 +6074,110 @@ function stockNotifPreview(){
   const w=window.open("","_blank");
   w.document.write(`<html><head><title>Aperçu</title><style>body{font-family:Arial;margin:24px;color:#111}.s{color:#666;font-size:12px}</style></head><body><div class="s">Sujet</div><h3>${esc(fill(subj))}</h3><hr><div>${fill(esc(body)).replace(/\n/g,"<br>")}</div></body></html>`);
   w.document.close();
+}
+
+/* ================= Discussion (messages directs temps réel) ================= */
+window._CHAT = window._CHAT || { peers: [], activeId: null, ws: null, totalUnread: 0, msgs: {} };
+function chatWsUrl(){ const p=location.protocol==="https:"?"wss":"ws"; return p+"://"+location.host+"/ws?token="+encodeURIComponent(TOKEN||""); }
+function connectChat(){
+  if(!TOKEN) return;
+  try{ if(window._CHAT.ws){ try{window._CHAT.ws.close();}catch(_){}} }catch(_){}
+  let ws; try{ ws=new WebSocket(chatWsUrl()); }catch(e){ return; }
+  window._CHAT.ws=ws;
+  ws.onmessage=(ev)=>{ let d; try{ d=JSON.parse(ev.data); }catch(_){ return; } onChatEvent(d); };
+  ws.onclose=()=>{ window._CHAT.ws=null; if(TOKEN) setTimeout(connectChat, 4000); };   // reconnexion auto
+  ws.onerror=()=>{ try{ ws.close(); }catch(_){}} ;
+}
+function onChatEvent(d){
+  if(d.type==="message"){ const m=d.message; const me=ME&&ME.id;
+    const peer = m.fromId===me ? m.toId : m.fromId;
+    (window._CHAT.msgs[peer]=window._CHAT.msgs[peer]||[]).push(m);
+    if(window.CURRENT_VIEW==="discussion" && window._CHAT.activeId===peer){
+      chatRenderThread(); if(m.toId===me) chatMarkRead(peer);
+    } else if(m.toId===me){ window._CHAT.totalUnread++; updateChatBadge(); }
+    if(window.CURRENT_VIEW==="discussion") chatRenderPeers();
+  } else if(d.type==="read"){ if(window.CURRENT_VIEW==="discussion") chatRenderThread(); }
+}
+async function refreshChatUnread(){ try{ const r=await api("/messages/unread"); window._CHAT.totalUnread=r.unread||0; updateChatBadge(); }catch(_){}}
+function updateChatBadge(){ const el=document.getElementById("chatBell"); if(el) el.textContent=window._CHAT.totalUnread>0?("💬 "+window._CHAT.totalUnread):"💬"; }
+
+async function discussionView(){
+  const peers=await api("/messages/conversations").catch(()=>[]);
+  window._CHAT.peers=peers;
+  if(!window._CHAT.activeId && peers.length) window._CHAT.activeId=peers[0].id;
+  view.innerHTML=`<h1>💬 Discussion</h1>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+      <div class="panel" style="flex:1;min-width:240px;max-width:320px;padding:8px">
+        <input id="chatSearch" placeholder="Rechercher…" oninput="chatRenderPeers()" style="margin-bottom:6px">
+        <div id="chatPeers" style="max-height:60vh;overflow:auto"></div></div>
+      <div class="panel" style="flex:2;min-width:300px;display:flex;flex-direction:column;height:64vh;padding:0">
+        <div id="chatHead" style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600"></div>
+        <div id="chatThread" style="flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:6px"></div>
+        <div id="chatLinkChip" style="padding:0 12px"></div>
+        <div style="display:flex;gap:6px;padding:10px;border-top:1px solid var(--border);align-items:flex-end">
+          <button class="btn ghost sm" title="Joindre un fichier" onclick="document.getElementById('chatFile').click()">📎</button>
+          <input type="file" id="chatFile" class="hidden" onchange="chatPickFile(this)">
+          <button class="btn ghost sm" title="Lier la page actuelle" onclick="chatLinkView()">🔗</button>
+          <textarea id="chatInput" rows="1" placeholder="Écrire un message…  (@nom pour mentionner)" style="flex:1;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend();}"></textarea>
+          <button class="btn p sm" onclick="chatSend()">Envoyer</button></div></div></div>`;
+  chatRenderPeers(); if(window._CHAT.activeId) chatOpen(window._CHAT.activeId);
+}
+function chatRenderPeers(){
+  const box=document.getElementById("chatPeers"); if(!box) return;
+  const q=((document.getElementById("chatSearch")||{}).value||"").toLowerCase();
+  const peers=(window._CHAT.peers||[]).filter(p=>p.fullName.toLowerCase().includes(q));
+  box.innerHTML=peers.map(p=>`<div onclick="chatOpen('${p.id}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;display:flex;align-items:center;gap:8px;background:${p.id===window._CHAT.activeId?'var(--sidebar-bg)':'transparent'}">
+    <span style="width:9px;height:9px;border-radius:50%;background:${p.online?'#16a34a':'#cbd5e1'};flex-shrink:0"></span>
+    <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">${esc(p.fullName)} <span class="note" style="font-size:11px">${esc(p.role)}</span></div>
+      <div class="note" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last?(p.last.fromMe?'Vous : ':'')+esc(p.last.hasAttachment&&!p.last.text?'📎 pièce jointe':(p.last.text||'')).slice(0,32):'—'}</div></div>
+    ${p.unread?`<span style="background:#dc2626;color:#fff;border-radius:10px;font-size:11px;padding:1px 7px">${p.unread}</span>`:''}</div>`).join("")||'<div class="note" style="padding:8px">Aucun contact.</div>';
+}
+async function chatOpen(uid){
+  window._CHAT.activeId=uid; window._CHAT._pendingFile=null; window._CHAT._pendingLink=null;
+  const box=document.getElementById("chatLinkChip"); if(box) box.innerHTML="";
+  const p=(window._CHAT.peers||[]).find(x=>x.id===uid)||{};
+  const head=document.getElementById("chatHead"); if(head) head.innerHTML=`${esc(p.fullName||"")} ${p.online?'<span class="tag green" style="font-size:11px">en ligne</span>':'<span class="note" style="font-size:11px">hors ligne</span>'}`;
+  try{ window._CHAT.msgs[uid]=await api("/messages/with/"+uid); }catch(_){ window._CHAT.msgs[uid]=[]; }
+  chatRenderThread(); chatMarkRead(uid); chatRenderPeers();
+}
+function chatRenderThread(){
+  const t=document.getElementById("chatThread"); if(!t) return; const me=ME&&ME.id;
+  const msgs=window._CHAT.msgs[window._CHAT.activeId]||[];
+  t.innerHTML=msgs.map(m=>{ const mine=m.fromId===me;
+    const att=m.attachment?`<div style="margin-top:4px"><a href="#" onclick="chatDownload('${m.id}');return false" style="color:${mine?'#fff':'var(--accent)'};text-decoration:underline">📎 ${esc(m.attachment.name||'pièce jointe')}</a></div>`:'';
+    const link=m.link?`<div style="margin-top:4px"><a href="#" onclick="chatOpenLink('${esc(m.link.id)}');return false" style="color:${mine?'#fff':'var(--accent)'}">🔗 ${esc(m.link.label||m.link.id)}</a></div>`:'';
+    const body=esc(m.text||"").replace(/\n/g,"<br>").replace(/(@\w+)/g,'<b>$1</b>');
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:75%;background:${mine?'var(--accent)':'var(--sidebar-bg)'};color:${mine?'#fff':'inherit'};border:1px solid var(--border);border-radius:12px;padding:7px 11px">
+      ${body}${att}${link}<div style="font-size:10px;opacity:.7;margin-top:3px;text-align:right">${esc((m.at||'').slice(11,16))}${mine?(m.readAt?' ✓✓':' ✓'):''}</div></div>`;
+  }).join("")||'<div class="note" style="margin:auto">Aucun message. Dites bonjour 👋</div>';
+  t.scrollTop=t.scrollHeight;
+}
+async function chatMarkRead(uid){ try{ await api("/messages/with/"+uid+"/read",{method:"POST"}); }catch(_){}
+  const p=(window._CHAT.peers||[]).find(x=>x.id===uid); if(p){ window._CHAT.totalUnread=Math.max(0,window._CHAT.totalUnread-(p.unread||0)); p.unread=0; updateChatBadge(); } }
+async function chatPickFile(input){ const f=input.files&&input.files[0]; if(!f) return;
+  const fd=new FormData(); fd.append("file",f);
+  try{ const r=await fetch("/api/messages/upload",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json();
+    if(!r.ok) throw new Error(j.error||"Échec"); window._CHAT._pendingFile=j;
+    document.getElementById("chatLinkChip").innerHTML=`<div class="note" style="padding:4px 0">📎 ${esc(j.name)} <a href="#" onclick="window._CHAT._pendingFile=null;this.parentElement.remove();return false" style="color:var(--red)">✕</a></div>`;
+  }catch(e){ alert(e.message); } input.value=""; }
+function chatLinkView(){ const k=window.CURRENT_VIEW||"dash"; const it=(NAV||[]).find(n=>n.k===k); const label=it?it.label:k;
+  window._CHAT._pendingLink={type:"view",id:k,label:label};
+  document.getElementById("chatLinkChip").innerHTML=`<div class="note" style="padding:4px 0">🔗 ${esc(label)} <a href="#" onclick="window._CHAT._pendingLink=null;this.parentElement.remove();return false" style="color:var(--red)">✕</a></div>`;
+}
+function chatOpenLink(k){ if(k&&document.getElementById("nav-"+k)!==null || (NAV||[]).some(n=>n.k===k)) go(k); }
+async function chatDownload(msgId){ try{ const r=await fetch("/api/messages/file/"+msgId,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok) throw new Error("Indisponible");
+  const blob=await r.blob(); const cd=r.headers.get("Content-Disposition")||""; const nm=(cd.match(/filename="?([^"]+)"?/)||[])[1]||"piece-jointe";
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nm; a.click(); }catch(e){ alert(e.message); } }
+async function chatSend(){
+  const uid=window._CHAT.activeId; if(!uid) return;
+  const ta=document.getElementById("chatInput"); const text=(ta.value||"").trim();
+  if(!text && !window._CHAT._pendingFile && !window._CHAT._pendingLink) return;
+  const body={text, attachment:window._CHAT._pendingFile?{storedAs:window._CHAT._pendingFile.storedAs,name:window._CHAT._pendingFile.name,size:window._CHAT._pendingFile.size}:null, link:window._CHAT._pendingLink||null};
+  ta.value=""; window._CHAT._pendingFile=null; window._CHAT._pendingLink=null; const chip=document.getElementById("chatLinkChip"); if(chip) chip.innerHTML="";
+  try{ const m=await api("/messages/with/"+uid,{method:"POST",body:JSON.stringify(body)});
+    // if WS didn't echo yet, append locally
+    const arr=window._CHAT.msgs[uid]=window._CHAT.msgs[uid]||[]; if(!arr.some(x=>x.id===m.id)){ arr.push(m); chatRenderThread(); }
+  }catch(e){ alert(e.message); }
 }
 
 /* ================= SMQ — Système de Management de la Qualité ================= */

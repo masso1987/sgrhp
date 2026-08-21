@@ -20,6 +20,7 @@
     "pizzip": "^3.2.0",
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
+    "ws": "^8.18.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

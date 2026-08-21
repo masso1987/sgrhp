@@ -106,6 +106,7 @@ function login(req, res) {
     user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });
 }
 
+function verifyToken(token) { try { return jwt.verify(token, SECRET); } catch { return null; } }
 function authenticate(req, res, next) {
   const h = req.header("authorization") || "";
   const token = h.startsWith("Bearer ") ? h.slice(7) : null;
@@ -212,5 +213,5 @@ function totpDisable(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { login, authenticate, hash, verifyPw, me, passwordPolicy,
+module.exports = { login, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy,
   totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor };
