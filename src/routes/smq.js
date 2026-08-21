@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -391,6 +391,8 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       evenementsNonRevus: mine(db.smqEvents, req).filter(x => !x.reviewed).length,
       audits: mine(db.smqAudits, req).length,
       auditsPlanifies: mine(db.smqAudits, req).filter(x => x.statut === "planifie").length,
+      risques: mine(db.smqRisks, req).filter(x => (x.sens || "R") === "R").length,
+      risquesEleves: mine(db.smqRisks, req).filter(x => { const c=(Number(x.vraisemblance)||0)*(Number(x.impact)||0); return (x.sens||"R")==="R" && c>=8; }).length,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
@@ -653,6 +655,124 @@ router.get("/audits-summary", allow(...RO), (req, res) => {
     ncMineures: items.filter(i => i.conformite === "NC" && i.gravite !== "majeure").length,
     observations: items.filter(i => i.conformite === "OBS").length,
   });
+});
+
+/* ============================ Registre des risques & opportunités (méthode CRHE 4×4 + maîtrise 3 axes) ============================ */
+// Échelles : Vraisemblance 1-4, Impact 1-4 → Criticité = V×I (1..16).
+// Maîtrise sur 3 axes (Moyens, Compétences, Méthodes) 1-4 → Niveau = moyenne.
+const RISK_FIELDS = ["processId", "objectifRef", "evenement", "source", "sens", "effet", "cause",
+  "vraisemblance", "impact", "maitriseMoyens", "maitriseCompetences", "maitriseMethodes",
+  "traitement", "ownerName", "echeance", "probResiduelle", "impactResiduel", "commentaire", "statut"];
+const RISK_TRAITEMENTS = ["éviter", "réduire", "transférer", "accepter", "saisir"];
+
+function critBand(c) { return c >= 13 ? "critique" : c >= 8 ? "eleve" : c >= 4 ? "moyen" : "faible"; }
+function riskCompute(r) {
+  const V = Number(r.vraisemblance) || 0, I = Number(r.impact) || 0;
+  const criticite = V * I;
+  const mo = Number(r.maitriseMoyens) || 0, co = Number(r.maitriseCompetences) || 0, me = Number(r.maitriseMethodes) || 0;
+  const vals = [mo, co, me].filter(x => x > 0);
+  const niveauMaitrise = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : 0;
+  const critResiduelle = (Number(r.probResiduelle) || 0) * (Number(r.impactResiduel) || 0);
+  // priorité : criticité élevée ET maîtrise faible
+  const prioritaire = criticite >= 8 && niveauMaitrise > 0 && niveauMaitrise < 3;
+  return Object.assign({}, r, { criticite, band: critBand(criticite), niveauMaitrise, critResiduelle, prioritaire });
+}
+function riskRef(req) {
+  const y = new Date().getFullYear();
+  const same = mine(db.smqRisks, req).filter(x => String(x.ref || "").includes("-" + y + "-"));
+  let max = 0; for (const x of same) { const n = parseInt(String(x.ref).split("-").pop(), 10); if (n > max) max = n; }
+  return "RSK-" + y + "-" + String(max + 1).padStart(3, "0");
+}
+
+router.get("/risks", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  let rows = mine(db.smqRisks, req).map(riskCompute);
+  const q = req.query || {};
+  if (q.processId) rows = rows.filter(r => r.processId === q.processId);
+  if (q.sens) rows = rows.filter(r => (r.sens || "R") === q.sens);
+  rows.sort((a, b) => (b.criticite - a.criticite) || String(a.ref).localeCompare(String(b.ref)));
+  res.json(rows);
+});
+router.get("/risks/:id", allow(...RO), (req, res) => {
+  const r = mine(db.smqRisks, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  res.json(riskCompute(r));
+});
+router.post("/risks", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const rec = { id: id("smq"), ref: b.ref || riskRef(req), sens: b.sens || "R", statut: b.statut || "actif", createdAt: now() };
+  for (const f of RISK_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqRisks.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqRisk", rec.id, { ref: rec.ref });
+  res.status(201).json(riskCompute(rec));
+});
+router.put("/risks/:id", allow(...RW), (req, res) => {
+  const r = mine(db.smqRisks, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  for (const f of RISK_FIELDS) if (req.body[f] !== undefined) r[f] = req.body[f];
+  r.updatedAt = now(); save(); audit(req.user, "UPDATED", "SmqRisk", r.id, {}); res.json(riskCompute(r));
+});
+router.delete("/risks/:id", allow("ADM", "CD"), (req, res) => {
+  const r = mine(db.smqRisks, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  db.smqRisks.splice(db.smqRisks.indexOf(r), 1); save(); audit(req.user, "DELETED", "SmqRisk", r.id, {}); res.json({ ok: true });
+});
+// Carte thermique 4×4 : compte par cellule (vraisemblance × impact), risques seulement par défaut.
+router.get("/risks-matrix", allow(...RO), (req, res) => {
+  const sens = (req.query && req.query.sens) || "R";
+  const rows = mine(db.smqRisks, req).filter(r => (r.sens || "R") === sens);
+  const grid = {}; for (let v = 1; v <= 4; v++) for (let i = 1; i <= 4; i++) grid[v + "x" + i] = [];
+  for (const r of rows) {
+    const v = Number(r.vraisemblance) || 0, i = Number(r.impact) || 0;
+    if (v >= 1 && v <= 4 && i >= 1 && i <= 4) grid[v + "x" + i].push({ id: r.id, ref: r.ref, evenement: r.evenement });
+  }
+  res.json({ grid });
+});
+router.get("/risks-summary", allow(...RO), (req, res) => {
+  const rows = mine(db.smqRisks, req).map(riskCompute);
+  const risques = rows.filter(r => (r.sens || "R") === "R"), opps = rows.filter(r => r.sens === "O");
+  const band = { faible: 0, moyen: 0, eleve: 0, critique: 0 };
+  risques.forEach(r => band[r.band]++);
+  res.json({
+    total: rows.length, risques: risques.length, opportunites: opps.length,
+    band, prioritaires: risques.filter(r => r.prioritaire).length,
+    top: risques.sort((a, b) => b.criticite - a.criticite).slice(0, 5).map(r => ({ id: r.id, ref: r.ref, evenement: r.evenement, criticite: r.criticite, niveauMaitrise: r.niveauMaitrise, band: r.band })),
+  });
+});
+// Ouvrir une fiche d'amélioration (traitement) à partir d'un risque.
+router.post("/risks/:id/to-improvement", allow(...RW), (req, res) => {
+  const r = mine(db.smqRisks, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (r.improvementId) return res.status(409).json({ error: "Une fiche existe déjà pour ce risque." });
+  const rec = stamp({
+    id: id("smq"), ref: impRef(req, r.processId || null), entite: "QHSE", date: now().slice(0, 10),
+    processId: r.processId || null, origine: "Risques et opportunités", type: "interne",
+    gravite: (Number(r.vraisemblance) || 0) * (Number(r.impact) || 0) >= 13 ? "critique" : "majeure", statut: "ouverte",
+    description: `Traitement du risque ${r.ref} — ${r.evenement || ""}. Cause : ${r.cause || ""}. Effet : ${r.effet || ""}.`,
+    analyseCauses: r.cause || "", actions: [], emetteurName: req.user.fullName,
+    roRecurrence: true, sourceRiskId: r.id, createdAt: now(),
+  }, req);
+  db.smqImprovements.push(rec); r.improvementId = rec.id; save();
+  audit(req.user, "CREATED", "SmqImprovement", rec.id, { ref: rec.ref, fromRisk: r.ref });
+  res.status(201).json({ improvement: rec });
+});
+
+/* KPI : indicateurs avec dernière mesure + série (pour feu tricolore & tendance). */
+router.get("/indicators-kpi", allow(...RO), (req, res) => {
+  const procs = mine(db.smqProcesses, req);
+  const rows = mine(db.smqIndicators, req).map(i => {
+    const ms = mine(db.smqMeasures, req).filter(m => m.indicatorId === i.id)
+      .sort((a, b) => String(a.periode).localeCompare(String(b.periode)));
+    const derniere = ms.length ? ms[ms.length - 1] : null;
+    const cible = parseFloat(i.cible);
+    let feu = "gris";
+    if (derniere && !isNaN(cible)) {
+      const v = Number(derniere.valeur), sens = i.sens === "baisse" ? "baisse" : "hausse";
+      const ok = sens === "baisse" ? v <= cible : v >= cible;
+      const near = sens === "baisse" ? v <= cible * 1.1 : v >= cible * 0.9;
+      feu = ok ? "vert" : (near ? "orange" : "rouge");
+    }
+    const p = procs.find(x => x.id === i.processId);
+    return { id: i.id, libelle: i.libelle, processCode: p ? p.code : "", modeCalcul: i.modeCalcul,
+      cible: i.cible, unite: i.unite, frequence: i.frequence, sens: i.sens || "hausse", source: i.source || "manuel",
+      derniere, feu, serie: ms.slice(-12).map(m => ({ periode: m.periode, valeur: m.valeur })) };
+  }).sort((a, b) => String(a.processCode).localeCompare(String(b.processCode)) || String(a.libelle).localeCompare(String(b.libelle)));
+  res.json(rows);
 });
 
 module.exports = router;

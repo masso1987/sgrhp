@@ -94,7 +94,7 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
 // ADM grants employee edit/delete capabilities to a user.
 const EMP_CAPS = ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"];
 const STOCK_CAPS = ["stock.catalogue", "stock.tiers", "stock.achats", "stock.ventes", "stock.mouvements", "stock.transferts", "stock.depenses", "stock.comptes", "stock.rapports"];
-const SMQ_CAPS = ["smq.processes", "smq.documents", "smq.axes", "smq.stakeholders", "smq.indicators", "smq.scope", "smq.clauses", "smq.policy", "smq.improvements", "smq.tracability", "smq.audits", "smq.admin"];
+const SMQ_CAPS = ["smq.processes", "smq.documents", "smq.axes", "smq.stakeholders", "smq.indicators", "smq.scope", "smq.clauses", "smq.policy", "smq.improvements", "smq.tracability", "smq.audits", "smq.risks", "smq.admin"];
 const ALL_CAPS = EMP_CAPS.concat(STOCK_CAPS).concat(SMQ_CAPS);
 router.put("/:id/permissions", allow("ADM", "SADM"), (req, res) => {
   const u = targetUser(req, req.params.id);

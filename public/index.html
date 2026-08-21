@@ -910,6 +910,7 @@ const NAV = [
   { k: "smqdocs", label: "📄 Maîtrise documentaire", sec: "Documentation", roles: ["ADM","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
+  { k: "smqrisks", label: "⚠️ Risques & opportunités", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
   { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
   { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
   { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
@@ -1012,7 +1013,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1419,7 +1420,7 @@ async function permModal(uid) {
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
-  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.clauses","📚 Bibliothèque de clauses"]];
+  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.risks","⚠️ Risques & opportunités"],["smq.clauses","📚 Bibliothèque de clauses"]];
   const hasQuality = (u.modules || []).includes("quality");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -6485,6 +6486,183 @@ function smqAuditPrint(idv){
     w.document.close(); w.focus(); setTimeout(()=>w.print(),300);
   }).catch(e=>alert(e.message));
 }
+
+/* ---------- Registre des risques & opportunités (méthode CRHE) ---------- */
+const RISK_BAND_COLOR={faible:"#16a34a",moyen:"#eab308",eleve:"#f97316",critique:"#dc2626"};
+const RISK_BAND_LABEL={faible:"Faible",moyen:"Moyen",eleve:"Élevé",critique:"Critique"};
+function riskCellColor(v,i){ const c=v*i; return c>=13?RISK_BAND_COLOR.critique:c>=8?RISK_BAND_COLOR.eleve:c>=4?RISK_BAND_COLOR.moyen:RISK_BAND_COLOR.faible; }
+
+async function smqRisksView(){
+  await smqLoadRefs();
+  window._RISK_SENS=window._RISK_SENS||"R";
+  const sens=window._RISK_SENS;
+  const [rows,matrix,sum]=await Promise.all([
+    api("/smq/risks?sens="+sens).catch(()=>[]),
+    api("/smq/risks-matrix?sens="+sens).catch(()=>({grid:{}})),
+    api("/smq/risks-summary").catch(()=>null)]);
+  const procs=window._SMQ.procs||[];
+  const byProc={}; rows.forEach(r=>{ const k=r.processId||"—"; (byProc[k]=byProc[k]||[]).push(r); });
+  view.innerHTML=`<h1>⚠️ Risques & opportunités</h1>
+    <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <button class="btn p" onclick="smqRiskForm()">+ Nouveau ${sens==="O"?"opportunité":"risque"}</button>
+      <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button class="btn ${sens==="R"?"p":"ghost"} sm" style="border-radius:0;margin:0" onclick="smqRiskSens('R')">Risques</button>
+        <button class="btn ${sens==="O"?"p":"ghost"} sm" style="border-radius:0;margin:0" onclick="smqRiskSens('O')">Opportunités</button></div></div>
+    ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      ${[["Risques",sum.risques],["Opportunités",sum.opportunites],["Élevés",sum.band.eleve],["Critiques",sum.band.critique],["Prioritaires",sum.prioritaires]].map(([l,v])=>`<div style="flex:1;min-width:110px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
+    <div class="panel" style="margin-bottom:10px"><b>Carte de criticité (Vraisemblance × Impact)</b>
+      <div style="overflow-x:auto"><table style="margin-top:8px;border-collapse:collapse">
+        <tr><td></td>${[1,2,3,4].map(i=>`<td style="text-align:center;font-size:11px;color:var(--muted);padding:2px 8px">Impact ${i}</td>`).join("")}</tr>
+        ${[4,3,2,1].map(v=>`<tr><td style="font-size:11px;color:var(--muted);padding:2px 8px;white-space:nowrap">Vrais. ${v}</td>${[1,2,3,4].map(i=>{const cell=(matrix.grid[v+"x"+i]||[]);return `<td title="${cell.map(x=>esc(x.ref)).join(', ')}" style="width:64px;height:44px;text-align:center;color:#fff;font-weight:600;border:1px solid #fff;background:${riskCellColor(v,i)}">${cell.length||""}</td>`;}).join("")}</tr>`).join("")}
+      </table></div>
+      <div class="note" style="margin-top:4px">Vert = faible · Jaune = moyen · Orange = élevé · Rouge = critique (criticité = V×I).</div></div>
+    ${Object.keys(byProc).map(pid=>{const p=procs.find(x=>x.id===pid);return `<div class="panel" style="margin-bottom:10px"><b>${p?esc(p.code+" — "+p.intitule):"Sans processus"}</b>
+      <div style="overflow-x:auto"><table style="margin-top:6px;width:100%;min-width:900px"><tr><th>Réf</th><th>Événement</th><th>Cause</th><th>Effet</th><th class="r">V</th><th class="r">I</th><th class="r">Crit.</th><th class="r">Maîtrise</th><th>Traitement</th><th></th></tr>
+      ${byProc[pid].map(r=>smqRiskRow(r)).join("")}</table></div></div>`;}).join("")||'<div class="panel note">Aucun '+(sens==="O"?"opportunité":"risque")+'. Ajoutez-en ou importez depuis vos fichiers « Approche Risque ».</div>'}`;
+}
+function smqRiskRow(r){
+  return `<tr><td><b>${esc(r.ref)}</b>${r.prioritaire?' <span class="tag" style="background:#dc2626;color:#fff">Prioritaire</span>':''}</td>
+    <td>${esc(r.evenement||"")}</td><td>${esc(r.cause||"")}</td><td>${esc(r.effet||"")}</td>
+    <td class="r">${esc(String(r.vraisemblance||""))}</td><td class="r">${esc(String(r.impact||""))}</td>
+    <td class="r"><span style="display:inline-block;min-width:26px;padding:1px 6px;border-radius:8px;color:#fff;font-weight:600;background:${RISK_BAND_COLOR[r.band]||'#999'}">${r.criticite||0}</span></td>
+    <td class="r">${r.niveauMaitrise||0}<span class="note" style="font-size:11px">/4</span></td>
+    <td>${esc(r.traitement||"")}</td>
+    <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
+      ${r.improvementId?'<span class="tag" style="background:#b45309;color:#fff">Fiche ✓</span>':`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqRiskToFiche('${r.id}')">→ Fiche</button>`}
+      <button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqRiskForm('${r.id}')">✏️</button>
+      <button class="btn ghost sm" style="padding:2px 6px;font-size:12px;color:var(--red)" onclick="smqRiskDel('${r.id}')">🗑</button></div></td></tr>`;
+}
+function smqRiskSens(s){ window._RISK_SENS=s; smqRisksView(); }
+async function smqRiskForm(idv){
+  await smqLoadRefs();
+  const r=idv?await api("/smq/risks/"+idv).catch(()=>({})):{sens:window._RISK_SENS||"R"};
+  const procs=window._SMQ.procs||[];
+  const sc=(id,val,lbls)=>`<select id="${id}"><option value="">—</option>${[1,2,3,4].map(n=>`<option value="${n}" ${String(val)===String(n)?"selected":""}>${n} — ${lbls[n-1]}</option>`).join("")}</select>`;
+  const VL=["Très faible","Faible","Forte","Très forte"], IL=["Mineure","Significative","Importante","Majeure"], ML=["Aucune","Insuffisante","Suffisante","Complète"];
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:680px"><b>${idv?"Modifier":"Nouveau"} ${r.sens==="O"?"opportunité":"risque"}</b>
+    <div class="grid3"><div><label>Sens</label><select id="rSens"><option value="R" ${r.sens!=="O"?"selected":""}>Risque</option><option value="O" ${r.sens==="O"?"selected":""}>Opportunité</option></select></div>
+      <div><label>Processus</label><select id="rProc"><option value="">—</option>${procs.map(p=>`<option value="${p.id}" ${r.processId===p.id?"selected":""}>${esc(p.code)}</option>`).join("")}</select></div>
+      <div><label>Objectif</label><input id="rObj" value="${esc(r.objectifRef||"")}" placeholder="O1"></div></div>
+    <label>Événement *</label><input id="rEv" value="${esc(r.evenement||"")}">
+    <label>Source (activité / étape)</label><input id="rSrc" value="${esc(r.source||"")}">
+    <div class="grid2"><div><label>Cause</label><textarea id="rCause" rows="2">${esc(r.cause||"")}</textarea></div>
+      <div><label>Effet</label><textarea id="rEffet" rows="2">${esc(r.effet||"")}</textarea></div></div>
+    <h3 style="margin:10px 0 4px">Évaluation (criticité = V × I)</h3>
+    <div class="grid2"><div><label>Vraisemblance</label>${sc("rV",r.vraisemblance,VL)}</div><div><label>Impact</label>${sc("rI",r.impact,IL)}</div></div>
+    <h3 style="margin:10px 0 4px">Maîtrise (Moyens · Compétences · Méthodes)</h3>
+    <div class="grid3"><div><label>Moyens</label>${sc("rMo",r.maitriseMoyens,ML)}</div><div><label>Compétences</label>${sc("rCo",r.maitriseCompetences,ML)}</div><div><label>Méthodes</label>${sc("rMe",r.maitriseMethodes,ML)}</div></div>
+    <h3 style="margin:10px 0 4px">Traitement</h3>
+    <div class="grid3"><div><label>Option</label><select id="rTr"><option value="">—</option>${["éviter","réduire","transférer","accepter","saisir"].map(t=>`<option ${r.traitement===t?"selected":""}>${t}</option>`).join("")}</select></div>
+      <div><label>Responsable</label><input id="rOwn" value="${esc(r.ownerName||"")}"></div>
+      <div><label>Échéance</label><input id="rEch" type="date" value="${esc(r.echeance||"")}"></div></div>
+    <div class="grid2"><div><label>Prob. résiduelle</label>${sc("rPR",r.probResiduelle,VL)}</div><div><label>Impact résiduel</label>${sc("rIR",r.impactResiduel,IL)}</div></div>
+    <label>Commentaire</label><textarea id="rCom" rows="2">${esc(r.commentaire||"")}</textarea>
+    <div class="err hidden" id="rErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqRiskSave('${idv||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqRiskSave(idv,btn){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const num=(x)=>{const v=g(x);return v?Number(v):undefined;};
+  const body={sens:g("rSens"),processId:g("rProc")||null,objectifRef:g("rObj"),evenement:g("rEv"),source:g("rSrc"),cause:g("rCause"),effet:g("rEffet"),
+    vraisemblance:num("rV"),impact:num("rI"),maitriseMoyens:num("rMo"),maitriseCompetences:num("rCo"),maitriseMethodes:num("rMe"),
+    traitement:g("rTr"),ownerName:g("rOwn"),echeance:g("rEch"),probResiduelle:num("rPR"),impactResiduel:num("rIR"),commentaire:g("rCom")};
+  if(!body.evenement){const e=document.getElementById("rErr");e.textContent="Événement obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/risks"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqRisksView(); }
+  catch(e){ const el=document.getElementById("rErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function smqRiskDel(idv){ if(!confirm("Supprimer cette ligne ?"))return; try{ await api("/smq/risks/"+idv,{method:"DELETE"}); smqRisksView(); }catch(e){ alert(e.message); } }
+async function smqRiskToFiche(idv){ if(!confirm("Ouvrir une fiche d'amélioration pour traiter ce risque ?"))return;
+  try{ const r=await api("/smq/risks/"+idv+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
+
+/* ---------- Indicateurs : tableau de bord KPI (feu tricolore + tendance) — remplace la vue simple ---------- */
+const FEU={vert:"#16a34a",orange:"#f97316",rouge:"#dc2626",gris:"#9ca3af"};
+async function smqIndicatorsView(){
+  await smqLoadRefs();
+  const rows=await api("/smq/indicators-kpi").catch(()=>[]);
+  const byProc={}; rows.forEach(r=>{ (byProc[r.processCode||"—"]=byProc[r.processCode||"—"]||[]).push(r); });
+  view.innerHTML=`<h1>📈 Indicateurs — tableau de bord</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqIndForm()">+ Indicateur</button></div>
+    ${rows.length?Object.keys(byProc).sort().map(pc=>`<div class="panel" style="margin-bottom:10px"><b>${esc(pc==="—"?"Sans processus":pc)}</b>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        ${byProc[pc].map(i=>`<div style="flex:1;min-width:240px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--bg)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:600">${esc(i.libelle)}</div>
+            <span style="width:12px;height:12px;border-radius:50%;background:${FEU[i.feu]}" title="${i.feu}"></span></div>
+          <div class="note" style="font-size:11px">${esc(i.modeCalcul||"")}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px">
+            <div><span style="font-size:24px;font-weight:700">${i.derniere?esc(String(i.derniere.valeur)):"—"}</span><span class="note" style="font-size:12px">${i.unite?" "+esc(i.unite):""}</span>
+              <div class="note" style="font-size:11px">Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"—")}${i.unite?" "+esc(i.unite):""} · ${esc(i.frequence||"")}${i.source==="auto"?' · <span style="color:var(--accent)">auto</span>':''}</div></div>
+            <div style="display:flex;gap:2px">
+              <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqKpiTrend('${i.id}')">📊</button>
+              <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqMeasureForm('${i.id}')">＋</button>
+              <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqIndForm('${i.id}')">✏️</button></div></div>
+          <canvas id="spark_${i.id}" height="34" style="margin-top:6px"></canvas></div>`).join("")}</div></div>`).join(""):'<div class="panel note">Aucun indicateur. Créez-en un lié à un processus.</div>'}
+    <div class="note" style="margin-top:6px">🔌 Les indicateurs « auto » (Facturation, Paie, Comptabilité, RH) seront calculés automatiquement en phase Instrumentation (4bis).</div>`;
+  // sparklines
+  if(rows.some(r=>r.serie&&r.serie.length)&&await ensureChartJs()&&window.Chart){
+    rows.forEach(i=>{ const c=document.getElementById("spark_"+i.id); if(!c||!i.serie.length)return;
+      new window.Chart(c,{type:"line",data:{labels:i.serie.map(m=>m.periode),datasets:[{data:i.serie.map(m=>m.valeur),borderColor:FEU[i.feu],backgroundColor:"transparent",borderWidth:2,pointRadius:2,tension:.3}]},options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}},maintainAspectRatio:false}}); });
+  }
+}
+async function smqKpiTrend(id){
+  const [inds,ms]=await Promise.all([api("/smq/indicators").catch(()=>[]),api("/smq/indicators/"+id+"/measures").catch(()=>[])]);
+  const i=inds.find(x=>x.id===id)||{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:640px"><b>📊 ${esc(i.libelle||"Indicateur")}</b>
+    <div class="note">${esc(i.modeCalcul||"")} · Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"—")}${i.unite?" "+esc(i.unite):""}</div>
+    <canvas id="kpiChart" height="200" style="margin-top:8px"></canvas>
+    <table style="width:100%;margin-top:8px"><tr><th>Période</th><th class="r">Valeur</th><th>Commentaire</th></tr>
+      ${ms.map(m=>`<tr><td>${esc(m.periode)}</td><td class="r">${esc(String(m.valeur))}${i.unite?" "+esc(i.unite):""}</td><td>${esc(m.commentaire||"")}</td></tr>`).join("")||'<tr><td colspan="3" class="note">Aucune mesure.</td></tr>'}</table>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+  if(await ensureChartJs()&&window.Chart&&ms.length){
+    const cible=parseFloat(i.cible);
+    const ds=[{label:"Mesure",data:ms.map(m=>m.valeur),borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.1)",borderWidth:2,tension:.3,fill:true}];
+    if(!isNaN(cible))ds.push({label:"Cible",data:ms.map(()=>cible),borderColor:"#16a34a",borderDash:[5,4],borderWidth:1,pointRadius:0});
+    new window.Chart(document.getElementById("kpiChart"),{type:"line",data:{labels:ms.map(m=>m.periode),datasets:ds},options:{plugins:{legend:{display:true}},maintainAspectRatio:false}});
+  }
+}
+async function smqMeasureForm(id){
+  const inds=await api("/smq/indicators").catch(()=>[]); const i=inds.find(x=>x.id===id)||{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal"><b>Ajouter une mesure — ${esc(i.libelle||"")}</b>
+    <div class="grid2"><div><label>Période</label><input id="mPer" value="${new Date().toISOString().slice(0,7)}" placeholder="AAAA-MM"></div>
+      <div><label>Valeur${i.unite?" ("+esc(i.unite)+")":""}</label><input id="mVal" type="number" step="any"></div></div>
+    <label>Commentaire</label><input id="mCom">
+    <div class="err hidden" id="mErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqMeasureSave('${id}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqMeasureSave(id,btn){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  if(!g("mPer")){const e=document.getElementById("mErr");e.textContent="Période obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/indicators/"+id+"/measures",{method:"POST",body:JSON.stringify({periode:g("mPer"),valeur:Number(g("mVal")),commentaire:g("mCom")})}); btn.closest(".modal-bg").remove(); smqIndicatorsView(); }
+  catch(e){ const el=document.getElementById("mErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+/* override : ajoute le sens (hausse/baisse) au formulaire d'indicateur */
+async function smqIndForm(id){
+  await smqLoadRefs();
+  const inds=id?await api("/smq/indicators").catch(()=>[]):[]; const i=id?inds.find(x=>x.id===id):{};
+  const procs=window._SMQ.procs||[];
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${id?"Modifier":"Nouvel"} indicateur</b>
+    <label>Processus</label><select id="iProc"><option value="">—</option>${procs.map(p=>`<option value="${p.id}" ${i.processId===p.id?"selected":""}>${esc(p.code)} — ${esc(p.intitule)}</option>`).join("")}</select>
+    <label>Libellé *</label><input id="iLib" value="${esc(i.libelle||"")}">
+    <label>Mode de calcul</label><input id="iMode" value="${esc(i.modeCalcul||"")}" placeholder="100 × (conformes / total)">
+    <div class="grid3"><div><label>Cible</label><input id="iCib" value="${esc(i.cible||"")}"></div><div><label>Unité</label><input id="iUni" value="${esc(i.unite||"%")}"></div>
+      <div><label>Sens</label><select id="iSens"><option value="hausse" ${i.sens!=="baisse"?"selected":""}>À la hausse (≥ cible)</option><option value="baisse" ${i.sens==="baisse"?"selected":""}>À la baisse (≤ cible)</option></select></div></div>
+    <div class="grid2"><div><label>Fréquence</label><select id="iFreq">${["mensuel","trimestriel","annuel"].map(f=>`<option ${i.frequence===f?"selected":""}>${f}</option>`).join("")}</select></div>
+      <div><label>Source</label><select id="iSrc"><option value="manuel" ${i.source!=="auto"?"selected":""}>Manuel</option><option value="auto" ${i.source==="auto"?"selected":""}>Auto (à brancher)</option></select></div></div>
+    <div class="err hidden" id="iErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqIndSave('${id||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqIndSave(id,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={processId:g("iProc")||null,libelle:g("iLib"),modeCalcul:g("iMode"),cible:g("iCib"),unite:g("iUni"),sens:g("iSens"),frequence:g("iFreq"),source:g("iSrc")};
+  if(!body.libelle){const e=document.getElementById("iErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/indicators"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqIndicatorsView(); }catch(e){ const el=document.getElementById("iErr");el.textContent=e.message;el.classList.remove("hidden"); } }
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};
