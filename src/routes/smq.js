@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment", "smqReviews"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment", "smqReviews", "smqConformity"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -397,6 +397,7 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       habilitationsExpirant: mine(db.smqCompetences, req).filter(x => x.habilitation && x.dateExpiration && x.dateExpiration < new Date().toISOString().slice(0,10)).length,
       equipementsAEtalonner: mine(db.smqEquipment, req).filter(x => { const p=x.prochainEtalonnage||(x.dernierEtalonnage&&x.frequenceEtalonnageMois?(()=>{const d=new Date(x.dernierEtalonnage);d.setMonth(d.getMonth()+(Number(x.frequenceEtalonnageMois)||12));return d.toISOString().slice(0,10);})():null); return p && ((new Date(p)-new Date())/86400000)<=30; }).length,
       revues: mine(db.smqReviews, req).length,
+      tauxConformite: conformitySummary(req).taux,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
@@ -1069,6 +1070,60 @@ router.put("/reviews/:id", allow(...RW), (req, res) => {
 router.delete("/reviews/:id", allow("ADM", "CD"), (req, res) => {
   const r = mine(db.smqReviews, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
   db.smqReviews.splice(db.smqReviews.indexOf(r), 1); save(); res.json({ ok: true });
+});
+
+/* ============================ Prêt pour certification : conformité par clause & analyse d'écart ============================ */
+const CONF_STATUTS = ["conforme", "partiel", "non_conforme", "non_applicable", "non_evalue"];
+const CONF_WEIGHT = { conforme: 1, partiel: 0.5, non_conforme: 0, non_applicable: null, non_evalue: 0 };
+const chapterOf = (code) => String(code || "").split(".")[0];
+
+function conformityRows(req) {
+  seedSMQ(req.user.tenantId || "t1");
+  const clauses = mine(db.smqClauses, req).filter(c => String(c.code).includes(".")); // sous-clauses
+  const assess = mine(db.smqConformity, req);
+  const items = mine(db.smqAuditItems, req);
+  const scope = mine(db.smqScope, req)[0] || {};
+  const excl = new Set((scope.exclusions || []).map(e => String(e.clause)));
+  return clauses.map(c => {
+    const a = assess.find(x => x.clauseCode === c.code) || {};
+    const findings = items.filter(i => i.clause === c.code);
+    let statut = a.statut;
+    if (!statut) statut = excl.has(c.code) ? "non_applicable" : "non_evalue";
+    return {
+      clauseCode: c.code, titre: c.titre, chapitre: chapterOf(c.code),
+      statut, preuves: a.preuves || "", responsable: a.responsable || "", commentaire: a.commentaire || "",
+      lastReviewedAt: a.lastReviewedAt || null,
+      constatsNC: findings.filter(i => i.conformite === "NC").length,
+      constatsC: findings.filter(i => i.conformite === "C").length,
+      observations: findings.filter(i => i.conformite === "OBS").length,
+      exclue: excl.has(c.code),
+    };
+  }).sort((a, b) => String(a.clauseCode).localeCompare(String(b.clauseCode), "fr", { numeric: true }));
+}
+router.get("/conformity", allow(...RO), (req, res) => res.json(conformityRows(req)));
+router.put("/conformity/:clauseCode", allow(...RW), (req, res) => {
+  const code = req.params.clauseCode;
+  let a = mine(db.smqConformity, req).find(x => x.clauseCode === code);
+  if (!a) { a = stamp({ id: id("smq"), clauseCode: code, createdAt: now() }, req); db.smqConformity.push(a); }
+  for (const f of ["statut", "preuves", "responsable", "commentaire"]) if (req.body[f] !== undefined) a[f] = req.body[f];
+  a.lastReviewedAt = now().slice(0, 10); save(); audit(req.user, "UPDATED", "SmqConformity", code, { statut: a.statut });
+  res.json(a);
+});
+function conformitySummary(req) {
+  const rows = conformityRows(req);
+  const applicable = rows.filter(r => r.statut !== "non_applicable");
+  const scored = applicable.filter(r => CONF_WEIGHT[r.statut] != null);
+  const taux = scored.length ? Math.round(scored.reduce((s, r) => s + CONF_WEIGHT[r.statut], 0) / scored.length * 1000) / 10 : 0;
+  const byStatut = {}; CONF_STATUTS.forEach(s => byStatut[s] = 0); rows.forEach(r => byStatut[r.statut]++);
+  const chapters = {};
+  applicable.forEach(r => { const c = r.chapitre; (chapters[c] = chapters[c] || { total: 0, score: 0, evalues: 0 }); chapters[c].total++; if (CONF_WEIGHT[r.statut] != null) { chapters[c].score += CONF_WEIGHT[r.statut]; chapters[c].evalues++; } });
+  const byChapter = Object.keys(chapters).sort((a, b) => a - b).map(c => ({ chapitre: c, taux: chapters[c].evalues ? Math.round(chapters[c].score / chapters[c].evalues * 1000) / 10 : 0, total: chapters[c].total }));
+  return { taux, total: rows.length, applicable: applicable.length, byStatut, byChapter };
+}
+router.get("/conformity-summary", allow(...RO), (req, res) => res.json(conformitySummary(req)));
+router.get("/conformity/gap", allow(...RO), (req, res) => {
+  const rows = conformityRows(req).filter(r => ["non_conforme", "partiel", "non_evalue"].includes(r.statut));
+  res.json(rows);
 });
 
 module.exports = router;

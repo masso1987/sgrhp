@@ -113,6 +113,19 @@ const METRICS = {
         if (a.echeance && a.echeance < today && !["cloturee", "verifiee", "faite"].includes(a.statut)) n++;
       return { value: n, num: n }; },
   },
+  "certification.taux_conformite": {
+    label: "Taux de conformité ISO 9001 (%)", module: "Qualité", periodless: true,
+    fn: (tid) => {
+      const clauses = mine("smqClauses", tid).filter(c => String(c.code).includes("."));
+      const assess = mine("smqConformity", tid);
+      const scope = mine("smqScope", tid)[0] || {}; const excl = new Set((scope.exclusions||[]).map(e=>String(e.clause)));
+      const W = { conforme:1, partiel:0.5, non_conforme:0, non_evalue:0 };
+      let score=0, n=0;
+      for (const c of clauses) { const a = assess.find(x=>x.clauseCode===c.code)||{}; let st=a.statut||(excl.has(c.code)?"non_applicable":"non_evalue");
+        if (st==="non_applicable") continue; score += (W[st]!=null?W[st]:0); n++; }
+      return { value: n ? Math.round(score/n*1000)/10 : 0, num: n };
+    },
+  },
   "qualite.constats_nc_audit": {
     label: "Constats de non-conformité (audits, instantané)", module: "Qualité", periodless: true,
     fn: (tid) => { const n = mine("smqAuditItems", tid).filter(i => i.conformite === "NC").length; return { value: n, num: n }; },
