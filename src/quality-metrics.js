@@ -64,6 +64,23 @@ const METRICS = {
     label: "Embauches (créations d'employés) du mois", module: "RH",
     fn: (tid, p) => { const n = mine("employees", tid).filter(e => inPeriod(e.createdAt, p)).length; return { value: n, num: n }; },
   },
+  // ---------------- Écoute client ----------------
+  "client.satisfaction_moyenne": {
+    label: "Satisfaction client moyenne (%)", module: "Écoute client",
+    fn: (tid, p) => { const rows = mine("smqSatisfaction", tid).filter(r => String(r.periode || r.date || "").slice(0,7) === p);
+      if (!rows.length) return { value: 0, num: 0, den: 0 };
+      const norm = r => { const mx = Number(r.scoreMax) || 100; return mx ? (Number(r.score)||0)/mx*100 : 0; };
+      const avg = rows.reduce((a,r)=>a+norm(r),0)/rows.length; return { value: Math.round(avg*10)/10, num: rows.length }; },
+  },
+  "client.nb_reclamations": {
+    label: "Réclamations reçues", module: "Écoute client",
+    fn: (tid, p) => { const n = mine("smqClaims", tid).filter(c => String(c.date||"").slice(0,7) === p).length; return { value: n, num: n }; },
+  },
+  "client.taux_reclamations_resolues": {
+    label: "Taux de réclamations résolues (%)", module: "Écoute client",
+    fn: (tid, p) => { const c = mine("smqClaims", tid).filter(x => String(x.date||"").slice(0,7) === p);
+      return pct(c.filter(x => ["resolue","cloturee"].includes(x.statut)).length, c.length); },
+  },
   // ---------------- Qualité (auto-diagnostic) ----------------
   "qualite.nc_ouvertes": {
     label: "Fiches d'amélioration ouvertes (instantané)", module: "Qualité", periodless: true,

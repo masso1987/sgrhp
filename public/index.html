@@ -911,6 +911,8 @@ const NAV = [
   { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
   { k: "smqrisks", label: "⚠️ Risques & opportunités", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
+  { k: "smqsatisfaction", label: "😊 Satisfaction client", sec: "Écoute client", roles: ["ADM","CD","RJ","GPF"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
+  { k: "smqclaims", label: "📣 Réclamations", sec: "Écoute client", roles: ["ADM","CD","RJ","GPF"], cap: "smq.claims", module: "quality", grp: "qualite" },
   { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
   { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
   { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
@@ -1013,7 +1015,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1420,7 +1422,7 @@ async function permModal(uid) {
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
-  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.risks","⚠️ Risques & opportunités"],["smq.clauses","📚 Bibliothèque de clauses"]];
+  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.risks","⚠️ Risques & opportunités"],["smq.satisfaction","😊 Satisfaction client"],["smq.claims","📣 Réclamations"],["smq.clauses","📚 Bibliothèque de clauses"]];
   const hasQuality = (u.modules || []).includes("quality");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -6731,6 +6733,80 @@ async function smqIndSave(id,btn){ const g=(x)=>(document.getElementById(x)||{})
   if(!body.libelle){const e=document.getElementById("iErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
   if(source==="auto"&&!body.autoMetric){const e=document.getElementById("iErr");e.textContent="Choisissez une métrique pour un indicateur auto.";e.classList.remove("hidden");return;}
   try{ await api("/smq/indicators"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqIndicatorsView(); }catch(e){ const el=document.getElementById("iErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+
+/* ---------- Écoute client : satisfaction & réclamations ---------- */
+async function smqSatisfactionView(){
+  const [rows,sum]=await Promise.all([api("/smq/satisfaction").catch(()=>[]),api("/smq/satisfaction-summary").catch(()=>null)]);
+  view.innerHTML=`<h1>😊 Satisfaction client</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqSatForm()">+ Réponse / mesure</button></div>
+    ${sum?`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+      <div class="panel" style="flex:1;min-width:200px;text-align:center"><div class="note">Satisfaction moyenne</div>
+        <div style="font-size:40px;font-weight:700;color:${sum.moyenne>=80?'#16a34a':sum.moyenne>=60?'#f97316':'#dc2626'}">${sum.moyenne}%</div>
+        <div class="note">${sum.total} réponse(s)</div></div>
+      <div class="panel" style="flex:2;min-width:280px"><b>Tendance</b><canvas id="satChart" height="120" style="margin-top:6px"></canvas></div>
+      <div class="panel" style="flex:1;min-width:180px"><b>Par canal</b>${sum.canaux.map(c=>`<div style="display:flex;justify-content:space-between;padding:2px 0"><span>${esc(c.canal)}</span><b>${c.moyenne}%</b> <span class="note">(${c.n})</span></div>`).join("")||'<div class="note">—</div>'}</div></div>`:''}
+    <div class="panel"><table style="width:100%"><tr><th>Date</th><th>Client</th><th>Période</th><th>Canal</th><th class="r">Score</th><th>Note</th><th></th></tr>
+      ${rows.map(r=>{const max=Number(r.scoreMax)||100;const p=max?Math.round((Number(r.score)||0)/max*100):0;return `<tr><td>${esc(r.date||"")}</td><td>${esc(r.clientName||"")}</td><td>${esc(r.periode||"")}</td><td>${esc(r.canal||"")}</td>
+        <td class="r">${esc(String(r.score||0))}/${max} <span class="note">(${p}%)</span></td><td>${esc(r.note||"")}</td>
+        <td><button class="btn ghost sm" onclick="smqSatForm('${r.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqSatDel('${r.id}')">🗑</button></td></tr>`;}).join("")||'<tr><td colspan="7" class="note">Aucune réponse.</td></tr>'}</table></div>`;
+  if(sum&&sum.trend.length&&await ensureChartJs()&&window.Chart){
+    new window.Chart(document.getElementById("satChart"),{type:"line",data:{labels:sum.trend.map(t=>t.periode),datasets:[{label:"Satisfaction %",data:sum.trend.map(t=>t.moyenne),borderColor:"#16a34a",backgroundColor:"rgba(22,163,74,.1)",fill:true,tension:.3}]},options:{plugins:{legend:{display:false}},scales:{y:{min:0,max:100}},maintainAspectRatio:false}});
+  }
+}
+async function smqSatForm(idv){
+  const rows=idv?await api("/smq/satisfaction").catch(()=>[]):[]; const r=idv?rows.find(x=>x.id===idv):{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal"><b>${idv?"Modifier":"Nouvelle"} réponse satisfaction</b>
+    <div class="grid2"><div><label>Client</label><input id="stCli" value="${esc(r.clientName||"")}"></div><div><label>Date</label><input id="stDate" type="date" value="${esc(r.date||new Date().toISOString().slice(0,10))}"></div></div>
+    <div class="grid2"><div><label>Période</label><input id="stPer" value="${esc(r.periode||new Date().toISOString().slice(0,7))}" placeholder="AAAA-MM"></div><div><label>Canal</label><input id="stCan" value="${esc(r.canal||"Enquête")}"></div></div>
+    <div class="grid2"><div><label>Score</label><input id="stScore" type="number" step="any" value="${esc(String(r.score!=null?r.score:""))}"></div><div><label>Score max</label><input id="stMax" type="number" value="${esc(String(r.scoreMax||100))}"></div></div>
+    <label>Note / verbatim</label><textarea id="stNote" rows="2">${esc(r.note||"")}</textarea>
+    <div class="err hidden" id="stErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqSatSave('${idv||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqSatSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={clientName:g("stCli"),date:g("stDate"),periode:g("stPer"),canal:g("stCan"),score:Number(g("stScore")),scoreMax:Number(g("stMax"))||100,note:g("stNote")};
+  if(!body.clientName){const e=document.getElementById("stErr");e.textContent="Client obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/satisfaction"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqSatisfactionView(); }catch(e){ const el=document.getElementById("stErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqSatDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/satisfaction/"+idv,{method:"DELETE"}); smqSatisfactionView(); }catch(e){ alert(e.message); } }
+
+const CLAIM_STAT_TAG={ouverte:'<span class="tag" style="background:#dc2626;color:#fff">Ouverte</span>',en_cours:'<span class="tag blue">En cours</span>',resolue:'<span class="tag green">Résolue</span>',cloturee:'<span class="tag" style="background:#16a34a;color:#fff">Clôturée</span>'};
+async function smqClaimsView(){
+  const [rows,sum]=await Promise.all([api("/smq/claims").catch(()=>[]),api("/smq/claims-summary").catch(()=>null)]);
+  view.innerHTML=`<h1>📣 Réclamations client</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqClaimForm()">+ Nouvelle réclamation</button></div>
+    ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      ${[["Total",sum.total],["Ouvertes",sum.ouvertes],["En cours",sum.byStatut.en_cours],["Résolues",sum.byStatut.resolue],["Clôturées",sum.byStatut.cloturee],["Taux résolution",sum.tauxResolution+"%"]].map(([l,v])=>`<div style="flex:1;min-width:110px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
+    <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Date</th><th>Client</th><th>Objet</th><th>Gravité</th><th>Canal</th><th>Statut</th><th></th></tr>
+      ${rows.map(c=>`<tr><td><b>${esc(c.ref)}</b></td><td>${esc(c.date||"")}</td><td>${esc(c.clientName||"")}</td><td>${esc(c.objet||"")}</td><td>${IMP_GRAV_TAG[c.gravite]||esc(c.gravite||"")}</td><td>${esc(c.canal||"")}</td><td>${CLAIM_STAT_TAG[c.statut]||esc(c.statut)}</td>
+        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
+          <button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimForm('${c.id}')">✏️</button>
+          ${c.improvementId?'<span class="tag" style="background:#b45309;color:#fff">Fiche ✓</span>':`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimToFiche('${c.id}')">→ Fiche</button>`}
+          <button class="btn ghost sm" style="padding:2px 6px;font-size:12px;color:var(--red)" onclick="smqClaimDel('${c.id}')">🗑</button></div></td></tr>`).join("")||'<tr><td colspan="8" class="note">Aucune réclamation.</td></tr>'}</table></div>`;
+}
+async function smqClaimForm(idv){
+  const rows=idv?await api("/smq/claims").catch(()=>[]):[]; const c=idv?rows.find(x=>x.id===idv):{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${idv?"Modifier":"Nouvelle"} réclamation</b>
+    <div class="grid2"><div><label>Client</label><input id="clCli" value="${esc(c.clientName||"")}"></div><div><label>Date</label><input id="clDate" type="date" value="${esc(c.date||new Date().toISOString().slice(0,10))}"></div></div>
+    <label>Objet *</label><input id="clObj" value="${esc(c.objet||"")}">
+    <label>Description</label><textarea id="clDesc" rows="2">${esc(c.description||"")}</textarea>
+    <div class="grid3"><div><label>Gravité</label><select id="clGrav">${["mineure","majeure","critique"].map(g=>`<option ${c.gravite===g?"selected":""}>${g}</option>`).join("")}</select></div>
+      <div><label>Canal</label><input id="clCan" value="${esc(c.canal||"")}"></div>
+      <div><label>Statut</label><select id="clStat">${["ouverte","en_cours","resolue","cloturee"].map(st=>`<option ${c.statut===st?"selected":""}>${st}</option>`).join("")}</select></div></div>
+    <label>Réponse apportée</label><textarea id="clRep" rows="2">${esc(c.reponse||"")}</textarea>
+    <div class="err hidden" id="clErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqClaimSave('${idv||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqClaimSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={clientName:g("clCli"),date:g("clDate"),objet:g("clObj"),description:g("clDesc"),gravite:g("clGrav"),canal:g("clCan"),statut:g("clStat"),reponse:g("clRep")};
+  if(!body.objet){const e=document.getElementById("clErr");e.textContent="Objet obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/claims"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqClaimsView(); }catch(e){ const el=document.getElementById("clErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqClaimDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/claims/"+idv,{method:"DELETE"}); smqClaimsView(); }catch(e){ alert(e.message); } }
+async function smqClaimToFiche(idv){ if(!confirm("Ouvrir une fiche d'amélioration pour cette réclamation ?"))return;
+  try{ const r=await api("/smq/claims/"+idv+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};

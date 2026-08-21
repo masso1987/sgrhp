@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -393,6 +393,7 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       auditsPlanifies: mine(db.smqAudits, req).filter(x => x.statut === "planifie").length,
       risques: mine(db.smqRisks, req).filter(x => (x.sens || "R") === "R").length,
       risquesEleves: mine(db.smqRisks, req).filter(x => { const c=(Number(x.vraisemblance)||0)*(Number(x.impact)||0); return (x.sens||"R")==="R" && c>=8; }).length,
+      reclamationsOuvertes: mine(db.smqClaims, req).filter(x => !["resolue","cloturee"].includes(x.statut)).length,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
@@ -805,6 +806,78 @@ router.post("/indicators/compute-all", allow(...RW), (req, res) => {
   let done = 0, errors = 0;
   for (const ind of autos) { const r = computeIndicator(req, ind, period); if (r.error) errors++; else done++; }
   save(); res.json({ period, total: autos.length, done, errors });
+});
+
+/* ============================ Écoute client : satisfaction & réclamations (§9.1.2) ============================ */
+const CLAIM_STATUTS = ["ouverte", "en_cours", "resolue", "cloturee"];
+
+crud("satisfaction", "smqSatisfaction",
+  ["clientName", "contactId", "periode", "canal", "score", "scoreMax", "note", "date", "campagne"],
+  "clientName", "date");
+
+router.get("/satisfaction-summary", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const rows = mine(db.smqSatisfaction, req);
+  const norm = (r) => { const max = Number(r.scoreMax) || 100; return max ? (Number(r.score) || 0) / max * 100 : 0; };
+  const moyenne = rows.length ? Math.round(rows.reduce((a, r) => a + norm(r), 0) / rows.length * 10) / 10 : 0;
+  const byPeriod = {}; rows.forEach(r => { const p = String(r.periode || r.date || "").slice(0, 7); if (!p) return; (byPeriod[p] = byPeriod[p] || []).push(norm(r)); });
+  const trend = Object.keys(byPeriod).sort().map(p => ({ periode: p, moyenne: Math.round(byPeriod[p].reduce((a, b) => a + b, 0) / byPeriod[p].length * 10) / 10, n: byPeriod[p].length }));
+  const byCanal = {}; rows.forEach(r => { const c = r.canal || "—"; (byCanal[c] = byCanal[c] || []).push(norm(r)); });
+  const canaux = Object.keys(byCanal).map(c => ({ canal: c, moyenne: Math.round(byCanal[c].reduce((a, b) => a + b, 0) / byCanal[c].length * 10) / 10, n: byCanal[c].length }));
+  res.json({ total: rows.length, moyenne, trend, canaux });
+});
+
+/* Réclamations */
+router.get("/claims", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  let rows = mine(db.smqClaims, req).slice();
+  if (req.query && req.query.statut) rows = rows.filter(r => r.statut === req.query.statut);
+  rows.sort((a, b) => String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || "")));
+  res.json(rows);
+});
+function claimRef(req) {
+  const y = new Date().getFullYear();
+  const same = mine(db.smqClaims, req).filter(x => String(x.ref || "").endsWith("/" + y));
+  let max = 0; for (const x of same) { const n = parseInt(String(x.ref), 10); if (n > max) max = n; }
+  return "REC-" + String(max + 1).padStart(3, "0") + "/" + y;
+}
+const CLAIM_FIELDS = ["clientName", "contactId", "date", "objet", "description", "gravite", "canal", "statut", "reponse", "closedAt"];
+router.post("/claims", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const rec = { id: id("smq"), ref: b.ref || claimRef(req), date: b.date || now().slice(0, 10), statut: b.statut || "ouverte", gravite: b.gravite || "mineure", createdAt: now() };
+  for (const f of CLAIM_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqClaims.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqClaim", rec.id, { ref: rec.ref });
+  res.status(201).json(rec);
+});
+router.put("/claims/:id", allow(...RW), (req, res) => {
+  const c = mine(db.smqClaims, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
+  for (const f of CLAIM_FIELDS) if (req.body[f] !== undefined) c[f] = req.body[f];
+  if (c.statut === "cloturee" && !c.closedAt) c.closedAt = now().slice(0, 10);
+  c.updatedAt = now(); save(); res.json(c);
+});
+router.delete("/claims/:id", allow("ADM", "CD"), (req, res) => {
+  const c = mine(db.smqClaims, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
+  db.smqClaims.splice(db.smqClaims.indexOf(c), 1); save(); res.json({ ok: true });
+});
+router.post("/claims/:id/to-improvement", allow(...RW), (req, res) => {
+  const c = mine(db.smqClaims, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
+  if (c.improvementId) return res.status(409).json({ error: "Une fiche existe déjà pour cette réclamation." });
+  const rec = stamp({
+    id: id("smq"), ref: impRef(req, null), entite: "QHSE", date: now().slice(0, 10),
+    origine: "Réclamation client", type: "interne", gravite: c.gravite || "majeure", statut: "ouverte",
+    description: `Réclamation ${c.ref} — ${c.clientName || ""} : ${c.objet || ""}. ${c.description || ""}`,
+    analyseCauses: "", actions: [], emetteurName: req.user.fullName, sourceClaimId: c.id, createdAt: now(),
+  }, req);
+  db.smqImprovements.push(rec); c.improvementId = rec.id; save();
+  audit(req.user, "CREATED", "SmqImprovement", rec.id, { ref: rec.ref, fromClaim: c.ref });
+  res.status(201).json({ improvement: rec });
+});
+router.get("/claims-summary", allow(...RO), (req, res) => {
+  const rows = mine(db.smqClaims, req);
+  const byStatut = { ouverte: 0, en_cours: 0, resolue: 0, cloturee: 0 };
+  rows.forEach(r => { byStatut[r.statut] = (byStatut[r.statut] || 0) + 1; });
+  const resolues = byStatut.resolue + byStatut.cloturee;
+  res.json({ total: rows.length, byStatut, ouvertes: rows.length - resolues, tauxResolution: rows.length ? Math.round(resolues / rows.length * 1000) / 10 : 0 });
 });
 
 module.exports = router;
