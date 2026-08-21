@@ -135,7 +135,7 @@ crud("axes", "smqAxes", ["code", "libelle", "ordre"], "libelle", "ordre");
 crud("stakeholders", "smqStakeholders", ["partie", "besoins", "attentes", "frequenceRevue", "type"], "partie", "partie");
 crud("doctypes", "smqDocTypes", ["code", "libelle", "pattern", "visas", "reviewFreqMonths"], "code", "code");
 crud("indicators", "smqIndicators",
-  ["processId", "libelle", "modeCalcul", "cible", "seuil", "unite", "frequence", "sens", "source", "binding", "axeCode"],
+  ["processId", "libelle", "modeCalcul", "cible", "seuil", "unite", "frequence", "sens", "source", "binding", "autoMetric", "axeCode"],
   "libelle", "libelle");
 
 /* --------------------------------------------------------------- clauses (read + extend) */
@@ -773,6 +773,38 @@ router.get("/indicators-kpi", allow(...RO), (req, res) => {
       derniere, feu, serie: ms.slice(-12).map(m => ({ periode: m.periode, valeur: m.valeur })) };
   }).sort((a, b) => String(a.processCode).localeCompare(String(b.processCode)) || String(a.libelle).localeCompare(String(b.libelle)));
   res.json(rows);
+});
+
+/* ============================ Instrumentation auto des indicateurs (Phase 4bis) ============================ */
+const qmetrics = require("../quality-metrics");
+router.get("/metrics-catalog", allow(...RO), (req, res) => res.json(qmetrics.catalog()));
+
+function computeIndicator(req, ind, period) {
+  const tid = req.user.tenantId || "t1";
+  const key = ind.autoMetric || (ind.binding && ind.binding.metric);
+  if (!key) return { error: "Aucune métrique liée." };
+  const r = qmetrics.compute(tid, key, period);
+  if (r.error) return r;
+  const per = r.periodless ? (period || now().slice(0, 7)) : period;
+  // upsert de la mesure (source auto)
+  let m = mine(db.smqMeasures, req).find(x => x.indicatorId === ind.id && x.periode === per);
+  if (m) { m.valeur = r.value; m.num = r.num; m.den = r.den; m.source = "auto"; m.commentaire = "Calcul auto : " + (r.label || key); m.updatedAt = now(); }
+  else { m = stamp({ id: id("smq"), indicatorId: ind.id, periode: per, valeur: r.value, num: r.num, den: r.den, source: "auto", commentaire: "Calcul auto : " + (r.label || key), createdAt: now() }, req); db.smqMeasures.push(m); }
+  return { measure: m, result: r };
+}
+router.post("/indicators/:id/compute", allow(...RW), (req, res) => {
+  const ind = mine(db.smqIndicators, req).find(x => x.id === req.params.id); if (!ind) return res.status(404).json({ error: "Introuvable" });
+  const period = (req.body && req.body.period) || now().slice(0, 7);
+  const r = computeIndicator(req, ind, period);
+  if (r.error) return res.status(400).json({ error: r.error });
+  save(); res.json(r);
+});
+router.post("/indicators/compute-all", allow(...RW), (req, res) => {
+  const period = (req.body && req.body.period) || now().slice(0, 7);
+  const autos = mine(db.smqIndicators, req).filter(i => i.source === "auto" && (i.autoMetric || (i.binding && i.binding.metric)));
+  let done = 0, errors = 0;
+  for (const ind of autos) { const r = computeIndicator(req, ind, period); if (r.error) errors++; else done++; }
+  save(); res.json({ period, total: autos.length, done, errors });
 });
 
 module.exports = router;
