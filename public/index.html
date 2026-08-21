@@ -977,7 +977,7 @@ async function boot() {
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} — ${ME.role}`;
   buildNav();
-  go("dash");
+  launcherPlaceholder();
   showLauncher();
   startAccessPolling();
 }
@@ -1009,21 +1009,30 @@ function goGroup(g) {
   const first = NAV_VISIBLE.find(n => (n.grp || "admin") === g);
   if (first && first.k !== window.CURRENT_VIEW) go(first.k);
 }
+const _SVG=(p)=>`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const GROUP_META = {
-  principal:{ico:"🏠",c:"#f97316"}, rh:{ico:"👥",c:"#0ea5e9"}, paie:{ico:"💵",c:"#22c55e"},
-  facturation:{ico:"🧾",c:"#6366f1"}, comptabilite:{ico:"📒",c:"#a855f7"}, stock:{ico:"📦",c:"#14b8a6"},
-  qualite:{ico:"✅",c:"#10b981"}, rapports:{ico:"📈",c:"#ef4444"}, admin:{ico:"🛠️",c:"#64748b"}, plateforme:{ico:"🏢",c:"#0f172a"}
+  principal:{c:"#f97316",svg:_SVG('<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>')},
+  rh:{c:"#0ea5e9",svg:_SVG('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14.2c2.6.2 4.5 2.4 4.5 5"/>')},
+  paie:{c:"#22c55e",svg:_SVG('<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9v6M18 9v6"/>')},
+  facturation:{c:"#6366f1",svg:_SVG('<path d="M6 3h9l3 3v15l-2.2-1.4L13.6 21l-2.4-1.4L8.8 21l-2.4-1.4L4 21V6z"/><path d="M8 8h7M8 11.5h7M8 15h4"/>')},
+  comptabilite:{c:"#a855f7",svg:_SVG('<path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M9 4v16"/><path d="M12 8h4M12 12h4"/>')},
+  stock:{c:"#14b8a6",svg:_SVG('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>')},
+  qualite:{c:"#10b981",svg:_SVG('<path d="M12 3l7 3v5c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6z"/><path d="M9 12l2 2 4-4"/>')},
+  rapports:{c:"#ef4444",svg:_SVG('<path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="5" width="3" height="12"/>')},
+  admin:{c:"#64748b",svg:_SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>')},
+  plateforme:{c:"#0f172a",svg:_SVG('<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10.5 21v-3h3v3"/>')}
 };
 function showLauncher(){
   const el=document.getElementById("launcher"); if(!el) return;
-  const tiles=(NAV_PRESENT||[]).map(G=>{ const m=GROUP_META[G.g]||{ico:"▦",c:"#6366f1"};
-    return `<div class="app-tile" onclick="enterModule('${G.g}')"><div class="app-ico" style="background:${m.c}">${m.ico}</div><div class="app-lbl">${esc(G.label)}</div></div>`;
+  const tiles=(NAV_PRESENT||[]).map(G=>{ const m=GROUP_META[G.g]||{svg:"▦",c:"#6366f1"};
+    return `<div class="app-tile" onclick="enterModule('${G.g}')"><div class="app-ico" style="background:${m.c}">${m.svg}</div><div class="app-lbl">${esc(G.label)}</div></div>`;
   }).join("");
   el.innerHTML=`<div class="launcher-top"><div class="l-title">Applications</div><button class="launcher-close" onclick="hideLauncher()">✕ Fermer</button></div>
     <div class="launcher-grid">${tiles||'<div class="note">Aucun module disponible.</div>'}</div>`;
   el.classList.remove("hidden");
 }
-function hideLauncher(){ const el=document.getElementById("launcher"); if(el) el.classList.add("hidden"); }
+function launcherPlaceholder(){ const v=document.getElementById("view"); if(v&&!window.CURRENT_VIEW) v.innerHTML=`<div style="height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:12px"><div style="font-size:15px">Choisissez une application pour commencer.</div><button class="btn p" onclick="showLauncher()">▦ Ouvrir les applications</button></div>`; }
+function hideLauncher(){ const el=document.getElementById("launcher"); if(el) el.classList.add("hidden"); if(!window.CURRENT_VIEW) launcherPlaceholder(); }
 function enterModule(g){ hideLauncher(); goGroup(g); }
 // Poll the profile so access changes made by an admin/super-admin (modules, rights)
 // take effect live — no re-login required.
