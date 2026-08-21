@@ -725,6 +725,28 @@ router.delete("/invoice-models/:id", allow("ADM"), (req, res) => {
 
 /* ---- Factures ---- */
 const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid);
+router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
+  const invs = mine(db.billingInvoices, req).map(withInvTotals);
+  const val = invs.filter(i => i.status === "validated");
+  const sum = (arr, k) => arr.reduce((a, x) => a + (Number(x[k]) || 0), 0);
+  const byPeriod = {};
+  val.forEach(i => { const p = i.period || (i.date || "").slice(0, 7); if (!p) return; (byPeriod[p] = byPeriod[p] || { TTC: 0, HT: 0, n: 0 }); byPeriod[p].TTC += i.TTC; byPeriod[p].HT += i.HT; byPeriod[p].n++; });
+  const trend = Object.keys(byPeriod).sort().slice(-8).map(p => ({ periode: p, TTC: byPeriod[p].TTC, HT: byPeriod[p].HT, n: byPeriod[p].n }));
+  const byClient = {};
+  val.forEach(i => { const c = i.client || "—"; (byClient[c] = byClient[c] || { TTC: 0, n: 0 }); byClient[c].TTC += i.TTC; byClient[c].n++; });
+  const topClients = Object.keys(byClient).map(c => ({ client: c, TTC: byClient[c].TTC, n: byClient[c].n })).sort((a, b) => b.TTC - a.TTC).slice(0, 6);
+  const contrats = mine(db.billingContracts, req).length;
+  const recent = invs.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 6)
+    .map(i => ({ id: i.id, number: i.number, client: i.client, date: i.date, TTC: i.TTC, status: i.status }));
+  res.json({
+    kpi: {
+      factures: invs.length, validees: val.length, brouillons: invs.length - val.length,
+      caTTC: sum(val, "TTC"), caHT: sum(val, "HT"), tva: sum(val, "TVA"), is: sum(val, "IS"),
+      totalDu: sum(val, "totalDu"), clients: contrats,
+    },
+    trend, topClients, recent,
+  });
+});
 router.get("/invoices", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   res.json(mine(db.billingInvoices, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(withInvTotals)));
 router.get("/invoices/:id", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {

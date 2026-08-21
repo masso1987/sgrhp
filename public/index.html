@@ -621,7 +621,34 @@ const I18N = {
 "Modèles et destinataires enregistrés.": "Templates and recipients saved.",
 "Soumission (à valider)": "Submission (to validate)",
 "Alerte délai 36h": "36h SLA warning",
-"Dépassement 48h": "48h breach"
+"Dépassement 48h": "48h breach",
+"Applications": "Apps",
+"Choisissez une application pour commencer.": "Choose an app to get started.",
+"▦ Ouvrir les applications": "▦ Open apps",
+"✕ Fermer": "✕ Close",
+"Aucun module disponible.": "No module available.",
+"Se souvenir de moi": "Remember me",
+"Mot de passe oublié ?": "Forgot password?",
+"Principal": "Main", "RH": "HR", "Paie": "Payroll", "Facturation": "Invoicing",
+"Comptabilité": "Accounting", "Stock": "Stock", "Qualité": "Quality",
+"Rapports": "Reports", "Admin": "Admin", "Plateforme": "Platform",
+"🧾 Tableau de bord — Facturation": "🧾 Dashboard — Invoicing",
+"💵 Tableau de bord — Paie": "💵 Dashboard — Payroll",
+"Chiffre d\'affaires (TTC)": "Revenue (incl. tax)",
+"Chiffre d\'affaires (HT)": "Revenue (excl. tax)",
+"TVA collectée": "VAT collected", "Retenue IS": "WHT retained",
+"Factures": "Invoices", "Clients (contrats)": "Clients (contracts)",
+"Évolution du chiffre d\'affaires": "Revenue trend",
+"Top clients": "Top clients", "Factures récentes": "Recent invoices",
+"Ouvrir les factures →": "Open invoices →",
+"Effectif": "Headcount", "Masse salariale (dernière paie)": "Payroll (last run)",
+"Net à payer (dernier)": "Net pay (last)", "Coût employeur (dernier)": "Employer cost (last)",
+"Paies clôturées": "Closed pay runs", "Évolution de la masse salariale": "Payroll evolution",
+"Dernière paie": "Last pay run", "Ouvrir les paies →": "Open pay runs →",
+"Brut total": "Total gross", "Coût employeur": "Employer cost", "Bulletins": "Payslips",
+"N°": "No.", "Client": "Client", "Date": "Date", "Statut": "Status",
+"Validée": "Validated", "Brouillon": "Draft",
+"🔑 Réinitialiser": "🔑 Reset"
 };
 let LANG = localStorage.getItem("sgrhp_lang") || "fr";
 
@@ -877,6 +904,7 @@ const NAV = [
   { k: "payroll", label: "💵 Bulletins & traitements", sec: "Traitement", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payconfig", label: "⚙️ Paramètres paie", sec: "Paramétrage", roles: ["ADM"], module: "payroll", grp: "paie" },
 
+  { k: "billhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
   { k: "billing", label: "🧾 Annexes de facturation", sec: "Documents", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
   { k: "invoices", label: "🧾 Factures", sec: "Documents", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
   { k: "billingcfg", label: "⚙️ Config facturation", sec: "Configuration", roles: ["ADM"], module: "invoicing", grp: "facturation" },
@@ -1071,7 +1099,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -3889,6 +3917,42 @@ async function paySaveConfig() {
 
 /* ================= Module Facturation ================= */
 let BILL_SHEETS = [], BILL_CTR = [];
+/* ---- Tableau de bord Facturation ---- */
+async function billHome(){
+  const d=await api("/billing/dashboard").catch(()=>null);
+  if(!d){ view.innerHTML='<h1>🧾 Facturation</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
+  const k=d.kpi;
+  const money=(n)=>Number(n||0).toLocaleString("fr-FR")+" FCFA";
+  const card=(l,v,sub,dest)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:160px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
+    <div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:21px;font-weight:700;margin-top:4px">${v}</div>${sub?`<div class="note" style="font-size:11px;margin-top:2px">${sub}</div>`:''}</div>`;
+  const stat=(l)=>({validated:'<span class="tag green">Validée</span>',draft:'<span class="tag amber">Brouillon</span>'}[l]||l);
+  view.innerHTML=`<h1>🧾 Tableau de bord — Facturation</h1>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">
+      ${card("Chiffre d'affaires (TTC)",money(k.caTTC),k.validees+" facture(s) validée(s)","invoices")}
+      ${card("Chiffre d'affaires (HT)",money(k.caHT),"")}
+      ${card("TVA collectée",money(k.tva),"")}
+      ${card("Retenue IS",money(k.is),"")}
+      ${card("Factures",k.factures,k.brouillons+" brouillon(s)","invoices")}
+      ${card("Clients (contrats)",k.clients,"","billingcfg")}
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div class="panel" style="flex:2;min-width:320px"><b>Évolution du chiffre d'affaires</b><div style="position:relative;height:180px;margin-top:8px"><canvas id="billChart"></canvas></div></div>
+      <div class="panel" style="flex:1;min-width:240px"><b>Top clients</b>
+        <table style="margin-top:6px;width:100%"><tr><th>Client</th><th class="r">CA (TTC)</th></tr>
+        ${(d.topClients||[]).map(c=>`<tr><td>${esc(c.client)}</td><td class="r">${money(c.TTC)}</td></tr>`).join("")||'<tr><td colspan="2" class="note">—</td></tr>'}</table></div>
+    </div>
+    <div class="panel" style="margin-top:12px"><b>Factures récentes</b>
+      <table style="margin-top:6px;width:100%"><tr><th>N°</th><th>Client</th><th>Date</th><th class="r">TTC</th><th>Statut</th></tr>
+      ${(d.recent||[]).map(i=>`<tr><td><b>${esc(i.number||"")}</b></td><td>${esc(i.client||"")}</td><td>${esc(i.date||"")}</td><td class="r">${money(i.TTC)}</td><td>${stat(i.status)}</td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucune facture.</td></tr>'}</table>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="go('invoices')">Ouvrir les factures →</button></div>`;
+  if(d.trend&&d.trend.length&&await ensureChartJs()&&window.Chart){
+    new window.Chart(document.getElementById("billChart"),{type:"bar",data:{labels:d.trend.map(t=>t.periode),datasets:[
+      {label:"CA TTC",data:d.trend.map(t=>t.TTC),backgroundColor:"#6366f1"},
+      {label:"CA HT",data:d.trend.map(t=>t.HT),backgroundColor:"#22c55e"}
+    ]},options:{plugins:{legend:{display:true}},scales:{y:{ticks:{callback:v=>(v/1e6)+"M"}}},maintainAspectRatio:false}});
+  }
+}
+
 async function billingView() {
   const [contracts, sheets] = await Promise.all([api("/billing/contracts"), api("/billing/sheets")]);
   BILL_CTR = contracts; BILL_SHEETS = sheets;
