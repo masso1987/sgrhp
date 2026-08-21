@@ -459,6 +459,26 @@ function runTotals(run, req) {
   }, { brut: 0, net: 0, cnps: 0, irpp: 0, charges: 0, cout: 0, count: 0 });
 }
 
+router.get("/dashboard", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const runs = mine(db.payRuns, req).slice().sort((a, b) => String(a.period).localeCompare(String(b.period)));
+  const emps = mine(db.employees, req).filter(e => String(e.status || "").toUpperCase() !== "ARCHIVED");
+  const actifs = emps.filter(e => String(e.status || "").toUpperCase() === "ACTIVE").length;
+  const trend = runs.slice(-8).map(r => { const t = runTotals(r, req); return { period: r.period, brut: t.brut, net: t.net, cout: t.cout, count: t.count, status: r.status }; });
+  const last = runs.length ? runs[runs.length - 1] : null;
+  const lastT = last ? runTotals(last, req) : null;
+  res.json({
+    kpi: {
+      effectif: emps.length, actifs, runs: runs.length,
+      clotures: runs.filter(r => r.status === "CLOSED").length,
+      masseDerniere: lastT ? lastT.brut : 0,
+      netDernier: lastT ? lastT.net : 0,
+      coutDernier: lastT ? lastT.cout : 0,
+      bulletinsDernier: lastT ? lastT.count : 0,
+    },
+    lastRun: last ? { id: last.id, period: last.period, status: last.status, label: last.label } : null,
+    trend,
+  });
+});
 router.get("/payslips/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const s = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Bulletin introuvable" });

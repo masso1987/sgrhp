@@ -80,6 +80,20 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
   #who{display:none}
   .btn{padding:6px 11px}
 }
+/* ---- Odoo-style app launcher ---- */
+.apps-btn{background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;padding:0 8px;line-height:1;opacity:.9}
+.apps-btn:hover{opacity:1}
+.launcher{position:fixed;inset:0;z-index:60;background:linear-gradient(135deg,#eef1f8,#e5e7f2);overflow:auto;display:flex;flex-direction:column}
+.launcher.hidden{display:none}
+.launcher-top{display:flex;align-items:center;justify-content:space-between;padding:14px 22px}
+.launcher-top .l-title{font-size:18px;font-weight:700;color:#2b2f45}
+.launcher-close{background:#fff;border:1px solid #d5d8e6;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:14px}
+.launcher-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:10px 40px 50px;max-width:1100px;margin:0 auto;width:100%}
+.app-tile{background:#fff;border:1px solid #e6e8f2;border-radius:14px;padding:20px 10px 14px;display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;transition:transform .12s,box-shadow .12s;text-align:center}
+.app-tile:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(40,50,90,.14)}
+.app-ico{width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12)}
+.app-lbl{font-size:13px;color:#2b2f45;font-weight:500}
+@media(max-width:640px){.launcher-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));padding:10px 16px 40px;gap:8px}.app-ico{width:52px;height:52px;font-size:26px}}
 </style>
 </head>
 <body>
@@ -110,6 +124,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 
 <div id="app" class="hidden">
 <div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">☰</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>SGRHP</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
+  <button class="apps-btn" title="Applications" onclick="showLauncher()">▦</button>
   <div class="modbar" id="modbar"></div>
   <div style="font-size:13px;display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="width:52px;height:28px;padding:2px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.15);color:#fff;font-size:12px;cursor:pointer;flex:0 0 auto">
@@ -118,6 +133,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
   <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
   <div class="sidebar" id="nav"></div>
   <div class="main" id="view"></div>
+  <div id="launcher" class="launcher hidden"></div>
 </div>
 </div>
 
@@ -850,6 +866,7 @@ const NAV = [
   { k: "reports", label: "📊 Reports & KPIs", roles: ["CD","RJ","ADM"], grp: "rapports" },
   { k: "audit", label: "🕘 Journal d'audit", roles: ["CD","RJ","ADM","SADM"], grp: "rapports" },
 
+  { k: "payhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payroll", label: "💵 Bulletins & traitements", sec: "Traitement", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payconfig", label: "⚙️ Paramètres paie", sec: "Paramétrage", roles: ["ADM"], module: "payroll", grp: "paie" },
 
@@ -961,6 +978,7 @@ async function boot() {
   who.textContent = `${esc(ME.fullName)} — ${ME.role}`;
   buildNav();
   go("dash");
+  showLauncher();
   startAccessPolling();
 }
 function buildNav() {
@@ -991,6 +1009,22 @@ function goGroup(g) {
   const first = NAV_VISIBLE.find(n => (n.grp || "admin") === g);
   if (first && first.k !== window.CURRENT_VIEW) go(first.k);
 }
+const GROUP_META = {
+  principal:{ico:"🏠",c:"#f97316"}, rh:{ico:"👥",c:"#0ea5e9"}, paie:{ico:"💵",c:"#22c55e"},
+  facturation:{ico:"🧾",c:"#6366f1"}, comptabilite:{ico:"📒",c:"#a855f7"}, stock:{ico:"📦",c:"#14b8a6"},
+  qualite:{ico:"✅",c:"#10b981"}, rapports:{ico:"📈",c:"#ef4444"}, admin:{ico:"🛠️",c:"#64748b"}, plateforme:{ico:"🏢",c:"#0f172a"}
+};
+function showLauncher(){
+  const el=document.getElementById("launcher"); if(!el) return;
+  const tiles=(NAV_PRESENT||[]).map(G=>{ const m=GROUP_META[G.g]||{ico:"▦",c:"#6366f1"};
+    return `<div class="app-tile" onclick="enterModule('${G.g}')"><div class="app-ico" style="background:${m.c}">${m.ico}</div><div class="app-lbl">${esc(G.label)}</div></div>`;
+  }).join("");
+  el.innerHTML=`<div class="launcher-top"><div class="l-title">Applications</div><button class="launcher-close" onclick="hideLauncher()">✕ Fermer</button></div>
+    <div class="launcher-grid">${tiles||'<div class="note">Aucun module disponible.</div>'}</div>`;
+  el.classList.remove("hidden");
+}
+function hideLauncher(){ const el=document.getElementById("launcher"); if(el) el.classList.add("hidden"); }
+function enterModule(g){ hideLauncher(); goGroup(g); }
 // Poll the profile so access changes made by an admin/super-admin (modules, rights)
 // take effect live — no re-login required.
 function startAccessPolling() {
@@ -1020,7 +1054,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -3130,6 +3164,42 @@ function payStatusTag(s) {
 }
 
 /* ---- Runs list ---- */
+/* ---- Tableau de bord Paie ---- */
+async function payHome(){
+  const d=await api("/payroll/dashboard").catch(()=>null);
+  if(!d){ view.innerHTML='<h1>💵 Paie</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
+  const k=d.kpi;
+  const money=(n)=>Number(n||0).toLocaleString("fr-FR")+" FCFA";
+  const card=(l,v,sub,dest)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:170px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
+    <div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:700;margin-top:4px">${v}</div>${sub?`<div class="note" style="font-size:11px;margin-top:2px">${sub}</div>`:''}</div>`;
+  view.innerHTML=`<h1>💵 Tableau de bord — Paie</h1>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">
+      ${card("Effectif",k.effectif,k.actifs+" actif(s)","employees")}
+      ${card("Masse salariale (dernière paie)",money(k.masseDerniere),d.lastRun?("Période "+d.lastRun.period):"",'payroll')}
+      ${card("Net à payer (dernier)",money(k.netDernier),k.bulletinsDernier+" bulletin(s)")}
+      ${card("Coût employeur (dernier)",money(k.coutDernier),"")}
+      ${card("Paies clôturées",k.clotures+" / "+k.runs,"","payroll")}
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div class="panel" style="flex:2;min-width:320px"><b>Évolution de la masse salariale</b><canvas id="payChart" height="150" style="margin-top:8px"></canvas></div>
+      <div class="panel" style="flex:1;min-width:220px"><b>Dernière paie</b>
+        ${d.lastRun?`<div style="margin-top:6px"><b>${esc(d.lastRun.label||d.lastRun.period)}</b> <span class="tag ${d.lastRun.status==="CLOSED"?"green":"amber"}">${esc(d.lastRun.status)}</span>
+          <table style="margin-top:6px;width:100%">
+            <tr><td class="note">Brut total</td><td class="r">${money(k.masseDerniere)}</td></tr>
+            <tr><td class="note">Net à payer</td><td class="r">${money(k.netDernier)}</td></tr>
+            <tr><td class="note">Coût employeur</td><td class="r">${money(k.coutDernier)}</td></tr>
+            <tr><td class="note">Bulletins</td><td class="r">${k.bulletinsDernier}</td></tr></table>
+          <button class="btn ghost sm" style="margin-top:8px" onclick="go('payroll')">Ouvrir les paies →</button></div>`:'<div class="note" style="margin-top:6px">Aucune paie encore.</div>'}
+      </div></div>`;
+  if(d.trend&&d.trend.length&&await ensureChartJs()&&window.Chart){
+    new window.Chart(document.getElementById("payChart"),{type:"bar",data:{labels:d.trend.map(t=>t.period),datasets:[
+      {label:"Brut",data:d.trend.map(t=>t.brut),backgroundColor:"#6366f1"},
+      {label:"Net",data:d.trend.map(t=>t.net),backgroundColor:"#22c55e"},
+      {label:"Coût employeur",data:d.trend.map(t=>t.cout),type:"line",borderColor:"#f97316",backgroundColor:"transparent",borderWidth:2,tension:.3}
+    ]},options:{plugins:{legend:{display:true}},scales:{y:{ticks:{callback:v=>(v/1e6)+"M"}}},maintainAspectRatio:false}});
+  }
+}
+
 async function payrollView() {
   const runs = await api("/payroll/runs");
   view.innerHTML = `<h1>💵 Paie — cycles mensuels</h1>
@@ -5887,7 +5957,26 @@ async function smqHome(){
       </div>
       <div class="panel" style="flex:1;min-width:240px"><b>🔔 Documents à revoir</b>
         ${(d.aRevoir||[]).length?`<table style="margin-top:6px;width:100%"><tr><th>Réf</th><th>Échéance</th></tr>${d.aRevoir.map(x=>`<tr><td>${esc(x.ref)}<div class="note" style="font-size:11px">${esc(x.titre)}</div></td><td>${x.enRetard?'<span class="tag" style="background:#dc2626;color:#fff">'+esc(x.nextReviewDate)+'</span>':esc(x.nextReviewDate)}</td></tr>`).join("")}</table>`:'<div class="note" style="margin-top:6px">Rien à revoir sous 60 jours.</div>'}
-      </div></div>`;
+      </div></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px">
+      <div class="panel" style="flex:1;min-width:240px"><b>🏅 Conformité ISO 9001 par chapitre</b><canvas id="smqConfCh" height="150" style="margin-top:8px"></canvas></div>
+      <div class="panel" style="flex:1;min-width:220px"><b>🛠️ Fiches par origine</b><canvas id="smqCapaCh" height="150" style="margin-top:8px"></canvas></div>
+      <div class="panel" style="flex:1;min-width:200px"><b>⚠️ Risques par criticité</b><canvas id="smqRiskCh" height="150" style="margin-top:8px"></canvas></div>
+      <div class="panel" style="flex:1;min-width:180px"><b>📈 Indicateurs (feu)</b><canvas id="smqFeuCh" height="150" style="margin-top:8px"></canvas></div>
+    </div>`;
+  smqHomeCharts();
+}
+async function smqHomeCharts(){
+  if(!(await ensureChartJs())||!window.Chart) return;
+  const [conf,capa,risk,kpi]=await Promise.all([
+    api("/smq/conformity-summary").catch(()=>null), api("/smq/improvements-summary").catch(()=>null),
+    api("/smq/risks-summary").catch(()=>null), api("/smq/indicators-kpi").catch(()=>[])]);
+  const mk=(id,cfg)=>{ const c=document.getElementById(id); if(c) new window.Chart(c,cfg); };
+  const opt=(extra)=>Object.assign({plugins:{legend:{display:false}},maintainAspectRatio:false},extra||{});
+  if(conf&&conf.byChapter.length) mk("smqConfCh",{type:"bar",data:{labels:conf.byChapter.map(c=>"Ch."+c.chapitre),datasets:[{data:conf.byChapter.map(c=>c.taux),backgroundColor:conf.byChapter.map(c=>c.taux>=85?"#16a34a":c.taux>=60?"#f97316":"#dc2626")}]},options:opt({scales:{y:{min:0,max:100}}})});
+  if(capa){ const g=capa.grid||{}; const labels=(capa.origines||[]).filter(o=>g[o]&&g[o].total>0); if(labels.length) mk("smqCapaCh",{type:"doughnut",data:{labels,datasets:[{data:labels.map(o=>g[o].total),backgroundColor:["#dc2626","#f97316","#6366f1","#a855f7","#14b8a6","#0ea5e9","#eab308","#64748b","#10b981","#ef4444"]}]},options:opt({plugins:{legend:{display:true,position:"right",labels:{boxWidth:10,font:{size:10}}}}})}); }
+  if(risk){ const b=risk.band||{}; mk("smqRiskCh",{type:"doughnut",data:{labels:["Faible","Moyen","Élevé","Critique"],datasets:[{data:[b.faible||0,b.moyen||0,b.eleve||0,b.critique||0],backgroundColor:["#16a34a","#eab308","#f97316","#dc2626"]}]},options:opt({plugins:{legend:{display:true,position:"right",labels:{boxWidth:10,font:{size:10}}}}})}); }
+  if(kpi&&kpi.length){ const f={vert:0,orange:0,rouge:0,gris:0}; kpi.forEach(i=>f[i.feu]=(f[i.feu]||0)+1); mk("smqFeuCh",{type:"doughnut",data:{labels:["Vert","Orange","Rouge","N/A"],datasets:[{data:[f.vert,f.orange,f.rouge,f.gris],backgroundColor:["#16a34a","#f97316","#dc2626","#9ca3af"]}]},options:opt({plugins:{legend:{display:true,position:"right",labels:{boxWidth:10,font:{size:10}}}}})}); }
 }
 async function smqSeedCRHE(){ if(!confirm("Charger la cartographie CIBLE RH (8 processus + 5 axes) ?"))return;
   try{ const r=await api("/smq/seed-crhe",{method:"POST"}); window._SMQ._at=0; alert("Modèle chargé : "+r.processes+" processus, "+r.axes+" axes."); smqHome(); }catch(e){ alert(e.message); } }
