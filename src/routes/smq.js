@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -389,6 +389,8 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       fichesOuvertes: mine(db.smqImprovements, req).filter(x => x.statut !== "cloturee").length,
       evenements: mine(db.smqEvents, req).length,
       evenementsNonRevus: mine(db.smqEvents, req).filter(x => !x.reviewed).length,
+      audits: mine(db.smqAudits, req).length,
+      auditsPlanifies: mine(db.smqAudits, req).filter(x => x.statut === "planifie").length,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
@@ -530,6 +532,127 @@ router.put("/config", allow(...RW), (req, res) => {
   if (!c) { c = stamp({ id: id("smq"), createdAt: now() }, req); db.smqConfig.push(c); }
   if (req.body.autoRaiseOnChange !== undefined) c.autoRaiseOnChange = !!req.body.autoRaiseOnChange;
   c.updatedAt = now(); save(); res.json(c);
+});
+
+/* ============================ Audits (internes / externes) + constats ============================ */
+const AUDIT_TYPES = ["interne", "externe", "fournisseur"];
+const AUDIT_STATUTS = ["planifie", "realise", "cloture"];
+const CONFORMITES = ["C", "NC", "OBS", "NA"];   // Conforme, Non-conformité, Observation, Non applicable
+
+function auditRef(req) {
+  const y = new Date().getFullYear();
+  const same = mine(db.smqAudits, req).filter(x => String(x.ref || "").includes("-" + y + "-"));
+  let max = 0; for (const x of same) { const n = parseInt(String(x.ref).split("-").pop(), 10); if (n > max) max = n; }
+  return "AUD-" + y + "-" + String(max + 1).padStart(2, "0");
+}
+const AUDIT_FIELDS = ["type", "perimetre", "processIds", "norme", "plannedDate", "realizedDate",
+  "auditeurs", "audites", "statut", "conclusion", "externalBody", "reportFileId", "annee"];
+
+router.get("/audits", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const items = mine(db.smqAuditItems, req);
+  const rows = mine(db.smqAudits, req).map(a => {
+    const its = items.filter(i => i.auditId === a.id);
+    return Object.assign({}, a, {
+      nbConstats: its.length,
+      ncMajeures: its.filter(i => i.conformite === "NC" && i.gravite === "majeure").length,
+      ncMineures: its.filter(i => i.conformite === "NC" && i.gravite !== "majeure").length,
+      observations: its.filter(i => i.conformite === "OBS").length,
+    });
+  }).sort((a, b) => String(b.plannedDate || b.createdAt || "").localeCompare(String(a.plannedDate || a.createdAt || "")));
+  res.json(rows);
+});
+router.get("/audits/:id", allow(...RO), (req, res) => {
+  const a = mine(db.smqAudits, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  const items = mine(db.smqAuditItems, req).filter(i => i.auditId === a.id)
+    .sort((x, y) => String(x.clause || "").localeCompare(String(y.clause || ""), "fr", { numeric: true }));
+  res.json({ audit: a, items });
+});
+router.post("/audits", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const rec = {
+    id: id("smq"), ref: b.ref || auditRef(req), type: b.type || "interne",
+    norme: b.norme || "ISO 9001:2015", statut: b.statut || "planifie",
+    processIds: Array.isArray(b.processIds) ? b.processIds : [],
+    annee: b.annee || new Date().getFullYear(), createdAt: now(),
+  };
+  for (const f of AUDIT_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqAudits.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqAudit", rec.id, { ref: rec.ref });
+  res.status(201).json(rec);
+});
+router.put("/audits/:id", allow(...RW), (req, res) => {
+  const a = mine(db.smqAudits, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  for (const f of AUDIT_FIELDS) if (req.body[f] !== undefined) a[f] = req.body[f];
+  a.updatedAt = now(); save(); audit(req.user, "UPDATED", "SmqAudit", a.id, {}); res.json(a);
+});
+router.delete("/audits/:id", allow("ADM", "CD"), (req, res) => {
+  const a = mine(db.smqAudits, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  db.smqAuditItems = db.smqAuditItems.filter(i => i.auditId !== a.id);
+  db.smqAudits.splice(db.smqAudits.indexOf(a), 1); save(); audit(req.user, "DELETED", "SmqAudit", a.id, {}); res.json({ ok: true });
+});
+
+// Générer une check-list depuis la bibliothèque de clauses (optionnellement filtrée).
+router.post("/audits/:id/checklist", allow(...RW), (req, res) => {
+  const a = mine(db.smqAudits, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  seedSMQ(req.user.tenantId || "t1");
+  const onlyLeaf = req.body && req.body.onlyLeaf !== false;   // par défaut, sous-clauses seulement
+  let clauses = mine(db.smqClauses, req).slice().sort((x, y) => String(x.code).localeCompare(String(y.code), "fr", { numeric: true }));
+  if (onlyLeaf) clauses = clauses.filter(c => String(c.code).includes("."));   // ignore les titres 4,5,6…
+  const prefixes = (req.body && req.body.clausePrefixes) || null;              // ex. ["8","9"]
+  if (prefixes && prefixes.length) clauses = clauses.filter(c => prefixes.some(p => String(c.code).startsWith(p)));
+  const existing = new Set(mine(db.smqAuditItems, req).filter(i => i.auditId === a.id).map(i => i.clause));
+  let added = 0;
+  for (const c of clauses) {
+    if (existing.has(c.code)) continue;
+    db.smqAuditItems.push(stamp({ id: id("smq"), auditId: a.id, clause: c.code, question: c.titre, conformite: "", preuve: "", constat: "", gravite: "mineure", createdAt: now() }, req));
+    added++;
+  }
+  save(); res.json({ ok: true, added });
+});
+router.post("/audits/:id/items", allow(...RW), (req, res) => {
+  const a = mine(db.smqAudits, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  const rec = stamp({ id: id("smq"), auditId: a.id, clause: b.clause || "", question: b.question || "", conformite: b.conformite || "", preuve: b.preuve || "", constat: b.constat || "", gravite: b.gravite || "mineure", createdAt: now() }, req);
+  db.smqAuditItems.push(rec); save(); res.status(201).json(rec);
+});
+router.put("/items/:id", allow(...RW), (req, res) => {
+  const it = mine(db.smqAuditItems, req).find(x => x.id === req.params.id); if (!it) return res.status(404).json({ error: "Introuvable" });
+  for (const f of ["clause", "question", "conformite", "preuve", "constat", "gravite"]) if (req.body[f] !== undefined) it[f] = req.body[f];
+  save(); res.json(it);
+});
+router.delete("/items/:id", allow(...RW), (req, res) => {
+  const it = mine(db.smqAuditItems, req).find(x => x.id === req.params.id); if (!it) return res.status(404).json({ error: "Introuvable" });
+  db.smqAuditItems.splice(db.smqAuditItems.indexOf(it), 1); save(); res.json({ ok: true });
+});
+// Convertir un constat (NC/OBS) en fiche d'amélioration, rattachée à la clause.
+router.post("/items/:id/to-improvement", allow(...RW), (req, res) => {
+  const it = mine(db.smqAuditItems, req).find(x => x.id === req.params.id); if (!it) return res.status(404).json({ error: "Introuvable" });
+  if (it.improvementId) return res.status(409).json({ error: "Une fiche existe déjà pour ce constat." });
+  const a = mine(db.smqAudits, req).find(x => x.id === it.auditId) || {};
+  const origine = a.type === "externe" ? "Audit externe" : (a.type === "fournisseur" ? "Audit externe" : "Audit interne");
+  const rec = stamp({
+    id: id("smq"), ref: impRef(req, (a.processIds || [])[0] || null), entite: "QHSE",
+    date: now().slice(0, 10), processId: (a.processIds || [])[0] || null, origine,
+    type: "interne", gravite: it.gravite || (it.conformite === "OBS" ? "mineure" : "majeure"), statut: "ouverte",
+    description: `Constat d'audit ${a.ref || ""} — clause ${it.clause} : ${it.constat || it.question || ""}`,
+    analyseCauses: "", actions: [], emetteurName: req.user.fullName,
+    sourceAuditId: a.id, sourceAuditItemId: it.id, norme: a.norme, clause: it.clause, auditRef: a.ref, createdAt: now(),
+  }, req);
+  db.smqImprovements.push(rec); it.improvementId = rec.id; save();
+  audit(req.user, "CREATED", "SmqImprovement", rec.id, { ref: rec.ref, fromAudit: a.ref, clause: it.clause });
+  res.status(201).json({ improvement: rec });
+});
+router.get("/audits-summary", allow(...RO), (req, res) => {
+  const auds = mine(db.smqAudits, req);
+  const items = mine(db.smqAuditItems, req);
+  res.json({
+    total: auds.length,
+    planifies: auds.filter(a => a.statut === "planifie").length,
+    realises: auds.filter(a => a.statut === "realise" || a.statut === "cloture").length,
+    ncMajeures: items.filter(i => i.conformite === "NC" && i.gravite === "majeure").length,
+    ncMineures: items.filter(i => i.conformite === "NC" && i.gravite !== "majeure").length,
+    observations: items.filter(i => i.conformite === "OBS").length,
+  });
 });
 
 module.exports = router;
