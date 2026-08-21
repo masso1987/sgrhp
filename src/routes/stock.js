@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockLocations", "stockTransfers", "stockExpenseCats", "stockExpenses", "stockPaymentAccounts", "stockMovements"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockLocations", "stockTransfers", "stockExpenseCats", "stockExpenses", "stockPaymentAccounts", "stockMovements", "stockNotifTemplates"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -716,6 +716,63 @@ router.get("/accounts/:id/statement", allow("ADM", "CD", "RJ", "GPF"), (req, res
   rows.sort((r1, r2) => (r1.date || "").localeCompare(r2.date || ""));
   let bal = 0; for (const r of rows) { bal += r.inflow - r.outflow; r.balance = bal; }
   res.json({ account: { id: a.id, name: a.name, type: a.type }, rows, balance: bal });
+});
+
+/* ============================ Modèles de notification (fournisseurs & clients) ============================ */
+const NOTIF_TAGS = {
+  common: ["{business_name}", "{business_logo}"],
+  location: ["{location_name}", "{location_address}", "{location_email}", "{location_phone}", "{location_custom_field_1}", "{location_custom_field_2}", "{location_custom_field_3}", "{location_custom_field_4}"],
+  contact: ["{contact_name}", "{contact_business_name}", "{contact_custom_field_1}", "{contact_custom_field_2}", "{contact_custom_field_3}", "{contact_custom_field_4}", "{contact_custom_field_5}", "{contact_custom_field_6}", "{contact_custom_field_7}", "{contact_custom_field_8}", "{contact_custom_field_9}", "{contact_custom_field_10}"],
+  shipping: ["{shipping_custom_field_1}", "{shipping_custom_field_2}", "{shipping_custom_field_3}", "{shipping_custom_field_4}", "{shipping_custom_field_5}"],
+  purchase: ["{order_ref_number}", "{total_amount}", "{received_amount}", "{due_amount}", "{purchase_custom_field_1}", "{purchase_custom_field_2}", "{purchase_custom_field_3}", "{purchase_custom_field_4}"],
+  sale: ["{invoice_number}", "{invoice_url}", "{total_amount}", "{paid_amount}", "{received_amount}", "{due_amount}", "{cumulative_due_amount}", "{due_date}", "{sell_custom_field_1}", "{sell_custom_field_2}", "{sell_custom_field_3}", "{sell_custom_field_4}"],
+  ledger: ["{balance_due}"],
+};
+// Définition des modèles : groupe -> événements, avec jeux de tags et valeurs par défaut.
+const NOTIF_DEFS = [
+  { group: "fournisseur", label: "Notifications du fournisseur", tags: ["common", "purchase", "location", "contact", "shipping"], events: [
+    { key: "fournisseur.new_order", label: "Nouvelle commande", subject: "Nouvelle commande, de {business_name}", body: "Bonjour {contact_name},\n\nNous avons une nouvelle commande portant la référence {order_ref_number}. Merci de traiter les produits dès que possible.\n\n{business_name}\n{business_logo}" },
+    { key: "fournisseur.payment_paid", label: "Paiement payé", subject: "Paiement effectué — {business_name}", body: "Bonjour {contact_name},\n\nNous confirmons le paiement d'un montant de {received_amount} pour la commande {order_ref_number}. Solde dû : {due_amount}.\n\n{business_name}" },
+    { key: "fournisseur.items_received", label: "Articles reçus", subject: "Articles reçus — {order_ref_number}", body: "Bonjour {contact_name},\n\nNous confirmons la réception des articles de la commande {order_ref_number}.\n\n{business_name}" },
+    { key: "fournisseur.items_pending", label: "Articles en attente", subject: "Articles en attente — {order_ref_number}", body: "Bonjour {contact_name},\n\nCertains articles de la commande {order_ref_number} sont toujours en attente de livraison.\n\n{business_name}" },
+  ] },
+  { group: "client", label: "Notifications client", tags: ["common", "sale", "location", "contact", "shipping"], events: [
+    { key: "client.new_sale", label: "Nouvelle vente", subject: "Merci de la part de {business_name}", body: "Bonjour {contact_name},\n\nVotre numéro de facture est {invoice_number}\nMontant total : {total_amount}\nMontant payé : {received_amount}\n\nMerci de votre confiance.\n\n{business_logo}" },
+    { key: "client.payment_received", label: "Paiement reçu", subject: "Paiement reçu — {business_name}", body: "Bonjour {contact_name},\n\nNous confirmons la réception de votre paiement de {paid_amount} pour la facture {invoice_number}. Solde dû : {due_amount}.\n\n{business_name}" },
+    { key: "client.payment_remise", label: "Remise de paiement", subject: "Remise de paiement — {business_name}", body: "Bonjour {contact_name},\n\nUne remise a été appliquée sur la facture {invoice_number}.\n\n{business_name}" },
+    { key: "client.new_reservation", label: "Nouvelle réservation", subject: "Nouvelle réservation — {business_name}", body: "Bonjour {contact_name},\n\nVotre réservation a bien été enregistrée.\n\n{business_name}" },
+    { key: "client.new_quote", label: "Nouveau devis", subject: "Votre devis — {business_name}", body: "Bonjour {contact_name},\n\nVeuillez trouver votre devis. Montant total : {total_amount}.\n\n{business_name}" },
+  ] },
+  { group: "ledger", label: "Relevé de compte", tags: ["common", "ledger", "contact"], events: [
+    { key: "ledger.send", label: "Envoyer le relevé", subject: "Votre relevé de compte — {business_name}", body: "Bonjour {contact_name},\n\nVeuillez trouver votre relevé de compte. Solde dû : {balance_due}.\n\n{business_name}\n{business_logo}" },
+  ] },
+];
+function notifTagsFor(sets) { const out = []; for (const s of sets) for (const tg of (NOTIF_TAGS[s] || [])) if (!out.includes(tg)) out.push(tg); return out; }
+
+router.get("/notif-templates", allow("ADM", "CD", "GPF"), (req, res) => {
+  const saved = mine(db.stockNotifTemplates, req);
+  const groups = NOTIF_DEFS.map(g => ({
+    group: g.group, label: g.label, tags: notifTagsFor(g.tags),
+    events: g.events.map(e => { const s = saved.find(x => x.key === e.key);
+      return { key: e.key, label: e.label,
+        subject: s ? s.subject : e.subject, cc: s ? s.cc : "", bcc: s ? s.bcc : "",
+        body: s ? s.body : e.body, customized: !!s }; }),
+  }));
+  res.json(groups);
+});
+router.put("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => {
+  const key = req.params.key;
+  if (!NOTIF_DEFS.some(g => g.events.some(e => e.key === key))) return res.status(400).json({ error: "Clé de modèle inconnue" });
+  const b = req.body || {};
+  let t = mine(db.stockNotifTemplates, req).find(x => x.key === key);
+  if (!t) { t = stamp({ id: id("stk"), key, createdAt: new Date().toISOString() }, req); db.stockNotifTemplates.push(t); }
+  for (const f of ["subject", "cc", "bcc", "body"]) if (b[f] !== undefined) t[f] = b[f];
+  t.updatedAt = new Date().toISOString(); save(); audit(req.user, "UPDATED", "StockNotifTemplate", key, {}); res.json(t);
+});
+router.delete("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => {
+  const t = mine(db.stockNotifTemplates, req).find(x => x.key === req.params.key);
+  if (t) { db.stockNotifTemplates.splice(db.stockNotifTemplates.indexOf(t), 1); save(); }
+  res.json({ ok: true });
 });
 
 module.exports = router;

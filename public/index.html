@@ -949,6 +949,7 @@ const NAV = [
     { k: "stockexpenses", label: "💸 Dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
   { k: "stockexpensecats", label: "🗃️ Catégories de dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
   { k: "stockaccounts", label: "🏦 Comptes de paiement", sec: "Comptes", roles: ["ADM","CD","GPF"], cap: "stock.comptes", module: "stock", grp: "stock" },
+  { k: "stocknotif", label: "✉️ Modèles de notification", sec: "Configuration", roles: ["ADM","CD","GPF"], cap: "stock.comptes", module: "stock", grp: "stock" },
 
 { k: "stockreports", label: "📊 Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], cap: "stock.rapports", module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
@@ -1099,7 +1100,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6017,6 +6018,56 @@ async function acctJournalSave(id){
     else await api("/accounting/journals",{method:"POST",body:JSON.stringify(body)});
     document.querySelector(".modal-bg").remove(); acctJournalsView(); }
   catch(e){ const el=document.getElementById("jErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ---- Modèles de notification (stock) ---- */
+async function stockNotifView(){
+  const groups=await api("/stock/notif-templates").catch(()=>[]);
+  window._NOTIF=groups;
+  window._NOTIF_G=window._NOTIF_G||(groups[0]&&groups[0].group);
+  const g=groups.find(x=>x.group===window._NOTIF_G)||groups[0];
+  if(!g){ view.innerHTML='<h1>✉️ Modèles de notification</h1><div class="panel">Aucun modèle.</div>'; return; }
+  window._NOTIF_E=window._NOTIF_E&&g.events.some(e=>e.key===window._NOTIF_E)?window._NOTIF_E:(g.events[0]&&g.events[0].key);
+  const ev=g.events.find(e=>e.key===window._NOTIF_E)||g.events[0];
+  view.innerHTML=`<h1>✉️ Modèles de notification</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      ${groups.map(x=>`<button class="btn ${x.group===g.group?'p':'ghost'} sm" onclick="stockNotifGroup('${x.group}')">${esc(x.label)}</button>`).join("")}</div>
+    <div class="panel">
+      <div style="display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:12px">
+        ${g.events.map(e=>`<div onclick="stockNotifEvent('${e.key}')" style="cursor:pointer;padding:8px 14px;font-weight:600;border-bottom:2px solid ${e.key===ev.key?'var(--accent)':'transparent'};color:${e.key===ev.key?'var(--text)':'var(--muted)'}">${esc(e.label)}${e.customized?' •':''}</div>`).join("")}</div>
+      <div><b style="font-size:12px;color:var(--muted)">Tags disponibles :</b>
+        <div style="margin-top:4px;line-height:1.9">${g.tags.map(tg=>`<code onclick="stockNotifInsert('${tg}')" style="cursor:pointer;color:#c0392b;margin-right:6px;font-size:12px" title="Insérer dans le corps">${esc(tg)}</code>`).join("")}</div></div>
+      <label style="margin-top:12px">Sujet du courriel</label><input id="nfSubject" value="${esc(ev.subject||'')}">
+      <div class="grid2"><div><label>CC</label><input id="nfCc" value="${esc(ev.cc||'')}" placeholder="CC"></div>
+        <div><label>BCC</label><input id="nfBcc" value="${esc(ev.bcc||'')}" placeholder="BCC"></div></div>
+      <label>Corps de l'e-mail <span class="note">(HTML autorisé ; utilisez les tags ci-dessus)</span></label>
+      <textarea id="nfBody" rows="10" style="font-family:inherit">${esc(ev.body||'')}</textarea>
+      <div class="err hidden" id="nfErr" style="margin-top:6px"></div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="btn p" onclick="stockNotifSave('${ev.key}')">💾 Enregistrer</button>
+        <button class="btn ghost" onclick="stockNotifPreview()">👁️ Aperçu</button>
+        ${ev.customized?`<button class="btn ghost" style="color:var(--red)" onclick="stockNotifReset('${ev.key}')">↺ Rétablir le modèle par défaut</button>`:''}</div>
+    </div>`;
+}
+function stockNotifGroup(gk){ window._NOTIF_G=gk; window._NOTIF_E=null; stockNotifView(); }
+function stockNotifEvent(ek){ window._NOTIF_E=ek; stockNotifView(); }
+function stockNotifInsert(tag){ const ta=document.getElementById("nfBody"); if(!ta)return;
+  const st=ta.selectionStart||ta.value.length; ta.value=ta.value.slice(0,st)+tag+ta.value.slice(ta.selectionEnd||st); ta.focus(); ta.selectionStart=ta.selectionEnd=st+tag.length; }
+async function stockNotifSave(key){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  try{ await api("/stock/notif-templates/"+encodeURIComponent(key),{method:"PUT",body:JSON.stringify({subject:g("nfSubject"),cc:g("nfCc"),bcc:g("nfBcc"),body:g("nfBody")})});
+    alert("Modèle enregistré."); stockNotifView(); }
+  catch(e){ const el=document.getElementById("nfErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function stockNotifReset(key){ if(!confirm("Rétablir le modèle par défaut ?"))return;
+  try{ await api("/stock/notif-templates/"+encodeURIComponent(key),{method:"DELETE"}); stockNotifView(); }catch(e){ alert(e.message); } }
+function stockNotifPreview(){
+  const subj=(document.getElementById("nfSubject")||{}).value||"", body=(document.getElementById("nfBody")||{}).value||"";
+  const sample={"{business_name}":"CIBLE RH EMPLOI","{business_logo}":"","{contact_name}":"M. KAMGA","{order_ref_number}":"BC-2026-001","{invoice_number}":"VTE-2026-014","{total_amount}":"250 000 FCFA","{received_amount}":"250 000 FCFA","{paid_amount}":"250 000 FCFA","{due_amount}":"0 FCFA","{balance_due}":"125 000 FCFA","{due_date}":"2026-09-30"};
+  const fill=(t)=>t.replace(/\{[a-z0-9_]+\}/g,m=>sample[m]!==undefined?sample[m]:m);
+  const w=window.open("","_blank");
+  w.document.write(`<html><head><title>Aperçu</title><style>body{font-family:Arial;margin:24px;color:#111}.s{color:#666;font-size:12px}</style></head><body><div class="s">Sujet</div><h3>${esc(fill(subj))}</h3><hr><div>${fill(esc(body)).replace(/\n/g,"<br>")}</div></body></html>`);
+  w.document.close();
 }
 
 /* ================= SMQ — Système de Management de la Qualité ================= */
