@@ -148,7 +148,8 @@ router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
     id: id("prd"), sku: b.sku || "", barcode: b.barcode || "", name: b.name, categoryId: b.categoryId || "", unitId: b.unitId || "", supplierId: b.supplierId || "",
     brandId: b.brandId || "", warrantyId: b.warrantyId || "", priceGroupId: b.priceGroupId || "",
     purchasePrice: R2(b.purchasePrice), salePrice: R2(b.salePrice), qty: initial, alertQty: b.alertQty != null ? Q(b.alertQty) : "",
-    active: b.active !== false, note: b.note || "", expDate: b.expDate || "", mfgDate: b.mfgDate || "", createdAt: new Date().toISOString()
+    active: b.active !== false, note: b.note || "", expDate: b.expDate || "", mfgDate: b.mfgDate || "",
+    variationId: b.variationId || "", variantPrices: Array.isArray(b.variantPrices) ? b.variantPrices : [], createdAt: new Date().toISOString()
   }, req);
   db.stockProducts.push(p);
   if (initial) db.stockMovements.push(stamp({ id: id("mov"), date: new Date().toISOString().slice(0, 10), type: "initial", productId: p.id, qty: initial, unitCost: p.purchasePrice, ref: "Stock initial", note: "", createdBy: req.user.id, createdAt: new Date().toISOString() }, req));
@@ -157,7 +158,7 @@ router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
 router.put("/products/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   const p = mine(db.stockProducts, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Produit introuvable" });
   const b = req.body || {};
-  for (const f of ["sku", "barcode", "name", "categoryId", "unitId", "supplierId", "brandId", "warrantyId", "priceGroupId", "note", "expDate", "mfgDate"]) if (b[f] !== undefined) p[f] = b[f];
+  for (const f of ["sku", "barcode", "name", "categoryId", "unitId", "supplierId", "brandId", "warrantyId", "priceGroupId", "note", "expDate", "mfgDate", "variationId", "variantPrices"]) if (b[f] !== undefined) p[f] = b[f];
   for (const f of ["purchasePrice", "salePrice"]) if (b[f] !== undefined) p[f] = R2(b[f]);
   if (b.alertQty !== undefined) p.alertQty = b.alertQty === "" ? "" : Q(b.alertQty);
   if (b.active !== undefined) p.active = !!b.active;

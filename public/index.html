@@ -7114,8 +7114,10 @@ async function stockProductsView(){
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="6">VALEUR TOTALE (${list.length})</td><td class="r">${fCFA(totVal)}</td><td></td></tr>
       </table></div>`;
 }
-function stockProductModal(id){
+async function stockProductModal(id){
   const p=id?(window._STK.prods.find(x=>x.id===id)||{}):{active:true};
+  window._STKVARS=await api("/stock/variations").catch(()=>[]);
+  window._PVARPRICES=Array.isArray(p.variantPrices)?p.variantPrices:[];
   const cats=window._STK.cats||[], units=window._STK.units||[], sups=window._STK.sups||[], brands=window._STK.brands||[], warranties=window._STK.warranties||[], pricegroups=window._STK.pricegroups||[];
   const bg=document.createElement("div"); bg.className="modal-bg";
   const sel=(arr,cur,ph)=>`<option value="">${ph}</option>`+arr.map(x=>`<option value="${x.id}" ${cur===x.id?'selected':''}>${esc(x.name)}</option>`).join("");
@@ -7136,16 +7138,37 @@ function stockProductModal(id){
       ${id?`<div><label>Stock actuel</label><input value="${stkQty(p.qty)}" disabled></div><div><label>Statut</label><select id="pAct"><option value="1" ${p.active!==false?'selected':''}>Actif</option><option value="0" ${p.active===false?'selected':''}>Inactif</option></select></div>`
           :`<div><label>Stock initial</label><input id="pQty" type="number" value="0"></div>`}
     </div>
+    <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+      <label>Variation (prix par valeur)</label>
+      <select id="pVar" onchange="stockProdVarGrid(this.value)"><option value="">— aucune —</option>${(window._STKVARS||[]).map(v=>`<option value="${v.id}" ${p.variationId===v.id?'selected':''}>${esc(v.name)}</option>`).join("")}</select>
+      <div id="pVarBox" style="margin-top:8px"></div>
+    </div>
     <div class="err hidden" id="pErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="stockProductSave('${id||''}')">Enregistrer</button>
       ${id?`<button class="btn ghost" style="color:var(--red)" onclick="stockProductDelete('${id}')">Supprimer</button>`:''}
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
   document.body.appendChild(bg);
+  if(p.variationId) stockProdVarGrid(p.variationId);
+}
+function stockProdVarGrid(varId){
+  const box=document.getElementById("pVarBox"); if(!box) return;
+  if(!varId){ box.innerHTML=""; return; }
+  const v=(window._STKVARS||[]).find(x=>x.id===varId);
+  const vals=v?(Array.isArray(v.values)?v.values:String(v.values||"").split(",").map(x=>x.trim()).filter(Boolean)):[];
+  const prices=window._PVARPRICES||[];
+  const pv=(name)=>prices.find(x=>x.value===name)||{};
+  box.innerHTML=`<table style="width:100%"><tr><th>Valeur</th><th class="r">Prix d'achat</th><th class="r">Prix de vente</th></tr>
+    ${vals.map(name=>{const r=pv(name);return `<tr data-val="${esc(name)}"><td>${esc(name)}</td>
+      <td class="r"><input class="vpP" type="number" value="${r.purchasePrice!=null?r.purchasePrice:''}" style="width:110px;text-align:right"></td>
+      <td class="r"><input class="vpS" type="number" value="${r.salePrice!=null?r.salePrice:''}" style="width:110px;text-align:right"></td></tr>`;}).join("")||'<tr><td colspan="3" class="note">Cette variation n\'a aucune valeur.</td></tr>'}</table>`;
 }
 async function stockProductSave(id){
   const g=(x)=>(document.getElementById(x)||{}).value;
+  const variationId=g("pVar");
+  const variantPrices=[...document.querySelectorAll("#pVarBox tr[data-val]")].map(tr=>({value:tr.getAttribute("data-val"),purchasePrice:Number(tr.querySelector(".vpP").value)||0,salePrice:Number(tr.querySelector(".vpS").value)||0}));
   const body={name:g("pName"),sku:g("pSku"),barcode:g("pBarcode"),categoryId:g("pCat"),unitId:g("pUnit"),supplierId:g("pSup"),
-    brandId:g("pBrand"),warrantyId:g("pWar"),priceGroupId:g("pPG"),alertQty:g("pAlert"),purchasePrice:g("pPP"),salePrice:g("pSP")};
+    brandId:g("pBrand"),warrantyId:g("pWar"),priceGroupId:g("pPG"),alertQty:g("pAlert"),purchasePrice:g("pPP"),salePrice:g("pSP"),
+    variationId,variantPrices};
   if(id){ body.active=g("pAct")!=="0"; } else { body.qty=g("pQty"); }
   try{ if(id) await api("/stock/products/"+id,{method:"PUT",body:JSON.stringify(body)});
     else await api("/stock/products",{method:"POST",body:JSON.stringify(body)});
@@ -7177,7 +7200,10 @@ async function stockProductView(id){
         <button class="btn ghost sm" onclick="stockProductOpening('${id}')">📦 Stock d'ouverture</button></div></div>
       <div class="panel"><b>Historique du stock</b><table style="margin-top:6px"><tr><th>Date</th><th>Type</th><th class="r">Qté</th><th>Réf</th></tr>
         ${moves.length?moves.slice(0,25).map(m=>`<tr><td>${esc(m.date||'')}</td><td>${esc(typeTag(m.type))}</td><td class="r" style="color:${m.qty<0?'var(--red)':'var(--nav-active-color)'}">${m.qty>0?'+':''}${stkQty(m.qty)}</td><td>${esc(m.ref||'')}</td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
-      </table></div></div>`;
+      </table></div></div>
+    ${(Array.isArray(p.variantPrices)&&p.variantPrices.length)?`<div class="panel" style="margin-top:10px"><b>🎨 Prix par variation</b>
+      <table style="margin-top:6px;width:100%"><tr><th>Valeur</th><th class="r">Prix d'achat</th><th class="r">Prix de vente</th></tr>
+      ${p.variantPrices.map(vp=>`<tr><td>${esc(vp.value||'')}</td><td class="r">${fCFA(vp.purchasePrice)}</td><td class="r">${fCFA(vp.salePrice)}</td></tr>`).join("")}</table></div>`:''}`;
 }
 function stockProductHistory(id){ window._mvPid=id; window._mvType=""; go('stockmoves'); }
 async function stockProductDuplicate(id){ const p=_prod(id); if(!p) return;
@@ -7225,7 +7251,6 @@ const STK_REF={
   brands:{title:"🏷️ Marques",ep:"brands",cols:[{k:"name",l:"Nom"},{k:"note",l:"Note"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"note",l:"Note",type:"text"}]},
   warranties:{title:"🛡️ Garanties",ep:"warranties",cols:[{k:"name",l:"Nom"},{k:"duration",l:"Durée"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"duration",l:"Durée (ex. 12 mois)",type:"text"},{k:"description",l:"Description",type:"text"}]},
   pricegroups:{title:"💲 Groupes de prix de vente",ep:"pricegroups",cols:[{k:"name",l:"Nom"},{k:"note",l:"Note"}],fields:[{k:"name",l:"Nom",type:"text"},{k:"note",l:"Note",type:"text"}]},
-  variations:{title:"🎨 Variations",ep:"variations",cols:[{k:"name",l:"Variation"},{k:"values",l:"Valeurs"}],fields:[{k:"name",l:"Nom de la variation (ex. Taille)",type:"text"},{k:"values",l:"Valeurs (séparées par des virgules)",type:"text"}]},
   locations:{title:"📍 Emplacements",ep:"locations",cols:[{k:"name",l:"Nom"},{k:"address",l:"Adresse"}],fields:[{k:"name",l:"Nom du lieu",type:"text"},{k:"address",l:"Adresse",type:"text"}]},
   expensecats:{title:"🗃️ Catégories de dépenses",ep:"expensecats",cols:[{k:"name",l:"Nom"}],fields:[{k:"name",l:"Nom",type:"text"}]}
 };
@@ -7234,7 +7259,47 @@ const stockUnitsView=stkRefView(STK_REF.units);
 const stockBrandsView=stkRefView(STK_REF.brands);
 const stockWarrantiesView=stkRefView(STK_REF.warranties);
 const stockPriceGroupsView=stkRefView(STK_REF.pricegroups);
-const stockVariationsView=stkRefView(STK_REF.variations);
+/* ---- Variations : nom + plusieurs valeurs (comme le modèle Groupe Cible) ---- */
+async function stockVariationsView(){
+  const list=await api("/stock/variations").catch(()=>[]);
+  window._stkref_variations=list;
+  view.innerHTML=`<h1>🎨 Variations</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="stockVariationModal()">+ Nouvelle variation</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Variation</th><th>Valeurs</th><th></th></tr>
+      ${list.map(v=>{const vals=Array.isArray(v.values)?v.values:String(v.values||"").split(",").map(x=>x.trim()).filter(Boolean);return `<tr><td><b>${esc(v.name||"")}</b></td>
+        <td>${vals.map(x=>`<span class="tag gray" style="margin:1px">${esc(x)}</span>`).join(" ")||'<span class="note">—</span>'}</td>
+        <td><button class="btn ghost sm" onclick="stockVariationModal('${v.id}')">✏️ Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="stockVariationDelete('${v.id}')">🗑</button></td></tr>`;}).join("")||'<tr><td colspan="3" class="note">Aucune variation. Ex. « BLOUSE » avec les valeurs BLEU, ROUGE, KAKI…</td></tr>'}</table></div>`;
+}
+function stockVarValRow(val){ return `<div class="varval" style="display:flex;gap:6px;margin-bottom:6px"><input class="vv" value="${esc(val||"")}" placeholder="Valeur (ex. ROUGE)" style="flex:1"><button class="btn ghost sm" onclick="this.closest('.varval').remove()" title="Retirer">✕</button></div>`; }
+function stockVariationModal(id){
+  const list=window._stkref_variations||[]; const v=id?(list.find(x=>x.id===id)||{}):{};
+  const vals=Array.isArray(v.values)?v.values:(v.values?String(v.values).split(",").map(x=>x.trim()).filter(Boolean):[]);
+  const rows=(vals.length?vals:[""]).map(stockVarValRow).join("");
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:560px"><h3 style="margin:0 0 12px">${id?'Modifier':'Nouvelle'} la variation</h3>
+    <div style="display:flex;gap:16px;margin-bottom:10px"><label style="width:130px;text-align:right;font-weight:600;padding-top:8px">Nom de la variation :*</label>
+      <input id="vName" value="${esc(v.name||'')}" style="flex:1" placeholder="ex. BLOUSE"></div>
+    <div style="display:flex;gap:16px"><label style="width:130px;text-align:right;font-weight:600;padding-top:8px">Ajouter des valeurs de variation :*</label>
+      <div style="flex:1"><div style="display:flex;gap:6px;align-items:flex-start"><div id="vVals" style="flex:1">${rows}</div>
+        <button class="btn p sm" onclick="document.getElementById('vVals').insertAdjacentHTML('beforeend',stockVarValRow(''))" title="Ajouter une valeur">+</button></div></div></div>
+    <div class="err hidden" id="vErr" style="margin-top:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn p" onclick="stockVariationSave('${id||''}')">${id?'Mettre à jour':'Enregistrer'}</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function stockVariationSave(id){
+  const name=(document.getElementById("vName")||{}).value||"";
+  const values=[...document.querySelectorAll("#vVals .vv")].map(i=>i.value.trim()).filter(Boolean);
+  const err=(m)=>{const e=document.getElementById("vErr");e.textContent=m;e.classList.remove("hidden");};
+  if(!name.trim()) return err("Le nom de la variation est obligatoire.");
+  if(!values.length) return err("Ajoutez au moins une valeur.");
+  try{ if(id) await api("/stock/variations/"+id,{method:"PUT",body:JSON.stringify({name,values})});
+    else await api("/stock/variations",{method:"POST",body:JSON.stringify({name,values})});
+    document.querySelector(".modal-bg").remove(); stockVariationsView(); }
+  catch(e){ err(e.message); }
+}
+async function stockVariationDelete(id){ if(!confirm("Supprimer cette variation ?")) return;
+  try{ await api("/stock/variations/"+id,{method:"DELETE"}); stockVariationsView(); }catch(e){ alert(e.message); } }
 const stockLocationsView=stkRefView(STK_REF.locations);
 const stockExpenseCatsView=stkRefView(STK_REF.expensecats);
 const stockSuppliersView=()=>stockContactsView("fournisseur");
