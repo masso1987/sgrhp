@@ -916,6 +916,7 @@ const NAV = [
   { k: "smqcompetences", label: "🎓 Compétences & habilitations", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.competences", module: "quality", grp: "qualite" },
   { k: "smqsuppliers", label: "🚚 Évaluation fournisseurs", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.suppliers", module: "quality", grp: "qualite" },
   { k: "smqequipment", label: "📏 Métrologie", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.equipment", module: "quality", grp: "qualite" },
+  { k: "smqreviews", label: "🏛️ Revues de direction", sec: "Pilotage", roles: ["ADM","CD","RJ"], cap: "smq.reviews", module: "quality", grp: "qualite" },
   { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
   { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
   { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
@@ -1018,7 +1019,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1425,7 +1426,7 @@ async function permModal(uid) {
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
-  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.risks","⚠️ Risques & opportunités"],["smq.satisfaction","😊 Satisfaction client"],["smq.claims","📣 Réclamations"],["smq.competences","🎓 Compétences & habilitations"],["smq.suppliers","🚚 Évaluation fournisseurs"],["smq.equipment","📏 Métrologie"],["smq.clauses","📚 Bibliothèque de clauses"]];
+  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.risks","⚠️ Risques & opportunités"],["smq.satisfaction","😊 Satisfaction client"],["smq.claims","📣 Réclamations"],["smq.competences","🎓 Compétences & habilitations"],["smq.suppliers","🚚 Évaluation fournisseurs"],["smq.equipment","📏 Métrologie"],["smq.reviews","🏛️ Revues de direction"],["smq.clauses","📚 Bibliothèque de clauses"]];
   const hasQuality = (u.modules || []).includes("quality");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -6921,6 +6922,87 @@ async function smqEqSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{})
   if(!body.designation){const e=document.getElementById("eqErr");e.textContent="Désignation obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/equipment"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqEquipmentView(); }catch(e){ const el=document.getElementById("eqErr");el.textContent=e.message;el.classList.remove("hidden"); } }
 async function smqEqDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/equipment/"+idv,{method:"DELETE"}); smqEquipmentView(); }catch(e){ alert(e.message); } }
+
+/* ---------- Revue de direction / de processus (§9.3) ---------- */
+function smqRevInputsHtml(a){
+  if(!a)return'';
+  const capa=Object.keys(a.fiches.capaByOrigine||{}).filter(o=>a.fiches.capaByOrigine[o].total>0);
+  const box=(t,b)=>`<div style="flex:1;min-width:220px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--bg)"><b style="font-size:13px">${t}</b><div style="margin-top:4px">${b}</div></div>`;
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap">
+    ${box("🛠️ Fiches d'amélioration (CAPA)",`${a.fiches.total} au total · <b>${a.fiches.ouvertes}</b> ouvertes · ${a.fiches.actionsRetard} action(s) en retard`+
+      (capa.length?`<table style="margin-top:4px;width:100%"><tr><th>Origine</th><th class="r">Total</th><th class="r">Clôt.</th></tr>${capa.map(o=>`<tr><td>${esc(o)}</td><td class="r">${a.fiches.capaByOrigine[o].total}</td><td class="r">${a.fiches.capaByOrigine[o].cloturee}</td></tr>`).join("")}</table>`:''))}
+    ${box("🔍 Audits",`${a.audits.total} audit(s) · ${a.audits.realises} réalisé(s)<br><span style="color:var(--red)">${a.audits.ncMajeures} NC majeures</span> · ${a.audits.ncMineures} NC mineures · ${a.audits.observations} obs.`)}
+    ${box("⚠️ Risques",`${a.risques.total} risque(s) · <b>${a.risques.prioritaires}</b> prioritaires<br>Critiques ${a.risques.band.critique} · Élevés ${a.risques.band.eleve} · Moyens ${a.risques.band.moyen} · Faibles ${a.risques.band.faible}`)}
+    ${box("📈 Indicateurs",`${a.indicateurs.total} KPI · <span style="color:#16a34a">●</span> ${a.indicateurs.feux.vert} <span style="color:#f97316">●</span> ${a.indicateurs.feux.orange} <span style="color:#dc2626">●</span> ${a.indicateurs.feux.rouge} <span style="color:#9ca3af">●</span> ${a.indicateurs.feux.gris}`)}
+    ${a.satisfaction?box("😊 Écoute client",`Satisfaction moyenne <b>${a.satisfaction.moyenne}%</b> (${a.satisfaction.total})<br>Réclamations : ${a.reclamations.ouvertes} ouverte(s) / ${a.reclamations.total}`):''}
+    ${a.competences?box("🎓 Ressources",`Compétences : ${a.competences.ecarts} écart(s) · ${a.competences.habilitationsExpirees} habilit. expirée(s)<br>Fournisseurs agréés : ${a.fournisseurs.agrees}/${a.fournisseurs.total} · Équip. à étalonner : ${a.equipements.aEtalonner}`):''}
+  </div>`;
+}
+async function smqReviewsView(){
+  const rows=await api("/smq/reviews").catch(()=>[]);
+  view.innerHTML=`<h1>🏛️ Revues de direction</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqReviewNew('direction')">+ Revue de direction</button>
+      <button class="btn ghost" onclick="smqReviewNew('processus')">+ Revue de processus</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Type</th><th>Date</th><th>Participants</th><th>Décisions</th><th>Actions</th><th></th></tr>
+      ${rows.map(r=>`<tr><td><b>${esc(r.ref)}</b></td><td>${r.scope==="processus"?'<span class="tag blue">Processus</span>':'<span class="tag green">Direction</span>'}</td><td>${esc(r.date||"")}</td><td>${esc(r.participants||"")}</td>
+        <td>${(r.decisions||[]).length}</td><td>${(r.actions||[]).length}</td>
+        <td><button class="btn ghost sm" onclick="smqReviewOpen('${r.id}')">👁 Voir</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqReviewDel('${r.id}')">🗑</button></td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucune revue.</td></tr>'}</table></div>`;
+}
+async function smqReviewNew(scope){
+  await smqLoadRefs();
+  let pid=null;
+  if(scope==="processus"){ const procs=window._SMQ.procs||[]; if(!procs.length){alert("Définissez d'abord des processus.");return;}
+    const code=prompt("Code du processus (ex. S4) :"); if(!code)return; const p=procs.find(x=>x.code.toLowerCase()===code.toLowerCase()); if(!p){alert("Processus introuvable.");return;} pid=p.id; }
+  const agg=await api("/smq/reviews/aggregate?scope="+scope+(pid?"&processId="+pid:"")).catch(()=>null);
+  window._REV_DRAFT={scope,processId:pid};
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('smqreviews')">← Revues</button>
+    <h1 style="margin-top:8px">Nouvelle revue ${scope==="processus"?"de processus":"de direction"}</h1>
+    <div class="panel">
+      <div class="grid3"><div><label>Date</label><input id="rvDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div><label>Prochaine revue</label><input id="rvNext" type="date"></div>
+        <div><label>Participants</label><input id="rvPart" placeholder="DG, RQ, pilotes"></div></div>
+      <h3 style="margin:12px 0 6px">Données d'entrée (auto-agrégées)</h3>
+      ${smqRevInputsHtml(agg)}
+      <h3 style="margin:14px 0 4px">Décisions</h3>
+      <textarea id="rvDec" rows="3" placeholder="Une décision par ligne"></textarea>
+      <h3 style="margin:12px 0 4px">Actions</h3>
+      <table style="width:100%"><tr><th>Action</th><th>Responsable</th><th>Échéance</th><th></th></tr><tbody id="rvActs">${smqRevActRows([{}])}</tbody></table>
+      <button class="btn ghost sm" style="margin-top:4px" onclick="document.getElementById('rvActs').insertAdjacentHTML('beforeend',smqRevActRows([{}]))">+ Action</button>
+      <h3 style="margin:12px 0 4px">Conclusion</h3>
+      <textarea id="rvConc" rows="2"></textarea>
+      <div class="err hidden" id="rvErr" style="margin-top:6px"></div>
+      <div style="margin-top:10px"><button class="btn p" onclick="smqReviewSave()">💾 Enregistrer la revue</button>
+        <span class="note">Les données d'entrée ci-dessus seront figées dans la revue.</span></div></div>`;
+}
+function smqRevActRows(acts){ return (acts||[]).map(a=>`<tr><td><input class="raAct" value="${esc(a.action||"")}" style="width:100%"></td><td><input class="raResp" value="${esc(a.responsable||"")}" style="width:120px"></td><td><input class="raEch" type="date" value="${esc(a.echeance||"")}"></td><td><button class="btn ghost sm" onclick="this.closest('tr').remove()">🗑</button></td></tr>`).join(""); }
+async function smqReviewSave(){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const decisions=g("rvDec").split("\n").map(x=>x.trim()).filter(Boolean);
+  const actions=[...document.querySelectorAll("#rvActs tr")].map(tr=>({action:tr.querySelector(".raAct").value,responsable:tr.querySelector(".raResp").value,echeance:tr.querySelector(".raEch").value})).filter(a=>a.action.trim());
+  const d=window._REV_DRAFT||{scope:"direction"};
+  const body={scope:d.scope,processId:d.processId||null,date:g("rvDate"),nextDate:g("rvNext"),participants:g("rvPart"),decisions,actions,conclusion:g("rvConc")};
+  try{ const r=await api("/smq/reviews",{method:"POST",body:JSON.stringify(body)}); smqReviewOpen(r.id); }
+  catch(e){ const el=document.getElementById("rvErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function smqReviewOpen(idv){
+  await smqLoadRefs();
+  const r=await api("/smq/reviews/"+idv).catch(e=>{alert(e.message);return null;}); if(!r)return;
+  const p=r.processId?(window._SMQ.procs||[]).find(x=>x.id===r.processId):null;
+  const actRows=(r.actions||[]).map((a,i)=>`<tr><td>${i+1}</td><td>${esc(a.action||"")}</td><td>${esc(a.responsable||"")}</td><td>${esc(a.echeance||"")}</td></tr>`).join("")||'<tr><td colspan="4" class="note">—</td></tr>';
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('smqreviews')">← Revues</button>
+    <div class="panel" style="margin-top:10px" id="revDoc">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div><h1 style="margin:0">${esc(r.ref)}</h1><div class="note">${r.scope==="processus"?"Revue de processus"+(p?" — "+esc(p.code+" "+p.intitule):""):"Revue de direction"} · ${esc(r.date||"")}${r.participants?" · "+esc(r.participants):""}</div></div>
+        <button class="btn ghost sm" onclick="smqReviewPrint()">🖨 Imprimer</button></div>
+      <h3 style="margin:12px 0 6px">Données d'entrée</h3>${smqRevInputsHtml(r.inputs)}
+      <h3 style="margin:14px 0 4px">Décisions</h3><ul style="margin:0">${(r.decisions||[]).map(d=>`<li>${esc(d)}</li>`).join("")||'<li class="note">—</li>'}</ul>
+      <h3 style="margin:12px 0 4px">Actions</h3><table style="width:100%"><tr><th>N°</th><th>Action</th><th>Responsable</th><th>Échéance</th></tr>${actRows}</table>
+      ${r.conclusion?`<h3 style="margin:12px 0 4px">Conclusion</h3><div>${esc(r.conclusion)}</div>`:''}
+      ${r.nextDate?`<div class="note" style="margin-top:8px">Prochaine revue : ${esc(r.nextDate)}</div>`:''}</div>`;
+}
+async function smqReviewDel(idv){ if(!confirm("Supprimer cette revue ?"))return; try{ await api("/smq/reviews/"+idv,{method:"DELETE"}); smqReviewsView(); }catch(e){ alert(e.message); } }
+function smqReviewPrint(){ const el=document.getElementById("revDoc"); if(!el)return;
+  const w=window.open("","_blank"); w.document.write(`<html><head><title>Revue</title><style>body{font-family:Arial;margin:20mm 14mm;font-size:12px;color:#111}table{border-collapse:collapse;width:100%;margin-top:4px}th,td{border:1px solid #999;padding:4px;text-align:left}h1{font-size:18px}h3{margin:12px 0 4px}.note{color:#666}.tag{padding:1px 6px;border-radius:8px;font-size:11px}</style></head><body>${el.innerHTML.replace(/<button[\s\S]*?<\/button>/g,"")}</body></html>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};

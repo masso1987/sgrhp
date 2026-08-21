@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment", "smqReviews"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -396,6 +396,7 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       reclamationsOuvertes: mine(db.smqClaims, req).filter(x => !["resolue","cloturee"].includes(x.statut)).length,
       habilitationsExpirant: mine(db.smqCompetences, req).filter(x => x.habilitation && x.dateExpiration && x.dateExpiration < new Date().toISOString().slice(0,10)).length,
       equipementsAEtalonner: mine(db.smqEquipment, req).filter(x => { const p=x.prochainEtalonnage||(x.dernierEtalonnage&&x.frequenceEtalonnageMois?(()=>{const d=new Date(x.dernierEtalonnage);d.setMonth(d.getMonth()+(Number(x.frequenceEtalonnageMois)||12));return d.toISOString().slice(0,10);})():null); return p && ((new Date(p)-new Date())/86400000)<=30; }).length,
+      revues: mine(db.smqReviews, req).length,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
@@ -973,6 +974,101 @@ router.get("/equipment-summary", allow(...RO), (req, res) => {
   const conformes = rows.filter(r => r.statutAuto === "conforme").length;
   const aEtalonner = rows.filter(r => r.joursRestants != null && r.joursRestants <= 30).length;
   res.json({ total: rows.length, conformes, aEtalonner, tauxConforme: rows.length ? Math.round(conformes / rows.length * 1000) / 10 : 0 });
+});
+
+/* ============================ Revue de direction / processus (§9.3) — auto-agrégation ============================ */
+// Rassemble les données d'entrée ISO 9.3 en direct. scope 'direction' (global) ou 'processus' (processId).
+function reviewAggregate(req, opts = {}) {
+  const scope = opts.scope || "direction";
+  const pid = opts.processId || null;
+  const inProc = (x) => !pid || x.processId === pid;
+
+  const fiches = mine(db.smqImprovements, req).filter(inProc);
+  const capaByOrigine = {};
+  IMP_ORIGINES.forEach(o => { capaByOrigine[o] = { total: 0, cloturee: 0 }; });
+  fiches.forEach(f => { const o = IMP_ORIGINES.includes(f.origine) ? f.origine : "Autres"; capaByOrigine[o].total++; if (f.statut === "cloturee") capaByOrigine[o].cloturee++; });
+  let actionsRetard = 0; const today = now().slice(0, 10);
+  fiches.forEach(f => (f.actions || []).forEach(a => { if (a.echeance && a.echeance < today && !["cloturee", "verifiee", "faite"].includes(a.statut)) actionsRetard++; }));
+
+  const audits = mine(db.smqAudits, req).filter(a => !pid || (a.processIds || []).includes(pid));
+  const auditItems = mine(db.smqAuditItems, req).filter(i => audits.some(a => a.id === i.auditId));
+
+  const risks = mine(db.smqRisks, req).filter(inProc).map(riskCompute);
+  const riskBand = { faible: 0, moyen: 0, eleve: 0, critique: 0 };
+  risks.filter(r => (r.sens || "R") === "R").forEach(r => riskBand[r.band]++);
+
+  const inds = mine(db.smqIndicators, req).filter(inProc);
+  const feux = { vert: 0, orange: 0, rouge: 0, gris: 0 };
+  inds.forEach(i => {
+    const ms = mine(db.smqMeasures, req).filter(m => m.indicatorId === i.id).sort((a, b) => String(a.periode).localeCompare(String(b.periode)));
+    const d = ms[ms.length - 1]; const cible = parseFloat(i.cible);
+    let feu = "gris";
+    if (d && !isNaN(cible)) { const v = Number(d.valeur), ok = (i.sens === "baisse") ? v <= cible : v >= cible, near = (i.sens === "baisse") ? v <= cible * 1.1 : v >= cible * 0.9; feu = ok ? "vert" : (near ? "orange" : "rouge"); }
+    feux[feu]++;
+  });
+
+  const out = {
+    scope, processId: pid, generatedAt: now(),
+    fiches: { total: fiches.length, ouvertes: fiches.filter(f => f.statut !== "cloturee").length, capaByOrigine, actionsRetard },
+    audits: { total: audits.length, realises: audits.filter(a => a.statut !== "planifie").length, ncMajeures: auditItems.filter(i => i.conformite === "NC" && i.gravite === "majeure").length, ncMineures: auditItems.filter(i => i.conformite === "NC" && i.gravite !== "majeure").length, observations: auditItems.filter(i => i.conformite === "OBS").length },
+    risques: { total: risks.filter(r => (r.sens || "R") === "R").length, band: riskBand, prioritaires: risks.filter(r => r.prioritaire).length },
+    indicateurs: { total: inds.length, feux },
+  };
+  // écoute client & ressources : seulement en revue de direction (global)
+  if (scope === "direction") {
+    const sat = mine(db.smqSatisfaction, req); const norm = r => { const mx = Number(r.scoreMax) || 100; return mx ? (Number(r.score) || 0) / mx * 100 : 0; };
+    out.satisfaction = { total: sat.length, moyenne: sat.length ? Math.round(sat.reduce((a, r) => a + norm(r), 0) / sat.length * 10) / 10 : 0 };
+    const claims = mine(db.smqClaims, req);
+    out.reclamations = { total: claims.length, ouvertes: claims.filter(c => !["resolue", "cloturee"].includes(c.statut)).length };
+    const comps = mine(db.smqCompetences, req);
+    out.competences = { total: comps.length, ecarts: comps.filter(c => (Number(c.niveauActuel) || 0) < (Number(c.niveauRequis) || 0)).length, habilitationsExpirees: comps.filter(c => c.habilitation && c.dateExpiration && c.dateExpiration < today).length };
+    const sups = mine(db.smqSupplierEvals, req);
+    out.fournisseurs = { total: sups.length, agrees: sups.filter(s => ["agréé", "sous conditions"].includes(s.decision)).length };
+    const eqs = mine(db.smqEquipment, req).map(eqCompute);
+    out.equipements = { total: eqs.length, aEtalonner: eqs.filter(e => e.joursRestants != null && e.joursRestants <= 30).length };
+    out.politique = mine(db.smqPolicy, req).find(p => p.enVigueur) || null;
+    out.axes = mine(db.smqAxes, req).length;
+  }
+  return out;
+}
+router.get("/reviews/aggregate", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  res.json(reviewAggregate(req, { scope: req.query.scope || "direction", processId: req.query.processId || null }));
+});
+
+function reviewRef(req, scope) {
+  const y = new Date().getFullYear(); const pre = scope === "processus" ? "RP" : "RD";
+  const same = mine(db.smqReviews, req).filter(x => String(x.ref || "").startsWith(pre) && String(x.ref || "").endsWith("/" + y));
+  return pre + "-" + String(same.length + 1).padStart(2, "0") + "/" + y;
+}
+router.get("/reviews", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  res.json(mine(db.smqReviews, req).slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))));
+});
+router.get("/reviews/:id", allow(...RO), (req, res) => {
+  const r = mine(db.smqReviews, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  res.json(r);
+});
+const REVIEW_FIELDS = ["scope", "processId", "date", "periode", "participants", "ordreDuJour", "decisions", "actions", "conclusion", "nextDate", "statut"];
+router.post("/reviews", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const scope = b.scope || "direction";
+  const rec = { id: id("smq"), ref: b.ref || reviewRef(req, scope), scope, date: b.date || now().slice(0, 10),
+    statut: b.statut || "realise", decisions: b.decisions || [], actions: b.actions || [],
+    inputs: reviewAggregate(req, { scope, processId: b.processId || null }), createdAt: now() };
+  for (const f of REVIEW_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqReviews.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqReview", rec.id, { ref: rec.ref });
+  res.status(201).json(rec);
+});
+router.put("/reviews/:id", allow(...RW), (req, res) => {
+  const r = mine(db.smqReviews, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  for (const f of REVIEW_FIELDS) if (req.body[f] !== undefined) r[f] = req.body[f];
+  if (req.body.refreshInputs) r.inputs = reviewAggregate(req, { scope: r.scope, processId: r.processId });
+  r.updatedAt = now(); save(); res.json(r);
+});
+router.delete("/reviews/:id", allow("ADM", "CD"), (req, res) => {
+  const r = mine(db.smqReviews, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  db.smqReviews.splice(db.smqReviews.indexOf(r), 1); save(); res.json({ ok: true });
 });
 
 module.exports = router;
