@@ -910,6 +910,7 @@ const NAV = [
   { k: "smqdocs", label: "📄 Maîtrise documentaire", sec: "Documentation", roles: ["ADM","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
+  { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
   { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -1009,7 +1010,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1416,7 +1417,7 @@ async function permModal(uid) {
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
-  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.clauses","📚 Bibliothèque de clauses"]];
+  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.clauses","📚 Bibliothèque de clauses"]];
   const hasQuality = (u.modules || []).includes("quality");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -6187,6 +6188,153 @@ async function smqMeasureForm(id){
   const val=prompt("Valeur mesurée :"); if(val===null)return;
   try{ await api("/smq/indicators/"+id+"/measures",{method:"POST",body:JSON.stringify({periode:per,valeur:Number(val)})}); alert("Mesure enregistrée."); }catch(e){ alert(e.message); }
 }
+
+/* ---------- Fiches d'amélioration (NC / actions correctives / vérification) ---------- */
+const IMP_STATUT_TAG={ouverte:'<span class="tag" style="background:#dc2626;color:#fff">Ouverte</span>',analyse:'<span class="tag" style="background:#b45309;color:#fff">Analyse</span>',traitement:'<span class="tag blue">Traitement</span>',verification:'<span class="tag" style="background:#7c3aed;color:#fff">Vérification</span>',cloturee:'<span class="tag green">Clôturée</span>'};
+const IMP_GRAV_TAG={mineure:'<span class="tag gray">Mineure</span>',majeure:'<span class="tag" style="background:#b45309;color:#fff">Majeure</span>',critique:'<span class="tag" style="background:#dc2626;color:#fff">Critique</span>',observation:'<span class="tag blue">Observation</span>'};
+const IMP_ORIGINES=["Non-conformité","Réclamation client","Audit interne","Audit externe","Audit à blanc","Revue de direction","Minute qualité","Rencontre évènementielle","Risques et opportunités","Autres"];
+const IMP_STATUTS=["ouverte","analyse","traitement","verification","cloturee"];
+
+async function smqImprovementsView(){
+  await smqLoadRefs();
+  const [rows,sum]=await Promise.all([api("/smq/improvements").catch(()=>[]),api("/smq/improvements-summary").catch(()=>null)]);
+  const procs=window._SMQ.procs||[];
+  const statOpts='<option value="">Tous statuts</option>'+IMP_STATUTS.map(s=>`<option value="${s}">${s}</option>`).join("");
+  const oriOpts='<option value="">Toutes origines</option>'+IMP_ORIGINES.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("");
+  view.innerHTML=`<h1>🛠️ Fiches d'amélioration (NC & actions)</h1>
+    <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <button class="btn p" onclick="smqImpForm()">+ Nouvelle fiche</button>
+      <select id="impFStat" onchange="smqImpFilter()">${statOpts}</select>
+      <select id="impFOri" onchange="smqImpFilter()">${oriOpts}</select></div>
+    ${sum?`<div class="panel" style="margin-bottom:10px"><b>État des actions correctives</b> <span class="note">(origine × statut)</span>
+      <table style="margin-top:6px;width:100%"><tr><th>Origine</th><th class="r">Ouverte</th><th class="r">Analyse</th><th class="r">Traitement</th><th class="r">Vérif.</th><th class="r">Clôturée</th><th class="r">Total</th></tr>
+      ${sum.origines.filter(o=>sum.grid[o].total>0).map(o=>{const g=sum.grid[o];return `<tr><td>${esc(o)}</td><td class="r">${g.ouverte}</td><td class="r">${g.analyse}</td><td class="r">${g.traitement}</td><td class="r">${g.verification}</td><td class="r">${g.cloturee}</td><td class="r"><b>${g.total}</b></td></tr>`;}).join("")||'<tr><td colspan="7" class="note">Aucune fiche.</td></tr>'}
+      <tr style="border-top:2px solid var(--border)"><td><b>TOTAL</b></td><td class="r"><b>${sum.totals.ouverte}</b></td><td class="r"><b>${sum.totals.analyse}</b></td><td class="r"><b>${sum.totals.traitement}</b></td><td class="r"><b>${sum.totals.verification}</b></td><td class="r"><b>${sum.totals.cloturee}</b></td><td class="r"><b>${sum.totals.total}</b></td></tr></table>
+      <div class="note" style="margin-top:4px">${sum.ouvertes} fiche(s) ouverte(s) · ${sum.enRetard} action(s) en retard</div></div>`:''}
+    <div class="panel"><table style="width:100%" id="impTable"><tr><th>Réf</th><th>Date</th><th>Origine</th><th>Processus</th><th>Gravité</th><th>Objet</th><th>Statut</th><th></th></tr>
+      ${rows.map(r=>smqImpRow(r,procs)).join("")||'<tr><td colspan="8" class="note">Aucune fiche.</td></tr>'}</table></div>`;
+  window._IMP_ROWS=rows;
+}
+function smqImpRow(r,procs){
+  const p=(procs||window._SMQ.procs||[]).find(x=>x.id===r.processId);
+  return `<tr><td><b>${esc(r.ref)}</b></td><td>${esc(r.date||"")}</td><td>${esc(r.origine||"")}</td><td>${p?esc(p.code):""}</td><td>${IMP_GRAV_TAG[r.gravite]||esc(r.gravite||"")}</td>
+    <td>${esc((r.description||"").slice(0,50))}</td><td>${IMP_STATUT_TAG[r.statut]||esc(r.statut)}</td>
+    <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
+      <button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqImpDetail('${r.id}')">👁 Voir</button>
+      <button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqImpForm('${r.id}')">✏️</button>
+      <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;color:var(--red)" onclick="smqImpDel('${r.id}')">🗑</button></div></td></tr>`;
+}
+function smqImpFilter(){
+  const st=(document.getElementById("impFStat")||{}).value||"", or=(document.getElementById("impFOri")||{}).value||"";
+  const rows=(window._IMP_ROWS||[]).filter(r=>(!st||r.statut===st)&&(!or||r.origine===or));
+  const t=document.getElementById("impTable");
+  t.innerHTML='<tr><th>Réf</th><th>Date</th><th>Origine</th><th>Processus</th><th>Gravité</th><th>Objet</th><th>Statut</th><th></th></tr>'+(rows.map(r=>smqImpRow(r)).join("")||'<tr><td colspan="8" class="note">Aucune fiche.</td></tr>');
+}
+
+function smqActRows(actions){
+  return (actions||[]).map((a,i)=>`<tr data-ai="${i}">
+    <td>${i+1}</td>
+    <td><input class="aAct" value="${esc(a.action||"")}" style="width:100%"></td>
+    <td><input class="aResp" value="${esc(a.responsable||"")}" style="width:120px"></td>
+    <td><input class="aEch" type="date" value="${esc(a.echeance||"")}"></td>
+    <td><select class="aStat">${["planifiee","en_cours","faite","verifiee","cloturee","en_retard","abandonnee"].map(s=>`<option ${a.statut===s?"selected":""}>${s}</option>`).join("")}</select></td>
+    <td><button class="btn ghost sm" onclick="this.closest('tr').remove()">🗑</button></td></tr>`).join("");
+}
+function smqCollectActs(){
+  return [...document.querySelectorAll("#impActs tr[data-ai]")].map((tr,i)=>({n:i+1,action:tr.querySelector(".aAct").value,responsable:tr.querySelector(".aResp").value,echeance:tr.querySelector(".aEch").value,statut:tr.querySelector(".aStat").value})).filter(a=>a.action.trim());
+}
+function smqAddAct(){ document.getElementById("impActs").insertAdjacentHTML("beforeend",smqActRows([{}])); }
+
+async function smqImpForm(idv){
+  await smqLoadRefs();
+  const r=idv?await api("/smq/improvements/"+idv).catch(()=>({})):{};
+  const procs=window._SMQ.procs||[];
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('smqimprovements')">← Fiches</button>
+    <h1 style="margin-top:8px">${idv?"Modifier":"Nouvelle"} fiche d'amélioration</h1>
+    <div class="panel">
+      <div class="grid3">
+        <div><label>Date</label><input id="fDate" type="date" value="${esc(r.date||new Date().toISOString().slice(0,10))}"></div>
+        <div><label>Entité</label><input id="fEnt" value="${esc(r.entite||"QHSE")}"></div>
+        <div><label>Processus</label><select id="fProc"><option value="">—</option>${procs.map(p=>`<option value="${p.id}" ${r.processId===p.id?"selected":""}>${esc(p.code)} — ${esc(p.intitule)}</option>`).join("")}</select></div>
+      </div>
+      <div class="grid3">
+        <div><label>Origine *</label><select id="fOri">${IMP_ORIGINES.map(o=>`<option ${r.origine===o?"selected":""}>${esc(o)}</option>`).join("")}</select></div>
+        <div><label>Gravité</label><select id="fGrav">${["mineure","majeure","critique","observation"].map(g=>`<option ${r.gravite===g?"selected":""}>${g}</option>`).join("")}</select></div>
+        <div><label>Statut</label><select id="fStat">${IMP_STATUTS.map(s=>`<option ${r.statut===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      </div>
+      <label>Description de la situation *</label><textarea id="fDesc" rows="2">${esc(r.description||"")}</textarea>
+      <div class="grid2"><div><label>Émetteur</label><input id="fEmet" value="${esc(r.emetteurName||(ME&&ME.fullName)||"")}"></div><div></div></div>
+      <h3 style="margin:12px 0 4px">Correction immédiate</h3>
+      <textarea id="fCorr" rows="2">${esc(r.correctionImmediate||"")}</textarea>
+      <div class="grid2"><div><label>Responsable</label><input id="fCorrResp" value="${esc(r.correctionResponsable||"")}"></div>
+        <div><label>Date de mise en œuvre</label><input id="fCorrDate" type="date" value="${esc(r.correctionDate||"")}"></div></div>
+      <h3 style="margin:12px 0 4px">Analyse des causes</h3>
+      <textarea id="fCause" rows="2" placeholder="Cause racine (5 pourquoi / Ishikawa)">${esc(r.analyseCauses||"")}</textarea>
+      <h3 style="margin:12px 0 4px">Traitement — plan d'actions</h3>
+      <table style="width:100%"><tr><th>N°</th><th>Action</th><th>Responsable</th><th>Échéance</th><th>Statut</th><th></th></tr>
+        <tbody id="impActs">${smqActRows(r.actions&&r.actions.length?r.actions:[{}])}</tbody></table>
+      <button class="btn ghost sm" style="margin-top:4px" onclick="smqAddAct()">+ Action</button>
+      <div class="grid2" style="margin-top:6px"><div><label>Actions proposées par</label><input id="fPropose" value="${esc(r.actionsProposeesPar||"")}"></div>
+        <div><label>Visa du pilote</label><input id="fVisa" value="${esc(r.visaPilote||"")}"></div></div>
+      <h3 style="margin:12px 0 4px">Vérification de l'efficacité</h3>
+      <div class="grid3">
+        <div><label>Résultat</label><select id="fVR"><option value="">—</option><option value="conforme" ${r.verifResultat==="conforme"?"selected":""}>Conforme (efficace)</option><option value="non_conforme" ${r.verifResultat==="non_conforme"?"selected":""}>Non conforme</option></select></div>
+        <div><label>Vérifié par</label><input id="fVBy" value="${esc(r.verifiePar||"")}"></div>
+        <div><label>Date</label><input id="fVDate" type="date" value="${esc(r.verifDate||"")}"></div>
+      </div>
+      <label>Commentaire de vérification</label><input id="fVCom" value="${esc(r.verifCommentaire||"")}">
+      <div class="note" style="margin-top:4px">Un résultat « Conforme » clôture automatiquement la fiche. « Non conforme » → ouvrez une fiche liée depuis la vue détail.</div>
+      <h3 style="margin:12px 0 4px">Analyse des risques & opportunités</h3>
+      <label class="chk"><input type="checkbox" id="fRORec" ${r.roRecurrence?"checked":""}><span>Récurrence d'un risque déjà identifié</span></label>
+      <label>Nouveaux risques / opportunités</label><textarea id="fRONew" rows="2">${esc(r.roNouveaux||"")}</textarea>
+      <div class="err hidden" id="fErr" style="margin-top:6px"></div>
+      <div style="margin-top:10px"><button class="btn p" onclick="smqImpSave('${idv||""}')">💾 Enregistrer</button></div>
+    </div>`;
+}
+async function smqImpSave(idv){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={date:g("fDate"),entite:g("fEnt"),processId:g("fProc")||null,origine:g("fOri"),gravite:g("fGrav"),statut:g("fStat"),
+    description:g("fDesc"),emetteurName:g("fEmet"),correctionImmediate:g("fCorr"),correctionResponsable:g("fCorrResp"),correctionDate:g("fCorrDate"),
+    analyseCauses:g("fCause"),actions:smqCollectActs(),actionsProposeesPar:g("fPropose"),visaPilote:g("fVisa"),
+    verifResultat:g("fVR"),verifiePar:g("fVBy"),verifDate:g("fVDate"),verifCommentaire:g("fVCom"),
+    roRecurrence:document.getElementById("fRORec").checked,roNouveaux:g("fRONew")};
+  if(!body.description){const e=document.getElementById("fErr");e.textContent="Description obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/improvements"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); go('smqimprovements'); }
+  catch(e){ const el=document.getElementById("fErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function smqImpDel(idv){ if(!confirm("Supprimer cette fiche ?"))return; try{ await api("/smq/improvements/"+idv,{method:"DELETE"}); smqImprovementsView(); }catch(e){ alert(e.message); } }
+
+async function smqImpDetail(idv){
+  await smqLoadRefs();
+  const r=await api("/smq/improvements/"+idv).catch(e=>{alert(e.message);return null;}); if(!r)return;
+  const p=(window._SMQ.procs||[]).find(x=>x.id===r.processId);
+  const actRows=(r.actions||[]).map((a,i)=>`<tr><td>${i+1}</td><td>${esc(a.action||"")}</td><td>${esc(a.responsable||"")}</td><td>${esc(a.echeance||"")}</td><td>${esc(a.statut||"")}</td></tr>`).join("")||'<tr><td colspan="5" class="note">—</td></tr>';
+  const sec=(t,b)=>`<div style="margin-top:10px"><b>${t}</b><div style="margin-top:2px">${b||'<span class="note">—</span>'}</div></div>`;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('smqimprovements')">← Fiches</button>
+    <div class="panel" style="margin-top:10px" id="impDoc">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div><h1 style="margin:0">Fiche d'amélioration ${esc(r.ref)}</h1>
+          <div class="note">${esc(r.date||"")} · ${esc(r.entite||"")} · ${p?esc(p.code+" — "+p.intitule):""} · ${IMP_STATUT_TAG[r.statut]||esc(r.statut)}</div></div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn ghost sm" onclick="smqImpForm('${r.id}')">✏️ Modifier</button>
+          <button class="btn ghost sm" onclick="smqImpPrint('${r.id}')">🖨 Imprimer</button>
+          ${r.verifResultat==="non_conforme"?`<button class="btn p sm" onclick="smqImpSpawn('${r.id}')">↪ Fiche liée (NC)</button>`:''}</div></div>
+      <div class="grid3" style="margin-top:8px"><div><b>Origine :</b> ${esc(r.origine||"")}</div><div><b>Gravité :</b> ${esc(r.gravite||"")}</div><div><b>Émetteur :</b> ${esc(r.emetteurName||"")}</div></div>
+      ${sec("Description de la situation",esc(r.description||""))}
+      ${sec("Correction immédiate",esc(r.correctionImmediate||"")+(r.correctionResponsable?` <span class="note">— ${esc(r.correctionResponsable)}${r.correctionDate?", "+esc(r.correctionDate):""}</span>`:""))}
+      ${sec("Analyse des causes",esc(r.analyseCauses||""))}
+      <div style="margin-top:10px"><b>Traitement — plan d'actions</b>
+        <table style="margin-top:4px;width:100%"><tr><th>N°</th><th>Action</th><th>Responsable</th><th>Échéance</th><th>Statut</th></tr>${actRows}</table>
+        ${r.actionsProposeesPar?`<div class="note" style="margin-top:2px">Proposées par : ${esc(r.actionsProposeesPar)}${r.visaPilote?" · Visa pilote : "+esc(r.visaPilote):""}</div>`:""}</div>
+      ${sec("Vérification de l'efficacité",(r.verifResultat?({conforme:"✅ Conforme (efficace)",non_conforme:"❌ Non conforme"})[r.verifResultat]:"")+(r.verifiePar?` <span class="note">— ${esc(r.verifiePar)}${r.verifDate?", "+esc(r.verifDate):""}</span>`:"")+(r.verifCommentaire?"<br>"+esc(r.verifCommentaire):""))}
+      ${sec("Analyse des risques & opportunités",(r.roRecurrence?"Récurrence d'un risque identifié. ":"")+esc(r.roNouveaux||""))}
+      ${(r.suivantes&&r.suivantes.length)?`<div class="note" style="margin-top:10px">Fiche(s) liée(s) : ${r.suivantes.map(x=>esc(x.ref)).join(", ")}</div>`:''}
+    </div>`;
+}
+async function smqImpSpawn(idv){ if(!confirm("Ouvrir une nouvelle fiche liée (efficacité non conforme) ?"))return;
+  try{ const r=await api("/smq/improvements/"+idv+"/spawn",{method:"POST"}); smqImpForm(r.id); }catch(e){ alert(e.message); } }
+function smqImpPrint(idv){ const el=document.getElementById("impDoc"); if(!el)return;
+  const w=window.open("","_blank"); w.document.write(`<html><head><title>Fiche d'amélioration</title><style>body{font-family:Arial;margin:22mm 14mm;font-size:12px;color:#111}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px;text-align:left}h1{font-size:18px}.note{color:#666;font-size:11px}.tag{padding:1px 6px;border-radius:8px;font-size:11px}</style></head><body>${el.innerHTML.replace(/<button[\s\S]*?<\/button>/g,"")}</body></html>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};

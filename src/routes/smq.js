@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -385,10 +385,112 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       documents: docs.length, enVigueur: docStatus.en_vigueur || 0, brouillon: docStatus.brouillon || 0,
       indicateurs: mine(db.smqIndicators, req).length, axes: mine(db.smqAxes, req).length,
       partiesInteressees: mine(db.smqStakeholders, req).length, aRevoir: aRevoir.length,
+      fiches: mine(db.smqImprovements, req).length,
+      fichesOuvertes: mine(db.smqImprovements, req).filter(x => x.statut !== "cloturee").length,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
   });
+});
+
+/* ============================ Fiches d'amélioration (NC + action corrective + vérification) ============================ */
+// Modèle unifié CRHE : une seule fiche porte non-conformité, actions et vérification (voir §10.1 du plan).
+const IMP_ORIGINES = ["Non-conformité", "Réclamation client", "Audit interne", "Audit externe",
+  "Audit à blanc", "Revue de direction", "Minute qualité", "Rencontre évènementielle",
+  "Risques et opportunités", "Autres"];
+const IMP_STATUTS = ["ouverte", "analyse", "traitement", "verification", "cloturee"];
+const IMP_ACT_STATUTS = ["planifiee", "en_cours", "faite", "verifiee", "cloturee", "en_retard", "abandonnee"];
+
+function impRef(req, procId) {
+  const y = new Date().getFullYear();
+  const same = mine(db.smqImprovements, req).filter(x => String(x.ref || "").endsWith("/" + y));
+  let max = 0; for (const x of same) { const n = parseInt(String(x.ref), 10); if (n > max) max = n; }
+  const p = procId ? (mine(db.smqProcesses, req).find(z => z.id === procId) || {}).code : "";
+  return String(max + 1).padStart(2, "0") + "/" + (p || "QHSE") + "/" + y;
+}
+const IMP_FIELDS = ["date", "processId", "entite", "origine", "origineAutre", "type", "gravite",
+  "description", "emetteurName", "emetteurVisa", "correctionImmediate", "correctionResponsable", "correctionDate",
+  "analyseCauses", "actions", "actionsProposeesPar", "visaPilote",
+  "verifResultat", "verifCommentaire", "verifiePar", "verifDate",
+  "roRecurrence", "roRisqueRef", "roNouveaux", "statut",
+  "norme", "clause", "auditRef", "auditeur", "clotureLe"];
+
+router.get("/improvements", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  let rows = mine(db.smqImprovements, req).slice();
+  const q = req.query || {};
+  if (q.statut) rows = rows.filter(r => r.statut === q.statut);
+  if (q.origine) rows = rows.filter(r => r.origine === q.origine);
+  if (q.processId) rows = rows.filter(r => r.processId === q.processId);
+  rows.sort((a, b) => String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || "")));
+  res.json(rows);
+});
+router.get("/improvements/meta", allow(...RO), (req, res) =>
+  res.json({ origines: IMP_ORIGINES, statuts: IMP_STATUTS, actionStatuts: IMP_ACT_STATUTS }));
+router.get("/improvements/:id", allow(...RO), (req, res) => {
+  const x = mine(db.smqImprovements, req).find(r => r.id === req.params.id);
+  if (!x) return res.status(404).json({ error: "Introuvable" });
+  const chain = mine(db.smqImprovements, req).filter(r => r.parentId === x.id).map(r => ({ id: r.id, ref: r.ref }));
+  res.json(Object.assign({}, x, { suivantes: chain }));
+});
+router.post("/improvements", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const rec = {
+    id: id("smq"), ref: b.ref || impRef(req, b.processId), entite: b.entite || "QHSE",
+    date: b.date || now().slice(0, 10), type: b.type || "interne", gravite: b.gravite || "mineure",
+    statut: b.statut || "ouverte", actions: Array.isArray(b.actions) ? b.actions : [],
+    emetteurName: b.emetteurName || req.user.fullName, parentId: b.parentId || null, createdAt: now(),
+  };
+  for (const f of IMP_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqImprovements.push(stamp(rec, req)); save();
+  audit(req.user, "CREATED", "SmqImprovement", rec.id, { ref: rec.ref, origine: rec.origine });
+  res.status(201).json(rec);
+});
+router.put("/improvements/:id", allow(...RW), (req, res) => {
+  const x = mine(db.smqImprovements, req).find(r => r.id === req.params.id);
+  if (!x) return res.status(404).json({ error: "Introuvable" });
+  for (const f of IMP_FIELDS) if (req.body[f] !== undefined) x[f] = req.body[f];
+  // Efficacité conforme => clôture automatique.
+  if (x.verifResultat === "conforme" && x.statut !== "cloturee") { x.statut = "cloturee"; x.clotureLe = now().slice(0, 10); }
+  x.updatedAt = now(); save(); audit(req.user, "UPDATED", "SmqImprovement", x.id, {}); res.json(x);
+});
+router.delete("/improvements/:id", allow("ADM", "CD"), (req, res) => {
+  const x = mine(db.smqImprovements, req).find(r => r.id === req.params.id);
+  if (!x) return res.status(404).json({ error: "Introuvable" });
+  db.smqImprovements.splice(db.smqImprovements.indexOf(x), 1); save();
+  audit(req.user, "DELETED", "SmqImprovement", x.id, {}); res.json({ ok: true });
+});
+// Chaînage : quand l'efficacité est non conforme, ouvrir une nouvelle fiche liée.
+router.post("/improvements/:id/spawn", allow(...RW), (req, res) => {
+  const src = mine(db.smqImprovements, req).find(r => r.id === req.params.id);
+  if (!src) return res.status(404).json({ error: "Introuvable" });
+  const rec = stamp({
+    id: id("smq"), ref: impRef(req, src.processId), parentId: src.id, entite: src.entite || "QHSE",
+    date: now().slice(0, 10), processId: src.processId || null, origine: "Non-conformité",
+    type: "interne", gravite: src.gravite || "mineure", statut: "ouverte",
+    description: "Suite à l'inefficacité de la fiche " + src.ref + " : " + (src.description || ""),
+    analyseCauses: "", actions: [], emetteurName: req.user.fullName, createdAt: now(),
+  }, req);
+  db.smqImprovements.push(rec); save();
+  audit(req.user, "CREATED", "SmqImprovement", rec.id, { ref: rec.ref, parent: src.ref });
+  res.status(201).json(rec);
+});
+// État des actions correctives : origine × statut (pour tableau de bord & revues).
+router.get("/improvements-summary", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const rows = mine(db.smqImprovements, req);
+  const grid = {}; IMP_ORIGINES.forEach(o => { grid[o] = { ouverte: 0, analyse: 0, traitement: 0, verification: 0, cloturee: 0, total: 0 }; });
+  const totals = { ouverte: 0, analyse: 0, traitement: 0, verification: 0, cloturee: 0, total: 0 };
+  for (const r of rows) {
+    const o = IMP_ORIGINES.includes(r.origine) ? r.origine : "Autres";
+    const st = IMP_STATUTS.includes(r.statut) ? r.statut : "ouverte";
+    grid[o][st]++; grid[o].total++; totals[st]++; totals.total++;
+  }
+  // Actions en retard (échéance dépassée, non clôturées).
+  const today = now().slice(0, 10); let enRetard = 0;
+  for (const r of rows) for (const a of (r.actions || []))
+    if (a.echeance && a.echeance < today && !["cloturee", "verifiee", "faite"].includes(a.statut)) enRetard++;
+  res.json({ grid, totals, origines: IMP_ORIGINES, enRetard, ouvertes: totals.total - totals.cloturee });
 });
 
 module.exports = router;
