@@ -11,7 +11,7 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -394,6 +394,8 @@ router.get("/dashboard", allow(...RO), (req, res) => {
       risques: mine(db.smqRisks, req).filter(x => (x.sens || "R") === "R").length,
       risquesEleves: mine(db.smqRisks, req).filter(x => { const c=(Number(x.vraisemblance)||0)*(Number(x.impact)||0); return (x.sens||"R")==="R" && c>=8; }).length,
       reclamationsOuvertes: mine(db.smqClaims, req).filter(x => !["resolue","cloturee"].includes(x.statut)).length,
+      habilitationsExpirant: mine(db.smqCompetences, req).filter(x => x.habilitation && x.dateExpiration && x.dateExpiration < new Date().toISOString().slice(0,10)).length,
+      equipementsAEtalonner: mine(db.smqEquipment, req).filter(x => { const p=x.prochainEtalonnage||(x.dernierEtalonnage&&x.frequenceEtalonnageMois?(()=>{const d=new Date(x.dernierEtalonnage);d.setMonth(d.getMonth()+(Number(x.frequenceEtalonnageMois)||12));return d.toISOString().slice(0,10);})():null); return p && ((new Date(p)-new Date())/86400000)<=30; }).length,
     },
     docStatus, aRevoir,
     processes: procs.slice().sort((a, b) => (a.ordre || 99) - (b.ordre || 99)),
@@ -878,6 +880,99 @@ router.get("/claims-summary", allow(...RO), (req, res) => {
   rows.forEach(r => { byStatut[r.statut] = (byStatut[r.statut] || 0) + 1; });
   const resolues = byStatut.resolue + byStatut.cloturee;
   res.json({ total: rows.length, byStatut, ouvertes: rows.length - resolues, tauxResolution: rows.length ? Math.round(resolues / rows.length * 1000) / 10 : 0 });
+});
+
+/* ============================ Ressources : compétences, fournisseurs, métrologie (§7.1, §7.2, §8.4) ============================ */
+const DAYS = (d) => { const t = new Date(); const x = new Date(d); return Math.round((x - t) / 86400000); };
+
+/* --- Compétences / habilitations (lien RH) --- */
+crud("competences", "smqCompetences",
+  ["employeeId", "employeeName", "poste", "competence", "niveauRequis", "niveauActuel", "habilitation", "dateObtention", "dateExpiration", "preuveFileId"],
+  "competence", "employeeName");
+router.get("/competences-summary", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const rows = mine(db.smqCompetences, req);
+  const ecarts = rows.filter(r => (Number(r.niveauActuel) || 0) < (Number(r.niveauRequis) || 0)).length;
+  const today = now().slice(0, 10); const soon = new Date(); soon.setDate(soon.getDate() + 60); const soonS = soon.toISOString().slice(0, 10);
+  const expirant = rows.filter(r => r.habilitation && r.dateExpiration && r.dateExpiration <= soonS)
+    .map(r => ({ id: r.id, employeeName: r.employeeName, competence: r.competence, dateExpiration: r.dateExpiration, expiree: r.dateExpiration < today }))
+    .sort((a, b) => String(a.dateExpiration).localeCompare(String(b.dateExpiration)));
+  res.json({ total: rows.length, ecarts, expirant });
+});
+
+/* --- Évaluation des fournisseurs (lien stock) --- */
+function supEvalCompute(e) {
+  const c = e.criteres || {};
+  const vals = ["qualite", "delai", "prix", "reactivite"].map(k => Number(c[k]) || 0).filter(v => v > 0);
+  const note = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0;
+  return Object.assign({}, e, { note });
+}
+router.get("/supplier-evals", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  res.json(mine(db.smqSupplierEvals, req).map(supEvalCompute).sort((a, b) => String(b.periode || "").localeCompare(String(a.periode || ""))));
+});
+const SUPEVAL_FIELDS = ["supplierId", "supplierName", "periode", "criteres", "decision", "commentaire"];
+router.post("/supplier-evals", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const rec = { id: id("smq"), periode: b.periode || now().slice(0, 7), decision: b.decision || "agréé", criteres: b.criteres || {}, createdAt: now() };
+  for (const f of SUPEVAL_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqSupplierEvals.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqSupplierEval", rec.id, {});
+  res.status(201).json(supEvalCompute(rec));
+});
+router.put("/supplier-evals/:id", allow(...RW), (req, res) => {
+  const e = mine(db.smqSupplierEvals, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
+  for (const f of SUPEVAL_FIELDS) if (req.body[f] !== undefined) e[f] = req.body[f];
+  e.updatedAt = now(); save(); res.json(supEvalCompute(e));
+});
+router.delete("/supplier-evals/:id", allow("ADM", "CD"), (req, res) => {
+  const e = mine(db.smqSupplierEvals, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
+  db.smqSupplierEvals.splice(db.smqSupplierEvals.indexOf(e), 1); save(); res.json({ ok: true });
+});
+router.get("/supplier-evals-summary", allow(...RO), (req, res) => {
+  const rows = mine(db.smqSupplierEvals, req).map(supEvalCompute);
+  const byDecision = {}; rows.forEach(r => { byDecision[r.decision] = (byDecision[r.decision] || 0) + 1; });
+  const agrees = (byDecision["agréé"] || 0) + (byDecision["sous conditions"] || 0);
+  res.json({ total: rows.length, byDecision, tauxAgrees: rows.length ? Math.round(agrees / rows.length * 1000) / 10 : 0, noteMoyenne: rows.length ? Math.round(rows.reduce((a, r) => a + r.note, 0) / rows.length * 10) / 10 : 0 });
+});
+
+/* --- Métrologie / équipements (§7.1.5) --- */
+function eqCompute(e) {
+  let prochain = e.prochainEtalonnage;
+  if (!prochain && e.dernierEtalonnage && e.frequenceEtalonnageMois) {
+    const d = new Date(e.dernierEtalonnage); d.setMonth(d.getMonth() + (Number(e.frequenceEtalonnageMois) || 12));
+    prochain = d.toISOString().slice(0, 10);
+  }
+  const joursRestants = prochain ? DAYS(prochain) : null;
+  let statutAuto = e.statut || "conforme";
+  if (joursRestants != null) { if (joursRestants < 0) statutAuto = "hors service"; else if (joursRestants <= 30) statutAuto = "à surveiller"; }
+  return Object.assign({}, e, { prochainEtalonnage: prochain, joursRestants, statutAuto });
+}
+router.get("/equipment", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  res.json(mine(db.smqEquipment, req).map(eqCompute).sort((a, b) => String(a.prochainEtalonnage || "9999").localeCompare(String(b.prochainEtalonnage || "9999"))));
+});
+const EQ_FIELDS = ["code", "designation", "localisation", "frequenceEtalonnageMois", "dernierEtalonnage", "prochainEtalonnage", "statut", "certificatFileId"];
+router.post("/equipment", allow(...RW), (req, res) => {
+  const b = req.body || {}; if (!b.designation) return res.status(400).json({ error: "Désignation obligatoire" });
+  const rec = { id: id("smq"), statut: b.statut || "conforme", createdAt: now() };
+  for (const f of EQ_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqEquipment.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqEquipment", rec.id, {});
+  res.status(201).json(eqCompute(rec));
+});
+router.put("/equipment/:id", allow(...RW), (req, res) => {
+  const e = mine(db.smqEquipment, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
+  for (const f of EQ_FIELDS) if (req.body[f] !== undefined) e[f] = req.body[f];
+  e.updatedAt = now(); save(); res.json(eqCompute(e));
+});
+router.delete("/equipment/:id", allow("ADM", "CD"), (req, res) => {
+  const e = mine(db.smqEquipment, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
+  db.smqEquipment.splice(db.smqEquipment.indexOf(e), 1); save(); res.json({ ok: true });
+});
+router.get("/equipment-summary", allow(...RO), (req, res) => {
+  const rows = mine(db.smqEquipment, req).map(eqCompute);
+  const conformes = rows.filter(r => r.statutAuto === "conforme").length;
+  const aEtalonner = rows.filter(r => r.joursRestants != null && r.joursRestants <= 30).length;
+  res.json({ total: rows.length, conformes, aEtalonner, tauxConforme: rows.length ? Math.round(conformes / rows.length * 1000) / 10 : 0 });
 });
 
 module.exports = router;

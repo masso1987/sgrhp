@@ -913,6 +913,9 @@ const NAV = [
   { k: "smqrisks", label: "⚠️ Risques & opportunités", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
   { k: "smqsatisfaction", label: "😊 Satisfaction client", sec: "Écoute client", roles: ["ADM","CD","RJ","GPF"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
   { k: "smqclaims", label: "📣 Réclamations", sec: "Écoute client", roles: ["ADM","CD","RJ","GPF"], cap: "smq.claims", module: "quality", grp: "qualite" },
+  { k: "smqcompetences", label: "🎓 Compétences & habilitations", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.competences", module: "quality", grp: "qualite" },
+  { k: "smqsuppliers", label: "🚚 Évaluation fournisseurs", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.suppliers", module: "quality", grp: "qualite" },
+  { k: "smqequipment", label: "📏 Métrologie", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.equipment", module: "quality", grp: "qualite" },
   { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
   { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
   { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
@@ -1015,7 +1018,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payroll: payrollView, payconfig: payconfigView, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1422,7 +1425,7 @@ async function permModal(uid) {
   const caps = [["employee.edit", "✏️ Modifier les employés"], ["employee.delete", "🗑 Supprimer les employés"], ["payroll.edit", "💵 Corriger les bulletins de paie"], ["payroll.run", "🧮 Calculer / clôturer la paie"], ["payroll.livre", "📖 Livre de paie"], ["payroll.cotisations", "🏛 États des cotisations"], ["payroll.compta", "🧾 Passation comptable"]];
   const stockCaps = [["stock.catalogue", "📦 Catalogue (produits, catégories, marques…)"], ["stock.tiers", "🚚 Fournisseurs & clients"], ["stock.achats", "🧾 Achats (BC, réceptions, retours)"], ["stock.ventes", "🛒 Ventes (commandes, ventes, POS, devis)"], ["stock.mouvements", "⚖️ Ajustements & journal des mouvements"], ["stock.transferts", "🔀 Emplacements & transferts"], ["stock.depenses", "💸 Dépenses"], ["stock.comptes", "🏦 Comptes de paiement"], ["stock.rapports", "📊 Rapports de stock"]];
   const hasStock = (u.modules || []).includes("stock");
-  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.risks","⚠️ Risques & opportunités"],["smq.satisfaction","😊 Satisfaction client"],["smq.claims","📣 Réclamations"],["smq.clauses","📚 Bibliothèque de clauses"]];
+  const smqCaps = [["smq.processes","🗺️ Cartographie & processus"],["smq.documents","📄 Maîtrise documentaire"],["smq.axes","🎯 Axes stratégiques"],["smq.policy","📜 Politique qualité"],["smq.stakeholders","🤝 Parties intéressées"],["smq.indicators","📈 Indicateurs"],["smq.scope","📐 Domaine & exclusions"],["smq.improvements","🛠️ Fiches d'amélioration (NC/CAPA)"],["smq.tracability","🧭 Traçabilité qualité"],["smq.audits","🔍 Audits internes"],["smq.risks","⚠️ Risques & opportunités"],["smq.satisfaction","😊 Satisfaction client"],["smq.claims","📣 Réclamations"],["smq.competences","🎓 Compétences & habilitations"],["smq.suppliers","🚚 Évaluation fournisseurs"],["smq.equipment","📏 Métrologie"],["smq.clauses","📚 Bibliothèque de clauses"]];
   const hasQuality = (u.modules || []).includes("quality");
   const bg = document.createElement("div"); bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal"><b>Droits & accès — ${esc(u.fullName)}</b>
@@ -6807,6 +6810,117 @@ async function smqClaimSave(idv,btn){ const g=(x)=>(document.getElementById(x)||
 async function smqClaimDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/claims/"+idv,{method:"DELETE"}); smqClaimsView(); }catch(e){ alert(e.message); } }
 async function smqClaimToFiche(idv){ if(!confirm("Ouvrir une fiche d'amélioration pour cette réclamation ?"))return;
   try{ const r=await api("/smq/claims/"+idv+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
+
+/* ---------- Ressources : compétences, fournisseurs, métrologie ---------- */
+/* Compétences / habilitations (lien RH) */
+async function smqCompetencesView(){
+  const [rows,sum]=await Promise.all([api("/smq/competences").catch(()=>[]),api("/smq/competences-summary").catch(()=>null)]);
+  view.innerHTML=`<h1>🎓 Compétences & habilitations</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqCompForm()">+ Compétence</button></div>
+    ${sum&&sum.expirant.length?`<div class="panel" style="margin-bottom:10px;border-left:4px solid #dc2626"><b>⏰ Habilitations à échéance</b>
+      <table style="margin-top:6px;width:100%"><tr><th>Employé</th><th>Compétence</th><th>Expiration</th></tr>
+      ${sum.expirant.map(e=>`<tr><td>${esc(e.employeeName||"")}</td><td>${esc(e.competence)}</td><td>${e.expiree?'<span class="tag" style="background:#dc2626;color:#fff">'+esc(e.dateExpiration)+' (expirée)</span>':esc(e.dateExpiration)}</td></tr>`).join("")}</table></div>`:''}
+    <div class="panel"><table style="width:100%"><tr><th>Employé</th><th>Poste</th><th>Compétence</th><th class="r">Requis</th><th class="r">Actuel</th><th>Écart</th><th>Habilitation</th><th>Expiration</th><th></th></tr>
+      ${rows.map(r=>{const ecart=(Number(r.niveauActuel)||0)<(Number(r.niveauRequis)||0);return `<tr><td>${esc(r.employeeName||"")}</td><td>${esc(r.poste||"")}</td><td>${esc(r.competence||"")}</td>
+        <td class="r">${esc(String(r.niveauRequis||""))}</td><td class="r">${esc(String(r.niveauActuel||""))}</td>
+        <td>${ecart?'<span class="tag" style="background:#f97316;color:#fff">Écart</span>':'<span class="tag green">OK</span>'}</td>
+        <td>${r.habilitation?'✔':'—'}</td><td>${esc(r.dateExpiration||"")}</td>
+        <td><button class="btn ghost sm" onclick="smqCompForm('${r.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqCompDel('${r.id}')">🗑</button></td></tr>`;}).join("")||'<tr><td colspan="9" class="note">Aucune compétence enregistrée.</td></tr>'}</table></div>`;
+}
+async function smqCompForm(idv){
+  const [rows,emps]=await Promise.all([idv?api("/smq/competences").catch(()=>[]):Promise.resolve([]),api("/employees").catch(()=>[])]);
+  const r=idv?rows.find(x=>x.id===idv):{};
+  const empOpts='<option value="">— saisir librement —</option>'+(emps||[]).map(e=>`<option value="${e.id}" data-n="${esc((e.firstName||"")+' '+(e.lastName||''))}" data-p="${esc(e.jobTitle||e.poste||'')}" ${r.employeeId===e.id?"selected":""}>${esc((e.firstName||"")+" "+(e.lastName||""))}</option>`).join("");
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${idv?"Modifier":"Nouvelle"} compétence</b>
+    <label>Employé (RH)</label><select id="cpEmp" onchange="const o=this.selectedOptions[0];if(o.value){document.getElementById('cpName').value=o.dataset.n;document.getElementById('cpPoste').value=o.dataset.p||''}">${empOpts}</select>
+    <div class="grid2"><div><label>Nom</label><input id="cpName" value="${esc(r.employeeName||"")}"></div><div><label>Poste</label><input id="cpPoste" value="${esc(r.poste||"")}"></div></div>
+    <label>Compétence *</label><input id="cpComp" value="${esc(r.competence||"")}">
+    <div class="grid2"><div><label>Niveau requis (1-4)</label><input id="cpReq" type="number" min="1" max="4" value="${esc(String(r.niveauRequis||""))}"></div>
+      <div><label>Niveau actuel (1-4)</label><input id="cpAct" type="number" min="1" max="4" value="${esc(String(r.niveauActuel||""))}"></div></div>
+    <label class="chk"><input type="checkbox" id="cpHab" ${r.habilitation?"checked":""}><span>Habilitation (nécessite un renouvellement)</span></label>
+    <div class="grid2"><div><label>Date d'obtention</label><input id="cpObt" type="date" value="${esc(r.dateObtention||"")}"></div>
+      <div><label>Date d'expiration</label><input id="cpExp" type="date" value="${esc(r.dateExpiration||"")}"></div></div>
+    <div class="err hidden" id="cpErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqCompSave('${idv||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqCompSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={employeeId:g("cpEmp")||null,employeeName:g("cpName"),poste:g("cpPoste"),competence:g("cpComp"),niveauRequis:Number(g("cpReq"))||0,niveauActuel:Number(g("cpAct"))||0,habilitation:document.getElementById("cpHab").checked,dateObtention:g("cpObt"),dateExpiration:g("cpExp")};
+  if(!body.competence){const e=document.getElementById("cpErr");e.textContent="Compétence obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/competences"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqCompetencesView(); }catch(e){ const el=document.getElementById("cpErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqCompDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/competences/"+idv,{method:"DELETE"}); smqCompetencesView(); }catch(e){ alert(e.message); } }
+
+/* Évaluation des fournisseurs (lien stock) */
+const SUP_DECISION_TAG={"agréé":'<span class="tag green">Agréé</span>',"sous conditions":'<span class="tag" style="background:#f97316;color:#fff">Sous conditions</span>',"à éviter":'<span class="tag" style="background:#b45309;color:#fff">À éviter</span>',"rejeté":'<span class="tag" style="background:#dc2626;color:#fff">Rejeté</span>'};
+async function smqSupplierEvalsView(){
+  const [rows,sum]=await Promise.all([api("/smq/supplier-evals").catch(()=>[]),api("/smq/supplier-evals-summary").catch(()=>null)]);
+  view.innerHTML=`<h1>🚚 Évaluation des fournisseurs</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqSupForm()">+ Évaluation</button></div>
+    ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      ${[["Évaluations",sum.total],["Note moyenne",sum.noteMoyenne],["Taux agréés",sum.tauxAgrees+"%"]].map(([l,v])=>`<div style="flex:1;min-width:130px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
+    <div class="panel"><table style="width:100%"><tr><th>Fournisseur</th><th>Période</th><th class="r">Qualité</th><th class="r">Délai</th><th class="r">Prix</th><th class="r">Réactivité</th><th class="r">Note</th><th>Décision</th><th></th></tr>
+      ${rows.map(r=>{const c=r.criteres||{};return `<tr><td>${esc(r.supplierName||"")}</td><td>${esc(r.periode||"")}</td>
+        <td class="r">${esc(String(c.qualite||"—"))}</td><td class="r">${esc(String(c.delai||"—"))}</td><td class="r">${esc(String(c.prix||"—"))}</td><td class="r">${esc(String(c.reactivite||"—"))}</td>
+        <td class="r"><b>${r.note}</b></td><td>${SUP_DECISION_TAG[r.decision]||esc(r.decision||"")}</td>
+        <td><button class="btn ghost sm" onclick="smqSupForm('${r.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqSupDel('${r.id}')">🗑</button></td></tr>`;}).join("")||'<tr><td colspan="9" class="note">Aucune évaluation.</td></tr>'}</table></div>`;
+}
+async function smqSupForm(idv){
+  const [rows,sups]=await Promise.all([idv?api("/smq/supplier-evals").catch(()=>[]):Promise.resolve([]),api("/stock/contacts?type=fournisseur").catch(()=>[])]);
+  const r=idv?rows.find(x=>x.id===idv):{}; const c=r.criteres||{};
+  const supOpts='<option value="">— saisir librement —</option>'+(sups||[]).map(x=>`<option value="${x.id}" data-n="${esc(x.name||'')}" ${r.supplierId===x.id?"selected":""}>${esc(x.name||"")}</option>`).join("");
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${idv?"Modifier":"Nouvelle"} évaluation fournisseur</b>
+    <label>Fournisseur (stock)</label><select id="spSel" onchange="const o=this.selectedOptions[0];if(o.value)document.getElementById('spName').value=o.dataset.n">${supOpts}</select>
+    <div class="grid2"><div><label>Nom</label><input id="spName" value="${esc(r.supplierName||"")}"></div><div><label>Période</label><input id="spPer" value="${esc(r.periode||new Date().toISOString().slice(0,7))}"></div></div>
+    <label class="note">Critères (note sur 100)</label>
+    <div class="grid2"><div><label>Qualité</label><input id="spQ" type="number" value="${esc(String(c.qualite||""))}"></div><div><label>Délai</label><input id="spD" type="number" value="${esc(String(c.delai||""))}"></div></div>
+    <div class="grid2"><div><label>Prix</label><input id="spP" type="number" value="${esc(String(c.prix||""))}"></div><div><label>Réactivité</label><input id="spR" type="number" value="${esc(String(c.reactivite||""))}"></div></div>
+    <label>Décision</label><select id="spDec">${["agréé","sous conditions","à éviter","rejeté"].map(d=>`<option ${r.decision===d?"selected":""}>${d}</option>`).join("")}</select>
+    <label>Commentaire</label><textarea id="spCom" rows="2">${esc(r.commentaire||"")}</textarea>
+    <div class="err hidden" id="spErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqSupSave('${idv||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqSupSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={supplierId:g("spSel")||null,supplierName:g("spName"),periode:g("spPer"),decision:g("spDec"),commentaire:g("spCom"),
+    criteres:{qualite:Number(g("spQ"))||0,delai:Number(g("spD"))||0,prix:Number(g("spP"))||0,reactivite:Number(g("spR"))||0}};
+  if(!body.supplierName){const e=document.getElementById("spErr");e.textContent="Fournisseur obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/supplier-evals"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqSupplierEvalsView(); }catch(e){ const el=document.getElementById("spErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqSupDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/supplier-evals/"+idv,{method:"DELETE"}); smqSupplierEvalsView(); }catch(e){ alert(e.message); } }
+
+/* Métrologie / équipements */
+const EQ_STAT_TAG={conforme:'<span class="tag green">Conforme</span>',"à surveiller":'<span class="tag" style="background:#f97316;color:#fff">À surveiller</span>',"hors service":'<span class="tag" style="background:#dc2626;color:#fff">Hors service</span>'};
+async function smqEquipmentView(){
+  const [rows,sum]=await Promise.all([api("/smq/equipment").catch(()=>[]),api("/smq/equipment-summary").catch(()=>null)]);
+  view.innerHTML=`<h1>📏 Métrologie / équipements</h1>
+    <div style="margin-bottom:8px"><button class="btn p" onclick="smqEqForm()">+ Équipement</button></div>
+    ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      ${[["Équipements",sum.total],["Conformes",sum.conformes],["À étalonner (≤30j)",sum.aEtalonner],["Taux conforme",sum.tauxConforme+"%"]].map(([l,v])=>`<div style="flex:1;min-width:120px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
+    <div class="panel"><table style="width:100%"><tr><th>Code</th><th>Désignation</th><th>Localisation</th><th>Dernier étal.</th><th>Prochain étal.</th><th>Jours</th><th>Statut</th><th></th></tr>
+      ${rows.map(r=>`<tr><td><b>${esc(r.code||"")}</b></td><td>${esc(r.designation||"")}</td><td>${esc(r.localisation||"")}</td><td>${esc(r.dernierEtalonnage||"")}</td><td>${esc(r.prochainEtalonnage||"—")}</td>
+        <td>${r.joursRestants!=null?(r.joursRestants<0?'<span style="color:var(--red)">'+r.joursRestants+'</span>':r.joursRestants):"—"}</td><td>${EQ_STAT_TAG[r.statutAuto]||esc(r.statutAuto||"")}</td>
+        <td><button class="btn ghost sm" onclick="smqEqForm('${r.id}')">✏️</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqEqDel('${r.id}')">🗑</button></td></tr>`).join("")||'<tr><td colspan="8" class="note">Aucun équipement.</td></tr>'}</table></div>`;
+}
+async function smqEqForm(idv){
+  const rows=idv?await api("/smq/equipment").catch(()=>[]):[]; const r=idv?rows.find(x=>x.id===idv):{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal"><b>${idv?"Modifier":"Nouvel"} équipement</b>
+    <div class="grid2"><div><label>Code</label><input id="eqCode" value="${esc(r.code||"")}"></div><div><label>Localisation</label><input id="eqLoc" value="${esc(r.localisation||"")}"></div></div>
+    <label>Désignation *</label><input id="eqDes" value="${esc(r.designation||"")}">
+    <div class="grid3"><div><label>Dernier étalonnage</label><input id="eqLast" type="date" value="${esc(r.dernierEtalonnage||"")}"></div>
+      <div><label>Fréquence (mois)</label><input id="eqFreq" type="number" value="${esc(String(r.frequenceEtalonnageMois||12))}"></div>
+      <div><label>Prochain (forcer)</label><input id="eqNext" type="date" value="${esc(r.prochainEtalonnage||"")}"></div></div>
+    <label>Statut</label><select id="eqStat">${["conforme","à surveiller","hors service"].map(st=>`<option ${r.statut===st?"selected":""}>${st}</option>`).join("")}</select>
+    <div class="err hidden" id="eqErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqEqSave('${idv||""}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqEqSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={code:g("eqCode"),localisation:g("eqLoc"),designation:g("eqDes"),dernierEtalonnage:g("eqLast"),frequenceEtalonnageMois:Number(g("eqFreq"))||12,prochainEtalonnage:g("eqNext")||null,statut:g("eqStat")};
+  if(!body.designation){const e=document.getElementById("eqErr");e.textContent="Désignation obligatoire";e.classList.remove("hidden");return;}
+  try{ await api("/smq/equipment"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqEquipmentView(); }catch(e){ const el=document.getElementById("eqErr");el.textContent=e.message;el.classList.remove("hidden"); } }
+async function smqEqDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/equipment/"+idv,{method:"DELETE"}); smqEquipmentView(); }catch(e){ alert(e.message); } }
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};

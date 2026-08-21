@@ -81,6 +81,22 @@ const METRICS = {
     fn: (tid, p) => { const c = mine("smqClaims", tid).filter(x => String(x.date||"").slice(0,7) === p);
       return pct(c.filter(x => ["resolue","cloturee"].includes(x.statut)).length, c.length); },
   },
+  // ---------------- Ressources ----------------
+  "ressources.habilitations_expirees": {
+    label: "Habilitations expirées (instantané)", module: "Ressources", periodless: true,
+    fn: (tid) => { const today = new Date().toISOString().slice(0,10);
+      const n = mine("smqCompetences", tid).filter(c => c.habilitation && c.dateExpiration && c.dateExpiration < today).length; return { value: n, num: n }; },
+  },
+  "ressources.taux_fournisseurs_agrees": {
+    label: "Taux de fournisseurs agréés (%)", module: "Ressources", periodless: true,
+    fn: (tid) => { const r = mine("smqSupplierEvals", tid); return pct(r.filter(x => ["agréé","sous conditions"].includes(x.decision)).length, r.length); },
+  },
+  "ressources.taux_equipements_conformes": {
+    label: "Taux d'équipements conformes (%)", module: "Ressources", periodless: true,
+    fn: (tid) => { const rows = mine("smqEquipment", tid);
+      const conf = rows.filter(e => { let p = e.prochainEtalonnage; if (!p && e.dernierEtalonnage && e.frequenceEtalonnageMois){const d=new Date(e.dernierEtalonnage);d.setMonth(d.getMonth()+(Number(e.frequenceEtalonnageMois)||12));p=d.toISOString().slice(0,10);} return !p || (new Date(p)-new Date())/86400000 > 30; }).length;
+      return pct(conf, rows.length); },
+  },
   // ---------------- Qualité (auto-diagnostic) ----------------
   "qualite.nc_ouvertes": {
     label: "Fiches d'amélioration ouvertes (instantané)", module: "Qualité", periodless: true,
