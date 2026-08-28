@@ -20,6 +20,7 @@ function targetUser(req, id) {
 }
 const _tenantUsers = (u) => db.users.filter(x => (x.tenantId || "t1") === (u.tenantId || "t1"));
 const _tenantModules = (u) => { const t = (db.tenants || []).find(x => x.id === (u.tenantId || "t1")); return (t && t.modules) || []; };
+const _grantModuleIfTenant = (u, key) => { if (_tenantModules(u).includes(key) && !((u.modules||[]).includes(key))) u.modules = [...new Set([...(u.modules||[]), key])]; };
 
 router.post("/", allow("ADM"), (req, res) => {
   const { email, fullName, role, portfolioIds = [], password } = req.body;
@@ -29,6 +30,7 @@ router.post("/", allow("ADM"), (req, res) => {
   const pwErr = passwordPolicy(password);
   if (pwErr) return res.status(400).json({ error: pwErr });
   const u = stamp({ id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true }, req);
+  if (role === "RQ") _grantModuleIfTenant(u, "quality");
   db.users.push(u); save();
   audit(req.user, "CREATED", "User", u.id, { email, role });
   const { password: _, ...safe } = u;
@@ -53,7 +55,7 @@ router.put("/:id/modules", allow("ADM", "SADM"), (req, res) => {
   const user = targetUser(req, req.params.id);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable" });
   const activated = _tenantModules(user);
-  const grantable = ["payroll", "accounting", "invoicing", "stock"]; // non-core, licence-gated
+  const grantable = ["payroll", "accounting", "invoicing", "stock", "quality"]; // non-core, licence-gated
   const ids = (req.body && req.body.modules || []).filter(k => grantable.includes(k) && activated.includes(k));
   const before = user.modules || [];
   user.modules = [...new Set(ids)]; save();
@@ -86,6 +88,7 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
     return res.status(400).json({ error: "Impossible : c'est le dernier administrateur du tenant" });
   const before = u.role; u.role = role;
   if (role !== "GPF") u.portfolioIds = [];
+  if (role === "RQ") _grantModuleIfTenant(u, "quality");
   save();
   audit(req.user, "ROLE_CHANGED", "User", u.id, { email: u.email, before, after: role });
   res.json({ id: u.id, role: u.role });
@@ -97,6 +100,7 @@ router.put("/:id/smq", allow("ADM", "SADM"), (req, res) => {
   const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
   if (req.body.smqManager !== undefined) u.smqManager = !!req.body.smqManager;
+  if (u.smqManager) _grantModuleIfTenant(u, "quality");
   save(); audit(req.user, "CONFIG_CHANGED", "User", u.id, { smqManager: u.smqManager });
   res.json({ id: u.id, smqManager: !!u.smqManager });
 });

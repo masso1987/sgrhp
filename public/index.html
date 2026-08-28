@@ -1011,6 +1011,7 @@ async function boot() {
     ME.modules = meFull.modules || [];
     ME.tenantModules = meFull.tenantModules || [];
     ME.permissions = meFull.permissions || [];
+    ME.smqManager = !!meFull.smqManager;
     sessionStorage.setItem("me", JSON.stringify(ME));
     armIdle(meFull.idleMinutes || 30);
   } catch { armIdle(30); }
@@ -1026,7 +1027,8 @@ async function boot() {
 }
 function buildNav() {
   const _adm = ME.role === "ADM" || ME.role === "SADM";
-  NAV_VISIBLE = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.cap || _adm || (ME.permissions || []).includes(n.cap)));
+  const _smqFull = _adm || ME.role === "RQ" || !!ME.smqManager;   // accès complet Qualité
+  NAV_VISIBLE = NAV.filter(n => n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)));
   NAV_PRESENT = NAV_GROUPS.filter(G => NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
   const mb = document.getElementById("modbar");
   if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
@@ -1087,10 +1089,10 @@ function startAccessPolling() {
     if (!TOKEN) return;
     try {
       const m = await api("/me");
-      const modsChanged = JSON.stringify(m.modules || []) !== JSON.stringify(ME.modules || []);
+      const modsChanged = JSON.stringify(m.modules || []) !== JSON.stringify(ME.modules || []) || (!!m.smqManager !== !!ME.smqManager);
       const permsChanged = JSON.stringify(m.permissions || []) !== JSON.stringify(ME.permissions || []);
       if (modsChanged || permsChanged) {
-        ME.modules = m.modules || []; ME.permissions = m.permissions || []; ME.tenantModules = m.tenantModules || [];
+        ME.modules = m.modules || []; ME.permissions = m.permissions || []; ME.tenantModules = m.tenantModules || []; ME.smqManager = !!m.smqManager;
         sessionStorage.setItem("me", JSON.stringify(ME));
         if (modsChanged) buildNav();               // reveal/hide module menus
         if (typeof toast === "function") toast("Vos accès ont été mis à jour."); else console.log("Accès mis à jour.");
