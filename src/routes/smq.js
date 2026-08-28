@@ -1420,4 +1420,42 @@ router.get("/tdb/:id/export", allow(...RO), (req, res) => {
   res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
+/* ---- Import d'un fichier « Approche Risque » CRHE (feuille Risques) ---- */
+router.post("/risks/import", allow(...RW), (req, res) => {
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const b = req.body || {};
+  if (!b.data) return res.status(400).json({ error: "Fichier manquant" });
+  let rows;
+  try {
+    const wb = XLSX.read(Buffer.from(b.data, "base64"), { type: "buffer", cellDates: true });
+    const ws = wb.Sheets["Risques"] || wb.Sheets[wb.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+  } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
+  seedSMQ(req.user.tenantId || "t1");
+  const procs = mine(db.smqProcesses, req);
+  const findProc = (txt) => { const code = String(txt || "").trim().toUpperCase(); return procs.find(p => (p.code || "").toUpperCase() === code); };
+  // en-tête : ligne où col0 == "Processus" ; données à partir de +2 (à cause de la sous-ligne Mo/Co/Me)
+  let hr = -1; for (let i = 0; i < Math.min(rows.length, 10); i++) if (String((rows[i] || [])[0] || "").trim().toLowerCase() === "processus") { hr = i; break; }
+  if (hr < 0) return res.status(400).json({ error: "En-tête « Processus » introuvable dans la feuille Risques." });
+  const N = (v) => { const n = Number(v); return isNaN(n) ? undefined : n; };
+  let added = 0;
+  for (let i = hr + 2; i < rows.length; i++) {
+    const r = rows[i]; const ev = String((r || [])[2] || "").trim(); if (!ev) continue;
+    if (!procAccess(req, (findProc(r[0]) || {}).id || null) && !isManager(req)) continue;
+    const p = findProc(r[0]);
+    const rec = stamp({
+      id: id("smq"), ref: riskRef(req), processId: p ? p.id : null,
+      objectifRef: String(r[1] || "").trim(), evenement: ev, source: String(r[3] || "").trim(),
+      sens: String(r[4] || "R").trim().toUpperCase().startsWith("O") ? "O" : "R",
+      effet: String(r[5] || "").trim(), cause: String(r[6] || "").trim(),
+      vraisemblance: N(r[7]), impact: N(r[8]),
+      maitriseMoyens: N(r[10]), maitriseCompetences: N(r[11]), maitriseMethodes: N(r[12]),
+      commentaire: String(r[14] || "").trim(), statut: "actif", createdAt: now(),
+    }, req);
+    db.smqRisks.push(rec); added++;
+  }
+  save(); audit(req.user, "CREATED", "SmqRiskImport", "import", { added });
+  res.json({ ok: true, added });
+});
+
 module.exports = router;

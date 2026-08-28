@@ -6892,6 +6892,8 @@ async function smqRisksView(){
   view.innerHTML=`<h1>⚠️ Risques & opportunités</h1>
     <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <button class="btn p" onclick="smqRiskForm()">+ Nouveau ${sens==="O"?"opportunité":"risque"}</button>
+      <button class="btn ghost" onclick="document.getElementById('riskImp').click()">⬆️ Importer « Approche Risque »</button>
+      <input type="file" id="riskImp" accept=".xlsx" class="hidden" onchange="smqRiskImport(this)">
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <button class="btn ${sens==="R"?"p":"ghost"} sm" style="border-radius:0;margin:0" onclick="smqRiskSens('R')">Risques</button>
         <button class="btn ${sens==="O"?"p":"ghost"} sm" style="border-radius:0;margin:0" onclick="smqRiskSens('O')">Opportunités</button></div></div>
@@ -6960,6 +6962,14 @@ async function smqRiskSave(idv,btn){
   catch(e){ const el=document.getElementById("rErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
 async function smqRiskDel(idv){ if(!confirm("Supprimer cette ligne ?"))return; try{ await api("/smq/risks/"+idv,{method:"DELETE"}); smqRisksView(); }catch(e){ alert(e.message); } }
+async function smqRiskImport(input){
+  const f=input.files&&input.files[0]; if(!f)return; input.value="";
+  const rd=new FileReader();
+  rd.onload=async()=>{ const b64=String(rd.result).split(",")[1];
+    try{ const r=await api("/smq/risks/import",{method:"POST",body:JSON.stringify({data:b64})}); alert(r.added+" risque(s)/opportunité(s) importé(s)."); smqRisksView(); }
+    catch(e){ alert(e.message); } };
+  rd.readAsDataURL(f);
+}
 async function smqRiskToFiche(idv){ if(!confirm("Ouvrir une fiche d'amélioration pour traiter ce risque ?"))return;
   try{ const r=await api("/smq/risks/"+idv+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
 
