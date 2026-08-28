@@ -308,14 +308,26 @@ router.post("/documents", allow(...RW), (req, res) => {
     resumeModif: b.resumeModif || "Création", contenu: b.contenu || "", fileId: b.fileId || null, file: b.file && b.file.storedAs ? b.file : null,
     frequenceRevueMonths: freq, diffusion: b.diffusion || [], createdAt: now(),
   }, req);
+  const REG_FIELDS = ["stockageMode","stockageLieu","stockageDuree","archivageMode","archivageLieu","archivageDuree","destructionLieu","destructionMethode","observations"];
   const docRec = stamp({
     id: docId, ref, titre: b.titre, typeCode: b.typeCode, processId: b.processId || null,
     seq, statutCourant: "brouillon", versionCourante: version, currentRevisionId: revId,
-    frequenceRevueMonths: freq, createdAt: now(),
+    frequenceRevueMonths: freq, dateCreation: b.dateCreation || now().slice(0,10), createdAt: now(),
   }, req);
+  for (const rf of REG_FIELDS) if (b[rf] !== undefined) docRec[rf] = b[rf];
   db.smqDocuments.push(docRec); db.smqDocRevisions.push(revRec); save();
   audit(req.user, "CREATED", "SmqDocument", docId, { ref, titre: b.titre });
   res.status(201).json({ document: docRec, revision: revRec });
+});
+
+// Mettre à jour les métadonnées du document (titre, processus, fiche §7.5 informations documentées).
+router.put("/documents/:id", allow(...RW), (req, res) => {
+  const d = mine(db.smqDocuments, req).find(x => x.id === req.params.id); if (!d) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, d.processId)) return DENY(res);
+  const b = req.body || {};
+  for (const f of ["titre", "processId", "dateCreation", "stockageMode", "stockageLieu", "stockageDuree", "archivageMode", "archivageLieu", "archivageDuree", "destructionLieu", "destructionMethode", "observations"])
+    if (b[f] !== undefined) d[f] = b[f];
+  d.updatedAt = now(); save(); audit(req.user, "UPDATED", "SmqDocument", d.id, {}); res.json(d);
 });
 
 // Éditer une révision en brouillon.
@@ -1151,6 +1163,70 @@ router.get("/conformity-summary", allow(...RO), (req, res) => res.json(conformit
 router.get("/conformity/gap", allow(...RO), (req, res) => {
   const rows = conformityRows(req).filter(r => ["non_conforme", "partiel", "non_evalue"].includes(r.statut));
   res.json(rows);
+});
+
+
+/* ---- Registre des informations documentées (§7.5) : import Excel + export ---- */
+router.post("/documents/import-register", allow(...RW), (req, res) => {
+  if (!mgrOnly(req, res)) return;
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const b = req.body || {};
+  if (!b.data) return res.status(400).json({ error: "Fichier manquant" });
+  let rows;
+  try {
+    const wb = XLSX.read(Buffer.from(b.data, "base64"), { type: "buffer", cellDates: true });
+    const ws = wb.Sheets["Informations documentées"] || wb.Sheets[wb.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+  } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
+  seedSMQ(req.user.tenantId || "t1");
+  const procs = mine(db.smqProcesses, req);
+  const findProc = (txt) => { const code = String(txt || "").split(/[-\s]/)[0].trim().toUpperCase(); return procs.find(p => (p.code || "").toUpperCase() === code); };
+  const t = mine(db.smqDocTypes, req);
+  const d10 = (v) => { if (!v) return ""; if (v instanceof Date) return v.toISOString().slice(0, 10); const d = new Date(v); return isNaN(d) ? String(v).slice(0, 10) : d.toISOString().slice(0, 10); };
+  let added = 0, skipped = 0;
+  // trouver la ligne d'en-tête (contient "Type de document")
+  let start = 0;
+  for (let i = 0; i < Math.min(rows.length, 6); i++) if (String(rows[i][0] || "").toLowerCase().includes("type")) { start = i + 2; break; }
+  for (let i = start; i < rows.length; i++) {
+    const r = rows[i]; if (!r || !r[0] || !r[3]) continue;              // type + référence requis
+    const ref = String(r[3]).trim();
+    if (mine(db.smqDocuments, req).some(x => x.ref === ref)) { skipped++; continue; }
+    const p = findProc(r[2]);
+    const docId = id("smq"), revId = id("smq");
+    const dc = d10(r[4]) || now().slice(0, 10);
+    db.smqDocRevisions.push(stamp({ id: revId, documentId: docId, version: "1", ref, statut: "en_vigueur",
+      redacteurName: "", dateCreation: dc, dateModification: d10(r[5]) || dc, resumeModif: "Import registre", createdAt: now() }, req));
+    db.smqDocuments.push(stamp({ id: docId, ref, titre: String(r[1] || "").trim(), typeCode: String(r[0]).trim(),
+      processId: p ? p.id : null, seq: 0, statutCourant: "en_vigueur", versionCourante: "1", currentRevisionId: revId,
+      dateCreation: dc,
+      stockageMode: r[6] || "", stockageLieu: r[7] || "", stockageDuree: (r[8] == null ? "" : String(r[8])),
+      archivageMode: r[9] || "", archivageLieu: r[10] || "", archivageDuree: (r[11] == null ? "" : String(r[11])),
+      destructionLieu: r[12] || "", destructionMethode: r[13] || "", observations: r[14] || "", createdAt: now() }, req));
+    added++;
+  }
+  save(); audit(req.user, "CREATED", "SmqRegisterImport", "register", { added, skipped });
+  res.json({ ok: true, added, skipped });
+});
+
+router.get("/documents/register-export", allow(...RO), (req, res) => {
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const procs = mine(db.smqProcesses, req);
+  const pLabel = (pid) => { const p = procs.find(x => x.id === pid); return p ? (p.code + " - " + p.intitule) : ""; };
+  const docs = mine(db.smqDocuments, req).slice().sort((a, b) => String(a.ref || "").localeCompare(String(b.ref || ""), "fr", { numeric: true }));
+  const head1 = ["Type de document", "Identification de l'enregistrement", "Processus/activité", "Référence", "Date de création", "Dernière modification", "Stockage", "", "", "Archivage", "", "", "Destruction", "", "observations"];
+  const head2 = ["", "", "", "", "", "", "Mode", "Lieu /responsable", "Durée (ans)", "Mode", "Lieu", "Durée", "Lieu", "Méthode", ""];
+  const aoa = [head1, head2];
+  for (const d of docs) {
+    const rev = mine(db.smqDocRevisions, req).find(x => x.id === d.currentRevisionId) || {};
+    aoa.push([d.typeCode || "", d.titre || "", pLabel(d.processId), d.ref || "", d.dateCreation || "", rev.dateModification || "",
+      d.stockageMode || "", d.stockageLieu || "", d.stockageDuree || "", d.archivageMode || "", d.archivageLieu || "", d.archivageDuree || "",
+      d.destructionLieu || "", d.destructionMethode || "", d.observations || ""]);
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Informations documentées");
+  res.setHeader("Content-Disposition", 'attachment; filename="registre_informations_documentees.xlsx"');
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
 /* ---- Pièces jointes des documents (fichier original attaché à une version) ---- */

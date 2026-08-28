@@ -962,6 +962,7 @@ const NAV = [
   { k: "smqscope", label: "📐 Domaine & exclusions", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite" },
   { k: "smqdocs", label: "📄 Maîtrise documentaire", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","RQ","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
+  { k: "smqregister", label: "📋 Registre (§7.5)", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
   { k: "smqrisks", label: "⚠️ Risques & opportunités", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
   { k: "smqsatisfaction", label: "😊 Satisfaction client", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
@@ -1106,7 +1107,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6338,7 +6339,8 @@ async function smqDocsView(){
   const docs=await api("/smq/documents").catch(()=>[]);
   view.innerHTML=`<h1>📄 Maîtrise documentaire</h1>
     <div style="margin-bottom:10px"><button class="btn p" onclick="smqDocForm()">+ Nouveau document</button>
-      <button class="btn ghost" onclick="go('smqdoctypes')" title="Types & numérotation">⚙️ Types de documents</button></div>
+      <button class="btn ghost" onclick="go('smqdoctypes')" title="Types & numérotation">⚙️ Types de documents</button>
+      <button class="btn ghost" onclick="go('smqregister')">📋 Registre (§7.5)</button></div>
     <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Titre</th><th>Type</th><th>Version</th><th>Statut</th><th>Prochaine revue</th><th></th></tr>
       ${docs.length?docs.map(d=>`<tr><td><b>${esc(d.ref)}</b></td><td>${esc(d.titre)}<div class="note" style="font-size:11px">${d.processId?esc(smqProcName(d.processId)):""}</div></td>
         <td>${esc(d.typeCode)}</td><td>${esc(d.versionCourante||"")} <span class="note">(${d.nbVersions})</span></td>
@@ -7421,6 +7423,83 @@ async function smqConfGap(){
 }
 function smqConfPrint(){ const el=document.getElementById("confMatrix"); if(!el)return;
   const w=window.open("","_blank"); w.document.write(`<html><head><title>Matrice de conformité ISO 9001</title><style>body{font-family:Arial;margin:18mm 12mm;font-size:11px;color:#111}table{border-collapse:collapse;width:100%;margin-top:4px}th,td{border:1px solid #999;padding:3px;text-align:left}h1{font-size:16px}select,input{border:none}</style></head><body><h1>Matrice de conformité ISO 9001:2015</h1>${el.innerHTML.replace(/<select[\s\S]*?<\/select>/g,m=>{const sel=m.match(/<option value="([^"]+)"[^>]*selected/);return sel?({conforme:"Conforme",partiel:"Partiel",non_conforme:"Non conforme",non_applicable:"Non applicable",non_evalue:"Non évalué"}[sel[1]]||sel[1]):"";}).replace(/<input[^>]*value="([^"]*)"[^>]*>/g,'$1').replace(/<button[\s\S]*?<\/button>/g,"")}</body></html>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
+
+/* ---- Registre des informations documentées (§7.5) ---- */
+async function smqRegisterView(){
+  await smqLoadRefs();
+  const [docs]=await Promise.all([api("/smq/documents").catch(()=>[])]);
+  window._SMQREG=docs; 
+  const procs=window._SMQ.procs||[];
+  const types=[...new Set(docs.map(d=>d.typeCode).filter(Boolean))];
+  const pOpts='<option value="">Tous processus</option>'+procs.map(p=>`<option value="${p.id}">${esc(p.code)}</option>`).join("");
+  const tOpts='<option value="">Tous types</option>'+types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join("");
+  view.innerHTML=`<h1>📋 Registre des informations documentées (§7.5)</h1>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <button class="btn ghost" onclick="go('smqdocs')">← Documents</button>
+      <select id="regProc" onchange="smqRegFilter()">${pOpts}</select>
+      <select id="regType" onchange="smqRegFilter()">${tOpts}</select>
+      <input id="regSearch" placeholder="Rechercher…" oninput="smqRegFilter()" style="flex:1;min-width:160px">
+      <button class="btn ghost" onclick="smqRegExport()">⬇️ Exporter Excel</button>
+      ${smqIsManager()?`<button class="btn p" onclick="document.getElementById('regImp').click()">⬆️ Importer Excel</button><input type="file" id="regImp" accept=".xlsx" class="hidden" onchange="smqRegImport(this)">`:''}</div>
+    <div class="panel" style="overflow:auto"><table style="width:100%;min-width:1100px" id="regTable"></table></div>
+    <div class="note" style="margin-top:6px">${docs.length} document(s). Importez votre « tableau de gestion des informations documentées » pour tout charger d'un coup.</div>`;
+  smqRegFilter();
+}
+function smqRegRow(d,procs){
+  const p=(procs||window._SMQ.procs||[]).find(x=>x.id===d.processId);
+  return `<tr><td><b>${esc(d.typeCode||'')}</b></td><td>${esc(d.titre||'')}</td><td>${p?esc(p.code):'—'}</td><td><code>${esc(d.ref||'')}</code></td>
+    <td>${esc(d.dateCreation||'')}</td><td>${esc((d.current&&d.current.dateModification)||'')}</td>
+    <td>${esc(d.stockageMode||'')}</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(d.stockageLieu||'')}</td><td>${esc(d.stockageDuree||'')}</td>
+    <td>${esc(d.observations||'')}</td>
+    <td>${smqIsManager()||smqCanProc(d.processId)?`<button class="btn ghost sm" onclick="smqRegEdit('${d.id}')">✏️</button>`:''} <button class="btn ghost sm" onclick="smqDocOpen('${d.id}')">📂</button></td></tr>`;
+}
+function smqRegFilter(){
+  const docs=window._SMQREG||[]; const procs=window._SMQ.procs||[];
+  const pf=(document.getElementById("regProc")||{}).value||"", tf=(document.getElementById("regType")||{}).value||"", q=((document.getElementById("regSearch")||{}).value||"").toLowerCase();
+  const rows=docs.filter(d=>(!pf||d.processId===pf)&&(!tf||d.typeCode===tf)&&(!q||((d.titre||'')+(d.ref||'')).toLowerCase().includes(q)));
+  document.getElementById("regTable").innerHTML=`<tr><th>Type</th><th>Identification</th><th>Proc.</th><th>Référence</th><th>Création</th><th>Modif.</th><th>Stock. mode</th><th>Lieu / responsable</th><th>Durée (ans)</th><th>Observations</th><th></th></tr>`+(rows.map(d=>smqRegRow(d,procs)).join("")||'<tr><td colspan="11" class="note">Aucun document.</td></tr>');
+}
+async function smqRegEdit(idv){
+  const d=(window._SMQREG||[]).find(x=>x.id===idv)||{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:600px"><b>Fiche §7.5 — ${esc(d.ref||'')}</b>
+    <label>Identification</label><input id="rgTitre" value="${esc(d.titre||'')}">
+    <label>Date de création</label><input id="rgCrea" type="date" value="${esc(d.dateCreation||'')}">
+    <h3 style="margin:10px 0 4px">Stockage</h3>
+    <div class="grid3"><div><label>Mode</label><input id="rgSmode" value="${esc(d.stockageMode||'Numérique')}"></div>
+      <div><label>Lieu / responsable</label><input id="rgSlieu" value="${esc(d.stockageLieu||'')}"></div>
+      <div><label>Durée (ans)</label><input id="rgSduree" value="${esc(d.stockageDuree||'')}"></div></div>
+    <h3 style="margin:10px 0 4px">Archivage</h3>
+    <div class="grid3"><div><label>Mode</label><input id="rgAmode" value="${esc(d.archivageMode||'')}"></div>
+      <div><label>Lieu</label><input id="rgAlieu" value="${esc(d.archivageLieu||'')}"></div>
+      <div><label>Durée</label><input id="rgAduree" value="${esc(d.archivageDuree||'')}"></div></div>
+    <h3 style="margin:10px 0 4px">Destruction</h3>
+    <div class="grid2"><div><label>Lieu</label><input id="rgDlieu" value="${esc(d.destructionLieu||'')}"></div>
+      <div><label>Méthode</label><input id="rgDmeth" value="${esc(d.destructionMethode||'')}"></div></div>
+    <label>Observations</label><textarea id="rgObs" rows="2">${esc(d.observations||'')}</textarea>
+    <div class="err hidden" id="rgErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqRegSave('${idv}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqRegSave(idv,btn){
+  const g=(x)=>(document.getElementById(x)||{}).value;
+  const body={titre:g("rgTitre"),dateCreation:g("rgCrea"),stockageMode:g("rgSmode"),stockageLieu:g("rgSlieu"),stockageDuree:g("rgSduree"),
+    archivageMode:g("rgAmode"),archivageLieu:g("rgAlieu"),archivageDuree:g("rgAduree"),destructionLieu:g("rgDlieu"),destructionMethode:g("rgDmeth"),observations:g("rgObs")};
+  try{ await api("/smq/documents/"+idv,{method:"PUT",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqRegisterView(); }
+  catch(e){ const el=document.getElementById("rgErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function smqRegExport(){
+  try{ const r=await fetch("/api/smq/documents/register-export",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Export indisponible");
+    const blob=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="registre_informations_documentees.xlsx"; a.click(); }catch(e){ alert(e.message); }
+}
+async function smqRegImport(input){
+  const f=input.files&&input.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=async()=>{ const b64=String(rd.result).split(",")[1];
+    try{ const r=await api("/smq/documents/import-register",{method:"POST",body:JSON.stringify({data:b64})}); alert(r.added+" document(s) importé(s), "+r.skipped+" déjà présent(s)."); window._SMQ._at=0; smqRegisterView(); }
+    catch(e){ alert(e.message); } };
+  rd.readAsDataURL(f); input.value="";
+}
 
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};
