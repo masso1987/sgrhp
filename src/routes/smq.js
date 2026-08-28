@@ -36,6 +36,14 @@ const docProcId = (req, docId) => { const d = mine(db.smqDocuments, req).find(x 
 const revProcId = (req, revId) => { const r = mine(db.smqDocRevisions, req).find(x => x.id === revId); return r ? docProcId(req, r.documentId) : null; };
 const DENY = (res) => res.status(403).json({ error: "Accès réservé au responsable SMQ ou au pilote/co-pilote de ce processus." });
 const mgrOnly = (req, res) => { if (isManager(req)) return true; res.status(403).json({ error: "Action réservée au responsable SMQ." }); return false; };
+// Processus dont l'utilisateur est pilote/co-pilote.
+const myProcessIds = (req) => mine(db.smqProcesses, req).filter(p => p.piloteUserId === req.user.id || p.coPiloteUserId === req.user.id).map(p => p.id);
+// Filtre une liste au périmètre du pilote (le responsable SMQ voit tout).
+function scopeByProc(req, rows, getPid) {
+  if (isManager(req)) return rows;
+  const ids = myProcessIds(req);
+  return rows.filter(r => ids.includes(getPid(r)));
+}
 
 /* ------------------------------------------------------------------ seeds */
 // Bibliothèque de clauses ISO 9001:2015 (préchargée, extensible par le client).
@@ -274,7 +282,7 @@ function revLetter(n) { return REV_LETTERS[n] || ("z" + n); }        // 0->a, 1-
 router.get("/documents", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
   const revs = mine(db.smqDocRevisions, req);
-  const rows = mine(db.smqDocuments, req).map(d => {
+  const rows = scopeByProc(req, mine(db.smqDocuments, req), d => d.processId).map(d => {
     const cur = revs.find(r => r.id === d.currentRevisionId);
     return Object.assign({}, d, { current: cur || null, nbVersions: revs.filter(r => r.documentId === d.id).length });
   }).sort((a, b) => String(a.ref || "").localeCompare(String(b.ref || ""), "fr", { numeric: true }));
@@ -282,6 +290,7 @@ router.get("/documents", allow(...RO), (req, res) => {
 });
 router.get("/documents/:id", allow(...RO), (req, res) => {
   const d = mine(db.smqDocuments, req).find(r => r.id === req.params.id); if (!d) return res.status(404).json({ error: "Introuvable" });
+  if (!isManager(req) && d.processId && !myProcessIds(req).includes(d.processId)) return res.status(403).json({ error: "Document hors de votre périmètre." });
   const revs = mine(db.smqDocRevisions, req).filter(r => r.documentId === d.id)
     .sort((a, b) => String(b.version).localeCompare(String(a.version), "fr", { numeric: true }));
   res.json({ document: d, revisions: revs });
@@ -730,7 +739,7 @@ function riskRef(req) {
 
 router.get("/risks", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
-  let rows = mine(db.smqRisks, req).map(riskCompute);
+  let rows = scopeByProc(req, mine(db.smqRisks, req), r => r.processId).map(riskCompute);
   const q = req.query || {};
   if (q.processId) rows = rows.filter(r => r.processId === q.processId);
   if (q.sens) rows = rows.filter(r => (r.sens || "R") === q.sens);
@@ -743,6 +752,7 @@ router.get("/risks/:id", allow(...RO), (req, res) => {
 });
 router.post("/risks", allow(...RW), (req, res) => {
   const b = req.body || {};
+  if (!procAccess(req, b.processId || null)) return DENY(res);
   const rec = { id: id("smq"), ref: b.ref || riskRef(req), sens: b.sens || "R", statut: b.statut || "actif", createdAt: now() };
   for (const f of RISK_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
   db.smqRisks.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqRisk", rec.id, { ref: rec.ref });
@@ -750,11 +760,13 @@ router.post("/risks", allow(...RW), (req, res) => {
 });
 router.put("/risks/:id", allow(...RW), (req, res) => {
   const r = mine(db.smqRisks, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, r.processId)) return DENY(res);
   for (const f of RISK_FIELDS) if (req.body[f] !== undefined) r[f] = req.body[f];
   r.updatedAt = now(); save(); audit(req.user, "UPDATED", "SmqRisk", r.id, {}); res.json(riskCompute(r));
 });
-router.delete("/risks/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/risks/:id", allow(...RW), (req, res) => {
   const r = mine(db.smqRisks, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, r.processId)) return DENY(res);
   db.smqRisks.splice(db.smqRisks.indexOf(r), 1); save(); audit(req.user, "DELETED", "SmqRisk", r.id, {}); res.json({ ok: true });
 });
 // Carte thermique 4×4 : compte par cellule (vraisemblance × impact), risques seulement par défaut.
@@ -1229,6 +1241,27 @@ router.get("/documents/register-export", allow(...RO), (req, res) => {
   res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
+/* ---- Suppression d'un document (responsable SMQ ou pilote du processus) ---- */
+router.delete("/documents/:id", allow(...RW), (req, res) => {
+  const d = mine(db.smqDocuments, req).find(x => x.id === req.params.id); if (!d) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, d.processId)) return DENY(res);
+  db.smqDocRevisions = db.smqDocRevisions.filter(r => r.documentId !== d.id);
+  db.smqDocuments.splice(db.smqDocuments.indexOf(d), 1); save();
+  audit(req.user, "DELETED", "SmqDocument", d.id, { ref: d.ref }); res.json({ ok: true });
+});
+
+/* ---- Attribution des pilotes/co-pilotes d'un processus (admin ou responsable SMQ) ---- */
+router.put("/processes/:id/pilotes", allow("ADM", "SADM", "CD", "RJ", "RQ"), (req, res) => {
+  if (!isManager(req)) return res.status(403).json({ error: "Réservé à l'administrateur ou au responsable SMQ." });
+  const p = mine(db.smqProcesses, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  const uName2 = (uid) => { const u = (db.users || []).find(x => x.id === uid); return u ? u.fullName : ""; };
+  if (b.piloteUserId !== undefined) { p.piloteUserId = b.piloteUserId || null; p.piloteName = b.piloteUserId ? uName2(b.piloteUserId) : ""; }
+  if (b.coPiloteUserId !== undefined) { p.coPiloteUserId = b.coPiloteUserId || null; p.coPiloteName = b.coPiloteUserId ? uName2(b.coPiloteUserId) : ""; }
+  p.updatedAt = now(); save(); audit(req.user, "UPDATED", "SmqProcess", p.id, { pilotes: true });
+  res.json({ id: p.id, piloteUserId: p.piloteUserId, piloteName: p.piloteName, coPiloteUserId: p.coPiloteUserId, coPiloteName: p.coPiloteName });
+});
+
 /* ---- Pièces jointes des documents (fichier original attaché à une version) ---- */
 router.post("/documents/upload", allow(...RW), smqUpload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Fichier manquant" });
@@ -1246,6 +1279,11 @@ router.get("/documents/:id/file", allow(...RO), (req, res) => {
   res.download(_path.join(SMQ_DIR, r.file.storedAs), r.file.name || "document");
 });
 /* ---- Contexte de gouvernance pour l'utilisateur courant ---- */
+router.get("/users", allow(...RO), (req, res) => {
+  if (!isManager(req)) return res.status(403).json({ error: "Réservé au responsable SMQ ou à l'administrateur." });
+  res.json((db.users || []).filter(u => (u.tenantId || "t1") === (req.user.tenantId || "t1") && u.role !== "SADM")
+    .map(u => ({ id: u.id, fullName: u.fullName, role: u.role, smqManager: !!u.smqManager, active: u.active })));
+});
 router.get("/my-context", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
   const manager = isManager(req);
@@ -1303,7 +1341,7 @@ function tdbCompute(tdb, dataRows) {
 
 router.get("/tdb", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
-  let rows = mine(db.smqTdb, req).slice();
+  let rows = scopeByProc(req, mine(db.smqTdb, req), t => t.processId);
   if (req.query && req.query.processId) rows = rows.filter(x => x.processId === req.query.processId);
   rows.sort((a, b) => String(a.processId).localeCompare(String(b.processId)) || (b.annee - a.annee));
   const procs = mine(db.smqProcesses, req);

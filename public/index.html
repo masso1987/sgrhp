@@ -960,6 +960,7 @@ const NAV = [
   { k: "smqaxes", label: "🎯 Politique & axes", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
   { k: "smqstakeholders", label: "🤝 Parties intéressées", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite" },
   { k: "smqscope", label: "📐 Domaine & exclusions", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite" },
+  { k: "smqgov", label: "🏅 Gouvernance SMQ", sec: "Système", roles: ["ADM","RQ"], module: "quality", grp: "qualite" },
   { k: "smqdocs", label: "📄 Maîtrise documentaire", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","RQ","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqregister", label: "📋 Registre (§7.5)", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
@@ -1110,7 +1111,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6275,7 +6276,7 @@ async function smqProcessesView(){
 async function smqProcForm(pid){
   await smqLoadRefs();
   const p=pid?(window._SMQ.procs||[]).find(x=>x.id===pid):{};
-  const _users=await api("/users").catch(()=>[]);
+  const _users=await api("/smq/users").catch(()=>[]);
   const uOpt=(cur)=>`<option value="">— sélectionner —</option>`+_users.map(u=>`<option value="${u.id}" ${cur===u.id?"selected":""}>${esc(u.fullName)} (${esc(u.role)})</option>`).join("");
   const axes=window._SMQ.axes||[];
   const objs=(p&&p.objectifs)||[];
@@ -6400,7 +6401,8 @@ async function smqDocOpen(id){
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div><h1 style="margin:0">${esc(doc.ref)}</h1><div>${esc(doc.titre)}</div>
           <div class="note">Type ${esc(doc.typeCode)}${doc.processId?" · "+esc(smqProcName(doc.processId)):""} · Version courante ${esc(doc.versionCourante||"")} ${SMQ_DOC_STATUS[doc.statutCourant]||""}</div></div>
-        <button class="btn p sm" onclick="smqDocRevise('${doc.id}')">➕ Nouvelle version</button></div>
+        <button class="btn p sm" onclick="smqDocRevise('${doc.id}')">➕ Nouvelle version</button>
+          <button class="btn ghost sm" style="color:var(--red)" onclick="smqDocDelete('${doc.id}')">🗑 Supprimer</button></div>
     </div>
     <div class="panel" style="margin-top:10px"><b>Historique des versions</b>
       <table style="margin-top:6px;width:100%"><tr><th>Version</th><th>Réf</th><th>Statut</th><th>Rédacteur</th><th>Modif.</th><th>Résumé</th><th></th></tr>
@@ -6417,6 +6419,8 @@ async function smqRevEdit(rid,docId){
   const cont=prompt("Contenu / notes de cette version :"); if(cont===null)return;
   try{ await api("/smq/revisions/"+rid,{method:"PUT",body:JSON.stringify({contenu:cont})}); smqDocOpen(docId); }catch(e){ alert(e.message); }
 }
+async function smqDocDelete(docId){ if(!confirm("Supprimer définitivement ce document et toutes ses versions ?"))return;
+  try{ await api("/smq/documents/"+docId,{method:"DELETE"}); go('smqdocs'); }catch(e){ alert(e.message); } }
 async function smqDocDownload(revId){
   try{ const r=await fetch("/api/smq/revisions/"+revId+"/file",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok) throw new Error("Fichier indisponible");
     const blob=await r.blob(); const cd=r.headers.get("Content-Disposition")||""; const nm=(cd.match(/filename="?([^"]+)"?/)||[])[1]||"document";
@@ -7630,6 +7634,34 @@ async function smqTdbDefSave(idv,btn){
       formula:{op:r.querySelector('.tiOp').value,col:r.querySelector('.tiCol').value,numCol:r.querySelector('.tiCol').value,denCol:r.querySelector('.tiDen').value}}; }).filter(i=>i.libelle);
   try{ await api("/smq/tdb/"+idv,{method:"PUT",body:JSON.stringify({baseColumns,indicators})}); btn.closest(".modal-bg").remove(); smqTdbOpen(idv); }
   catch(e){ const el=document.getElementById("tdDErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+
+/* ---- Gouvernance SMQ : responsables + attribution pilotes/co-pilotes par processus ---- */
+async function smqGovView(){
+  await smqLoadRefs();
+  const [users,procs]=await Promise.all([api("/smq/users").catch(()=>[]),api("/smq/processes").catch(()=>[])]);
+  window._GOV={users,procs};
+  const uOpt=(cur)=>`<option value="">— aucun —</option>`+users.filter(u=>u.active!==false).map(u=>`<option value="${u.id}" ${cur===u.id?'selected':''}>${esc(u.fullName)} (${esc(u.role)})</option>`).join("");
+  view.innerHTML=`<h1>🏅 Gouvernance SMQ</h1>
+    <div class="panel" style="margin-bottom:12px"><b>Responsables SMQ</b>
+      <div class="note" style="margin:4px 0">Un responsable SMQ a l'accès complet au module Qualité (crée tout, attribue aux pilotes).</div>
+      <table style="width:100%"><tr><th>Utilisateur</th><th>Rôle</th><th>Responsable SMQ</th></tr>
+      ${users.map(u=>`<tr><td>${esc(u.fullName)}</td><td>${esc(u.role)}</td>
+        <td><label class="chk" style="margin:0"><input type="checkbox" ${u.smqManager?'checked':''} onchange="smqGovManager('${u.id}',this.checked)"><span>${u.smqManager?'Oui':'Non'}</span></label></td></tr>`).join("")||'<tr><td colspan="3" class="note">Aucun utilisateur.</td></tr>'}</table></div>
+    <div class="panel"><b>Attribution par processus</b>
+      <div class="note" style="margin:4px 0">Attribuez un pilote et un co-pilote à chaque processus. Ils accèdent uniquement aux documents, risques et tableaux de bord de leur(s) processus.</div>
+      <table style="width:100%"><tr><th>Processus</th><th>Pilote</th><th>Co-pilote</th></tr>
+      ${procs.map(p=>`<tr><td><b>${esc(p.code)}</b> ${esc(p.intitule)}</td>
+        <td><select onchange="smqGovPilote('${p.id}','piloteUserId',this.value)">${uOpt(p.piloteUserId)}</select></td>
+        <td><select onchange="smqGovPilote('${p.id}','coPiloteUserId',this.value)">${uOpt(p.coPiloteUserId)}</select></td></tr>`).join("")||'<tr><td colspan="3" class="note">Aucun processus. Creez la cartographie au prealable.</td></tr>'}</table></div>`;
+}
+async function smqGovManager(uid,on){
+  try{ await api("/users/"+uid+"/smq",{method:"PUT",body:JSON.stringify({smqManager:on})}); const u=(window._GOV.users||[]).find(x=>x.id===uid); if(u)u.smqManager=on; smqGovView(); }
+  catch(e){ alert(e.message); }
+}
+async function smqGovPilote(pid,field,val){
+  try{ await api("/smq/processes/"+pid+"/pilotes",{method:"PUT",body:JSON.stringify({[field]:val||null})}); window._SMQ._at=0; }
+  catch(e){ alert(e.message); smqGovView(); }
 }
 
 /* ================= Gestion de stock ================= */
