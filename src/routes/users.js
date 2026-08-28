@@ -23,7 +23,7 @@ const _tenantModules = (u) => { const t = (db.tenants || []).find(x => x.id === 
 
 router.post("/", allow("ADM"), (req, res) => {
   const { email, fullName, role, portfolioIds = [], password } = req.body;
-  if (!email || !fullName || !["GPF","CD","RJ","UI","ADM"].includes(role) || !password)
+  if (!email || !fullName || !["GPF","CD","RJ","UI","ADM","RQ"].includes(role) || !password)
     return res.status(400).json({ error: "email, fullName, valid role and password required" });
   if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Email exists" });
   const pwErr = passwordPolicy(password);
@@ -80,7 +80,7 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
   const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
   const role = req.body && req.body.role;
-  if (!["GPF", "CD", "RJ", "UI", "ADM"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
+  if (!["GPF", "CD", "RJ", "UI", "ADM", "RQ"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
   if (u.role === "ADM" && role !== "ADM" &&
       !_tenantUsers(u).some(x => x.role === "ADM" && x.active && x.id !== u.id))
     return res.status(400).json({ error: "Impossible : c'est le dernier administrateur du tenant" });
@@ -92,6 +92,14 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
 });
 
 // ADM grants employee edit/delete capabilities to a user.
+// ADM toggles a user's SMQ Manager flag (full rights on the Quality module).
+router.put("/:id/smq", allow("ADM", "SADM"), (req, res) => {
+  const u = targetUser(req, req.params.id);
+  if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  if (req.body.smqManager !== undefined) u.smqManager = !!req.body.smqManager;
+  save(); audit(req.user, "CONFIG_CHANGED", "User", u.id, { smqManager: u.smqManager });
+  res.json({ id: u.id, smqManager: !!u.smqManager });
+});
 // ADM resets a user's password -> returns a one-time temporary password.
 router.post("/:id/reset", allow("ADM", "SADM"), (req, res) => {
   const u = targetUser(req, req.params.id);

@@ -9,15 +9,33 @@ const router = require("express").Router();
 const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
+const _path = require("path");
+const _fs = require("fs");
+let _multer; try { _multer = require("multer"); } catch (e) { _multer = null; }
+const SMQ_DIR = _path.join(__dirname, "..", "..", "uploads", "smq");
+try { _fs.mkdirSync(SMQ_DIR, { recursive: true }); } catch (e) {}
+const smqUpload = _multer ? _multer({ storage: _multer.diskStorage({ destination: SMQ_DIR, filename: (rq, file, cb) => cb(null, id("smqf") + _path.extname(file.originalname || "").slice(0, 8)) }), limits: { fileSize: 20 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
   "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment", "smqReviews", "smqConformity"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
-const RW = ["ADM", "CD", "RJ"];            // qualité : ADM/CD/RJ écrivent (RJ = responsable qualité de facto)
-const RO = ["ADM", "CD", "RJ", "GPF", "UI"];
+const RW = ["ADM", "CD", "RJ", "RQ"];            // qualité : ADM/CD/RJ écrivent (RJ = responsable qualité de facto)
+const RO = ["ADM", "CD", "RJ", "RQ", "GPF", "UI"];
 const uName = (uid) => { const u = (db.users || []).find(x => x.id === uid); return u ? u.fullName : ""; };
+const dbUser = (req) => (db.users || []).find(u => u.id === req.user.id) || {};
+const isManager = (req) => req.user.role === "ADM" || req.user.role === "SADM" || !!dbUser(req).smqManager;
+function procAccess(req, processId) {
+  if (isManager(req)) return true;
+  if (!processId) return false;
+  const p = (db.smqProcesses || []).find(x => x.id === processId && (x.tenantId || "t1") === (req.user.tenantId || "t1"));
+  return !!p && (p.piloteUserId === req.user.id || p.coPiloteUserId === req.user.id);
+}
+const docProcId = (req, docId) => { const d = mine(db.smqDocuments, req).find(x => x.id === docId); return d ? d.processId : null; };
+const revProcId = (req, revId) => { const r = mine(db.smqDocRevisions, req).find(x => x.id === revId); return r ? docProcId(req, r.documentId) : null; };
+const DENY = (res) => res.status(403).json({ error: "Accès réservé au responsable SMQ ou au pilote/co-pilote de ce processus." });
+const mgrOnly = (req, res) => { if (isManager(req)) return true; res.status(403).json({ error: "Action réservée au responsable SMQ." }); return false; };
 
 /* ------------------------------------------------------------------ seeds */
 // Bibliothèque de clauses ISO 9001:2015 (préchargée, extensible par le client).
@@ -156,10 +174,11 @@ router.get("/processes", allow(...RO), (req, res) => {
   res.json(mine(db.smqProcesses, req).slice().sort((a, b) =>
     (a.ordre || 99) - (b.ordre || 99) || String(a.code).localeCompare(String(b.code), "fr", { numeric: true })));
 });
-const PROC_FIELDS = ["code", "type", "intitule", "piloteId", "piloteName", "coPiloteName", "finalite",
+const PROC_FIELDS = ["code", "type", "intitule", "piloteId", "piloteName", "piloteUserId", "coPiloteId", "coPiloteUserId", "coPiloteName", "finalite",
   "objectifs", "missionsPrincipales", "missionsQuotidiennes", "competencesRequises", "entrees", "sorties",
   "logigrammeFileId", "statut", "ordre"];
 router.post("/processes", allow(...RW), (req, res) => {
+  if (!mgrOnly(req, res)) return;
   const b = req.body || {}; if (!b.code || !b.intitule) return res.status(400).json({ error: "Code et intitulé obligatoires" });
   const rec = { id: id("smq"), objectifs: [], statut: "active", createdAt: now() };
   for (const f of PROC_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
@@ -167,11 +186,13 @@ router.post("/processes", allow(...RW), (req, res) => {
   res.status(201).json(rec);
 });
 router.put("/processes/:id", allow(...RW), (req, res) => {
+  if (!mgrOnly(req, res)) return;
   const x = mine(db.smqProcesses, req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
   for (const f of PROC_FIELDS) if (req.body[f] !== undefined) x[f] = req.body[f];
   x.updatedAt = now(); save(); audit(req.user, "UPDATED", "SmqProcess", x.id, {}); res.json(x);
 });
-router.delete("/processes/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/processes/:id", allow("ADM", "CD", "RQ"), (req, res) => {
+  if (!mgrOnly(req, res)) return;
   const x = mine(db.smqProcesses, req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
   db.smqProcesses.splice(db.smqProcesses.indexOf(x), 1); save(); audit(req.user, "DELETED", "SmqProcess", x.id, {}); res.json({ ok: true });
 });
@@ -269,6 +290,7 @@ router.get("/documents/:id", allow(...RO), (req, res) => {
 // Créer un document = créer sa 1re version (brouillon).
 router.post("/documents", allow(...RW), (req, res) => {
   const b = req.body || {};
+  if (!procAccess(req, b.processId || null)) return DENY(res);
   if (!b.titre || !b.typeCode) return res.status(400).json({ error: "Titre et type de document obligatoires" });
   const t = docType(req, b.typeCode); if (!t) return res.status(400).json({ error: "Type de document inconnu" });
   const seq = nextSeq(req, b.typeCode);
@@ -283,7 +305,7 @@ router.post("/documents", allow(...RW), (req, res) => {
     redacteurId: b.redacteurId || req.user.id, redacteurName: b.redacteurName || req.user.fullName,
     verificateurName: b.verificateurName || "", approbateurName: b.approbateurName || "",
     dateCreation: now().slice(0, 10), dateModification: now().slice(0, 10),
-    resumeModif: b.resumeModif || "Création", contenu: b.contenu || "", fileId: b.fileId || null,
+    resumeModif: b.resumeModif || "Création", contenu: b.contenu || "", fileId: b.fileId || null, file: b.file && b.file.storedAs ? b.file : null,
     frequenceRevueMonths: freq, diffusion: b.diffusion || [], createdAt: now(),
   }, req);
   const docRec = stamp({
@@ -299,9 +321,10 @@ router.post("/documents", allow(...RW), (req, res) => {
 // Éditer une révision en brouillon.
 router.put("/revisions/:id", allow(...RW), (req, res) => {
   const r = mine(db.smqDocRevisions, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, docProcId(req, r.documentId))) return DENY(res);
   if (r.statut !== "brouillon") return res.status(400).json({ error: "Seule une version en brouillon est modifiable." });
   const b = req.body || {};
-  for (const f of ["redacteurName", "verificateurName", "approbateurName", "resumeModif", "contenu", "fileId", "frequenceRevueMonths", "diffusion"])
+  for (const f of ["redacteurName", "verificateurName", "approbateurName", "resumeModif", "contenu", "fileId", "file", "frequenceRevueMonths", "diffusion"])
     if (b[f] !== undefined) r[f] = b[f];
   r.dateModification = now().slice(0, 10); save(); res.json(r);
 });
@@ -313,11 +336,13 @@ function setDocStatus(req, r, statut) {
 }
 router.post("/revisions/:id/submit", allow(...RW), (req, res) => {
   const r = mine(db.smqDocRevisions, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, docProcId(req, r.documentId))) return DENY(res);
   if (r.statut !== "brouillon") return res.status(400).json({ error: "Transition invalide" });
   setDocStatus(req, r, "verifie"); save(); audit(req.user, "STATUS", "SmqDocument", r.documentId, { version: r.version, statut: "verifie" }); res.json(r);
 });
 router.post("/revisions/:id/approve", allow(...RW), (req, res) => {
   const r = mine(db.smqDocRevisions, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, docProcId(req, r.documentId))) return DENY(res);
   if (!["verifie", "brouillon"].includes(r.statut)) return res.status(400).json({ error: "Transition invalide" });
   // approuvée -> en vigueur ; les versions antérieures en vigueur deviennent obsolètes
   mine(db.smqDocRevisions, req).filter(x => x.documentId === r.documentId && x.id !== r.id && x.statut === "en_vigueur")
@@ -334,12 +359,14 @@ router.post("/revisions/:id/approve", allow(...RW), (req, res) => {
 });
 router.post("/revisions/:id/obsolete", allow(...RW), (req, res) => {
   const r = mine(db.smqDocRevisions, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, docProcId(req, r.documentId))) return DENY(res);
   setDocStatus(req, r, "obsolete"); save(); audit(req.user, "STATUS", "SmqDocument", r.documentId, { version: r.version, statut: "obsolete" }); res.json(r);
 });
 
 // Nouvelle version (révision) d'un document existant.
 router.post("/documents/:id/revise", allow(...RW), (req, res) => {
   const d = mine(db.smqDocuments, req).find(x => x.id === req.params.id); if (!d) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, d.processId)) return DENY(res);
   const t = docType(req, d.typeCode) || {};
   const revs = mine(db.smqDocRevisions, req).filter(x => x.documentId === d.id);
   const b = req.body || {};
@@ -361,7 +388,7 @@ router.post("/documents/:id/revise", allow(...RW), (req, res) => {
     approbateurName: b.approbateurName || src.approbateurName || "",
     dateCreation: now().slice(0, 10), dateModification: now().slice(0, 10),
     resumeModif: b.resumeModif || "", contenu: b.contenu !== undefined ? b.contenu : (src.contenu || ""),
-    fileId: b.fileId || null, frequenceRevueMonths: Number(b.frequenceRevueMonths) || d.frequenceRevueMonths || 24,
+    fileId: b.fileId || null, file: b.file && b.file.storedAs ? b.file : (src.file || null), frequenceRevueMonths: Number(b.frequenceRevueMonths) || d.frequenceRevueMonths || 24,
     diffusion: b.diffusion || src.diffusion || [], createdAt: now(),
   }, req);
   db.smqDocRevisions.push(revRec); save();
@@ -1124,6 +1151,31 @@ router.get("/conformity-summary", allow(...RO), (req, res) => res.json(conformit
 router.get("/conformity/gap", allow(...RO), (req, res) => {
   const rows = conformityRows(req).filter(r => ["non_conforme", "partiel", "non_evalue"].includes(r.statut));
   res.json(rows);
+});
+
+/* ---- Pièces jointes des documents (fichier original attaché à une version) ---- */
+router.post("/documents/upload", allow(...RW), smqUpload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Fichier manquant" });
+  res.json({ storedAs: req.file.filename, name: req.file.originalname, size: req.file.size });
+});
+router.get("/revisions/:id/file", allow(...RO), (req, res) => {
+  const r = mine(db.smqDocRevisions, req).find(x => x.id === req.params.id);
+  if (!r || !r.file || !r.file.storedAs) return res.status(404).json({ error: "Aucun fichier" });
+  res.download(_path.join(SMQ_DIR, r.file.storedAs), r.file.name || "document");
+});
+router.get("/documents/:id/file", allow(...RO), (req, res) => {
+  const d = mine(db.smqDocuments, req).find(x => x.id === req.params.id);
+  const r = d && mine(db.smqDocRevisions, req).find(x => x.id === d.currentRevisionId);
+  if (!r || !r.file || !r.file.storedAs) return res.status(404).json({ error: "Aucun fichier" });
+  res.download(_path.join(SMQ_DIR, r.file.storedAs), r.file.name || "document");
+});
+/* ---- Contexte de gouvernance pour l'utilisateur courant ---- */
+router.get("/my-context", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const manager = isManager(req);
+  const procs = mine(db.smqProcesses, req);
+  const mine_procs = procs.filter(p => p.piloteUserId === req.user.id || p.coPiloteUserId === req.user.id).map(p => p.id);
+  res.json({ manager, piloteProcessIds: mine_procs });
 });
 
 module.exports = router;

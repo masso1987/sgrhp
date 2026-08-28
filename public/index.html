@@ -955,27 +955,27 @@ const NAV = [
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
   { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
 
-  { k: "smqhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "quality", grp: "qualite" },
-  { k: "smqprocesses", label: "🗺️ Cartographie & processus", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.processes", module: "quality", grp: "qualite" },
-  { k: "smqaxes", label: "🎯 Politique & axes", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
-  { k: "smqstakeholders", label: "🤝 Parties intéressées", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite" },
-  { k: "smqscope", label: "📐 Domaine & exclusions", sec: "Système", roles: ["ADM","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite" },
-  { k: "smqdocs", label: "📄 Maîtrise documentaire", sec: "Documentation", roles: ["ADM","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
-  { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
-  { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
-  { k: "smqrisks", label: "⚠️ Risques & opportunités", sec: "Performance", roles: ["ADM","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
-  { k: "smqsatisfaction", label: "😊 Satisfaction client", sec: "Écoute client", roles: ["ADM","CD","RJ","GPF"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
-  { k: "smqclaims", label: "📣 Réclamations", sec: "Écoute client", roles: ["ADM","CD","RJ","GPF"], cap: "smq.claims", module: "quality", grp: "qualite" },
-  { k: "smqcompetences", label: "🎓 Compétences & habilitations", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.competences", module: "quality", grp: "qualite" },
-  { k: "smqsuppliers", label: "🚚 Évaluation fournisseurs", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.suppliers", module: "quality", grp: "qualite" },
-  { k: "smqequipment", label: "📏 Métrologie", sec: "Ressources", roles: ["ADM","CD","RJ"], cap: "smq.equipment", module: "quality", grp: "qualite" },
-  { k: "smqreviews", label: "🏛️ Revues de direction", sec: "Pilotage", roles: ["ADM","CD","RJ"], cap: "smq.reviews", module: "quality", grp: "qualite" },
-  { k: "smqconformity", label: "🏅 Prêt pour certification", sec: "Pilotage", roles: ["ADM","CD","RJ"], cap: "smq.conformity", module: "quality", grp: "qualite" },
-  { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
-  { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
-  { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
-  { k: "discussion", label: "💬 Messages", sec: "Messagerie", roles: ["GPF","CD","RJ","UI","ADM"], grp: "discussion" },
-  { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["GPF","CD","RJ","UI","ADM"], grp: "admin" },
+  { k: "smqhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
+  { k: "smqprocesses", label: "🗺️ Cartographie & processus", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.processes", module: "quality", grp: "qualite" },
+  { k: "smqaxes", label: "🎯 Politique & axes", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
+  { k: "smqstakeholders", label: "🤝 Parties intéressées", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite" },
+  { k: "smqscope", label: "📐 Domaine & exclusions", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite" },
+  { k: "smqdocs", label: "📄 Maîtrise documentaire", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
+  { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","RQ","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
+  { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
+  { k: "smqrisks", label: "⚠️ Risques & opportunités", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
+  { k: "smqsatisfaction", label: "😊 Satisfaction client", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
+  { k: "smqclaims", label: "📣 Réclamations", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.claims", module: "quality", grp: "qualite" },
+  { k: "smqcompetences", label: "🎓 Compétences & habilitations", sec: "Ressources", roles: ["ADM","RQ","CD","RJ"], cap: "smq.competences", module: "quality", grp: "qualite" },
+  { k: "smqsuppliers", label: "🚚 Évaluation fournisseurs", sec: "Ressources", roles: ["ADM","RQ","CD","RJ"], cap: "smq.suppliers", module: "quality", grp: "qualite" },
+  { k: "smqequipment", label: "📏 Métrologie", sec: "Ressources", roles: ["ADM","RQ","CD","RJ"], cap: "smq.equipment", module: "quality", grp: "qualite" },
+  { k: "smqreviews", label: "🏛️ Revues de direction", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ"], cap: "smq.reviews", module: "quality", grp: "qualite" },
+  { k: "smqconformity", label: "🏅 Prêt pour certification", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ"], cap: "smq.conformity", module: "quality", grp: "qualite" },
+  { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
+  { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
+  { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
+  { k: "discussion", label: "💬 Messages", sec: "Messagerie", roles: ["RQ","GPF","CD","RJ","UI","ADM"], grp: "discussion" },
+  { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["RQ","GPF","CD","RJ","UI","ADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "portfolios", label: "⚙ Config. portefeuilles", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -1489,13 +1489,14 @@ async function users() {
       <td>${u.id === ME.id ? '<span style="color:var(--muted)">—</span>'
         : `<button class="btn ${u.active ? "ghost" : "p"} sm" onclick="toggleActive('${u.id}', ${!u.active})">${u.active ? "Désactiver" : "Activer"}</button>
            <button class="btn ghost sm" onclick="resetUserPw('${u.id}','${esc(u.fullName)}')">🔑 Réinitialiser</button>
+           <button class="btn ghost sm" onclick="smqMgrToggle('${u.id}','${esc(u.fullName)}',${u.smqManager?1:0})">🏅 ${u.smqManager?"SMQ ✓":"SMQ"}</button>
            ${u.role !== "ADM" ? `<button class="btn ghost sm" onclick="permModal('${u.id}')">🛡 Droits</button>` : ""}`}</td>
     </tr>`).join("")}
     </table></div>
     <div class="panel" style="max-width:560px"><b>Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:8px">
       <div><label>Nom complet</label><input id="uName"></div><div><label>Email</label><input id="uEmail"></div>
-      <div><label>Role</label><select id="uRole"><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>ADM</option></select></div>
+      <div><label>Role</label><select id="uRole"><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>ADM</option><option>RQ</option></select></div>
       <div><label>Mot de passe</label><input id="uPass" type="password"></div></div>
     <div class="err hidden" id="uErr"></div>
     <button class="btn p" onclick="userSave()">Créer</button></div>`;
@@ -1531,6 +1532,10 @@ async function savePerms(uid, btn) {
   const permissions = [...btn.closest(".modal").querySelectorAll("input[data-perm]")].filter(c => c.checked).map(c => c.dataset.perm);
   try { await api(`/users/${uid}/permissions`, { method: "PUT", body: JSON.stringify({ permissions }) }); btn.closest(".modal-bg").remove(); users(); }
   catch (e) { alert(e.message); }
+}
+async function smqMgrToggle(uid,name,on){
+  if(!confirm((on?"Retirer":"Attribuer")+" le rôle Responsable SMQ (accès complet Qualité) à "+name+" ?"))return;
+  try{ await api("/users/"+uid+"/smq",{method:"PUT",body:JSON.stringify({smqManager:!on})}); users(); }catch(e){ alert(e.message); }
 }
 async function resetUserPw(uid,name){
   if(!confirm("Réinitialiser le mot de passe de "+name+" ?\nUn mot de passe temporaire sera généré."))return;
@@ -3040,7 +3045,7 @@ async function tenantUsers(tid, name) {
     <b style="font-size:12px">Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:6px">
       <input id="nuEmail" placeholder="email" style="margin:0"><input id="nuName" placeholder="nom complet" style="margin:0">
-      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option></select></div>
+      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>RQ</option></select></div>
     <div class="err hidden" id="nuErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>
@@ -6188,7 +6193,10 @@ async function smqLoadRefs(force){
     api("/smq/processes").catch(()=>[]), api("/smq/axes").catch(()=>[]),
     api("/smq/doctypes").catch(()=>[]), api("/smq/clauses").catch(()=>[])]);
   window._SMQ={procs,axes,doctypes,clauses,_at:Date.now()};
+  try{ window._SMQCTX=await api("/smq/my-context"); }catch(_){ window._SMQCTX={manager:false,piloteProcessIds:[]}; }
 }
+function smqIsManager(){ return (window._SMQCTX&&window._SMQCTX.manager)||ME.role==="ADM"; }
+function smqCanProc(pid){ return smqIsManager() || ((window._SMQCTX&&window._SMQCTX.piloteProcessIds)||[]).includes(pid); }
 const SMQ_TYPE={M:"Management",R:"Réalisation",S:"Support"};
 const SMQ_TYPE_TAG={M:'<span class="tag blue">Management</span>',R:'<span class="tag green">Réalisation</span>',S:'<span class="tag" style="background:#7c3aed;color:#fff">Support</span>'};
 const SMQ_DOC_STATUS={brouillon:'<span class="tag gray">Brouillon</span>',verifie:'<span class="tag blue">Vérifié</span>',en_vigueur:'<span class="tag green">En vigueur</span>',obsolete:'<span class="tag" style="background:#9ca3af;color:#fff">Obsolète</span>'};
@@ -6249,8 +6257,8 @@ async function smqProcessesView(){
   await smqLoadRefs(true);
   const ps=window._SMQ.procs||[];
   view.innerHTML=`<h1>🗺️ Cartographie & processus</h1>
-    <div style="margin-bottom:10px"><button class="btn p" onclick="smqProcForm()">+ Nouveau processus</button>
-      ${ps.length?'':'<button class="btn ghost" onclick="smqSeedCRHE()">⚡ Charger le modèle CIBLE RH</button>'}</div>
+    <div style="margin-bottom:10px">${smqIsManager()?`<button class="btn p" onclick="smqProcForm()">+ Nouveau processus</button>
+      ${ps.length?'':'<button class="btn ghost" onclick="smqSeedCRHE()">⚡ Charger le modèle CIBLE RH</button>'}`:'<span class="note">Vous consultez la cartographie. Seul le responsable SMQ crée/modifie les processus ; vous pouvez gérer les documents de vos processus.</span>'}</div>
     ${["M","R","S"].map(t=>{ const rows=ps.filter(p=>p.type===t); if(!rows.length)return""; return `<div class="panel" style="margin-bottom:10px"><b>${SMQ_TYPE[t]}</b>
       <table style="margin-top:6px;width:100%"><tr><th>Code</th><th>Intitulé</th><th>Pilote</th><th>Statut</th><th></th></tr>
       ${rows.map(p=>`<tr><td><b>${esc(p.code)}</b></td><td>${esc(p.intitule)}</td><td>${esc(p.piloteName||"")}</td><td>${p.statut==="sommeil"?'<span class="tag gray">En sommeil</span>':'<span class="tag green">Actif</span>'}</td>
@@ -6263,6 +6271,8 @@ async function smqProcessesView(){
 async function smqProcForm(pid){
   await smqLoadRefs();
   const p=pid?(window._SMQ.procs||[]).find(x=>x.id===pid):{};
+  const _users=await api("/users").catch(()=>[]);
+  const uOpt=(cur)=>`<option value="">— sélectionner —</option>`+_users.map(u=>`<option value="${u.id}" ${cur===u.id?"selected":""}>${esc(u.fullName)} (${esc(u.role)})</option>`).join("");
   const axes=window._SMQ.axes||[];
   const objs=(p&&p.objectifs)||[];
   const bg=document.createElement("div"); bg.className="modal-bg";
@@ -6272,8 +6282,8 @@ async function smqProcForm(pid){
       <div><label>Type *</label><select id="pType">${Object.keys(SMQ_TYPE).map(t=>`<option value="${t}" ${p.type===t?"selected":""}>${SMQ_TYPE[t]}</option>`).join("")}</select></div>
     </div>
     <label>Intitulé *</label><input id="pInt" value="${esc(p.intitule||"")}">
-    <div class="grid2"><div><label>Pilote</label><input id="pPil" value="${esc(p.piloteName||"")}"></div>
-      <div><label>Co-pilote</label><input id="pCo" value="${esc(p.coPiloteName||"")}"></div></div>
+    <div class="grid2"><div><label>Pilote</label><select id="pPil">${uOpt(p.piloteUserId)}</select></div>
+      <div><label>Co-pilote</label><select id="pCo">${uOpt(p.coPiloteUserId)}</select></div></div>
     <label>Finalité</label><textarea id="pFin" rows="2">${esc(p.finalite||"")}</textarea>
     <label>Objectifs du processus <span class="note">(un par ligne : libellé | axe)</span></label>
     <textarea id="pObj" rows="3" placeholder="Fidéliser les clients | Axe 1">${objs.map(o=>(o.libelle||"")+(o.axeCode?" | "+o.axeCode:"")).join("\n")}</textarea>
@@ -6291,7 +6301,9 @@ async function smqProcForm(pid){
 async function smqProcSave(pid,btn){
   const g=(x)=>(document.getElementById(x)||{}).value;
   const objs=g("pObj").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const [lib,ax]=l.split("|");return {libelle:(lib||"").trim(),axeCode:(ax||"").trim()};});
-  const body={code:g("pCode"),type:g("pType"),intitule:g("pInt"),piloteName:g("pPil"),coPiloteName:g("pCo"),finalite:g("pFin"),objectifs:objs,entrees:g("pEnt"),sorties:g("pSor"),missionsPrincipales:g("pMis"),statut:g("pStat")};
+  const uSel=(id)=>{ const el=document.getElementById(id); const o=el&&el.selectedOptions[0]; return {id:el?el.value:"",name:o?o.textContent.replace(/ \([^)]*\)$/,""):""}; };
+  const pil=uSel("pPil"), co=uSel("pCo");
+  const body={code:g("pCode"),type:g("pType"),intitule:g("pInt"),piloteUserId:pil.id||null,piloteName:pil.name,coPiloteUserId:co.id||null,coPiloteName:co.name,finalite:g("pFin"),objectifs:objs,entrees:g("pEnt"),sorties:g("pSor"),missionsPrincipales:g("pMis"),statut:g("pStat")};
   if(!body.code||!body.intitule){const e=document.getElementById("pErr");e.textContent="Code et intitulé obligatoires";e.classList.remove("hidden");return;}
   try{ await api("/smq/processes"+(pid?"/"+pid:""),{method:pid?"PUT":"POST",body:JSON.stringify(body)}); window._SMQ._at=0; btn.closest(".modal-bg").remove(); smqProcessesView(); }
   catch(e){ const el=document.getElementById("pErr");el.textContent=e.message;el.classList.remove("hidden"); }
@@ -6347,7 +6359,8 @@ async function smqDocForm(){
     <div class="grid2"><div><label>Rédacteur</label><input id="dRed" value="${esc((ME&&ME.fullName)||"")}"></div>
       <div><label>Approbateur</label><input id="dApp"></div></div>
     <label>Résumé de la modification</label><input id="dRes" value="Création">
-    <label>Contenu / notes <span class="note">(ou joignez un fichier plus tard)</span></label><textarea id="dCont" rows="4"></textarea>
+    <label>Contenu / notes</label><textarea id="dCont" rows="4"></textarea>
+    <label>📎 Joindre le document original <span class="note">(Word, PDF, Excel…)</span></label><input type="file" id="dFile">
     <div class="err hidden" id="dErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
@@ -6355,11 +6368,18 @@ async function smqDocForm(){
   bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});
   document.body.appendChild(bg);
 }
+async function smqDocUpload(inputId){
+  const inp=document.getElementById(inputId); const f=inp&&inp.files&&inp.files[0]; if(!f) return null;
+  const fd=new FormData(); fd.append("file",f);
+  const r=await fetch("/api/smq/documents/upload",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd});
+  const j=await r.json(); if(!r.ok) throw new Error(j.error||"Échec de l'envoi du fichier"); return j;
+}
 async function smqDocCreate(btn){
   const g=(x)=>(document.getElementById(x)||{}).value;
   const body={titre:g("dTitre"),typeCode:g("dType"),processId:g("dProc")||null,redacteurName:g("dRed"),approbateurName:g("dApp"),resumeModif:g("dRes"),contenu:g("dCont")};
   if(!body.titre){const e=document.getElementById("dErr");e.textContent="Titre obligatoire";e.classList.remove("hidden");return;}
-  try{ const r=await api("/smq/documents",{method:"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqDocOpen(r.document.id); }
+  try{ const file=await smqDocUpload("dFile"); if(file) body.file=file;
+    const r=await api("/smq/documents",{method:"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqDocOpen(r.document.id); }
   catch(e){ const el=document.getElementById("dErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
 async function smqDocOpen(id){
@@ -6380,7 +6400,7 @@ async function smqDocOpen(id){
     <div class="panel" style="margin-top:10px"><b>Historique des versions</b>
       <table style="margin-top:6px;width:100%"><tr><th>Version</th><th>Réf</th><th>Statut</th><th>Rédacteur</th><th>Modif.</th><th>Résumé</th><th></th></tr>
       ${revs.map(r=>`<tr><td><b>${esc(r.version)}</b></td><td>${esc(r.ref)}</td><td>${SMQ_DOC_STATUS[r.statut]||esc(r.statut)}</td>
-        <td>${esc(r.redacteurName||"")}</td><td>${esc(r.dateModification||"")}</td><td>${esc(r.resumeModif||"")}</td>
+        <td>${esc(r.redacteurName||"")}</td><td>${esc(r.dateModification||"")}</td><td>${esc(r.resumeModif||"")}${r.file?` · <a href="#" onclick="smqDocDownload('${r.id}');return false">📎 ${esc(r.file.name||'fichier')}</a>`:''}</td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">${wf(r)}</div></td></tr>`).join("")}</table></div>`;
 }
 async function smqRevAct(rid,act,docId){
@@ -6391,6 +6411,11 @@ async function smqRevAct(rid,act,docId){
 async function smqRevEdit(rid,docId){
   const cont=prompt("Contenu / notes de cette version :"); if(cont===null)return;
   try{ await api("/smq/revisions/"+rid,{method:"PUT",body:JSON.stringify({contenu:cont})}); smqDocOpen(docId); }catch(e){ alert(e.message); }
+}
+async function smqDocDownload(revId){
+  try{ const r=await fetch("/api/smq/revisions/"+revId+"/file",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok) throw new Error("Fichier indisponible");
+    const blob=await r.blob(); const cd=r.headers.get("Content-Disposition")||""; const nm=(cd.match(/filename="?([^"]+)"?/)||[])[1]||"document";
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nm; a.click(); }catch(e){ alert(e.message); }
 }
 async function smqDocRevise(docId){
   const res=prompt("Résumé de la modification (nouvelle version) :"); if(res===null)return;
