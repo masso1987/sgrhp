@@ -17,7 +17,7 @@ try { _fs.mkdirSync(SMQ_DIR, { recursive: true }); } catch (e) {}
 const smqUpload = _multer ? _multer({ storage: _multer.diskStorage({ destination: SMQ_DIR, filename: (rq, file, cb) => cb(null, id("smqf") + _path.extname(file.originalname || "").slice(0, 8)) }), limits: { fileSize: 20 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
-  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment", "smqReviews", "smqConformity"];
+  "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment", "smqReviews", "smqConformity", "smqTdb", "smqTdbData"];
 for (const k of COLS) if (!db[k]) db[k] = [];
 
 const now = () => new Date().toISOString();
@@ -1252,6 +1252,172 @@ router.get("/my-context", allow(...RO), (req, res) => {
   const procs = mine(db.smqProcesses, req);
   const mine_procs = procs.filter(p => p.piloteUserId === req.user.id || p.coPiloteUserId === req.user.id).map(p => p.id);
   res.json({ manager, piloteProcessIds: mine_procs });
+});
+
+/* ============================ Tableau de bord processus (moteur type Excel CRHE) ============================ */
+const MOIS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+const FREQ_LABELS = { M: "Mensuel", T: "Trimestriel", S: "Semestriel", A: "Annuel" };
+function parseCible(v) {
+  if (v == null || v === "") return null;
+  let str = String(v).replace(/[≥≤>=<\s]/g, "");
+  const pct = str.includes("%"); str = str.replace("%", "").replace(",", ".");
+  const n = parseFloat(str); if (isNaN(n)) return null;
+  return pct ? n / 100 : n;
+}
+// Un indicateur : {key, libelle, freq, cible, sens('up'|'down'), formula:{op:'val'|'ratio'|'sum'|'avg'|'cumul', col, numCol, denCol}}
+function tdbCompute(tdb, dataRows) {
+  const byMonth = {};                       // mois(1..12) -> values{colKey:num}
+  (dataRows || []).forEach(r => { byMonth[r.mois] = r.values || {}; });
+  const num = (m, col) => { const v = (byMonth[m] || {})[col]; return v === "" || v == null ? null : Number(v); };
+  const monthsWith = (col) => { const a = []; for (let m = 1; m <= 12; m++) { const v = num(m, col); if (v != null) a.push(v); } return a; };
+  const inds = (tdb.indicators || []).map(ind => {
+    const F = ind.formula || {}; const monthly = [];
+    for (let m = 1; m <= 12; m++) {
+      let val = null;
+      if (F.op === "ratio") { const n = num(m, F.numCol), d = num(m, F.denCol); val = (n != null && d) ? n / d : null; }
+      else if (F.op === "cumul") { let sum = 0, any = false; for (let k = 1; k <= m; k++) { const v = num(k, F.col); if (v != null) { sum += v; any = true; } } val = any ? sum : null; }
+      else { val = num(m, F.col); }        // val/sum/avg mensuel = valeur du mois (1 ligne/mois)
+      monthly.push(val);
+    }
+    // résultat annuel
+    let result = null;
+    if (F.op === "ratio") { let n = 0, d = 0, any = false; for (let m = 1; m <= 12; m++) { const a = num(m, F.numCol), b = num(m, F.denCol); if (a != null) { n += a; any = true; } if (b != null) d += b; } result = any && d ? n / d : null; }
+    else if (F.op === "sum") { const a = monthsWith(F.col); result = a.length ? a.reduce((x, y) => x + y, 0) : null; }
+    else if (F.op === "cumul") { const a = monthsWith(F.col); result = a.length ? a.reduce((x, y) => x + y, 0) : null; }
+    else { const a = monthsWith(F.col); result = a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }   // avg / val
+    const cible = ind.cible != null ? Number(ind.cible) : parseCible(ind.cibleTexte);
+    let feu = "gris";
+    if (result != null && cible != null) {
+      const up = ind.sens !== "down";
+      if (up) feu = result >= cible ? "vert" : (result < cible * 0.8 ? "rouge" : "orange");
+      else feu = result <= cible ? "vert" : (result > cible * 1.2 ? "rouge" : "orange");
+    }
+    return Object.assign({}, ind, { monthly, result, cible, feu });
+  });
+  // performance globale = (vert + 0.8*orange) / (vert+orange+rouge)
+  let v = 0, o = 0, r = 0; inds.forEach(i => { if (i.feu === "vert") v++; else if (i.feu === "orange") o++; else if (i.feu === "rouge") r++; });
+  const perf = (v + o + r) ? (v + o * 0.8) / (v + o + r) : null;
+  const perfFeu = perf == null ? "gris" : (perf >= 0.8 ? "vert" : (perf < 0.7 ? "rouge" : "orange"));
+  return { indicators: inds, performance: perf, performanceFeu: perfFeu };
+}
+
+router.get("/tdb", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  let rows = mine(db.smqTdb, req).slice();
+  if (req.query && req.query.processId) rows = rows.filter(x => x.processId === req.query.processId);
+  rows.sort((a, b) => String(a.processId).localeCompare(String(b.processId)) || (b.annee - a.annee));
+  const procs = mine(db.smqProcesses, req);
+  res.json(rows.map(t => { const p = procs.find(x => x.id === t.processId); return { id: t.id, processId: t.processId, processCode: p ? p.code : "", titre: t.titre, annee: t.annee, nbIndicateurs: (t.indicators || []).length }; }));
+});
+router.get("/tdb/:id", allow(...RO), (req, res) => {
+  const t = mine(db.smqTdb, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  const data = mine(db.smqTdbData, req).filter(d => d.tdbId === t.id).sort((a, b) => a.mois - b.mois);
+  const canEdit = procAccess(req, t.processId);
+  res.json({ tdb: t, data, computed: tdbCompute(t, data), canEditData: canEdit, canEditDef: isManager(req), mois: MOIS_FR });
+});
+const TDB_FIELDS = ["processId", "titre", "annee", "baseColumns", "indicators"];
+router.post("/tdb", allow(...RW), (req, res) => {
+  if (!mgrOnly(req, res)) return;
+  const b = req.body || {}; if (!b.processId) return res.status(400).json({ error: "Processus obligatoire" });
+  const rec = { id: id("smq"), annee: b.annee || new Date().getFullYear(), baseColumns: [], indicators: [], titre: b.titre || "Tableau de bord", createdAt: now() };
+  for (const f of TDB_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
+  db.smqTdb.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqTdb", rec.id, {}); res.status(201).json(rec);
+});
+router.put("/tdb/:id", allow(...RW), (req, res) => {
+  if (!mgrOnly(req, res)) return;
+  const t = mine(db.smqTdb, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  for (const f of TDB_FIELDS) if (req.body[f] !== undefined) t[f] = req.body[f];
+  t.updatedAt = now(); save(); res.json(t);
+});
+router.delete("/tdb/:id", allow("ADM", "CD", "RQ"), (req, res) => {
+  if (!mgrOnly(req, res)) return;
+  const t = mine(db.smqTdb, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  db.smqTdbData = db.smqTdbData.filter(d => d.tdbId !== t.id);
+  db.smqTdb.splice(db.smqTdb.indexOf(t), 1); save(); res.json({ ok: true });
+});
+// Saisie des données (base) — pilote ou responsable SMQ.
+router.put("/tdb/:id/data", allow(...RW), (req, res) => {
+  const t = mine(db.smqTdb, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  if (!procAccess(req, t.processId)) return DENY(res);
+  const b = req.body || {}; const mois = Number(b.mois);
+  if (!(mois >= 1 && mois <= 12)) return res.status(400).json({ error: "Mois invalide (1-12)" });
+  let row = mine(db.smqTdbData, req).find(d => d.tdbId === t.id && d.mois === mois);
+  if (!row) { row = stamp({ id: id("smq"), tdbId: t.id, annee: t.annee, mois, values: {}, createdAt: now() }, req); db.smqTdbData.push(row); }
+  row.values = Object.assign({}, row.values, b.values || {}); row.updatedAt = now();
+  save(); audit(req.user, "UPDATED", "SmqTdbData", t.id, { mois });
+  const data = mine(db.smqTdbData, req).filter(d => d.tdbId === t.id);
+  res.json({ ok: true, computed: tdbCompute(t, data) });
+});
+
+/* ---- Import d'un tableau de bord Excel CRHE (Base de données + Tableau de bord) ---- */
+router.post("/tdb/import", allow(...RW), (req, res) => {
+  if (!mgrOnly(req, res)) return;
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const b = req.body || {};
+  if (!b.data || !b.processId) return res.status(400).json({ error: "Fichier et processus obligatoires" });
+  let baseAoa, tbAoa;
+  try {
+    const wb = XLSX.read(Buffer.from(b.data, "base64"), { type: "buffer", cellDates: true });
+    const wsB = wb.Sheets["Base de données"] || wb.Sheets[wb.SheetNames[0]];
+    const wsT = wb.Sheets["Tableau de bord"] || wb.Sheets[wb.SheetNames[1]];
+    baseAoa = XLSX.utils.sheet_to_json(wsB, { header: 1, blankrows: false, defval: "" });
+    tbAoa = wsT ? XLSX.utils.sheet_to_json(wsT, { header: 1, blankrows: false, defval: "" }) : [];
+  } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
+  // Colonnes de base = en-têtes (ligne 1) à partir de la colonne 3 (après ANNEE, MOIS)
+  const bh = baseAoa[0] || [];
+  const baseColumns = [];
+  for (let c = 2; c < bh.length; c++) { const lbl = String(bh[c] || "").trim(); if (lbl) baseColumns.push({ key: "c" + c, label: lbl, col: c }); }
+  const colByLetter = {}; baseColumns.forEach(bc => { colByLetter[String.fromCharCode(65 + bc.col)] = bc.key; });
+  // Ligne d'en-tête du tableau de bord (contient "Indicateur")
+  let hRow = -1; for (let i = 0; i < Math.min(tbAoa.length, 12); i++) if (String((tbAoa[i] || [])[0] || "").toLowerCase().includes("indicat")) { hRow = i; break; }
+  const indicators = [];
+  if (hRow >= 0) {
+    for (let i = hRow + 1; i < tbAoa.length; i++) {
+      const r = tbAoa[i]; const lib = String((r || [])[0] || "").trim(); if (!lib) continue;
+      const freq = String(r[1] || "M").trim().charAt(0).toUpperCase();
+      const cibleRaw = r[14];                 // colonne O (Cible)
+      const cible = parseCible(cibleRaw);
+      // sens : par défaut 'up' ; heuristique par libellé (délai/incident/plainte = down)
+      const low = lib.toLowerCase();
+      const sens = /délai|incident|plainte|retard|rejet|non[- ]?conform|réclamation/.test(low) ? "down" : "up";
+      indicators.push({ key: "i" + i, libelle: lib, freq: ["M", "T", "S", "A"].includes(freq) ? freq : "M", cible, cibleTexte: cibleRaw != null ? String(cibleRaw) : "", sens, formula: { op: "avg", col: baseColumns[0] ? baseColumns[0].key : "" } });
+    }
+  }
+  const annee = b.annee || new Date().getFullYear();
+  const tdb = stamp({ id: id("smq"), processId: b.processId, annee, titre: b.titre || "Tableau de bord", baseColumns, indicators, createdAt: now() }, req);
+  db.smqTdb.push(tdb);
+  // Données : lignes de la base pour l'année demandée
+  const moisIndex = {}; MOIS_FR.forEach((m, idx) => moisIndex[m.toLowerCase()] = idx + 1);
+  let dataRows = 0;
+  for (let i = 1; i < baseAoa.length; i++) {
+    const r = baseAoa[i]; if (!r) continue;
+    const y = Number(r[0]); const mi = moisIndex[String(r[1] || "").trim().toLowerCase()];
+    if (y !== Number(annee) || !mi) continue;
+    const values = {}; let has = false;
+    baseColumns.forEach(bc => { const v = r[bc.col]; if (v !== "" && v != null) { values[bc.key] = Number(v); has = true; } });
+    if (has) { db.smqTdbData.push(stamp({ id: id("smq"), tdbId: tdb.id, annee, mois: mi, values, createdAt: now() }, req)); dataRows++; }
+  }
+  save(); audit(req.user, "CREATED", "SmqTdb", tdb.id, { import: true, indicators: indicators.length, dataRows });
+  res.status(201).json({ tdb, indicators: indicators.length, baseColumns: baseColumns.length, dataRows, note: "Vérifiez les formules des indicateurs (op/colonnes) après import." });
+});
+
+router.get("/tdb/:id/export", allow(...RO), (req, res) => {
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const t = mine(db.smqTdb, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  const data = mine(db.smqTdbData, req).filter(d => d.tdbId === t.id);
+  const comp = tdbCompute(t, data);
+  const bcols = t.baseColumns || [];
+  const baseAoa = [["ANNEE", "MOIS", ...bcols.map(c => c.label)]];
+  for (let m = 1; m <= 12; m++) { const row = data.find(d => d.mois === m); baseAoa.push([t.annee, MOIS_FR[m - 1], ...bcols.map(c => (row && row.values[c.key] != null ? row.values[c.key] : ""))]); }
+  const tbAoa = [["Indicateurs de performances", "Fréq.", ...MOIS_FR, "Cible", "Résultat", "Appréciation"]];
+  comp.indicators.forEach(i => { tbAoa.push([i.libelle, i.freq, ...i.monthly.map(v => v == null ? "" : v), (i.cible != null ? i.cible : (i.cibleTexte || "")), (i.result == null ? "" : i.result), i.feu]); });
+  tbAoa.push([]); tbAoa.push(["PERFORMANCE GLOBALE", "", comp.performance == null ? "" : comp.performance]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(baseAoa), "Base de données");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tbAoa), "Tableau de bord");
+  res.setHeader("Content-Disposition", `attachment; filename="TdB_${t.annee}.xlsx"`);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
 module.exports = router;

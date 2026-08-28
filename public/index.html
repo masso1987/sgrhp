@@ -964,6 +964,7 @@ const NAV = [
   { k: "smqdoctypes", label: "⚙️ Types de documents", sec: "Documentation", roles: ["ADM","RQ","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqregister", label: "📋 Registre (§7.5)", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqindicators", label: "📈 Indicateurs", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
+  { k: "smqtdb", label: "📊 Tableaux de bord", sec: "Performance", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.indicators", module: "quality", grp: "qualite" },
   { k: "smqrisks", label: "⚠️ Risques & opportunités", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
   { k: "smqsatisfaction", label: "😊 Satisfaction client", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
   { k: "smqclaims", label: "📣 Réclamations", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.claims", module: "quality", grp: "qualite" },
@@ -1107,7 +1108,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6327,7 +6328,7 @@ async function smqLivret(pid){
         <table style="margin-top:4px;width:100%"><tr><th>Objectif</th><th>Cohérence (axe)</th></tr>${objRows}</table></div>
       <div style="margin-top:10px"><b>Indicateurs clés de performance</b>
         <table style="margin-top:4px;width:100%"><tr><th>Indicateur</th><th>Mode de calcul</th><th class="r">Cible</th><th class="r">Dernière mesure</th><th>Fréquence</th></tr>${indRows}</table>
-        <button class="btn ghost sm" style="margin-top:6px" onclick="go('smqindicators')">Gérer les indicateurs →</button></div>
+        <button class="btn ghost sm" style="margin-top:6px" onclick="go('smqindicators')">Gérer les indicateurs →</button> <button class="btn ghost sm" style="margin-top:6px" onclick="go('smqtdb')">📊 Tableaux de bord →</button></div>
       ${p.missionsPrincipales?`<div style="margin-top:10px"><b>Responsabilités du pilote</b><div>${esc(p.missionsPrincipales)}</div></div>`:''}
       <div class="note" style="margin-top:10px">📄 La génération PDF du « Livret du processus » (avec cartouche) arrive en phase Documentation avancée.</div>
     </div>`;
@@ -7499,6 +7500,124 @@ async function smqRegImport(input){
     try{ const r=await api("/smq/documents/import-register",{method:"POST",body:JSON.stringify({data:b64})}); alert(r.added+" document(s) importé(s), "+r.skipped+" déjà présent(s)."); window._SMQ._at=0; smqRegisterView(); }
     catch(e){ alert(e.message); } };
   rd.readAsDataURL(f); input.value="";
+}
+
+/* ---- Tableaux de bord processus ---- */
+const TDB_FEU={vert:"#16a34a",orange:"#f97316",rouge:"#dc2626",gris:"#9ca3af"};
+const TDB_MOIS=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+async function smqTdbListView(){
+  await smqLoadRefs();
+  const rows=await api("/smq/tdb").catch(()=>[]);
+  const procs=window._SMQ.procs||[];
+  view.innerHTML=`<h1>📊 Tableaux de bord des processus</h1>
+    ${smqIsManager()?`<div style="margin-bottom:8px"><button class="btn p" onclick="smqTdbNew()">+ Nouveau tableau de bord</button>
+      <button class="btn ghost" onclick="document.getElementById('tdbImp').click()">⬆️ Importer un TdB Excel</button>
+      <input type="file" id="tdbImp" accept=".xlsx" class="hidden" onchange="smqTdbImport(this)"></div>`:''}
+    <div class="panel"><table style="width:100%"><tr><th>Processus</th><th>Titre</th><th>Année</th><th class="r">Indicateurs</th><th></th></tr>
+      ${rows.map(t=>`<tr><td><b>${esc(t.processCode||'')}</b></td><td>${esc(t.titre||'')}</td><td>${t.annee}</td><td class="r">${t.nbIndicateurs}</td>
+        <td><button class="btn ghost sm" onclick="smqTdbOpen('${t.id}')">📊 Ouvrir</button></td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucun tableau de bord. '+(smqIsManager()?'Créez-en un ou importez votre TdB Excel.':'')+'</td></tr>'}</table></div>`;
+}
+async function smqTdbNew(){
+  await smqLoadRefs(); const procs=window._SMQ.procs||[];
+  const code=prompt("Code du processus (ex. S4) :"); if(!code)return; const p=procs.find(x=>x.code.toLowerCase()===code.toLowerCase()); if(!p){alert("Processus introuvable.");return;}
+  const annee=prompt("Année :",new Date().getFullYear()); if(!annee)return;
+  try{ const t=await api("/smq/tdb",{method:"POST",body:JSON.stringify({processId:p.id,annee:Number(annee),titre:"Tableau de bord "+p.code})}); smqTdbOpen(t.id); }catch(e){ alert(e.message); }
+}
+async function smqTdbImport(input){
+  await smqLoadRefs(); const f=input.files&&input.files[0]; if(!f)return;
+  const procs=window._SMQ.procs||[]; const code=prompt("À quel processus rattacher ce TdB ? (code, ex. S4)"); input.value="";
+  if(!code)return; const p=procs.find(x=>x.code.toLowerCase()===code.toLowerCase()); if(!p){alert("Processus introuvable.");return;}
+  const annee=prompt("Année à importer :",new Date().getFullYear()); if(!annee)return;
+  const rd=new FileReader();
+  rd.onload=async()=>{ const b64=String(rd.result).split(",")[1];
+    try{ const r=await api("/smq/tdb/import",{method:"POST",body:JSON.stringify({data:b64,processId:p.id,annee:Number(annee)})});
+      alert(`Importé : ${r.indicators} indicateur(s), ${r.baseColumns} colonne(s) de base, ${r.dataRows} mois de données.\n${r.note}`); smqTdbOpen(r.tdb.id); }
+    catch(e){ alert(e.message); } };
+  rd.readAsDataURL(f);
+}
+async function smqTdbOpen(idv){
+  const d=await api("/smq/tdb/"+idv).catch(e=>{alert(e.message);return null;}); if(!d)return;
+  window._TDB=d; const t=d.tdb, c=d.computed, p=(window._SMQ.procs||[]).find(x=>x.id===t.processId);
+  const feu=(f)=>`<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${TDB_FEU[f]||'#ccc'}"></span>`;
+  const fmt=(v)=>v==null?'<span class="note">—</span>':(Math.abs(v)<1&&v!==0?(Math.round(v*1000)/10)+'%':Math.round(v*100)/100);
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('smqtdb')">← Tableaux de bord</button>
+    <div class="panel" style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+        <div><h1 style="margin:0">📊 ${esc(t.titre||'')} — ${esc(p?p.code:'')} · ${t.annee}</h1>
+          <div class="note">${p?esc(p.intitule):''}</div></div>
+        <div style="text-align:center"><div class="note">Performance globale</div>
+          <div style="font-size:26px;font-weight:700;color:${TDB_FEU[c.performanceFeu]}">${c.performance==null?'—':Math.round(c.performance*1000)/10+'%'} ${feu(c.performanceFeu)}</div></div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${d.canEditData?`<button class="btn p sm" onclick="smqTdbData()">✏️ Saisir les données</button>`:''}
+          ${d.canEditDef?`<button class="btn ghost sm" onclick="smqTdbDef()">⚙️ Définition</button>`:''}
+          <button class="btn ghost sm" onclick="smqTdbExport('${t.id}')">⬇️ Excel</button></div></div>
+      <div style="overflow:auto;margin-top:10px"><table style="width:100%;min-width:1000px;font-size:13px">
+        <tr><th style="text-align:left">Indicateur</th><th>Fréq.</th>${TDB_MOIS.map(m=>`<th class="r">${m.slice(0,3)}</th>`).join("")}<th class="r">Cible</th><th class="r">Résultat</th><th>Appr.</th></tr>
+        ${c.indicators.map(i=>`<tr><td style="text-align:left">${esc(i.libelle)}</td><td style="text-align:center">${esc(i.freq||'')}</td>
+          ${i.monthly.map(v=>`<td class="r">${fmt(v)}</td>`).join("")}
+          <td class="r">${i.cible!=null?fmt(i.cible):esc(i.cibleTexte||'—')}</td><td class="r"><b>${fmt(i.result)}</b></td><td style="text-align:center">${feu(i.feu)}</td></tr>`).join("")||'<tr><td colspan="16" class="note">Aucun indicateur. '+(d.canEditDef?'Ouvrez « Définition ».':'')+'</td></tr>'}
+      </table></div>
+      <div class="note" style="margin-top:6px">🟢 ≥ cible · 🟠 proche · 🔴 loin de la cible. Le pilote saisit les données de base ; les formules ne sont pas modifiables par le pilote.</div>
+    </div>`;
+}
+async function smqTdbExport(idv){ try{ const r=await fetch("/api/smq/tdb/"+idv+"/export",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Export indisponible");
+  const blob=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="TdB.xlsx"; a.click(); }catch(e){ alert(e.message); } }
+/* Saisie des données de base (pilote) */
+function smqTdbData(){
+  const d=window._TDB, t=d.tdb; const cols=t.baseColumns||[]; if(!cols.length){ alert("Aucune colonne de base définie. Le responsable SMQ doit d'abord définir le tableau."); return; }
+  const byM={}; (d.data||[]).forEach(r=>byM[r.mois]=r.values||{});
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:min(96vw,900px)"><b>Saisie des données — ${t.annee}</b>
+    <div style="overflow:auto;max-height:70vh"><table style="width:100%;font-size:12px"><tr><th>Mois</th>${cols.map(c=>`<th title="${esc(c.label)}">${esc(c.label.slice(0,16))}</th>`).join("")}</tr>
+    ${TDB_MOIS.map((m,mi)=>`<tr><td>${m.slice(0,4)}</td>${cols.map(c=>`<td><input data-m="${mi+1}" data-c="${c.key}" type="number" step="any" value="${(byM[mi+1]&&byM[mi+1][c.key]!=null)?byM[mi+1][c.key]:''}" style="width:80px"></td>`).join("")}</tr>`).join("")}</table></div>
+    <div class="err hidden" id="tdErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button><button class="btn p sm" onclick="smqTdbDataSave('${t.id}',this)">💾 Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqTdbDataSave(idv,btn){
+  const byM={};
+  document.querySelectorAll('#'+'root input[data-m]'); // noop guard
+  btn.closest('.modal').querySelectorAll('input[data-m]').forEach(inp=>{ const m=inp.dataset.m, c=inp.dataset.c; if(inp.value!==''){ (byM[m]=byM[m]||{})[c]=Number(inp.value); } else { (byM[m]=byM[m]||{})[c]=""; } });
+  try{ for(const m of Object.keys(byM)){ await api("/smq/tdb/"+idv+"/data",{method:"PUT",body:JSON.stringify({mois:Number(m),values:byM[m]})}); }
+    btn.closest(".modal-bg").remove(); smqTdbOpen(idv); }
+  catch(e){ const el=document.getElementById("tdErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+/* Définition (responsable SMQ) : colonnes de base + indicateurs (formules) */
+function smqTdbDef(){
+  const d=window._TDB, t=d.tdb; const cols=t.baseColumns||[], inds=t.indicators||[];
+  const colOpts=(sel)=>cols.map(c=>`<option value="${c.key}" ${sel===c.key?'selected':''}>${esc(c.label)}</option>`).join("");
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:min(96vw,980px)"><b>Définition du tableau de bord — ${esc(t.titre||'')}</b>
+    <h3 style="margin:10px 0 4px">Colonnes de base (données saisies)</h3>
+    <div id="tdCols">${cols.map(c=>smqTdbColRow(c)).join("")}</div>
+    <button class="btn ghost sm" onclick="document.getElementById('tdCols').insertAdjacentHTML('beforeend',smqTdbColRow({key:'c'+Date.now(),label:''}))">+ Colonne</button>
+    <h3 style="margin:12px 0 4px">Indicateurs</h3>
+    <div style="overflow:auto"><table style="width:100%;font-size:12px" id="tdInds"><tr><th>Libellé</th><th>Fréq.</th><th>Cible</th><th>Sens</th><th>Calcul</th><th>Colonne</th><th>/ Colonne</th><th></th></tr>
+      ${inds.map(i=>smqTdbIndRow(i)).join("")}</table></div>
+    <button class="btn ghost sm" onclick="document.getElementById('tdInds').insertAdjacentHTML('beforeend',smqTdbIndRow({key:'i'+Date.now(),freq:'M',sens:'up',formula:{op:'avg'}}))">+ Indicateur</button>
+    <div class="err hidden" id="tdDErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqTdbDefSave('${t.id}',this)">💾 Enregistrer</button></div></div>`;
+  window._tdbColOpts=colOpts(""); bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+function smqTdbColRow(c){ return `<div class="tdcol" style="display:flex;gap:6px;margin-bottom:4px"><input class="tdcKey" value="${esc(c.key||'')}" placeholder="clé" style="width:90px"><input class="tdcLabel" value="${esc(c.label||'')}" placeholder="Libellé de la donnée" style="flex:1"><button class="btn ghost sm" onclick="this.closest('.tdcol').remove()">✕</button></div>`; }
+function smqTdbIndRow(i){ const F=i.formula||{}; const cols=(window._TDB&&window._TDB.tdb.baseColumns)||[];
+  const opt=(sel)=>'<option value="">—</option>'+cols.map(c=>`<option value="${c.key}" ${sel===c.key?'selected':''}>${esc(c.label)}</option>`).join("");
+  return `<tr class="tdind"><td><input class="tiLib" value="${esc(i.libelle||'')}" style="width:150px"></td>
+    <td><select class="tiFreq">${['M','T','S','A'].map(x=>`<option ${i.freq===x?'selected':''}>${x}</option>`).join("")}</select></td>
+    <td><input class="tiCible" value="${i.cible!=null?i.cible:''}" style="width:60px"></td>
+    <td><select class="tiSens"><option value="up" ${i.sens!=='down'?'selected':''}>↑</option><option value="down" ${i.sens==='down'?'selected':''}>↓</option></select></td>
+    <td><select class="tiOp"><option value="avg" ${F.op==='avg'?'selected':''}>Moyenne</option><option value="sum" ${F.op==='sum'?'selected':''}>Somme</option><option value="ratio" ${F.op==='ratio'?'selected':''}>Ratio</option><option value="cumul" ${F.op==='cumul'?'selected':''}>Cumul</option></select></td>
+    <td><select class="tiCol">${opt(F.col||F.numCol)}</select></td>
+    <td><select class="tiDen">${opt(F.denCol)}</select></td>
+    <td><button class="btn ghost sm" onclick="this.closest('.tdind').remove()">✕</button></td></tr>`; }
+async function smqTdbDefSave(idv,btn){
+  const modal=btn.closest('.modal');
+  const baseColumns=[...modal.querySelectorAll('.tdcol')].map(r=>({key:r.querySelector('.tdcKey').value.trim(),label:r.querySelector('.tdcLabel').value.trim()})).filter(c=>c.key&&c.label);
+  const indicators=[...modal.querySelectorAll('.tdind')].map((r,idx)=>{ const cib=r.querySelector('.tiCible').value;
+    return {key:'i'+idx,libelle:r.querySelector('.tiLib').value.trim(),freq:r.querySelector('.tiFreq').value,cible:cib===''?null:Number(cib),sens:r.querySelector('.tiSens').value,
+      formula:{op:r.querySelector('.tiOp').value,col:r.querySelector('.tiCol').value,numCol:r.querySelector('.tiCol').value,denCol:r.querySelector('.tiDen').value}}; }).filter(i=>i.libelle);
+  try{ await api("/smq/tdb/"+idv,{method:"PUT",body:JSON.stringify({baseColumns,indicators})}); btn.closest(".modal-bg").remove(); smqTdbOpen(idv); }
+  catch(e){ const el=document.getElementById("tdDErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
 
 /* ================= Gestion de stock ================= */
