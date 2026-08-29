@@ -6099,17 +6099,34 @@ function connectChat(){
   ws.onclose=()=>{ window._CHAT.ws=null; if(TOKEN) setTimeout(connectChat, 4000); };   // reconnexion auto
   ws.onerror=()=>{ try{ ws.close(); }catch(_){}} ;
 }
+function chatBeep(){
+  try{
+    if(!window._chatAC){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; window._chatAC=new AC(); }
+    const ac=window._chatAC; if(ac.state==="suspended"){ ac.resume(); }
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type="sine"; o.connect(g); g.connect(ac.destination);
+    const t0=ac.currentTime;
+    o.frequency.setValueAtTime(880,t0); o.frequency.setValueAtTime(1174,t0+0.10);
+    g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(0.12,t0+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.35);
+    o.start(t0); o.stop(t0+0.36);
+  }catch(e){}
+}
+// Débloque l'audio au premier clic (politique navigateur).
+document.addEventListener("click",function _unlock(){ try{ if(!window._chatAC){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) window._chatAC=new AC(); } if(window._chatAC&&window._chatAC.state==="suspended") window._chatAC.resume(); }catch(e){} document.removeEventListener("click",_unlock); },{once:true});
 function onChatEvent(d){
   if(d.type==="message"){ const m=d.message; const me=ME&&ME.id;
     const peer = m.fromId===me ? m.toId : m.fromId;
     (window._CHAT.msgs[peer]=window._CHAT.msgs[peer]||[]).push(m);
+    const incoming = m.toId===me && m.fromId!==me;
     if(window.CURRENT_VIEW==="discussion" && window._CHAT.activeId===peer){
-      chatRenderThread(); if(m.toId===me) chatMarkRead(peer);
-    } else if(m.toId===me){ window._CHAT.totalUnread++; updateChatBadge(); }
+      chatRenderThread(); if(incoming){ chatBeep(); chatMarkRead(peer); }
+    } else if(incoming){ window._CHAT.totalUnread++; updateChatBadge(); chatBeep(); }
     if(window.CURRENT_VIEW==="discussion") chatRenderPeers();
   } else if(d.type==="read"){ if(window.CURRENT_VIEW==="discussion") chatRenderThread(); }
 }
-async function refreshChatUnread(){ try{ const r=await api("/messages/unread"); window._CHAT.totalUnread=r.unread||0; updateChatBadge(); }catch(_){}}
+async function refreshChatUnread(){ try{ const r=await api("/messages/unread"); const prev=window._CHAT.totalUnread||0; window._CHAT.totalUnread=r.unread||0;
+  if((r.unread||0)>prev && (!window._CHAT.ws || window._CHAT.ws.readyState!==1)) chatBeep();   // beep via polling si WS indisponible
+  updateChatBadge(); }catch(_){}}
 function updateChatBadge(){ const el=document.getElementById("chatBell"); if(el) el.textContent=window._CHAT.totalUnread>0?("💬 "+window._CHAT.totalUnread):"💬"; }
 
 async function discussionView(){
@@ -6120,7 +6137,7 @@ async function discussionView(){
     <div class="note" style="margin-bottom:8px">Cliquez un contact à gauche, écrivez votre message en bas, puis « Envoyer » (ou Entrée).</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
       <div class="panel" style="flex:1;min-width:240px;max-width:320px;padding:8px">
-        <div style="font-weight:600;margin-bottom:6px">Contacts</div>
+        <div style="font-weight:600;margin-bottom:6px">Contacts <span class="note" style="font-weight:400">(${peers.length})</span></div>
         <input id="chatSearch" placeholder="Rechercher un contact…" oninput="chatRenderPeers()" style="margin-bottom:6px">
         <div id="chatPeers" style="max-height:60vh;overflow:auto"></div></div>
       <div class="panel" style="flex:2;min-width:300px;display:flex;flex-direction:column;height:64vh;padding:0">
@@ -7606,9 +7623,12 @@ function smqTdbData(){
   const d=window._TDB, t=d.tdb; const cols=t.baseColumns||[]; if(!cols.length){ alert("Aucune colonne de base définie. Le responsable SMQ doit d'abord définir le tableau."); return; }
   const byM={}; (d.data||[]).forEach(r=>byM[r.mois]=r.values||{});
   const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:min(96vw,900px)"><b>Saisie des données — ${t.annee}</b>
-    <div style="overflow:auto;max-height:70vh"><table style="width:100%;font-size:12px"><tr><th>Mois</th>${cols.map(c=>`<th title="${esc(c.label)}">${esc(c.label.slice(0,16))}</th>`).join("")}</tr>
-    ${TDB_MOIS.map((m,mi)=>`<tr><td>${m.slice(0,4)}</td>${cols.map(c=>`<td><input data-m="${mi+1}" data-c="${c.key}" type="number" step="any" value="${(byM[mi+1]&&byM[mi+1][c.key]!=null)?byM[mi+1][c.key]:''}" style="width:80px"></td>`).join("")}</tr>`).join("")}</table></div>
+  const shorten=(x)=>{ const s=String(x||""); return s.length>50?s.slice(0,49)+"…":s; };
+  bg.innerHTML=`<div class="modal" style="max-width:min(96vw,940px)"><b>Saisie des données — ${t.annee}</b>
+    <div class="note" style="margin:6px 0 8px">Légende des colonnes à remplir :</div>
+    <ol style="margin:0 0 10px 18px;padding:0;font-size:12px;line-height:1.5">${cols.map(c=>`<li>${esc(c.label)}</li>`).join("")}</ol>
+    <div style="overflow:auto;max-height:60vh"><table style="width:100%;font-size:12px"><tr><th style="position:sticky;left:0;background:var(--surface-2,#fff)">Mois</th>${cols.map((c,i)=>`<th style="min-width:120px;white-space:normal;vertical-align:top;font-size:11px;line-height:1.25" title="${esc(c.label)}"><span style="display:inline-block;min-width:16px;height:16px;border-radius:50%;background:var(--sidebar-bg);text-align:center;line-height:16px;margin-right:3px">${i+1}</span>${esc(shorten(c.label))}</th>`).join("")}</tr>
+    ${TDB_MOIS.map((m,mi)=>`<tr><td style="position:sticky;left:0;background:var(--surface-2,#fff);font-weight:600">${m.slice(0,4)}</td>${cols.map(c=>`<td><input data-m="${mi+1}" data-c="${c.key}" type="number" step="any" value="${(byM[mi+1]&&byM[mi+1][c.key]!=null)?byM[mi+1][c.key]:''}" style="width:82px"></td>`).join("")}</tr>`).join("")}</table></div>
     <div class="err hidden" id="tdErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button><button class="btn p sm" onclick="smqTdbDataSave('${t.id}',this)">💾 Enregistrer</button></div></div>`;
   bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
