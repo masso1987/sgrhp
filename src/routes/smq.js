@@ -14,7 +14,10 @@ const _fs = require("fs");
 let _multer; try { _multer = require("multer"); } catch (e) { _multer = null; }
 const SMQ_DIR = _path.join(__dirname, "..", "..", "uploads", "smq");
 try { _fs.mkdirSync(SMQ_DIR, { recursive: true }); } catch (e) {}
-const smqUpload = _multer ? _multer({ storage: _multer.diskStorage({ destination: SMQ_DIR, filename: (rq, file, cb) => cb(null, id("smqf") + _path.extname(file.originalname || "").slice(0, 8)) }), limits: { fileSize: 20 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
+const smqUpload = _multer ? _multer({ storage: _multer.diskStorage({ destination: SMQ_DIR, filename: (rq, file, cb) => cb(null, id("smqf") + _path.extname(file.originalname || "").slice(0, 8)) }), limits: { fileSize: 50 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
+// Import Excel volumineux : upload multipart en mémoire (jusqu'à 50 Mo), évite la limite du corps JSON.
+const smqImport = _multer ? _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
+function xlsxBuf(req) { if (req.file && req.file.buffer) return req.file.buffer; const d = (req.body || {}).data; return d ? Buffer.from(d, "base64") : null; }
 
 const COLS = ["smqAxes", "smqProcesses", "smqIndicators", "smqMeasures", "smqDocTypes",
   "smqDocuments", "smqDocRevisions", "smqStakeholders", "smqScope", "smqClauses", "smqPolicy", "smqImprovements", "smqEvents", "smqConfig", "smqAudits", "smqAuditItems", "smqRisks", "smqSatisfaction", "smqClaims", "smqCompetences", "smqSupplierEvals", "smqEquipment", "smqReviews", "smqConformity", "smqTdb", "smqTdbData"];
@@ -1179,14 +1182,15 @@ router.get("/conformity/gap", allow(...RO), (req, res) => {
 
 
 /* ---- Registre des informations documentées (§7.5) : import Excel + export ---- */
-router.post("/documents/import-register", allow(...RW), (req, res) => {
+router.post("/documents/import-register", allow(...RW), smqImport.single("file"), (req, res) => {
   if (!mgrOnly(req, res)) return;
   let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
   const b = req.body || {};
-  if (!b.data) return res.status(400).json({ error: "Fichier manquant" });
+  const _buf = xlsxBuf(req);
+  if (!_buf) return res.status(400).json({ error: "Fichier manquant" });
   let rows;
   try {
-    const wb = XLSX.read(Buffer.from(b.data, "base64"), { type: "buffer", cellDates: true });
+    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true });
     const ws = wb.Sheets["Informations documentées"] || wb.Sheets[wb.SheetNames[0]];
     rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
   } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
@@ -1410,14 +1414,15 @@ router.put("/tdb/:id/data", allow(...RW), (req, res) => {
 });
 
 /* ---- Import d'un tableau de bord Excel CRHE (Base de données + Tableau de bord) ---- */
-router.post("/tdb/import", allow(...RW), (req, res) => {
+router.post("/tdb/import", allow(...RW), smqImport.single("file"), (req, res) => {
   if (!mgrOnly(req, res)) return;
   let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
   const b = req.body || {};
-  if (!b.data || !b.processId) return res.status(400).json({ error: "Fichier et processus obligatoires" });
+  const _buf = xlsxBuf(req);
+  if (!_buf || !b.processId) return res.status(400).json({ error: "Fichier et processus obligatoires" });
   let baseAoa, tbAoa;
   try {
-    const wb = XLSX.read(Buffer.from(b.data, "base64"), { type: "buffer", cellDates: true });
+    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true });
     const wsB = wb.Sheets["Base de données"] || wb.Sheets[wb.SheetNames[0]];
     const wsT = wb.Sheets["Tableau de bord"] || wb.Sheets[wb.SheetNames[1]];
     baseAoa = XLSX.utils.sheet_to_json(wsB, { header: 1, blankrows: false, defval: "" });
@@ -1481,13 +1486,14 @@ router.get("/tdb/:id/export", allow(...RO), (req, res) => {
 });
 
 /* ---- Import d'un fichier « Approche Risque » CRHE (feuille Risques) ---- */
-router.post("/risks/import", allow(...RW), (req, res) => {
+router.post("/risks/import", allow(...RW), smqImport.single("file"), (req, res) => {
   let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
   const b = req.body || {};
-  if (!b.data) return res.status(400).json({ error: "Fichier manquant" });
+  const _buf = xlsxBuf(req);
+  if (!_buf) return res.status(400).json({ error: "Fichier manquant" });
   let rows;
   try {
-    const wb = XLSX.read(Buffer.from(b.data, "base64"), { type: "buffer", cellDates: true });
+    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true });
     const ws = wb.Sheets["Risques"] || wb.Sheets[wb.SheetNames[0]];
     rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
   } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
