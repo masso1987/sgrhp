@@ -107,6 +107,7 @@ app.use("/api/billing", requireModule("invoicing"), require("./routes/billing"))
 app.use("/api/accounting", requireModule("accounting"), require("./routes/accounting"));
 app.use("/api/stock", requireModule("stock"), require("./routes/stock"));
 app.use("/api/smq", requireModule("quality"), require("./routes/smq"));
+app.use("/api/messages", require("./routes/messages"));
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
@@ -124,8 +125,11 @@ const PORT = process.env.PORT || 4000;
   require("./routes/settings").settings();   // materialise defaults
   require("./seed").ensureReferentials();
   require("./templateEngine").syncSeedTemplates();
-  app.listen(PORT, () =>
-    console.log(`SGRHP running on http://localhost:${PORT} — storage: ${info.backend}`));
+  const http = require("http");
+  const server = http.createServer(app);
+  try { require("./chat").attach(server); } catch (e) { console.warn("[chat] non attaché:", e.message); }
+  server.listen(PORT, () =>
+    console.log(`SGRHP running on http://localhost:${PORT} — storage: ${info.backend} — chat WS /ws`));
 })().catch(e => {
   console.error("\n=== SGRHP startup failed ===");
   console.error("Reason :", e.message);

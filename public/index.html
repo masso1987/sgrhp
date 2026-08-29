@@ -6134,7 +6134,7 @@ async function discussionView(){
   window._CHAT.peers=peers;
   if(!window._CHAT.activeId && peers.length) window._CHAT.activeId=peers[0].id;
   view.innerHTML=`<h1>💬 Discussion</h1>
-    <div class="note" style="margin-bottom:8px">Cliquez un contact à gauche, écrivez votre message en bas, puis « Envoyer » (ou Entrée).</div>
+    <div class="note" style="margin-bottom:8px">Cliquez un contact à gauche, écrivez votre message en bas, puis « Envoyer » (ou Entrée). <a href="#" onclick="chatBeep();return false" style="color:var(--accent)">🔊 Tester le son</a></div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
       <div class="panel" style="flex:1;min-width:240px;max-width:320px;padding:8px">
         <div style="font-weight:600;margin-bottom:6px">Contacts <span class="note" style="font-weight:400">(${peers.length})</span></div>
@@ -7625,8 +7625,8 @@ function smqTdbData(){
   const bg=document.createElement("div");bg.className="modal-bg";
   const shorten=(x)=>{ const s=String(x||""); return s.length>50?s.slice(0,49)+"…":s; };
   bg.innerHTML=`<div class="modal" style="max-width:min(96vw,940px)"><b>Saisie des données — ${t.annee}</b>
-    <div class="note" style="margin:6px 0 8px">Légende des colonnes à remplir :</div>
-    <ol style="margin:0 0 10px 18px;padding:0;font-size:12px;line-height:1.5">${cols.map(c=>`<li>${esc(c.label)}</li>`).join("")}</ol>
+    <details style="margin:6px 0 8px"><summary style="cursor:pointer;font-size:12px;color:var(--accent)">📖 Légende des colonnes (${cols.length}) — afficher/masquer</summary>
+      <ol style="margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.5;max-height:160px;overflow:auto">${cols.map(c=>`<li>${esc(c.label)}</li>`).join("")}</ol></details>
     <div style="overflow:auto;max-height:60vh"><table style="width:100%;font-size:12px"><tr><th style="position:sticky;left:0;background:var(--surface-2,#fff)">Mois</th>${cols.map((c,i)=>`<th style="min-width:120px;white-space:normal;vertical-align:top;font-size:11px;line-height:1.25" title="${esc(c.label)}"><span style="display:inline-block;min-width:16px;height:16px;border-radius:50%;background:var(--sidebar-bg);text-align:center;line-height:16px;margin-right:3px">${i+1}</span>${esc(shorten(c.label))}</th>`).join("")}</tr>
     ${TDB_MOIS.map((m,mi)=>`<tr><td style="position:sticky;left:0;background:var(--surface-2,#fff);font-weight:600">${m.slice(0,4)}</td>${cols.map(c=>`<td><input data-m="${mi+1}" data-c="${c.key}" type="number" step="any" value="${(byM[mi+1]&&byM[mi+1][c.key]!=null)?byM[mi+1][c.key]:''}" style="width:82px"></td>`).join("")}</tr>`).join("")}</table></div>
     <div class="err hidden" id="tdErr" style="margin-top:6px"></div>
