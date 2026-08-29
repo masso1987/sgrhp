@@ -6117,12 +6117,14 @@ async function discussionView(){
   window._CHAT.peers=peers;
   if(!window._CHAT.activeId && peers.length) window._CHAT.activeId=peers[0].id;
   view.innerHTML=`<h1>💬 Discussion</h1>
+    <div class="note" style="margin-bottom:8px">Cliquez un contact à gauche, écrivez votre message en bas, puis « Envoyer » (ou Entrée).</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
       <div class="panel" style="flex:1;min-width:240px;max-width:320px;padding:8px">
-        <input id="chatSearch" placeholder="Rechercher…" oninput="chatRenderPeers()" style="margin-bottom:6px">
+        <div style="font-weight:600;margin-bottom:6px">Contacts</div>
+        <input id="chatSearch" placeholder="Rechercher un contact…" oninput="chatRenderPeers()" style="margin-bottom:6px">
         <div id="chatPeers" style="max-height:60vh;overflow:auto"></div></div>
       <div class="panel" style="flex:2;min-width:300px;display:flex;flex-direction:column;height:64vh;padding:0">
-        <div id="chatHead" style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600"></div>
+        <div id="chatHead" style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600">Sélectionnez un contact</div>
         <div id="chatThread" style="flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:6px"></div>
         <div id="chatLinkChip" style="padding:0 12px"></div>
         <div style="display:flex;gap:6px;padding:10px;border-top:1px solid var(--border);align-items:flex-end">
@@ -6131,7 +6133,9 @@ async function discussionView(){
           <button class="btn ghost sm" title="Lier la page actuelle" onclick="chatLinkView()">🔗</button>
           <textarea id="chatInput" rows="1" placeholder="Écrire un message…  (@nom pour mentionner)" style="flex:1;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend();}"></textarea>
           <button class="btn p sm" onclick="chatSend()">Envoyer</button></div></div></div>`;
-  chatRenderPeers(); if(window._CHAT.activeId) chatOpen(window._CHAT.activeId);
+  chatRenderPeers();
+  if(window._CHAT.activeId) chatOpen(window._CHAT.activeId);
+  else { const th=document.getElementById("chatThread"); if(th) th.innerHTML='<div class="note" style="margin:auto;text-align:center">👈 Choisissez un contact pour démarrer la conversation.</div>'; }
 }
 function chatRenderPeers(){
   const box=document.getElementById("chatPeers"); if(!box) return;
@@ -6180,7 +6184,7 @@ async function chatDownload(msgId){ try{ const r=await fetch("/api/messages/file
   const blob=await r.blob(); const cd=r.headers.get("Content-Disposition")||""; const nm=(cd.match(/filename="?([^"]+)"?/)||[])[1]||"piece-jointe";
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nm; a.click(); }catch(e){ alert(e.message); } }
 async function chatSend(){
-  const uid=window._CHAT.activeId; if(!uid) return;
+  const uid=window._CHAT.activeId; if(!uid){ alert("Sélectionnez d'abord un contact à gauche."); return; }
   const ta=document.getElementById("chatInput"); const text=(ta.value||"").trim();
   if(!text && !window._CHAT._pendingFile && !window._CHAT._pendingLink) return;
   const body={text, attachment:window._CHAT._pendingFile?{storedAs:window._CHAT._pendingFile.storedAs,name:window._CHAT._pendingFile.name,size:window._CHAT._pendingFile.size}:null, link:window._CHAT._pendingLink||null};
@@ -6346,14 +6350,22 @@ async function smqDocsView(){
     <div style="margin-bottom:10px"><button class="btn p" onclick="smqDocForm()">+ Nouveau document</button>
       <button class="btn ghost" onclick="go('smqdoctypes')" title="Types & numérotation">⚙️ Types de documents</button>
       <button class="btn ghost" onclick="go('smqregister')">📋 Registre (§7.5)</button></div>
-    <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Titre</th><th>Type</th><th>Version</th><th>Statut</th><th>Prochaine revue</th><th></th></tr>
-      ${docs.length?docs.map(d=>`<tr><td><b>${esc(d.ref)}</b></td><td>${esc(d.titre)}<div class="note" style="font-size:11px">${d.processId?esc(smqProcName(d.processId)):""}</div></td>
-        <td>${esc(d.typeCode)}</td><td>${esc(d.versionCourante||"")} <span class="note">(${d.nbVersions})</span></td>
-        <td>${SMQ_DOC_STATUS[d.statutCourant]||esc(d.statutCourant)}</td>
-        <td>${d.nextReviewDate?esc(d.nextReviewDate):'<span class="note">—</span>'}</td>
-        <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
-          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqDocOpen('${d.id}')">📂 Versions</button>
-        </div></td></tr>`).join(""):'<tr><td colspan="7" class="note">Aucun document. Créez le premier (Manuel, Livret, Procédure…).</td></tr>'}</table></div>`;
+    ${smqDocsByTypeHtml(docs)}`;
+}
+const SMQ_DOCTYPE_LABEL={MQ:"📘 Manuel Qualité",LP:"📗 Livrets de processus",PR:"📄 Procédures",FM:"🧾 Formulaires",EN:"🗂️ Enregistrements",PO:"📜 Politiques","?":"Autres"};
+function smqDocsByTypeHtml(docs){
+  if(!docs.length) return '<div class="panel note">Aucun document. Créez le premier (Manuel, Livret, Procédure…).</div>';
+  const groups={}; docs.forEach(d=>{ const k=d.typeCode||"?"; (groups[k]=groups[k]||[]).push(d); });
+  const order=["MQ","PO","LP","PR","FM","EN","?"];
+  const keys=Object.keys(groups).sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
+  const row=(d)=>`<tr><td><b>${esc(d.ref)}</b></td><td>${esc(d.titre)}<div class="note" style="font-size:11px">${d.processId?esc(smqProcName(d.processId)):""}</div></td>
+    <td>${esc(d.versionCourante||"")} <span class="note">(${d.nbVersions})</span></td>
+    <td>${SMQ_DOC_STATUS[d.statutCourant]||esc(d.statutCourant)}</td>
+    <td>${d.nextReviewDate?esc(d.nextReviewDate):'<span class="note">—</span>'}</td>
+    <td><button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqDocOpen('${d.id}')">📂 Versions</button></td></tr>`;
+  return keys.map(k=>`<div class="panel" style="margin-bottom:10px"><b>${SMQ_DOCTYPE_LABEL[k]||esc(k)} <span class="note">(${groups[k].length})</span></b>
+    <table style="width:100%;margin-top:6px"><tr><th>Réf</th><th>Titre</th><th>Version</th><th>Statut</th><th>Prochaine revue</th><th></th></tr>
+    ${groups[k].map(row).join("")}</table></div>`).join("");
 }
 async function smqDocForm(){
   await smqLoadRefs();
@@ -7532,7 +7544,7 @@ async function smqTdbListView(){
       <input type="file" id="tdbImp" accept=".xlsx" class="hidden" onchange="smqTdbImport(this)"></div>`:''}
     <div class="panel"><table style="width:100%"><tr><th>Processus</th><th>Titre</th><th>Année</th><th class="r">Indicateurs</th><th></th></tr>
       ${rows.map(t=>`<tr><td><b>${esc(t.processCode||'')}</b></td><td>${esc(t.titre||'')}</td><td>${t.annee}</td><td class="r">${t.nbIndicateurs}</td>
-        <td><button class="btn ghost sm" onclick="smqTdbOpen('${t.id}')">📊 Ouvrir</button></td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucun tableau de bord. '+(smqIsManager()?'Créez-en un ou importez votre TdB Excel.':'')+'</td></tr>'}</table></div>`;
+        <td><button class="btn ghost sm" onclick="smqTdbOpen('${t.id}')">📊 Ouvrir</button>${smqIsManager()?` <button class="btn ghost sm" style="color:var(--red)" onclick="smqTdbDelete('${t.id}')">🗑</button>`:''}</td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucun tableau de bord. '+(smqIsManager()?'Créez-en un ou importez votre TdB Excel.':'')+'</td></tr>'}</table></div>`;
 }
 async function smqTdbNew(){
   await smqLoadRefs(); const procs=window._SMQ.procs||[];
@@ -7567,7 +7579,9 @@ async function smqTdbOpen(idv){
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           ${d.canEditData?`<button class="btn p sm" onclick="smqTdbData()">✏️ Saisir les données</button>`:''}
           ${d.canEditDef?`<button class="btn ghost sm" onclick="smqTdbDef()">⚙️ Définition</button>`:''}
-          <button class="btn ghost sm" onclick="smqTdbExport('${t.id}')">⬇️ Excel</button></div></div>
+          ${d.canEditDef?`<button class="btn ghost sm" onclick="smqTdbRemind('${t.id}')">🔔 Rappel pilote</button>`:''}
+          <button class="btn ghost sm" onclick="smqTdbExport('${t.id}')">⬇️ Excel</button>
+          ${d.canEditDef?`<button class="btn ghost sm" style="color:var(--red)" onclick="smqTdbDelete('${t.id}')">🗑 Supprimer</button>`:''}</div></div>
       <div style="overflow:auto;margin-top:10px"><table style="width:100%;min-width:1000px;font-size:13px">
         <tr><th style="text-align:left">Indicateur</th><th>Fréq.</th>${TDB_MOIS.map(m=>`<th class="r">${m.slice(0,3)}</th>`).join("")}<th class="r">Cible</th><th class="r">Résultat</th><th>Appr.</th></tr>
         ${c.indicators.map(i=>`<tr><td style="text-align:left">${esc(i.libelle)}</td><td style="text-align:center">${esc(i.freq||'')}</td>
@@ -7577,6 +7591,14 @@ async function smqTdbOpen(idv){
       <div class="note" style="margin-top:6px">🟢 ≥ cible · 🟠 proche · 🔴 loin de la cible. Le pilote saisit les données de base ; les formules ne sont pas modifiables par le pilote.</div>
     </div>`;
 }
+async function smqTdbRemind(idv){
+  const msg=prompt("Message de rappel au pilote/co-pilote :","Rappel : merci de mettre à jour ce tableau de bord.");
+  if(msg===null)return;
+  try{ const r=await api("/smq/tdb/"+idv+"/remind",{method:"POST",body:JSON.stringify({message:msg})}); alert("Rappel envoyé à "+r.sent+" personne(s) (visible dans leur messagerie 💬)."); refreshChatUnread&&refreshChatUnread(); }
+  catch(e){ alert(e.message); }
+}
+async function smqTdbDelete(idv){ if(!confirm("Supprimer ce tableau de bord et ses données ?"))return;
+  try{ await api("/smq/tdb/"+idv,{method:"DELETE"}); go('smqtdb'); }catch(e){ alert(e.message); } }
 async function smqTdbExport(idv){ try{ const r=await fetch("/api/smq/tdb/"+idv+"/export",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Export indisponible");
   const blob=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="TdB.xlsx"; a.click(); }catch(e){ alert(e.message); } }
 /* Saisie des données de base (pilote) */

@@ -1518,4 +1518,26 @@ router.post("/risks/import", allow(...RW), (req, res) => {
   res.json({ ok: true, added });
 });
 
+/* ---- Rappel du responsable SMQ au pilote/co-pilote (mise à jour du tableau de bord) ---- */
+router.post("/tdb/:id/remind", allow(...RW), (req, res) => {
+  if (!mgrOnly(req, res)) return;
+  const t = mine(db.smqTdb, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  const p = mine(db.smqProcesses, req).find(x => x.id === t.processId) || {};
+  const targets = [p.piloteUserId, p.coPiloteUserId].filter(Boolean);
+  if (!targets.length) return res.status(400).json({ error: "Aucun pilote/co-pilote attribué à ce processus." });
+  const text = (req.body && req.body.message) || `Rappel : merci de mettre à jour le tableau de bord « ${t.titre} » (${p.code || ""} · ${t.annee}).`;
+  if (!db.dmMessages) db.dmMessages = [];
+  let chat = null; try { chat = require("../chat"); } catch (e) {}
+  let sent = 0;
+  for (const uid of targets) {
+    const m = stamp({ id: id("dm"), fromId: req.user.id, fromName: req.user.fullName, toId: uid, text,
+      at: now(), readAt: null, attachment: null, link: { type: "view", id: "smqtdb", label: "Tableau de bord " + (p.code || "") }, mentions: [] }, req);
+    db.dmMessages.push(m);
+    if (chat) try { chat.deliver(uid, { type: "message", message: m }); } catch (e) {}
+    sent++;
+  }
+  save(); audit(req.user, "CREATED", "SmqReminder", t.id, { sent });
+  res.json({ ok: true, sent });
+});
+
 module.exports = router;
