@@ -9,6 +9,7 @@ const multer = require("multer");
 const { db, save, id, mine, stamp } = require("../store");
 const { audit } = require("../audit");
 const chat = require("../chat");
+const auth = require("../auth");
 
 if (!db.dmMessages) db.dmMessages = [];
 const MSG_DIR = path.join(__dirname, "..", "..", "uploads", "msg");
@@ -34,7 +35,7 @@ router.get("/conversations", (req, res) => {
     conv.sort((a, b) => String(a.at).localeCompare(String(b.at)));
     const last = conv[conv.length - 1] || null;
     const unread = conv.filter(m => m.toId === me && !m.readAt).length;
-    return { id: u.id, fullName: u.fullName, role: u.role, active: u.active, online: chat.online(u.id),
+    return { id: u.id, fullName: u.fullName, role: u.role, active: u.active, online: chat.online(u.id) || auth.isRecentlyActive(u.id),
       last: last ? { text: last.text, at: last.at, fromMe: last.fromId === me, hasAttachment: !!(last.attachment) } : null, unread };
   }).sort((a, b) => (b.unread - a.unread) || String((b.last || {}).at || "").localeCompare(String((a.last || {}).at || "")));
   res.json(rows);

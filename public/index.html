@@ -1026,6 +1026,7 @@ async function boot() {
   connectChat();
   refreshChatUnread();
   if(!window._chatPoll) window._chatPoll=setInterval(refreshChatUnread, 30000);
+  if(!window._chatFast) window._chatFast=setInterval(chatFastPoll, 4000);
 }
 function buildNav() {
   const _adm = ME.role === "ADM" || ME.role === "SADM";
@@ -6129,6 +6130,25 @@ async function refreshChatUnread(){ try{ const r=await api("/messages/unread"); 
   updateChatBadge(); }catch(_){}}
 function updateChatBadge(){ const el=document.getElementById("chatBell"); if(el) el.textContent=window._CHAT.totalUnread>0?("💬 "+window._CHAT.totalUnread):"💬"; }
 
+async function chatFastPoll(){
+  if(window.CURRENT_VIEW!=="discussion") return;
+  const wsOk = window._CHAT.ws && window._CHAT.ws.readyState===1;
+  try{
+    const peers=await api("/messages/conversations").catch(()=>null);
+    if(peers){ const sig=JSON.stringify(peers.map(p=>[p.id,p.online,p.unread,(p.last||{}).at])); if(sig!==window._CHAT._peerSig){ window._CHAT._peerSig=sig; window._CHAT.peers=peers; chatRenderPeers();
+      const uid0=window._CHAT.activeId, pp=peers.find(x=>x.id===uid0); const head=document.getElementById("chatHead");
+      if(pp&&head) head.innerHTML=`${esc(pp.fullName||"")} ${pp.online?'<span class="tag green" style="font-size:11px">en ligne</span>':'<span class="note" style="font-size:11px">hors ligne</span>'}`;
+    } }
+    const uid=window._CHAT.activeId;
+    if(uid){ const msgs=await api("/messages/with/"+uid).catch(()=>null);
+      if(msgs){ const prev=window._CHAT.msgs[uid]||[];
+        if(msgs.length!==prev.length){ const last=msgs[msgs.length-1]; const incoming=last&&last.fromId!==(ME&&ME.id);
+          window._CHAT.msgs[uid]=msgs; chatRenderThread();
+          if(incoming){ if(!wsOk) chatBeep(); chatMarkRead(uid); }
+        } }
+    }
+  }catch(_){}
+}
 async function discussionView(){
   const peers=await api("/messages/conversations").catch(()=>[]);
   window._CHAT.peers=peers;

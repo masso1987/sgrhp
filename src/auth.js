@@ -32,6 +32,8 @@ function policy() {
 /* Server-side idle tracking: userId -> last request time (in memory, per instance). */
 const lastSeen = new Map();
 function touchActivity(userId) { lastSeen.set(userId, Date.now()); }
+/* Presence sans WebSocket : actif si une requête a eu lieu récemment. */
+function isRecentlyActive(userId, windowMs) { const t = lastSeen.get(userId); return !!t && (Date.now() - t) < (windowMs || 70000); }
 function twoFaRequiredFor(user) {
   const p = policy();
   return user.totpEnabled || p.require2faForAll || (p.require2faForAdmins && user.role === "ADM");
@@ -213,5 +215,5 @@ function totpDisable(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { login, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy,
+module.exports = { login, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive,
   totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor };
