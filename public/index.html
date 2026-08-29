@@ -955,6 +955,7 @@ const NAV = [
   { k: "stocksuppliers", label: "🚚 Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
   { k: "stockclients", label: "🧑‍💼 Clients", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
 
+  { k: "smqworkspace", label: "🗂️ Mon espace", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqhome", label: "📊 Tableau de bord", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqprocesses", label: "🗺️ Cartographie & processus", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.processes", module: "quality", grp: "qualite" },
   { k: "smqaxes", label: "🎯 Politique & axes", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
@@ -1111,7 +1112,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -7662,6 +7663,30 @@ async function smqGovManager(uid,on){
 async function smqGovPilote(pid,field,val){
   try{ await api("/smq/processes/"+pid+"/pilotes",{method:"PUT",body:JSON.stringify({[field]:val||null})}); window._SMQ._at=0; }
   catch(e){ alert(e.message); smqGovView(); }
+}
+
+/* ---- Mon espace SMQ (pilote/co-pilote et responsable) ---- */
+async function smqWorkspaceView(){
+  const d=await api("/smq/workspace").catch(()=>null);
+  if(!d){ view.innerHTML='<h1>🗂️ Mon espace SMQ</h1><div class="panel">Indisponible.</div>'; return; }
+  const tile=(ico,lbl,n,onclick,color)=>`<div onclick="${onclick}" style="cursor:pointer;flex:1;min-width:118px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">
+    <div style="font-size:20px">${ico}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">${lbl}</div><div style="font-size:18px;font-weight:700;${color&&n>0?'color:'+color:''}">${n==null?'':n}</div></div>`;
+  view.innerHTML=`<h1>🗂️ Mon espace SMQ <span class="note" style="font-size:13px">— ${esc(d.role)}</span></h1>
+    ${d.processes.length?d.processes.map(p=>`<div class="panel" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center">
+        <div><b style="font-size:16px">${esc(p.code)} — ${esc(p.intitule)}</b>
+          <div class="note">${p.piloteName?'Pilote : '+esc(p.piloteName):''}${p.coPiloteName?' · Co-pilote : '+esc(p.coPiloteName):''}${p.statut==='sommeil'?' · <span class="tag gray">En sommeil</span>':''}</div></div>
+        <button class="btn ghost sm" onclick="smqLivret('${p.id}')">📘 Livret du processus</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        ${tile('📄','Documents',p.documents,"go('smqdocs')")}
+        ${tile('📋','Registre §7.5','',"go('smqregister')")}
+        ${tile('⚠️','Risques',p.risques,"go('smqrisks')",'#dc2626')}
+        ${tile('💡','Opportunités',p.opportunites,"go('smqrisks')")}
+        ${tile('🛠️','Plan d amélioration',p.ameliorations,"go('smqimprovements')",'#f97316')}
+        ${tile('📊','Tableau de bord',p.tdb,"go('smqtdb')")}
+        ${tile('🎯','Objectifs',p.objectifs,"smqLivret('"+p.id+"')")}</div>
+      ${Object.keys(p.docsByType||{}).length?`<div class="note" style="margin-top:6px">Documents : ${Object.keys(p.docsByType).map(k=>esc(k)+' ('+p.docsByType[k]+')').join(' · ')}</div>`:''}
+    </div>`).join(""):'<div class="panel note">Aucun processus ne vous est attribué. Contactez le responsable SMQ ou administrateur.</div>'}`;
 }
 
 /* ================= Gestion de stock ================= */

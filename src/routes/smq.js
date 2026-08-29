@@ -1284,6 +1284,28 @@ router.get("/users", allow(...RO), (req, res) => {
   res.json((db.users || []).filter(u => (u.tenantId || "t1") === (req.user.tenantId || "t1") && u.role !== "SADM")
     .map(u => ({ id: u.id, fullName: u.fullName, role: u.role, smqManager: !!u.smqManager, active: u.active })));
 });
+router.get("/workspace", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const manager = isManager(req);
+  const ids = manager ? mine(db.smqProcesses, req).map(p => p.id) : myProcessIds(req);
+  const procs = mine(db.smqProcesses, req).filter(p => ids.includes(p.id)).sort((a, b) => (a.ordre || 99) - (b.ordre || 99));
+  const docs = mine(db.smqDocuments, req), risks = mine(db.smqRisks, req), tdb = mine(db.smqTdb, req), imps = mine(db.smqImprovements, req);
+  const out = procs.map(p => {
+    const pdocs = docs.filter(d => d.processId === p.id);
+    const byType = {}; pdocs.forEach(d => { const k = d.typeCode || "?"; byType[k] = (byType[k] || 0) + 1; });
+    const prisks = risks.filter(r => r.processId === p.id);
+    return {
+      id: p.id, code: p.code, intitule: p.intitule, type: p.type, statut: p.statut,
+      piloteName: p.piloteName || "", coPiloteName: p.coPiloteName || "",
+      documents: pdocs.length, docsByType: byType,
+      risques: prisks.filter(r => (r.sens || "R") === "R").length, opportunites: prisks.filter(r => r.sens === "O").length,
+      tdb: tdb.filter(t => t.processId === p.id).length,
+      ameliorations: imps.filter(i => i.processId === p.id && i.statut !== "cloturee").length,
+      objectifs: (p.objectifs || []).length,
+    };
+  });
+  res.json({ manager, role: manager ? "Responsable SMQ" : "Pilote / Co-pilote", processes: out });
+});
 router.get("/my-context", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
   const manager = isManager(req);
