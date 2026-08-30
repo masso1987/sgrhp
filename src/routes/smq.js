@@ -1190,7 +1190,7 @@ router.post("/documents/import-register", allow(...RW), smqImport.single("file")
   if (!_buf) return res.status(400).json({ error: "Fichier manquant" });
   let rows;
   try {
-    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true });
+    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true, sheetRows: 20000, bookDeps: false });
     const ws = wb.Sheets["Informations documentées"] || wb.Sheets[wb.SheetNames[0]];
     rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
   } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
@@ -1422,7 +1422,7 @@ router.post("/tdb/import", allow(...RW), smqImport.single("file"), (req, res) =>
   if (!_buf || !b.processId) return res.status(400).json({ error: "Fichier et processus obligatoires" });
   let baseAoa, tbAoa;
   try {
-    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true });
+    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true, sheetRows: 20000, bookDeps: false });
     const wsB = wb.Sheets["Base de données"] || wb.Sheets[wb.SheetNames[0]];
     const wsT = wb.Sheets["Tableau de bord"] || wb.Sheets[wb.SheetNames[1]];
     baseAoa = XLSX.utils.sheet_to_json(wsB, { header: 1, blankrows: false, defval: "" });
@@ -1493,7 +1493,7 @@ router.post("/risks/import", allow(...RW), smqImport.single("file"), (req, res) 
   if (!_buf) return res.status(400).json({ error: "Fichier manquant" });
   let rows;
   try {
-    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true });
+    const wb = XLSX.read(_buf, { type: "buffer", cellDates: true, sheetRows: 20000, bookDeps: false });
     const ws = wb.Sheets["Risques"] || wb.Sheets[wb.SheetNames[0]];
     rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
   } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
