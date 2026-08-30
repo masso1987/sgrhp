@@ -890,6 +890,7 @@ const NAV = [
   { k: "subs", label: "⏳ Abonnements & licences", roles: ["SADM"], grp: "plateforme" },
   { k: "pricing", label: "💲 Tarifs & paiements", roles: ["SADM"], grp: "plateforme" },
   { k: "legal", label: "📄 Mentions légales", roles: ["SADM"], grp: "plateforme" },
+  { k: "superadmins", label: "🛡️ Admins plateforme", roles: ["SADM"], grp: "plateforme" },
 
   { k: "dash", label: "▦ Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "employees", label: "👥 Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
@@ -1117,7 +1118,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -2953,6 +2954,71 @@ async function impCommit() {
   } catch (e) { alert(e.message); }
 }
 
+
+/* ================= Plateforme : administrateurs (SADM) ================= */
+async function superadminsView(){
+  let list;
+  try{ list=await api("/tenants/superadmins/list"); }
+  catch(e){ view.innerHTML='<h1>🛡️ Administrateurs plateforme</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  const rows=list.map(u=>`<tr>
+      <td><b>${esc(u.fullName)}</b>${u.self?' <span class="note">(vous)</span>':''}</td>
+      <td>${esc(u.email)}</td>
+      <td>${u.twoFactor?'<span class="tag green">2FA ✓</span>':'<span class="tag amber">2FA non</span>'}</td>
+      <td>${u.active?'<span class="tag green">Actif</span>':'<span class="tag gray">Désactivé</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn ghost sm" onclick="saReset('${u.id}','${esc(u.fullName)}')">🔑 Réinit. mot de passe</button>
+        ${u.self?'':`<button class="btn ghost sm" onclick="saToggle('${u.id}',${u.active?'false':'true'})">${u.active?'⛔ Désactiver':'✅ Activer'}</button>`}
+      </td></tr>`).join("");
+  view.innerHTML=`<h1>🛡️ Administrateurs plateforme</h1>
+    <div class="note" style="margin-bottom:8px">Comptes super-administrateur (SADM) : accès complet à la plateforme (tenants, abonnements, tarifs, mentions légales, messagerie).</div>
+    <div class="panel" style="margin-bottom:12px">
+      <b>Super-administrateurs (${list.length})</b>
+      <table style="margin-top:8px"><tr><th>Nom</th><th>Email</th><th>2FA</th><th>Statut</th><th></th></tr>${rows}</table>
+    </div>
+    <div class="grid2">
+      <div class="panel"><b>➕ Créer un super-admin</b>
+        <label>Nom complet</label><input id="saName" placeholder="Ex. MASSO FERDINE">
+        <label>Email</label><input id="saEmail" type="email" placeholder="nom@exemple.com">
+        <label>Mot de passe (min. 10, maj/min/chiffre)</label><input id="saPw" type="text" placeholder="laisser vide = mot de passe temporaire généré">
+        <div class="err hidden" id="saErr" style="margin-top:8px"></div>
+        <div style="margin-top:10px"><button class="btn p" onclick="saCreate()">Créer</button></div>
+      </div>
+      <div class="panel"><b>⬆ Promouvoir un compte existant</b>
+        <p class="note">Donne le rôle super-admin à un utilisateur déjà créé (ex. un administrateur d’entreprise). Il est rattaché à la plateforme.</p>
+        <label>Email de l’utilisateur</label><input id="saPromoEmail" type="email" placeholder="nom@exemple.com">
+        <div class="err hidden" id="saPromoErr" style="margin-top:8px"></div>
+        <div style="margin-top:10px"><button class="btn p" onclick="saPromote()">Promouvoir en super-admin</button></div>
+      </div>
+    </div>`;
+}
+async function saCreate(){
+  const g=id=>document.getElementById(id);
+  const body={ fullName:g("saName").value.trim(), email:g("saEmail").value.trim(), password:g("saPw").value };
+  if(!body.password) delete body.password;
+  try{ const r=await api("/tenants/superadmins",{method:"POST",body:JSON.stringify(body)});
+    alert("Super-admin créé : "+r.email+(r.tempPassword?("\\nMot de passe temporaire : "+r.tempPassword+"\\nÀ communiquer puis à changer à la 1re connexion."):""));
+    superadminsView(); }
+  catch(e){ const el=g("saErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function saPromote(){
+  const g=id=>document.getElementById(id);
+  const email=g("saPromoEmail").value.trim();
+  if(!email) return;
+  try{ const r=await api("/tenants/superadmins/promote",{method:"POST",body:JSON.stringify({email})});
+    alert(r.fullName+" est désormais super-admin. Il doit se reconnecter pour voir les fonctions plateforme.");
+    superadminsView(); }
+  catch(e){ const el=g("saPromoErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function saReset(uid,name){
+  if(!confirm("Réinitialiser le mot de passe de "+name+" ?"))return;
+  try{ const r=await api("/tenants/superadmins/"+uid+"/reset",{method:"POST"});
+    alert("Nouveau mot de passe temporaire pour "+name+" :\\n"+r.tempPassword); }
+  catch(e){ alert(e.message); }
+}
+async function saToggle(uid,active){
+  try{ await api("/tenants/superadmins/"+uid+"/status",{method:"PUT",body:JSON.stringify({active})}); superadminsView(); }
+  catch(e){ alert(e.message); }
+}
 
 /* ================= Plateforme : mentions légales (SADM) ================= */
 async function legalView(){

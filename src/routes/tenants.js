@@ -342,4 +342,56 @@ router.get("/subscriptions/overview", allow("SADM"), (req, res) => {
     rows });
 });
 
+/* -------- Platform super-administrators (SADM) management -------- */
+router.get("/superadmins/list", allow("SADM"), (req, res) => {
+  res.json(db.users.filter(u => u.role === "SADM").map(u => ({
+    id: u.id, email: u.email, fullName: u.fullName, active: u.active !== false,
+    twoFactor: !!u.totpSecret, self: u.id === req.user.id })));
+});
+router.post("/superadmins", allow("SADM"), (req, res) => {
+  const { email, fullName, password } = req.body || {};
+  if (!email || !fullName) return res.status(400).json({ error: "Email et nom complet obligatoires" });
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email invalide" });
+  if (db.users.find(u => (u.email || "").toLowerCase() === email.toLowerCase()))
+    return res.status(409).json({ error: "Cet email existe déjà — utilisez « Promouvoir » pour lui donner le rôle super-admin." });
+  const pw = password || ("Admin" + new Date().getFullYear() + "!");
+  const pwErr = passwordPolicy(pw);
+  if (pwErr) return res.status(400).json({ error: pwErr });
+  const u = { id: id("usr"), email, fullName, role: "SADM", tenantId: "platform",
+    portfolioIds: [], password: hash(pw), active: true, createdAt: new Date().toISOString() };
+  db.users.push(u); save();
+  audit(req.user, "CREATED", "User", u.id, { role: "SADM", platform: true });
+  res.status(201).json({ id: u.id, email: u.email, fullName: u.fullName, tempPassword: password ? undefined : pw });
+});
+router.post("/superadmins/promote", allow("SADM"), (req, res) => {
+  const email = ((req.body || {}).email || "").trim().toLowerCase();
+  const u = db.users.find(x => (x.email || "").toLowerCase() === email);
+  if (!u) return res.status(404).json({ error: "Aucun utilisateur avec cet email" });
+  u.role = "SADM"; u.tenantId = "platform"; u.active = true; u.failedLogins = 0; u.lockedUntil = null;
+  save();
+  audit(req.user, "CONFIG_CHANGED", "User", u.id, { promotedTo: "SADM" });
+  res.json({ id: u.id, email: u.email, fullName: u.fullName, role: u.role });
+});
+router.post("/superadmins/:uid/reset", allow("SADM"), (req, res) => {
+  const u = db.users.find(x => x.id === req.params.uid && x.role === "SADM");
+  if (!u) return res.status(404).json({ error: "Super-admin introuvable" });
+  const pw = "Reinit" + Math.floor(1000 + Math.random() * 9000) + "Sa!";
+  u.password = hash(pw); u.failedLogins = 0; u.lockedUntil = null; save();
+  audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true, platform: true });
+  res.json({ tempPassword: pw });
+});
+router.put("/superadmins/:uid/status", allow("SADM"), (req, res) => {
+  const u = db.users.find(x => x.id === req.params.uid && x.role === "SADM");
+  if (!u) return res.status(404).json({ error: "Super-admin introuvable" });
+  const active = !!(req.body || {}).active;
+  if (!active) {
+    if (u.id === req.user.id) return res.status(400).json({ error: "Impossible de désactiver votre propre compte" });
+    const others = db.users.filter(x => x.role === "SADM" && x.active !== false && x.id !== u.id).length;
+    if (others < 1) return res.status(400).json({ error: "Au moins un super-admin actif est requis" });
+  }
+  u.active = active; save();
+  audit(req.user, "CONFIG_CHANGED", "User", u.id, { active, platform: true });
+  res.json({ id: u.id, active: u.active });
+});
+
 module.exports = { router, MODULES, LEGAL_FORMS };
