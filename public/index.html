@@ -889,6 +889,7 @@ const NAV = [
   { k: "tenants", label: "🏢 Tenants (plateforme)", roles: ["SADM"], grp: "plateforme" },
   { k: "subs", label: "⏳ Abonnements & licences", roles: ["SADM"], grp: "plateforme" },
   { k: "pricing", label: "💲 Tarifs & paiements", roles: ["SADM"], grp: "plateforme" },
+  { k: "legal", label: "📄 Mentions légales", roles: ["SADM"], grp: "plateforme" },
 
   { k: "dash", label: "▦ Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "employees", label: "👥 Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
@@ -1116,7 +1117,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -2952,6 +2953,64 @@ async function impCommit() {
   } catch (e) { alert(e.message); }
 }
 
+
+/* ================= Plateforme : mentions légales (SADM) ================= */
+async function legalView(){
+  await legalLoadCustom();
+  window._LEGALEDIT = window._LEGALEDIT || { doc:"tos", lang:"fr" };
+  const {doc,lang}=window._LEGALEDIT;
+  const cur=window._LEGAL_CUSTOM||{};
+  const isCustom = !!(cur[doc] && typeof cur[doc][lang]==="string" && cur[doc][lang].length);
+  const content = legalContent(lang,doc);
+  const docLabel = doc==="tos" ? "Conditions d’utilisation / Terms of Service" : "Politique de confidentialité / Privacy Policy";
+  view.innerHTML=`<h1>📄 Mentions légales</h1>
+    <div class="note" style="margin-bottom:8px">Éditez le contenu HTML affiché sur la page de connexion et dans « Mon compte ». « Supprimer » retire la version personnalisée et rétablit le texte par défaut.</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <select id="lgDoc" onchange="legalEditPick()">
+        <option value="tos" ${doc==="tos"?"selected":""}>Conditions d’utilisation</option>
+        <option value="privacy" ${doc==="privacy"?"selected":""}>Politique de confidentialité</option>
+      </select>
+      <select id="lgLang" onchange="legalEditPick()">
+        <option value="fr" ${lang==="fr"?"selected":""}>Français</option>
+        <option value="en" ${lang==="en"?"selected":""}>English</option>
+      </select>
+      <span class="tag ${isCustom?"amber":"gray"}">${isCustom?"Version personnalisée":"Version par défaut"}</span>
+    </div>
+    <div class="grid2">
+      <div><label>Contenu HTML — ${esc(docLabel)} (${lang.toUpperCase()})</label>
+        <textarea id="lgContent" rows="20" style="font-family:monospace;font-size:12px;width:100%" oninput="legalPreview()">${esc(content)}</textarea></div>
+      <div><label>Aperçu</label><div id="lgPrev" class="panel" style="max-height:520px;overflow:auto;line-height:1.5">${content}</div></div>
+    </div>
+    <div class="err hidden" id="lgErr" style="margin-top:8px"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn p" onclick="legalSave()">💾 Enregistrer</button>
+      <button class="btn ghost" onclick="openLegal('${doc}','${lang}')">👁 Prévisualiser (fenêtre)</button>
+      <button class="btn ghost" onclick="legalResetLang()">↩ Réinitialiser cette langue</button>
+      <button class="btn ghost" style="color:var(--red)" onclick="legalDeleteDoc()">🗑 Supprimer ce document (FR + EN)</button>
+    </div>`;
+}
+function legalEditPick(){ window._LEGALEDIT={doc:document.getElementById("lgDoc").value,lang:document.getElementById("lgLang").value}; legalView(); }
+function legalPreview(){ const el=document.getElementById("lgPrev"); if(el) el.innerHTML=document.getElementById("lgContent").value; }
+async function legalSave(){
+  const {doc,lang}=window._LEGALEDIT; const content=document.getElementById("lgContent").value;
+  try{ await api("/tenants/config/legal",{method:"PUT",body:JSON.stringify({doc,lang,content})});
+    await legalLoadCustom(); alert("Document enregistré."); legalView(); }
+  catch(e){ const el=document.getElementById("lgErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function legalResetLang(){
+  const {doc,lang}=window._LEGALEDIT;
+  if(!confirm("Réinitialiser la version "+lang.toUpperCase()+" de ce document au texte par défaut ?"))return;
+  try{ await api("/tenants/config/legal/"+doc+"?lang="+lang,{method:"DELETE"});
+    await legalLoadCustom(); alert("Réinitialisé."); legalView(); }
+  catch(e){ alert(e.message); }
+}
+async function legalDeleteDoc(){
+  const {doc}=window._LEGALEDIT;
+  if(!confirm("Supprimer la version personnalisée de ce document (FR et EN) ? Le texte par défaut sera rétabli."))return;
+  try{ await api("/tenants/config/legal/"+doc,{method:"DELETE"});
+    await legalLoadCustom(); alert("Document supprimé (retour au défaut)."); legalView(); }
+  catch(e){ alert(e.message); }
+}
 
 /* ================= Plateforme : abonnements & licences (SADM) ================= */
 function subXAF(n){ return Number(n||0).toLocaleString('fr-FR')+' FCFA'; }
@@ -9537,9 +9596,12 @@ function openLegal(doc,lang){ _legalDoc=doc||'tos'; if(lang)_legalLang=lang; var
 function closeLegal(){ var m=document.getElementById('legalModal'); if(m) m.style.display='none'; }
 function legalTab(d){ _legalDoc=d; legalRender(); }
 function legalLang(){ _legalLang=(_legalLang==='fr')?'en':'fr'; legalRender(); }
+window._LEGAL_CUSTOM = window._LEGAL_CUSTOM || {};
+async function legalLoadCustom(){ try{ const r=await fetch('/api/legal'); if(r.ok) window._LEGAL_CUSTOM=(await r.json())||{}; }catch(e){} }
+function legalContent(lang,doc){ var c=(window._LEGAL_CUSTOM||{})[doc]; if(c && typeof c[lang]==='string' && c[lang].length) return c[lang]; return (LEGAL[lang]||LEGAL.fr)[doc]||''; }
 function legalRender(){
-  var L=(LEGAL[_legalLang]||LEGAL.fr); var body=document.getElementById('legalBody'); if(!body) return;
-  body.innerHTML=L[_legalDoc]||''; body.scrollTop=0;
+  var body=document.getElementById('legalBody'); if(!body) return;
+  body.innerHTML=legalContent(_legalLang,_legalDoc)||''; body.scrollTop=0;
   var fr=(_legalLang==='fr');
   document.getElementById('legalTitle').textContent = (_legalDoc==='tos') ? (fr?'Conditions d’utilisation':'Terms of Service') : (fr?'Politique de confidentialité':'Privacy Policy');
   document.getElementById('legalLangBtn').textContent = fr?'EN':'FR';
@@ -9550,6 +9612,7 @@ function legalRender(){
   document.getElementById('legalTabPriv').style.border = (_legalDoc==='privacy')?on:off;
 }
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeLegal(); });
+legalLoadCustom();
 </script>
 </body>
 </html>

@@ -60,6 +60,10 @@ app.post("/api/2fa/confirm", loginLimiter, require("./auth").totpConfirm);
 
 // Health endpoint for load balancers / uptime monitoring
 // Public branding — no auth, so the login screen reflects the tenant's identity
+app.get("/api/legal", (req, res) => {
+  const s = require("./routes/settings").settings();
+  res.json((s && s.legal) || {});
+});
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json(s.branding);

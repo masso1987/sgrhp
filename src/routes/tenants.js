@@ -284,6 +284,35 @@ router.delete("/:id/license/:key", allow("SADM"), (req, res) => {
   res.json({ id: t.id, modules: t.modules });
 });
 
+/* -------- Legal documents (Terms / Privacy), editable by SADM -------- */
+function legalCfg() { const s = db.settings = db.settings || {}; if (!s.legal) s.legal = {}; return s.legal; }
+router.get("/config/legal", allow("SADM"), (req, res) => res.json(legalCfg()));
+router.put("/config/legal", allow("SADM"), (req, res) => {
+  const b = req.body || {};
+  const doc = b.doc, lang = b.lang;
+  if (!["tos", "privacy"].includes(doc)) return res.status(400).json({ error: "Document invalide (tos|privacy)" });
+  if (!["fr", "en"].includes(lang)) return res.status(400).json({ error: "Langue invalide (fr|en)" });
+  const L = legalCfg();
+  L[doc] = L[doc] || {};
+  L[doc][lang] = String(b.content != null ? b.content : "");
+  L[doc].updatedAt = new Date().toISOString();
+  L[doc].updatedBy = req.user.id;
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Legal", doc, { lang });
+  res.json(L);
+});
+router.delete("/config/legal/:doc", allow("SADM"), (req, res) => {
+  const doc = req.params.doc;
+  if (!["tos", "privacy"].includes(doc)) return res.status(400).json({ error: "Document invalide" });
+  const L = legalCfg();
+  const lang = req.query.lang;
+  if (lang && ["fr", "en"].includes(lang) && L[doc]) { delete L[doc][lang]; }
+  else { delete L[doc]; }                                   // remove the whole custom document -> revert to default
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Legal", doc, { deleted: true, lang: lang || "all" });
+  res.json(L);
+});
+
 /* -------- Subscription follow-up (all tenants) -------- */
 router.get("/subscriptions/overview", allow("SADM"), (req, res) => {
   const cfg = pricingCfg();
