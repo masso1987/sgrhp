@@ -24,6 +24,36 @@ const MODULES = [
   { key: "quality", label: "Qualité (SMQ)", core: false },
 ];
 
+/* Subscription / licensing (platform monetisation). Prices are in XAF (FCFA) and
+ * fully editable in-app by the SADM; these are only initial placeholders. */
+const PAYMENT_METHODS = ["MTN Mobile Money", "Orange Money", "Virement bancaire", "Espèces / chèque"];
+const DEFAULT_PRICING = {
+  hr:         { monthly: 20000, yearly: 200000 },
+  careers:    { monthly: 15000, yearly: 150000 },
+  payroll:    { monthly: 25000, yearly: 250000 },
+  accounting: { monthly: 25000, yearly: 250000 },
+  invoicing:  { monthly: 15000, yearly: 150000 },
+  stock:      { monthly: 20000, yearly: 200000 },
+  quality:    { monthly: 20000, yearly: 200000 },
+};
+function pricingCfg() {
+  const s = db.settings = db.settings || {};
+  if (!s.pricing) s.pricing = { currency: "XAF", methods: PAYMENT_METHODS.slice(), modules: {} };
+  if (!s.pricing.currency) s.pricing.currency = "XAF";
+  if (!Array.isArray(s.pricing.methods) || !s.pricing.methods.length) s.pricing.methods = PAYMENT_METHODS.slice();
+  if (!s.pricing.modules) s.pricing.modules = {};
+  for (const m of MODULES) if (!s.pricing.modules[m.key]) s.pricing.modules[m.key] = { ...(DEFAULT_PRICING[m.key] || { monthly: 0, yearly: 0 }) };
+  return s.pricing;
+}
+function defaultPrice(key, term) { const p = pricingCfg().modules[key] || {}; return Number(p[term]) || 0; }
+function addMonths(d, n) { const x = new Date(d); const day = x.getDate(); x.setMonth(x.getMonth() + n); if (x.getDate() < day) x.setDate(0); return x; }
+function licStatus(lic) {
+  if (!lic || !lic.endAt) return { state: "none", daysLeft: null };
+  const daysLeft = Math.ceil((new Date(lic.endAt).getTime() - Date.now()) / 86400000);
+  const state = daysLeft < 0 ? "expired" : (daysLeft <= 30 ? "expiring" : "active");
+  return { state, daysLeft, endAt: lic.endAt };
+}
+
 const LEGAL_FORMS = ["SARL", "SA", "SAS", "SNC", "SCS", "GIE", "EI", "Établissement", "Association", "Coopérative"];
 const NIU_RE = /^[A-Z]\d{12}[A-Z]$/i;               // e.g. M10300015976N (14 chars)
 
@@ -194,6 +224,93 @@ router.put("/:id/users/:uid/status", allow("SADM"), (req, res) => {
   u.active = !!req.body.active; save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { active: u.active, tenant: t.id });
   res.json({ id: u.id, active: u.active });
+});
+
+/* -------- Pricing catalogue (editable by SADM) -------- */
+router.get("/config/pricing", allow("SADM"), (req, res) => res.json(pricingCfg()));
+router.put("/config/pricing", allow("SADM"), (req, res) => {
+  const p = pricingCfg(); const b = req.body || {};
+  if (b.currency) p.currency = String(b.currency);
+  if (Array.isArray(b.methods)) p.methods = b.methods.map(String).filter(Boolean);
+  if (b.modules && typeof b.modules === "object") {
+    for (const k of Object.keys(b.modules)) if (MODULES.some(m => m.key === k)) {
+      const mm = b.modules[k] || {};
+      p.modules[k] = {
+        monthly: Number(String(mm.monthly != null ? mm.monthly : 0).replace(/\s/g, "")) || 0,
+        yearly: Number(String(mm.yearly != null ? mm.yearly : 0).replace(/\s/g, "")) || 0,
+      };
+    }
+  }
+  save(); audit(req.user, "CONFIG_CHANGED", "Pricing", "pricing", {});
+  res.json(p);
+});
+
+/* -------- Per-tenant, per-module licence (activate / renew) -------- */
+router.put("/:id/license/:key", allow("SADM"), (req, res) => {
+  const t = tenants().find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Tenant introuvable" });
+  const key = req.params.key;
+  if (!MODULES.some(m => m.key === key)) return res.status(400).json({ error: "Module inconnu" });
+  const b = req.body || {};
+  const term = b.term === "monthly" ? "monthly" : "yearly";
+  const startAt = b.startAt ? new Date(b.startAt).toISOString() : new Date().toISOString();
+  const months = Number(b.months) > 0 ? Math.round(Number(b.months)) : (term === "yearly" ? 12 : 1);
+  const endAt = addMonths(new Date(startAt), months).toISOString();
+  const price = (b.priceXAF !== undefined && b.priceXAF !== "")
+    ? (Number(String(b.priceXAF).replace(/\s/g, "")) || 0) : defaultPrice(key, term);
+  t.licenses = t.licenses || {};
+  const prev = t.licenses[key];
+  const history = (prev && Array.isArray(prev.history)) ? prev.history : [];
+  if (prev && prev.endAt) history.push({ term: prev.term, startAt: prev.startAt, endAt: prev.endAt,
+    priceXAF: prev.priceXAF, method: prev.method, paid: prev.paid, archivedAt: new Date().toISOString(), by: req.user.fullName });
+  t.licenses[key] = { term, startAt, endAt, months, priceXAF: price, method: b.method || "",
+    paid: !!b.paid, note: b.note || "", updatedAt: new Date().toISOString(), updatedBy: req.user.id, history };
+  t.modules = [...new Set([...(t.modules || []), key])];   // licensing implies activation
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Tenant", t.id, { license: key, term, endAt, priceXAF: price, paid: !!b.paid });
+  res.json({ module: key, license: t.licenses[key], modules: t.modules, status: licStatus(t.licenses[key]) });
+});
+
+/* Deactivate a module licence (keeps history; core modules can't be removed). */
+router.delete("/:id/license/:key", allow("SADM"), (req, res) => {
+  const t = tenants().find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Tenant introuvable" });
+  const key = req.params.key;
+  if (MODULES.find(m => m.key === key && m.core)) return res.status(400).json({ error: "Module de base — non désactivable" });
+  t.modules = (t.modules || []).filter(k => k !== key);
+  if (t.licenses && t.licenses[key]) { t.licenses[key].cancelledAt = new Date().toISOString(); }
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Tenant", t.id, { licenseCancelled: key });
+  res.json({ id: t.id, modules: t.modules });
+});
+
+/* -------- Subscription follow-up (all tenants) -------- */
+router.get("/subscriptions/overview", allow("SADM"), (req, res) => {
+  const cfg = pricingCfg();
+  const rows = []; let mrr = 0, ayr = 0, unpaid = 0;
+  const counts = { active: 0, expiring: 0, expired: 0, none: 0 };
+  for (const t of tenants()) {
+    for (const m of MODULES) {
+      if (!(t.modules || []).includes(m.key)) continue;
+      const lic = (t.licenses || {})[m.key];
+      const st = licStatus(lic);
+      counts[st.state] = (counts[st.state] || 0) + 1;
+      if (lic) {
+        if (lic.term === "monthly") mrr += Number(lic.priceXAF) || 0;
+        if (lic.term === "yearly") ayr += Number(lic.priceXAF) || 0;
+        if (!lic.paid) unpaid += Number(lic.priceXAF) || 0;
+      }
+      rows.push({ tenantId: t.id, tenantName: t.name, tenantStatus: t.status,
+        module: m.key, moduleLabel: m.label, core: !!m.core,
+        term: lic ? lic.term : null, startAt: lic ? lic.startAt : null, endAt: lic ? lic.endAt : null,
+        priceXAF: lic ? lic.priceXAF : null, method: lic ? lic.method : null, paid: lic ? !!lic.paid : null,
+        state: st.state, daysLeft: st.daysLeft });
+    }
+  }
+  rows.sort((a, b) => (a.daysLeft == null) - (b.daysLeft == null) || (a.daysLeft || 0) - (b.daysLeft || 0));
+  res.json({ currency: cfg.currency, methods: cfg.methods, pricing: cfg.modules, counts,
+    revenue: { monthlyRecurringXAF: mrr, yearlyContractsXAF: ayr, annualizedXAF: mrr * 12 + ayr, unpaidXAF: unpaid },
+    rows });
 });
 
 module.exports = { router, MODULES, LEGAL_FORMS };

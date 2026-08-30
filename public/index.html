@@ -887,6 +887,8 @@ function logout() { sessionStorage.clear(); localStorage.removeItem("t"); localS
 
 const NAV = [
   { k: "tenants", label: "🏢 Tenants (plateforme)", roles: ["SADM"], grp: "plateforme" },
+  { k: "subs", label: "⏳ Abonnements & licences", roles: ["SADM"], grp: "plateforme" },
+  { k: "pricing", label: "💲 Tarifs & paiements", roles: ["SADM"], grp: "plateforme" },
 
   { k: "dash", label: "▦ Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "employees", label: "👥 Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
@@ -979,8 +981,8 @@ const NAV = [
   { k: "smqimprovements", label: "🛠️ Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
   { k: "smqevents", label: "🧭 Traçabilité qualité", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
   { k: "smqaudits", label: "🔍 Audits internes", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
-  { k: "discussion", label: "💬 Messages", sec: "Messagerie", roles: ["RQ","GPF","CD","RJ","UI","ADM"], grp: "discussion" },
-  { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["RQ","GPF","CD","RJ","UI","ADM"], grp: "admin" },
+  { k: "discussion", label: "💬 Messages", sec: "Messagerie", roles: ["RQ","GPF","CD","RJ","UI","ADM","SADM"], grp: "discussion" },
+  { k: "account", label: "👤 Mon compte", sec: "Mon espace", roles: ["RQ","GPF","CD","RJ","UI","ADM","SADM"], grp: "admin" },
   { k: "params", label: "🔧 Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "🛠 Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "portfolios", label: "⚙ Config. portefeuilles", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -1114,7 +1116,7 @@ function go(k) {
   const _it = NAV.find(n => n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e => e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -2950,6 +2952,137 @@ async function impCommit() {
   } catch (e) { alert(e.message); }
 }
 
+
+/* ================= Plateforme : abonnements & licences (SADM) ================= */
+function subXAF(n){ return Number(n||0).toLocaleString('fr-FR')+' FCFA'; }
+function subDaysBadge(st){
+  if(st.state==='none') return '<span class="tag gray">Aucune licence</span>';
+  const map={active:['#16a34a','Active'],expiring:['#f97316','Expire bientôt'],expired:['#dc2626','Expirée']};
+  const [c,l]=map[st.state]||['#6b7280',st.state];
+  const dl = st.daysLeft==null?'':(st.daysLeft<0?` (depuis ${Math.abs(st.daysLeft)} j)`:` (${st.daysLeft} j restants)`);
+  return `<span class="tag" style="background:${c};color:#fff">${l}${dl}</span>`;
+}
+async function subsView(){
+  let d; try{ d=await api("/tenants/subscriptions/overview"); }catch(e){ view.innerHTML='<h1>⏳ Abonnements & licences</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  window._SUBS=d;
+  const c=d.counts||{}, r=d.revenue||{};
+  const kpi=(lbl,val,col)=>`<div class="panel" style="flex:1;min-width:150px"><div class="note">${lbl}</div><div style="font-size:20px;font-weight:700;${col?'color:'+col:''}">${val}</div></div>`;
+  // group rows by tenant
+  const groups={}; const order=[];
+  (d.rows||[]).forEach(x=>{ if(!groups[x.tenantId]){groups[x.tenantId]=[];order.push(x);} groups[x.tenantId].push(x); });
+  const trows=order.map(h=>{
+    const list=groups[h.tenantId];
+    const body=list.map(x=>{
+      const st={state:x.state,daysLeft:x.daysLeft};
+      const per = x.startAt?`${(x.startAt||'').slice(0,10)} → ${(x.endAt||'').slice(0,10)}`:'—';
+      return `<tr>
+        <td>${esc(x.moduleLabel)}${x.core?' <span class="note">(base)</span>':''}</td>
+        <td>${x.term?(x.term==='yearly'?'Annuel':'Mensuel'):'—'}</td>
+        <td style="white-space:nowrap">${per}</td>
+        <td>${subDaysBadge(st)}</td>
+        <td class="r">${x.priceXAF!=null?subXAF(x.priceXAF):'—'}</td>
+        <td>${x.method?esc(x.method):'—'}</td>
+        <td>${x.priceXAF==null?'—':(x.paid?'<span class="tag green">Payé</span>':'<span class="tag amber">Impayé</span>')}</td>
+        <td><button class="btn ghost sm" onclick="subsLicenseForm('${x.tenantId}','${x.module}')">Gérer</button></td>
+      </tr>`;
+    }).join("");
+    return `<div class="panel" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <b style="font-size:15px">🏢 ${esc(h.tenantName)} <span class="note">${h.tenantStatus==='SUSPENDED'?'· suspendu':''}</span></b>
+        <button class="btn p sm" onclick="subsLicenseForm('${h.tenantId}','')">➕ Ajouter / renouveler une licence</button>
+      </div>
+      <table style="margin-top:8px"><tr><th>Module</th><th>Terme</th><th>Période</th><th>Statut</th><th class="r">Prix</th><th>Paiement</th><th>Règlement</th><th></th></tr>${body}</table>
+    </div>`;
+  }).join("") || '<div class="panel note">Aucune organisation. Créez d’abord un tenant.</div>';
+  view.innerHTML=`<h1>⏳ Abonnements & licences</h1>
+    <div class="note" style="margin-bottom:8px">Suivi des licences par organisation : durée, échéance et paiements. Alerte à 30 jours (aucun blocage automatique).</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      ${kpi('Licences actives',c.active||0,'#16a34a')}
+      ${kpi('Expirent ≤ 30 j',c.expiring||0,'#f97316')}
+      ${kpi('Expirées',c.expired||0,'#dc2626')}
+      ${kpi('Revenu mensuel récurrent',subXAF(r.monthlyRecurringXAF))}
+      ${kpi('Revenu annualisé',subXAF(r.annualizedXAF))}
+      ${kpi('Impayés',subXAF(r.unpaidXAF),(r.unpaidXAF>0?'#dc2626':''))}
+    </div>
+    ${trows}`;
+}
+async function subsLicenseForm(tenantId, moduleKey){
+  const [tens, mods, pr] = await Promise.all([api("/tenants"), api("/tenants/modules"), api("/tenants/config/pricing")]);
+  window._SUBSPR=pr;
+  const tOpts=tens.map(t=>`<option value="${t.id}" ${t.id===tenantId?'selected':''}>${esc(t.name)}</option>`).join("");
+  const mOpts=mods.map(m=>`<option value="${m.key}" ${m.key===moduleKey?'selected':''}>${esc(m.label)}</option>`).join("");
+  const methods=(pr.methods||[]);
+  const methOpts=methods.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join("");
+  const today=new Date().toISOString().slice(0,10);
+  view.innerHTML=`<button class="btn ghost sm" onclick="subsView()">← Retour</button>
+    <h1>Licence — création / renouvellement</h1>
+    <div class="panel" style="max-width:640px">
+      <div class="grid2">
+        <div><label>Organisation</label><select id="slTenant">${tOpts}</select></div>
+        <div><label>Module</label><select id="slModule" onchange="subsPrefill()">${mOpts}</select></div>
+        <div><label>Terme</label><select id="slTerm" onchange="subsPrefill()"><option value="yearly">Annuel</option><option value="monthly">Mensuel</option></select></div>
+        <div><label>Durée (mois, optionnel)</label><input id="slMonths" type="number" min="1" placeholder="12 (annuel) / 1 (mensuel)"></div>
+        <div><label>Date de début</label><input id="slStart" type="date" value="${today}"></div>
+        <div><label>Prix (FCFA)</label><input id="slPrice" type="number" min="0"></div>
+        <div><label>Moyen de paiement</label><select id="slMethod">${methOpts}</select></div>
+        <div><label style="display:flex;gap:6px;align-items:center;margin-top:22px"><input type="checkbox" id="slPaid" style="width:auto"> Réglé</label></div>
+      </div>
+      <label>Note</label><input id="slNote" placeholder="Référence de paiement, remarque…">
+      <div class="err hidden" id="slErr" style="margin-top:8px"></div>
+      <div style="margin-top:10px"><button class="btn p" onclick="subsSaveLicense()">Enregistrer la licence</button></div>
+      <p class="note" style="margin-top:8px">La date d’échéance est calculée automatiquement (début + durée). Activer une licence active aussi le module pour l’organisation.</p>
+    </div>`;
+  subsPrefill();
+}
+function subsPrefill(){
+  const pr=window._SUBSPR||{modules:{}};
+  const key=(document.getElementById("slModule")||{}).value;
+  const term=(document.getElementById("slTerm")||{}).value;
+  const price=((pr.modules||{})[key]||{})[term];
+  const el=document.getElementById("slPrice"); if(el && (!el.value || el.dataset.auto!=="0")) { el.value=price!=null?price:""; el.dataset.auto="1"; }
+}
+async function subsSaveLicense(){
+  const g=id=>document.getElementById(id);
+  const tenantId=g("slTenant").value, key=g("slModule").value;
+  const body={ term:g("slTerm").value, months:g("slMonths").value||undefined, startAt:g("slStart").value||undefined,
+    priceXAF:g("slPrice").value, method:g("slMethod").value, paid:g("slPaid").checked, note:g("slNote").value };
+  try{ await api("/tenants/"+tenantId+"/license/"+key,{method:"PUT",body:JSON.stringify(body)});
+    alert("Licence enregistrée."); subsView(); }
+  catch(e){ const el=g("slErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
+/* ================= Plateforme : tarifs & paiements (SADM) ================= */
+async function pricingView(){
+  let pr, mods;
+  try{ [pr, mods]=await Promise.all([api("/tenants/config/pricing"), api("/tenants/modules")]); }
+  catch(e){ view.innerHTML='<h1>💲 Tarifs & paiements</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  const rows=mods.map(m=>{ const p=(pr.modules||{})[m.key]||{}; return `<tr>
+      <td>${esc(m.label)}${m.core?' <span class="note">(base)</span>':''}</td>
+      <td><input type="number" min="0" id="pm_${m.key}" value="${p.monthly!=null?p.monthly:0}" style="width:130px"></td>
+      <td><input type="number" min="0" id="py_${m.key}" value="${p.yearly!=null?p.yearly:0}" style="width:130px"></td>
+    </tr>`; }).join("");
+  view.innerHTML=`<h1>💲 Tarifs & paiements</h1>
+    <div class="note" style="margin-bottom:8px">Grille tarifaire des modules (par organisation). Devise et moyens de paiement modifiables. Ces prix servent de valeurs par défaut lors de la création d’une licence.</div>
+    <div class="panel" style="max-width:620px">
+      <div class="grid2">
+        <div><label>Devise</label><input id="prCurrency" value="${esc(pr.currency||'XAF')}"></div>
+        <div><label>Moyens de paiement (un par ligne)</label><textarea id="prMethods" rows="4">${esc((pr.methods||[]).join("\\n"))}</textarea></div>
+      </div>
+      <table style="margin-top:10px"><tr><th>Module</th><th>Prix mensuel</th><th>Prix annuel</th></tr>${rows}</table>
+      <div class="err hidden" id="prErr" style="margin-top:8px"></div>
+      <div style="margin-top:10px"><button class="btn p" onclick="pricingSave()">Enregistrer les tarifs</button></div>
+    </div>`;
+  window._PRMODS=mods;
+}
+async function pricingSave(){
+  const g=id=>document.getElementById(id);
+  const modules={};
+  (window._PRMODS||[]).forEach(m=>{ modules[m.key]={ monthly:g("pm_"+m.key).value, yearly:g("py_"+m.key).value }; });
+  const methods=(g("prMethods").value||"").split("\n").map(s=>s.trim()).filter(Boolean);
+  try{ await api("/tenants/config/pricing",{method:"PUT",body:JSON.stringify({currency:g("prCurrency").value,methods,modules})});
+    alert("Tarifs enregistrés."); pricingView(); }
+  catch(e){ const el=g("prErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
 
 /* ================= Plateforme : gestion des tenants (SADM) ================= */
 let TEN_MODULES = null, TEN_FORMS = null;
@@ -6181,15 +6314,28 @@ async function discussionView(){
   if(window._CHAT.activeId) chatOpen(window._CHAT.activeId);
   else { const th=document.getElementById("chatThread"); if(th) th.innerHTML='<div class="note" style="margin:auto;text-align:center">👈 Choisissez un contact pour démarrer la conversation.</div>'; }
 }
-function chatRenderPeers(){
-  const box=document.getElementById("chatPeers"); if(!box) return;
-  const q=((document.getElementById("chatSearch")||{}).value||"").toLowerCase();
-  const peers=(window._CHAT.peers||[]).filter(p=>p.fullName.toLowerCase().includes(q));
-  box.innerHTML=peers.map(p=>`<div onclick="chatOpen('${p.id}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;display:flex;align-items:center;gap:8px;background:${p.id===window._CHAT.activeId?'var(--sidebar-bg)':'transparent'}">
+function chatPeerRow(p){
+  return `<div onclick="chatOpen('${p.id}')" style="cursor:pointer;padding:8px 10px;border-radius:8px;display:flex;align-items:center;gap:8px;background:${p.id===window._CHAT.activeId?'var(--sidebar-bg)':'transparent'}">
     <span style="width:9px;height:9px;border-radius:50%;background:${p.online?'#16a34a':'#cbd5e1'};flex-shrink:0"></span>
     <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">${esc(p.fullName)} <span class="note" style="font-size:11px">${esc(p.role)}</span></div>
       <div class="note" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last?(p.last.fromMe?'Vous : ':'')+esc(p.last.hasAttachment&&!p.last.text?'📎 pièce jointe':(p.last.text||'')).slice(0,32):'—'}</div></div>
-    ${p.unread?`<span style="background:#dc2626;color:#fff;border-radius:10px;font-size:11px;padding:1px 7px">${p.unread}</span>`:''}</div>`).join("")||'<div class="note" style="padding:8px">Aucun contact.</div>';
+    ${p.unread?`<span style="background:#dc2626;color:#fff;border-radius:10px;font-size:11px;padding:1px 7px">${p.unread}</span>`:''}</div>`;
+}
+function chatRenderPeers(){
+  const box=document.getElementById("chatPeers"); if(!box) return;
+  const q=((document.getElementById("chatSearch")||{}).value||"").toLowerCase();
+  const peers=(window._CHAT.peers||[]).filter(p=>(p.fullName||"").toLowerCase().includes(q));
+  if(!peers.length){ box.innerHTML='<div class="note" style="padding:8px">Aucun contact.</div>'; return; }
+  // Group by organisation (tenant). Useful surtout pour le super-admin.
+  const groups={}; const order=[];
+  peers.forEach(p=>{ const g=p.tenantName||"Organisation"; if(!groups[g]){groups[g]=[];order.push(g);} groups[g].push(p); });
+  if(order.length<=1){ box.innerHTML=peers.map(chatPeerRow).join(""); return; }
+  order.sort((a,b)=>a.localeCompare(b));
+  box.innerHTML=order.map(g=>{
+    const unread=groups[g].reduce((n,p)=>n+(p.unread||0),0);
+    return `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;padding:8px 10px 2px">🏢 ${esc(g)} <span class="note">(${groups[g].length})</span>${unread?` <span style="background:#dc2626;color:#fff;border-radius:9px;font-size:10px;padding:0 6px">${unread}</span>`:''}</div>`
+      + groups[g].map(chatPeerRow).join("");
+  }).join("");
 }
 async function chatOpen(uid){
   window._CHAT.activeId=uid; window._CHAT._pendingFile=null; window._CHAT._pendingLink=null;
