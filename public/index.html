@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SGRHP — Cible RH Emploi S.A.</title>
+<link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23065f46%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2718%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Arial,sans-serif%27%3ES%3C/text%3E%3C/svg%3E">
 <style>
 :root{--primary:#065f46;--accent:#10b981;--bg:#f5f8f7;--border:#e3e8e6;--muted:#6b7280;--text:#1f2937;--nav-active-bg:#ecfdf5;--topbar-bg:#065f46;--sidebar-bg:#ffffff;--sidebar-border:#e3e8e6;--nav-color:#6b7280;--nav-active-color:#065f46;--nav-active-border:#10b981;
 --green:#16a34a;--red:#dc2626;--amber:#d97706;--green-bg:#dcfce7;--red-bg:#fee2e2;--amber-bg:#fef3c7}
@@ -695,6 +696,8 @@ function applyBranding(b) {
   document.querySelectorAll("[data-brand-tag]").forEach(e => e.textContent = b.tagline || "");
   document.querySelectorAll("[data-brand-logo]").forEach(e => {
     if (b.logo) { e.src = b.logo; e.style.display = "inline-block"; } else { e.style.display = "none"; } });
+  try { const fav = document.getElementById("favicon"); if (fav && b.logo) fav.href = b.logo; } catch (e) {}
+  if (b.appName) { try { document.title = b.appName + (b.tagline ? " — " + b.tagline : ""); } catch (e) {} }
   document.body.classList.toggle("compact", b.density === "compact");
 }
 function themePresetRow(active) {
