@@ -71,7 +71,7 @@ router.post("/raw", allow("ADM"), upload.single("file"), (req, res, next) => {
 
 router.post("/raw/:id/tagify", allow("ADM"), (req, res, next) => {
   try {
-    const raw = db.rawTemplates.find(r => r.id === req.params.id);
+    const raw = db.rawTemplates.find(r => r.id === req.params.id && (r.tenantId || "t1") === (req.user.tenantId || "t1"));
     if (!raw) return res.status(404).json({ error: "Raw document not found" });
     const { replacements, name, docType } = req.body || {};
     if (!Array.isArray(replacements) || !replacements.length)

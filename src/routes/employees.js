@@ -56,9 +56,9 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
       return res.status(403).json({ error: "This portfolio is not linked to you. Ask the administrator." });
   }
   // No two employees can share a CNI or CNPS number
-  if (db.employees.find(e => e.cniNumber === b.cniNumber))
+  if (mine(db.employees, req).find(e => e.cniNumber === b.cniNumber))
     return res.status(409).json({ error: `CNI number ${b.cniNumber} already belongs to another employee` });
-  if (b.cnpsNumber && db.employees.find(e => e.cnpsNumber && e.cnpsNumber === b.cnpsNumber))
+  if (b.cnpsNumber && mine(db.employees, req).find(e => e.cnpsNumber && e.cnpsNumber === b.cnpsNumber))
     return res.status(409).json({ error: `CNPS number ${b.cnpsNumber} already belongs to another employee` });
   // Category must exist in the referential when provided
   if (b.contract?.category) {
@@ -93,9 +93,9 @@ router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   const emp = scoped(req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
   const before = { ...emp };
-  if (req.body.cniNumber && db.employees.find(e => e.id !== emp.id && e.cniNumber === req.body.cniNumber))
+  if (req.body.cniNumber && mine(db.employees, req).find(e => e.id !== emp.id && e.cniNumber === req.body.cniNumber))
     return res.status(409).json({ error: "CNI number already belongs to another employee" });
-  if (req.body.cnpsNumber && db.employees.find(e => e.id !== emp.id && e.cnpsNumber === req.body.cnpsNumber))
+  if (req.body.cnpsNumber && mine(db.employees, req).find(e => e.id !== emp.id && e.cnpsNumber === req.body.cnpsNumber))
     return res.status(409).json({ error: "CNPS number already belongs to another employee" });
   Object.assign(emp, req.body, { id: emp.id }); save();
   audit(req.user, "UPDATED", "Employee", emp.id, { changed: Object.keys(req.body) });
@@ -125,7 +125,7 @@ router.post("/:id/files", allow("GPF", "ADM"), upload.single("file"), (req, res)
 });
 
 router.get("/:id/files/:fileId/download", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
-  const f = db.files.find(x => x.id === req.params.fileId && x.employeeId === req.params.id);
+  const f = mine(db.files, req).find(x => x.id === req.params.fileId && x.employeeId === req.params.id);
   if (!f) return res.status(404).json({ error: "Not found" });
   audit(req.user, "DOWNLOADED", "DocFile", f.id, { fileName: f.fileName });
   res.download(path.join(__dirname, "..", "..", "uploads", f.storedAs), f.fileName);

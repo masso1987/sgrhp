@@ -123,7 +123,7 @@ router.post("/:id/decisions", allow("GPF", "ADM"), decUpload.single("file"), (re
 });
 
 router.get("/:id/decisions/:decId/file", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
-  const d = db.decisions.find(x => x.id === req.params.decId && x.employeeId === req.params.id);
+  const d = mine(db.decisions, req).find(x => x.id === req.params.decId && x.employeeId === req.params.id);
   if (!d || !d.storedAs) return res.status(404).json({ error: "No attachment" });
   audit(req.user, "DOWNLOADED", "Decision", d.id, {});
   res.download(path.join(DEC_DIR, d.storedAs), d.fileName);
