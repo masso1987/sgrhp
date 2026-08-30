@@ -9,6 +9,7 @@ COPY src ./src
 COPY db ./db
 COPY public ./public
 COPY templates ./templates
+COPY scripts ./scripts
 
 RUN mkdir -p data uploads && addgroup -S sgrhp && adduser -S sgrhp -G sgrhp \
  && chown -R sgrhp:sgrhp /app
