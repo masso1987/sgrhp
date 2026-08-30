@@ -11,7 +11,32 @@ app.disable("x-powered-by");
 // Behind Apache/Caddy/App Service: use X-Forwarded-For so rate limits and audit
 // logs key on the real client, not on the proxy's address.
 app.set("trust proxy", Number(process.env.TRUST_PROXY || 1));
-app.use(helmet({ contentSecurityPolicy: false }));   // CSP tuned per deployment
+// Content-Security-Policy tuned to the SPA (inline handlers/styles + cdnjs libs).
+// 'unsafe-inline' is required by the ~670 inline onclick handlers; it can be dropped
+// later by moving inline JS to files. object-src/base-uri/frame-ancestors are locked down.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", "ws:", "wss:", "blob:"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+// Disable powerful browser features the app does not use.
+app.use((req, res, next) => {
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=()");
+  next();
+});
 app.use(express.json({ limit: "30mb" }));
 
 // Brute-force protection on authentication (§8.2)
