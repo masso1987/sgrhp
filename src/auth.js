@@ -136,7 +136,7 @@ function me(req, res) {
   const _eff = _isAdmin ? _tm : _tm.filter(k => ["hr", "careers"].includes(k) || (u.modules || []).includes(k));
   const _perms = _isAdmin ? ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"]
     : [...new Set([...(u.role === "GPF" ? ["employee.edit"] : []), ...(u.permissions || [])])];
-  res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes });
+  res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes, tenantName: _t ? _t.name : (u.tenantId === "platform" ? "Plateforme (SGRHP)" : "") });
 }
 
 /* ---------- 2FA enrolment ----------

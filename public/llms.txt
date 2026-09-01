@@ -1,0 +1,17 @@
+# SGRHP
+
+> SGRHP is a multi-tenant SaaS platform by Cible RH Emploi S.A. (Cameroon) for HR administration, payroll, invoicing, accounting (OHADA), inventory and quality management (ISO 9001). Access is restricted to authenticated client organisations.
+
+## About
+- Operator: Cible RH Emploi S.A., Cameroon
+- Product: SGRHP (Systeme de Gestion RH et Paie) - HR, payroll, invoicing, accounting, stock and quality
+- Access: private, login required per client organisation (multi-tenant, data isolated per organisation)
+
+## Pages
+- [Home / Sign in](/): application entry and authentication
+- [Terms of Service](/): available in-app and on the sign-in screen
+- [Privacy Policy](/): available in-app and on the sign-in screen
+
+## Notes
+- This is a private business application, not a public content site. Most functionality is behind authentication.
+- For information or access requests, contact Cible RH Emploi S.A.

@@ -20,9 +20,9 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "blob:"],
-      fontSrc: ["'self'", "data:"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
       connectSrc: ["'self'", "ws:", "wss:", "blob:"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
@@ -140,6 +140,14 @@ app.use("/api/messages", require("./routes/messages"));
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
+
+// 404 — JSON for the API, custom page for everything else.
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) return res.status(404).json({ error: "Ressource introuvable" });
+  if (req.method === "GET" && req.accepts("html"))
+    return res.status(404).sendFile(path.join(__dirname, "..", "public", "404.html"));
+  res.status(404).json({ error: "Not found" });
+});
 
 app.use((err, req, res, next) => {
   console.error(err);
