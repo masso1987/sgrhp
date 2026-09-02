@@ -51,6 +51,8 @@ const apiLimiter = RPM > 0
   ? rateLimit({ windowMs: 60 * 1000, max: RPM, standardHeaders: true, legacyHeaders: false,
       message: { error: "Trop de requêtes — patientez un instant" } })
   : (req, res, next) => next();
+// Serve the SPA HTML with no-cache so nav/feature updates always load.
+app.use((req, res, next) => { if (req.path === "/" || req.path.endsWith(".html")) res.setHeader("Cache-Control", "no-cache"); next(); });
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.post("/api/login", loginLimiter, login);

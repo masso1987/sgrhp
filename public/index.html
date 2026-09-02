@@ -2390,9 +2390,12 @@ async function fichePrixView(){
      <td style="white-space:nowrap"><button class="btn ghost sm" onclick="fichePrixForm('${f.id}')">Ouvrir</button> <button class="btn ghost sm" onclick="fpExport('${f.id}')">Excel</button> <button class="btn ghost sm" style="color:var(--red)" onclick="fpDelete('${f.id}')">Supprimer</button></td></tr>`).join(""):'<tr><td colspan="6" class="note">Aucune simulation.</td></tr>'}</table></div></div>`;
 }
 async function fichePrixForm(idv){
-  const [defs, cnvs] = await Promise.all([api("/ficheprix/defaults"), api("/config/conventions").catch(()=>[])]);
+  const [defs, cnvs, pfs, rubs, sels] = await Promise.all([
+    api("/ficheprix/defaults"), api("/config/conventions").catch(()=>[]),
+    api("/portfolios").catch(()=>[]), api("/payroll/rubriques").catch(()=>[]), api("/config/salary-elements").catch(()=>[])]);
+  const rubLabels=[...new Set([...(rubs||[]).filter(r=>(r.sens||"GAIN")==="GAIN").map(r=>r.label), ...(sels||[]).map(x=>x.name)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
   let f=null; if(idv){ f=await api("/ficheprix/"+idv).catch(()=>null); }
-  window._FP={cnvs, id:idv||null};
+  window._FP={cnvs, id:idv||null, portfolios:pfs, rubLabels};
   const params=(f&&f.params)||defs.params;
   const elements=(f&&f.elements&&f.elements.length)?f.elements:defs.elements.map(l=>({label:l,amount:0}));
   const cnvOpt=`<option value="">- Convention -</option>`+cnvs.map(c=>`<option value="${c.id}" ${f&&f.conventionId===c.id?'selected':''}>${esc(c.name)}</option>`).join("");
@@ -2401,7 +2404,8 @@ async function fichePrixForm(idv){
    <div class="grid2">
      <div class="panel"><b>Informations</b>
        <label>Titre</label><input id="fpTitle" value="${esc(f?f.title:'Simulation')}">
-       <label>Client</label><input id="fpClient" value="${esc(f?f.client:'')}">
+       <label>Client</label><input id="fpClient" list="fpClients" value="${esc(f?f.client:'')}" placeholder="Choisir un portefeuille ou saisir un nouveau client">
+       <datalist id="fpClients">${(pfs||[]).map(pf=>`<option value="${esc(pf.name||pf.label||'')}">`).join("")}</datalist>
        <label>Salarié / candidat</label><input id="fpEmp" value="${esc(f?f.employeeName:'')}">
        <label>Date d'embauche</label><input id="fpDate" type="date" value="${f?(f.hiringDate||'').slice(0,10):''}">
        <label>Convention</label><select id="fpCnv" onchange="fpCnvChange()">${cnvOpt}</select>
@@ -2417,9 +2421,13 @@ async function fichePrixForm(idv){
        <table id="fpFrais">${(params.fraisFixes||[]).map(fpFraisRow).join("")}</table>
        <button class="btn ghost sm" onclick="document.getElementById('fpFrais').insertAdjacentHTML('beforeend',fpFraisRow({label:'',amount:0}));fpRecalc()">+ Frais</button></div></div>
    <div class="panel" style="margin-top:12px"><b>Éléments de salaire</b>
-     <div style="overflow:auto"><table id="fpEls" style="width:100%"><tr><th>Élément</th><th class="r">Montant (XAF)</th><th></th></tr>
+     <div class="note" style="margin:2px 0 6px">Les éléments correspondent aux rubriques de paie (gains). Ajoutez-en depuis la liste, ou saisissez librement.</div>
+     <datalist id="fpRubs">${(window._FP.rubLabels||[]).map(l=>`<option value="${esc(l)}">`).join("")}</datalist>
+     <div style="overflow:auto"><table id="fpEls" style="width:100%"><tr><th>Élément (rubrique)</th><th class="r">Montant (XAF)</th><th></th></tr>
        ${elements.map(fpElRow).join("")}</table></div>
-     <button class="btn ghost sm" onclick="document.getElementById('fpEls').insertAdjacentHTML('beforeend',fpElRow({label:'',amount:0}));fpRecalc()">+ Élément</button></div>
+     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center">
+       <select id="fpRubPick" onchange="fpAddRub()" style="max-width:340px"><option value="">+ Ajouter une rubrique de paie...</option>${(window._FP.rubLabels||[]).map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join("")}</select>
+       <button class="btn ghost sm" onclick="document.getElementById('fpEls').insertAdjacentHTML('beforeend',fpElRow({label:'',amount:0}));fpRecalc()">+ Ligne libre</button></div></div>
    <div class="panel" style="margin-top:12px"><b>Résultat</b><div id="fpResult" style="margin-top:6px"></div></div>
    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
      <button class="btn p" onclick="fpSave()">${idv?'Enregistrer':'Créer la simulation'}</button>
@@ -2428,7 +2436,8 @@ async function fichePrixForm(idv){
   fpCnvChange(f?f.category:'');
   fpRecalc();
 }
-function fpElRow(e){ return `<tr class="fpel"><td><input class="fpelLbl" value="${esc((e&&e.label)||'')}"></td><td><input class="fpelAmt" type="number" step="any" value="${e&&e.amount!=null?e.amount:0}" oninput="fpRecalc()" style="width:140px"></td><td><button class="btn ghost sm" onclick="this.closest('.fpel').remove();fpRecalc()">Retirer</button></td></tr>`; }
+function fpElRow(e){ return `<tr class="fpel"><td><input class="fpelLbl" list="fpRubs" value="${esc((e&&e.label)||'')}"></td><td><input class="fpelAmt" type="number" step="any" value="${e&&e.amount!=null?e.amount:0}" oninput="fpRecalc()" style="width:140px"></td><td><button class="btn ghost sm" onclick="this.closest('.fpel').remove();fpRecalc()">Retirer</button></td></tr>`; }
+function fpAddRub(){ const s=document.getElementById("fpRubPick"); if(!s||!s.value)return; document.getElementById("fpEls").insertAdjacentHTML("beforeend", fpElRow({label:s.value,amount:0})); s.value=""; fpRecalc(); }
 function fpFraisRow(x){ return `<tr class="fpfx"><td><input class="fpfxLbl" value="${esc((x&&x.label)||'')}"></td><td><input class="fpfxAmt" type="number" step="any" value="${x&&x.amount!=null?x.amount:0}" oninput="fpRecalc()" style="width:120px"></td><td><button class="btn ghost sm" onclick="this.closest('.fpfx').remove();fpRecalc()">Retirer</button></td></tr>`; }
 function fpReadParams(){ const g=i=>document.getElementById(i); return {chargesPatronalesPct:Number(g('fpCP').value)||0,margePct:Number(g('fpMarge').value)||0,tvaPct:Number(g('fpTVA').value)||0,provisionFinContratPct:Number(g('fpFin').value)||0,provisionCongesDiv:Number(g('fpCong').value)||12,fraisFixes:[...document.querySelectorAll('#fpFrais .fpfx')].map(r=>({label:r.querySelector('.fpfxLbl').value,amount:Number(r.querySelector('.fpfxAmt').value)||0}))}; }
 function fpReadEls(){ return [...document.querySelectorAll('#fpEls .fpel')].map(r=>({label:r.querySelector('.fpelLbl').value,amount:Number(r.querySelector('.fpelAmt').value)||0})); }
