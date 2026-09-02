@@ -7915,6 +7915,7 @@ async function smqTdbImport(input){
 async function smqTdbOpen(idv){
   const d=await api("/smq/tdb/"+idv).catch(e=>{alert(e.message);return null;}); if(!d)return;
   window._TDB=d; const t=d.tdb, c=d.computed, p=(window._SMQ.procs||[]).find(x=>x.id===t.processId);
+  const colKeys=(t.baseColumns||[]).map(x=>x.key);
   const feu=(f)=>`<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${TDB_FEU[f]||'#ccc'}"></span>`;
   const fmt=(v)=>v==null?'<span class="note">-</span>':(Math.abs(v)<1&&v!==0?(Math.round(v*1000)/10)+'%':Math.round(v*100)/100);
   view.innerHTML=`<button class="btn ghost sm" onclick="go('smqtdb')">← Tableaux de bord</button>
@@ -7926,17 +7927,19 @@ async function smqTdbOpen(idv){
           <div style="font-size:26px;font-weight:700;color:${TDB_FEU[c.performanceFeu]}">${c.performance==null?'-':Math.round(c.performance*1000)/10+'%'} ${feu(c.performanceFeu)}</div></div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           ${d.canEditData?`<button class="btn p sm" onclick="smqTdbData()">Saisir les données</button>`:''}
+          <button class="btn ghost sm" id="tdbChartBtn" onclick="smqTdbToggleCharts()">Graphiques</button>
           ${d.canEditDef?`<button class="btn ghost sm" onclick="smqTdbDef()">Définition</button>`:''}
           ${d.canEditDef?`<button class="btn ghost sm" onclick="smqTdbRemind('${t.id}')">Rappel pilote</button>`:''}
           <button class="btn ghost sm" onclick="smqTdbExport('${t.id}')">Excel</button>
           ${d.canEditDef?`<button class="btn ghost sm" style="color:var(--red)" onclick="smqTdbDelete('${t.id}')">Supprimer</button>`:''}</div></div>
       <div style="overflow:auto;margin-top:10px"><table style="width:100%;min-width:1000px;font-size:13px">
         <tr><th style="text-align:left">Indicateur</th><th>Fréq.</th>${TDB_MOIS.map(m=>`<th class="r">${m.slice(0,3)}</th>`).join("")}<th class="r">Cible</th><th class="r">Résultat</th><th>Appr.</th></tr>
-        ${c.indicators.map(i=>`<tr><td style="text-align:left">${esc(i.libelle)}</td><td style="text-align:center">${esc(i.freq||'')}</td>
+        ${c.indicators.map(i=>{const ok=tdbIndConfigured(i,colKeys);return `<tr><td style="text-align:left">${esc(i.libelle)}${ok?'':' <span class="tag amber" title="La formule ne pointe pas vers une colonne existante. Ouvrez Définition pour la configurer.">formule à configurer</span>'}</td><td style="text-align:center">${esc(i.freq||'')}</td>
           ${i.monthly.map(v=>`<td class="r">${fmt(v)}</td>`).join("")}
-          <td class="r">${i.cible!=null?fmt(i.cible):esc(i.cibleTexte||'-')}</td><td class="r"><b>${fmt(i.result)}</b></td><td style="text-align:center">${feu(i.feu)}</td></tr>`).join("")||'<tr><td colspan="16" class="note">Aucun indicateur. '+(d.canEditDef?'Ouvrez « Définition ».':'')+'</td></tr>'}
+          <td class="r">${i.cible!=null?fmt(i.cible):esc(i.cibleTexte||'-')}</td><td class="r"><b>${ok?fmt(i.result):'<span class="note">-</span>'}</b></td><td style="text-align:center">${feu(i.feu)}</td></tr>`;}).join("")||'<tr><td colspan="16" class="note">Aucun indicateur. '+(d.canEditDef?'Ouvrez « Définition ».':'')+'</td></tr>'}
       </table></div>
       <div class="note" style="margin-top:6px">≥ cible · proche · loin de la cible. Le pilote saisit les données de base ; les formules ne sont pas modifiables par le pilote.</div>
+      <div id="tdbChartWrap" style="margin-top:12px;display:none"></div>
     </div>`;
 }
 async function smqTdbRemind(idv){
@@ -7950,6 +7953,68 @@ async function smqTdbDelete(idv){ if(!confirm("Supprimer ce tableau de bord et s
 async function smqTdbExport(idv){ try{ const r=await fetch("/api/smq/tdb/"+idv+"/export",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Export indisponible");
   const blob=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="TdB.xlsx"; a.click(); }catch(e){ alert(e.message); } }
 /* Saisie des données de base (pilote) */
+/* ---- Tableau de bord : garde-fous + graphiques ---- */
+function tdbIndConfigured(i, colKeys){ const F=(i&&i.formula)||{}; if(F.op==='ratio') return colKeys.includes(F.numCol)&&colKeys.includes(F.denCol); return colKeys.includes(F.col); }
+// Mirror client-side du calcul serveur (aperçu en direct dans la saisie)
+function tdbComputeClient(tdb, byMonth){
+  const num=(m,col)=>{ const v=(byMonth[m]||{})[col]; return v===''||v==null?null:Number(v); };
+  const monthsWith=(col)=>{ const a=[]; for(let m=1;m<=12;m++){const v=num(m,col); if(v!=null)a.push(v);} return a; };
+  const inds=(tdb.indicators||[]).map(ind=>{ const F=ind.formula||{}; const monthly=[];
+    for(let m=1;m<=12;m++){ let val=null;
+      if(F.op==='ratio'){const n=num(m,F.numCol),dd=num(m,F.denCol); val=(n!=null&&dd)?n/dd:null;}
+      else if(F.op==='cumul'){let s=0,any=false; for(let k=1;k<=m;k++){const v=num(k,F.col); if(v!=null){s+=v;any=true;}} val=any?s:null;}
+      else val=num(m,F.col);
+      monthly.push(val); }
+    let result=null;
+    if(F.op==='ratio'){let n=0,dd=0,any=false; for(let m=1;m<=12;m++){const a=num(m,F.numCol),b=num(m,F.denCol); if(a!=null){n+=a;any=true;} if(b!=null)dd+=b;} result=any&&dd?n/dd:null;}
+    else if(F.op==='sum'||F.op==='cumul'){const a=monthsWith(F.col); result=a.length?a.reduce((x,y)=>x+y,0):null;}
+    else {const a=monthsWith(F.col); result=a.length?a.reduce((x,y)=>x+y,0)/a.length:null;}
+    const cible=ind.cible!=null?Number(ind.cible):null;
+    let feu='gris'; if(result!=null&&cible!=null){const up=ind.sens!=='down'; if(up)feu=result>=cible?'vert':(result<cible*0.8?'rouge':'orange'); else feu=result<=cible?'vert':(result>cible*1.2?'rouge':'orange');}
+    return Object.assign({},ind,{monthly,result,cible,feu}); });
+  let v=0,o=0,r=0; inds.forEach(i=>{if(i.feu==='vert')v++;else if(i.feu==='orange')o++;else if(i.feu==='rouge')r++;});
+  const perf=(v+o+r)?(v+o*0.8)/(v+o+r):null;
+  return {indicators:inds, performance:perf};
+}
+function tdbBarColor(v, cible, sens){ if(v==null) return TDB_FEU.gris; if(cible==null) return '#3b82f6'; const up=sens!=='down'; let f; if(up)f=v>=cible?'vert':(v<cible*0.8?'rouge':'orange'); else f=v<=cible?'vert':(v>cible*1.2?'rouge':'orange'); return TDB_FEU[f]; }
+function tdbSaisiePreview(){
+  const t=(window._TDB&&window._TDB.tdb)||null; if(!t)return;
+  const bgs=document.querySelectorAll('.modal-bg'); const modal=bgs.length?bgs[bgs.length-1].querySelector('.modal'):null; if(!modal)return;
+  const byM={}; modal.querySelectorAll('input[data-m]').forEach(inp=>{ if(inp.value!==''){ (byM[inp.dataset.m]=byM[inp.dataset.m]||{})[inp.dataset.c]=Number(inp.value); } });
+  const cc=tdbComputeClient(t, byM);
+  const box=document.getElementById('tdSaisiePrev'); if(!box)return;
+  const f=(v,pct)=>v==null?'-':(pct?(Math.round(v*1000)/10)+'%':Math.round(v*100)/100);
+  box.innerHTML=`<div class="note" style="margin-bottom:4px">Aperçu des résultats (avant enregistrement) - Performance globale : <b>${cc.performance==null?'-':Math.round(cc.performance*1000)/10+'%'}</b></div>
+    <table style="width:100%;font-size:12px"><tr><th style="text-align:left">Indicateur</th><th class="r">Résultat</th><th>Appr.</th></tr>
+    ${cc.indicators.map(i=>{const pct=(i.result!=null&&Math.abs(i.result)<1)||(i.cible!=null&&Math.abs(i.cible)<1);return `<tr><td style="text-align:left">${esc(i.libelle)}</td><td class="r"><b>${f(i.result,pct)}</b></td><td style="text-align:center"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${TDB_FEU[i.feu]}"></span></td></tr>`;}).join("")}</table>`;
+}
+async function smqTdbToggleCharts(){
+  const w=document.getElementById('tdbChartWrap'), b=document.getElementById('tdbChartBtn'); if(!w)return;
+  if(w.style.display==='none'){ w.style.display='block'; if(b)b.textContent='Masquer les graphiques'; await smqTdbRenderCharts(); }
+  else { w.style.display='none'; if(b)b.textContent='Graphiques'; }
+}
+async function smqTdbRenderCharts(){
+  const d=window._TDB; if(!d)return; const c=d.computed;
+  const w=document.getElementById('tdbChartWrap'); if(!w)return;
+  const ok=await ensureChartJs(); if(!ok||!window.Chart){ w.innerHTML='<div class="note">Graphiques indisponibles (échec du chargement).</div>'; return; }
+  const isPct=(i)=> (i.result!=null&&Math.abs(i.result)<1&&i.result!==0) || (i.cible!=null&&Math.abs(i.cible)<1&&i.cible!==0);
+  const cards=c.indicators.map((i,idx)=>`<div class="panel" style="min-width:280px;flex:1"><b style="font-size:13px">${esc(i.libelle)}</b> <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${TDB_FEU[i.feu]}"></span>
+     <div style="position:relative;height:180px;margin-top:6px"><canvas id="tdbc_${idx}"></canvas></div></div>`).join("");
+  w.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap">
+     <div class="panel" style="min-width:220px"><b style="font-size:13px">Répartition des appréciations</b><div style="position:relative;height:180px;margin-top:6px"><canvas id="tdbFeu"></canvas></div></div>
+     ${cards}</div>`;
+  const cnt={vert:0,orange:0,rouge:0,gris:0}; c.indicators.forEach(i=>cnt[i.feu]=(cnt[i.feu]||0)+1);
+  new window.Chart(document.getElementById('tdbFeu'),{type:'doughnut',data:{labels:['Conforme','Proche','Loin','N/D'],datasets:[{data:[cnt.vert,cnt.orange,cnt.rouge,cnt.gris],backgroundColor:[TDB_FEU.vert,TDB_FEU.orange,TDB_FEU.rouge,TDB_FEU.gris]}]},options:{plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},maintainAspectRatio:false}});
+  c.indicators.forEach((i,idx)=>{ const el=document.getElementById('tdbc_'+idx); if(!el)return;
+    const pct=isPct(i); const scale=pct?100:1;
+    const bars=i.monthly.map(v=>v==null?null:v*scale);
+    const colors=i.monthly.map(v=>tdbBarColor(v,i.cible,i.sens));
+    const ds=[{type:'bar',label:'Mensuel',data:bars,backgroundColor:colors,borderWidth:0}];
+    if(i.cible!=null) ds.push({type:'line',label:'Cible',data:TDB_MOIS.map(()=>i.cible*scale),borderColor:'#111827',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false});
+    new window.Chart(el,{data:{labels:TDB_MOIS.map(m=>m.slice(0,3)),datasets:ds},options:{plugins:{legend:{display:i.cible!=null,labels:{boxWidth:12,font:{size:10}}},tooltip:{callbacks:{label:(x)=>x.parsed.y==null?'':(x.dataset.label+': '+(pct?Math.round(x.parsed.y*10)/10+'%':x.parsed.y))}}},scales:{y:{beginAtZero:true,ticks:{callback:(val)=>pct?val+'%':val,font:{size:10}}},x:{ticks:{font:{size:9}}}},maintainAspectRatio:false}});
+  });
+}
+
 function smqTdbData(){
   const d=window._TDB, t=d.tdb; const cols=t.baseColumns||[]; if(!cols.length){ alert("Aucune colonne de base définie. Le responsable SMQ doit d'abord définir le tableau."); return; }
   const byM={}; (d.data||[]).forEach(r=>byM[r.mois]=r.values||{});
@@ -7959,10 +8024,11 @@ function smqTdbData(){
     <details style="margin:6px 0 8px"><summary style="cursor:pointer;font-size:12px;color:var(--accent)">Légende des colonnes (${cols.length}) - afficher/masquer</summary>
       <ol style="margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.5;max-height:160px;overflow:auto">${cols.map(c=>`<li>${esc(c.label)}</li>`).join("")}</ol></details>
     <div style="overflow:auto;max-height:60vh"><table style="width:100%;font-size:12px"><tr><th style="position:sticky;left:0;background:var(--surface-2,#fff)">Mois</th>${cols.map((c,i)=>`<th style="min-width:120px;white-space:normal;vertical-align:top;font-size:11px;line-height:1.25" title="${esc(c.label)}"><span style="display:inline-block;min-width:16px;height:16px;border-radius:50%;background:var(--sidebar-bg);text-align:center;line-height:16px;margin-right:3px">${i+1}</span>${esc(shorten(c.label))}</th>`).join("")}</tr>
-    ${TDB_MOIS.map((m,mi)=>`<tr><td style="position:sticky;left:0;background:var(--surface-2,#fff);font-weight:600">${m.slice(0,4)}</td>${cols.map(c=>`<td><input data-m="${mi+1}" data-c="${c.key}" type="number" step="any" value="${(byM[mi+1]&&byM[mi+1][c.key]!=null)?byM[mi+1][c.key]:''}" style="width:82px"></td>`).join("")}</tr>`).join("")}</table></div>
+    ${TDB_MOIS.map((m,mi)=>`<tr><td style="position:sticky;left:0;background:var(--surface-2,#fff);font-weight:600">${m.slice(0,4)}</td>${cols.map(c=>`<td><input data-m="${mi+1}" data-c="${c.key}" type="number" step="any" oninput="tdbSaisiePreview()" value="${(byM[mi+1]&&byM[mi+1][c.key]!=null)?byM[mi+1][c.key]:''}" style="width:82px"></td>`).join("")}</tr>`).join("")}</table></div>
     <div class="err hidden" id="tdErr" style="margin-top:6px"></div>
+    <div id="tdSaisiePrev" style="margin-top:8px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button><button class="btn p sm" onclick="smqTdbDataSave('${t.id}',this)">Enregistrer</button></div></div>`;
-  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg); tdbSaisiePreview();
 }
 async function smqTdbDataSave(idv,btn){
   const byM={};
@@ -7982,7 +8048,7 @@ function smqTdbDef(){
     <div id="tdCols">${cols.map(c=>smqTdbColRow(c)).join("")}</div>
     <button class="btn ghost sm" onclick="document.getElementById('tdCols').insertAdjacentHTML('beforeend',smqTdbColRow({key:'c'+Date.now(),label:''}))">+ Colonne</button>
     <h3 style="margin:12px 0 4px">Indicateurs</h3>
-    <div style="overflow:auto"><table style="width:100%;font-size:12px" id="tdInds"><tr><th>Libellé</th><th>Fréq.</th><th>Cible</th><th>Sens</th><th>Calcul</th><th>Colonne</th><th>/ Colonne</th><th></th></tr>
+    <div style="overflow:auto"><table style="width:100%;font-size:12px" id="tdInds"><tr><th>Libellé</th><th>Fréq.</th><th>Cible</th><th>Sens</th><th>Calcul</th><th>Colonne / Numérateur</th><th>Dénominateur (ratio)</th><th></th></tr>
       ${inds.map(i=>smqTdbIndRow(i)).join("")}</table></div>
     <button class="btn ghost sm" onclick="document.getElementById('tdInds').insertAdjacentHTML('beforeend',smqTdbIndRow({key:'i'+Date.now(),freq:'M',sens:'up',formula:{op:'avg'}}))">+ Indicateur</button>
     <div class="err hidden" id="tdDErr" style="margin-top:6px"></div>

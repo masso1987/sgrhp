@@ -1445,7 +1445,7 @@ router.post("/tdb/import", allow(...RW), smqImport.single("file"), (req, res) =>
       // sens : par défaut 'up' ; heuristique par libellé (délai/incident/plainte = down)
       const low = lib.toLowerCase();
       const sens = /délai|incident|plainte|retard|rejet|non[- ]?conform|réclamation/.test(low) ? "down" : "up";
-      indicators.push({ key: "i" + i, libelle: lib, freq: ["M", "T", "S", "A"].includes(freq) ? freq : "M", cible, cibleTexte: cibleRaw != null ? String(cibleRaw) : "", sens, formula: { op: "avg", col: baseColumns[0] ? baseColumns[0].key : "" } });
+      indicators.push({ key: "i" + i, libelle: lib, freq: ["M", "T", "S", "A"].includes(freq) ? freq : "M", cible, cibleTexte: cibleRaw != null ? String(cibleRaw) : "", sens, formula: (/%/.test(String(cibleRaw || "")) || /taux|pourcentage|ratio/i.test(lib)) ? { op: "ratio", numCol: "", denCol: "" } : { op: "avg", col: baseColumns[0] ? baseColumns[0].key : "" } });
     }
   }
   const annee = b.annee || new Date().getFullYear();
