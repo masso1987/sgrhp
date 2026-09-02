@@ -2355,15 +2355,18 @@ async function conventionsView(){
    <div class="note" style="margin-bottom:8px">Grilles salariales par convention (catégorie -> salaire de base). Modifiable et supprimable ; ajustez les valeurs d'après le PDF officiel.</div>
    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
      <button class="btn p sm" onclick="cnvCreate()">+ Nouvelle convention</button>
-     <button class="btn ghost sm" onclick="cnvSeedCmr()">Importer les conventions du Cameroun</button></div>
+     <button class="btn ghost sm" onclick="cnvSeedCmr()">Importer les conventions du Cameroun</button>
+     <button class="btn ghost sm" onclick="cnvPrefillAll()">Pré-remplir toutes les grilles (indicatif)</button></div>
    ${cnvs.length?cnvs.map(cnvCard).join(""):'<div class="panel note">Aucune convention. Créez-en une ou importez la liste du Cameroun.</div>'}`;
 }
 function cnvCard(c){ const grid=c.grid||[];
   return `<div class="panel" style="margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
       <b style="font-size:15px">${esc(c.name)}</b>
-      <div style="display:flex;gap:6px"><button class="btn ghost sm" onclick="cnvRename('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Renommer</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" onclick="cnvPrefill('${c.id}')">Pré-remplir la grille</button>
+        <button class="btn ghost sm" onclick="cnvRename('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Renommer</button>
         <button class="btn ghost sm" style="color:var(--red)" onclick="cnvDelete('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Supprimer</button></div></div>
+    ${c.gridSource==='indicatif'?'<div class="note" style="margin-top:4px;color:var(--amber)">Barème indicatif (reconstitué) - à confirmer avec l\'annexe officielle.</div>':''}
     <div style="overflow:auto"><table style="margin-top:8px" id="cnvgrid_${c.id}"><tr><th>Catégorie</th><th>Libellé</th><th class="r">Salaire de base (XAF)</th><th></th></tr>
       ${grid.map(g=>cnvRow(g)).join("")}</table></div>
     <div style="margin-top:6px;display:flex;gap:6px"><button class="btn ghost sm" onclick="cnvAddRow('${c.id}')">+ Ligne</button>
@@ -2376,6 +2379,8 @@ async function cnvSaveGrid(cid){ const rows=[...document.getElementById('cnvgrid
 async function cnvCreate(){ const name=prompt("Nom de la convention :"); if(!name)return; try{ await api('/config/conventions',{method:'POST',body:JSON.stringify({name})}); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvRename(id,cur){ const name=prompt("Nouveau nom :",cur); if(!name||name===cur)return; try{ await api('/config/conventions/'+id,{method:'PUT',body:JSON.stringify({name})}); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvDelete(id,name){ if(!confirm("Supprimer la convention « "+name+" » et sa grille ? Cette action est irréversible."))return; try{ await api('/config/conventions/'+id,{method:'DELETE'}); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvPrefill(id){ if(!confirm("Pré-remplir la grille avec un barème indicatif (catégories 1 à 12, échelons A à E) ? Cela remplace la grille actuelle. Valeurs à vérifier ensuite."))return; try{ await api('/config/conventions/'+id+'/prefill-grid',{method:'POST'}); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvPrefillAll(){ if(!confirm("Pré-remplir les grilles vides (et les grilles par défaut) de toutes les conventions avec un barème indicatif ? Les grilles que vous avez déjà personnalisées ne sont pas touchées."))return; try{ const r=await api('/config/conventions/prefill-all',{method:'POST',body:JSON.stringify({})}); alert(r.filled+" grille(s) pré-remplie(s)."); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvSeedCmr(){ if(!confirm("Importer la liste des conventions collectives du Cameroun ? Les conventions déjà présentes seront ignorées."))return; try{ const r=await api('/config/conventions/seed-cameroon',{method:'POST'}); alert(r.added+" convention(s) ajoutée(s)."); conventionsView(); }catch(e){ alert(e.message); } }
 
 /* ================= RH : Fiche de Prix (simulateur) ================= */
