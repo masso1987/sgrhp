@@ -156,7 +156,7 @@ function buildRows(f, c, p) {
   rows.push(["SOUS-TOTAL 1", c.sousTotal1, true]);
   rows.push(["Charges patronales (" + p.chargesPatronalesPct + "%)", c.chargesPatronales, false]);
   (p.fraisFixes || []).forEach(x => rows.push([x.label || "Frais", N(x.amount), false]));
-  rows.push(["TOTAL 2 (contributions employeur)", c.total2, true]);
+  rows.push(["TOTAL 2", c.total2, true]);
   rows.push(["Charges administratives + marge (" + p.margePct + "%)", c.marge, false]);
   rows.push(["MONTANT HT", c.ht, true]);
   rows.push(["TVA (" + p.tvaPct + "%)", c.tva, false]);
@@ -179,8 +179,6 @@ router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), async (req, res) => {
     ws.columns = [{ width: 46 }, { width: 20 }];
     let r = 1;
     if (brand.logo) { try { const imgId = wb.addImage({ buffer: brand.logo.buf, extension: brand.logo.ext }); ws.addImage(imgId, { tl: { col: 0, row: 0 }, ext: { width: 120, height: 50 } }); r = 4; } catch (e) {} }
-    ws.getCell("B1").value = brand.name; ws.getCell("B1").font = { bold: true, size: 12 };
-    ws.getCell("B2").value = brand.address; ws.getCell("B3").value = brand.contact;
     r = Math.max(r, 4);
     ws.getCell("A" + r).value = "FICHE DE PRIX"; ws.getCell("A" + r).font = { bold: true, size: 14 }; r += 2;
     [["Titre", f.title], ["Client", f.client], ["Salari\u00e9 / candidat", f.employeeName], ["Convention", f.conventionName], ["Cat\u00e9gorie", f.category], ["Date d'embauche", f.hiringDate]]
@@ -194,7 +192,7 @@ router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), async (req, res) => {
     return res.send(Buffer.from(buf));
   } catch (e) {
     let XLSX; try { XLSX = require("xlsx"); } catch (e2) { return res.status(500).json({ error: "Module Excel indisponible" }); }
-    const aoa = [[brand.name], [brand.address], [brand.contact], [], ["FICHE DE PRIX"],
+    const aoa = [["FICHE DE PRIX"],
       ["Titre", f.title || ""], ["Client", f.client || ""], ["Salari\u00e9 / candidat", f.employeeName || ""],
       ["Convention", f.conventionName || ""], ["Cat\u00e9gorie", f.category || ""], ["Date d'embauche", f.hiringDate || ""],
       [], ["\u00c9L\u00c9MENTS / RUBRIQUES", "Montant (XAF)"]];
@@ -217,17 +215,14 @@ router.get("/:id/pdf", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   res.setHeader("Content-Disposition", 'attachment; filename="fiche_prix.pdf"');
   doc.pipe(res);
   let y = 40;
-  if (brand.logo) { try { doc.image(brand.logo.buf, 40, y, { fit: [120, 54] }); } catch (e) {} }
-  doc.fontSize(14).font("Helvetica-Bold").fillColor("#111111").text(brand.name, 170, y, { width: 385 });
-  doc.fontSize(9).font("Helvetica").fillColor("#555555").text([brand.address, brand.contact, brand.niu ? ("NIU: " + brand.niu) : ""].filter(Boolean).join("\n"), 170, y + 18, { width: 385 });
-  doc.fillColor("#111111"); y += 74;
+  if (brand.logo) { try { doc.image(brand.logo.buf, 40, y, { fit: [170, 60] }); y += 66; } catch (e) { y += 4; } } else { y += 4; }
   doc.moveTo(40, y).lineTo(555, y).strokeColor("#cccccc").stroke(); y += 12;
   doc.fontSize(16).font("Helvetica-Bold").text("FICHE DE PRIX", 40, y); y += 20;
   doc.fontSize(9).font("Helvetica").fillColor("#666666").text("R\u00e9f. " + (f.ref || "") + "   \u00b7   " + new Date().toLocaleDateString("fr-FR"), 40, y); doc.fillColor("#111111"); y += 22;
   const info = (l, v) => { doc.fontSize(10).font("Helvetica-Bold").fillColor("#111111").text(l + " :", 40, y, { width: 150 }); doc.font("Helvetica").text(v || "-", 160, y, { width: 395 }); y += 15; };
   info("Titre", f.title); info("Client", f.client); info("Salari\u00e9 / candidat", f.employeeName); info("Convention", f.conventionName); info("Cat\u00e9gorie", f.category); info("Date d'embauche", f.hiringDate);
   y += 8;
-  const money = x => Math.round(Number(x) || 0).toLocaleString("fr-FR") + " FCFA";
+  const money = x => Math.round(Number(x) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " FCFA";
   doc.rect(40, y, 515, 18).fill("#f0f0f0"); doc.fillColor("#111111").fontSize(10).font("Helvetica-Bold");
   doc.text("\u00c9l\u00e9ment / rubrique", 46, y + 4); doc.text("Montant", 405, y + 4, { width: 144, align: "right" }); y += 22;
   rows.forEach(row => {
@@ -237,7 +232,7 @@ router.get("/:id/pdf", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
     if (row[2]) { doc.moveTo(40, y - 2).lineTo(555, y - 2).strokeColor("#e5e5e5").stroke(); }
   });
   y += 10; doc.fontSize(10).font("Helvetica-Oblique").fillColor("#333333").text("Arr\u00eat\u00e9 \u00e0 la somme de : " + words, 40, y, { width: 515 });
-  doc.fontSize(8).fillColor("#999999").font("Helvetica").text(brand.name + " \u2014 g\u00e9n\u00e9r\u00e9 par SGRHP le " + new Date().toLocaleDateString("fr-FR"), 40, 805, { width: 515, align: "center" });
+  doc.fontSize(8).fillColor("#999999").font("Helvetica").text("G\u00e9n\u00e9r\u00e9 par SGRHP le " + new Date().toLocaleDateString("fr-FR"), 40, 805, { width: 515, align: "center" });
   doc.end();
 });
 
