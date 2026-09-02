@@ -108,6 +108,7 @@ app.use("/api/referentials", require("./routes/referentials"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 app.use("/api/hr", require("./routes/hr").router);
 app.use("/api/employees", require("./routes/export"));
+app.use("/api/ficheprix", require("./routes/ficheprix"));
 app.use("/api/config", require("./routes/contractConfig"));
 app.use("/api/fiches", require("./routes/fiches"));
 app.use("/api/career", require("./routes/career"));

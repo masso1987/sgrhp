@@ -925,6 +925,8 @@ const NAV = [
   { k: "fiches", label: "Fiches de poste", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
   { k: "grid", label: "Grille salariale", roles: ["GPF","CD","ADM"], grp: "rh" },
   { k: "career", label: "Career & Perf.", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
+  { k: "ficheprix", label: "Fiche de Prix", sec: "Simulation", roles: ["ADM","CD","RJ","GPF"], grp: "rh" },
+  { k: "conventions", label: "Conventions collectives", sec: "Configuration", roles: ["ADM"], grp: "rh" },
 
   { k: "reports", label: "Reports & KPIs", roles: ["CD","RJ","ADM"], grp: "rapports" },
   { k: "audit", label: "Journal d'audit", roles: ["CD","RJ","ADM","SADM"], grp: "rapports" },
@@ -1156,7 +1158,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -2344,6 +2346,103 @@ async function cttAdd() {
   catch (e) { alert(e.message); }
 }
 
+
+/* ================= RH : Conventions collectives ================= */
+async function conventionsView(){
+  const cnvs=await api("/config/conventions").catch(()=>[]);
+  window._CNV_LIST=cnvs;
+  view.innerHTML=`<h1>Conventions collectives</h1>
+   <div class="note" style="margin-bottom:8px">Grilles salariales par convention (catégorie -> salaire de base). Modifiable et supprimable ; ajustez les valeurs d'après le PDF officiel.</div>
+   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+     <button class="btn p sm" onclick="cnvCreate()">+ Nouvelle convention</button>
+     <button class="btn ghost sm" onclick="cnvSeedCmr()">Importer les conventions du Cameroun</button></div>
+   ${cnvs.length?cnvs.map(cnvCard).join(""):'<div class="panel note">Aucune convention. Créez-en une ou importez la liste du Cameroun.</div>'}`;
+}
+function cnvCard(c){ const grid=c.grid||[];
+  return `<div class="panel" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      <b style="font-size:15px">${esc(c.name)}</b>
+      <div style="display:flex;gap:6px"><button class="btn ghost sm" onclick="cnvRename('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Renommer</button>
+        <button class="btn ghost sm" style="color:var(--red)" onclick="cnvDelete('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Supprimer</button></div></div>
+    <div style="overflow:auto"><table style="margin-top:8px" id="cnvgrid_${c.id}"><tr><th>Catégorie</th><th>Libellé</th><th class="r">Salaire de base (XAF)</th><th></th></tr>
+      ${grid.map(g=>cnvRow(g)).join("")}</table></div>
+    <div style="margin-top:6px;display:flex;gap:6px"><button class="btn ghost sm" onclick="cnvAddRow('${c.id}')">+ Ligne</button>
+      <button class="btn p sm" onclick="cnvSaveGrid('${c.id}')">Enregistrer la grille</button></div></div>`;
+}
+function cnvRow(g){ return `<tr class="cnvrow"><td><input class="cnvCat" value="${esc((g&&g.category)||'')}" style="width:90px"></td><td><input class="cnvLbl" value="${esc((g&&g.label)||'')}"></td><td><input class="cnvBase" type="number" value="${g&&g.baseSalary!=null?g.baseSalary:0}" style="width:130px"></td><td><button class="btn ghost sm" onclick="this.closest('.cnvrow').remove()">Retirer</button></td></tr>`; }
+function cnvAddRow(cid){ document.getElementById('cnvgrid_'+cid).insertAdjacentHTML('beforeend', cnvRow(null)); }
+async function cnvSaveGrid(cid){ const rows=[...document.getElementById('cnvgrid_'+cid).querySelectorAll('.cnvrow')].map(r=>({category:r.querySelector('.cnvCat').value.trim(),label:r.querySelector('.cnvLbl').value.trim(),baseSalary:Number(r.querySelector('.cnvBase').value)||0})).filter(x=>x.category);
+  try{ await api('/config/conventions/'+cid+'/grid',{method:'PUT',body:JSON.stringify({grid:rows})}); alert('Grille enregistrée.'); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvCreate(){ const name=prompt("Nom de la convention :"); if(!name)return; try{ await api('/config/conventions',{method:'POST',body:JSON.stringify({name})}); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvRename(id,cur){ const name=prompt("Nouveau nom :",cur); if(!name||name===cur)return; try{ await api('/config/conventions/'+id,{method:'PUT',body:JSON.stringify({name})}); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvDelete(id,name){ if(!confirm("Supprimer la convention « "+name+" » et sa grille ? Cette action est irréversible."))return; try{ await api('/config/conventions/'+id,{method:'DELETE'}); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvSeedCmr(){ if(!confirm("Importer la liste des conventions collectives du Cameroun ? Les conventions déjà présentes seront ignorées."))return; try{ const r=await api('/config/conventions/seed-cameroon',{method:'POST'}); alert(r.added+" convention(s) ajoutée(s)."); conventionsView(); }catch(e){ alert(e.message); } }
+
+/* ================= RH : Fiche de Prix (simulateur) ================= */
+function fpMoney(v){ return Math.round(Number(v||0)).toLocaleString('fr-FR')+' F'; }
+async function fichePrixView(){
+  const list=await api("/ficheprix").catch(()=>[]);
+  view.innerHTML=`<h1>Fiche de Prix</h1>
+   <div class="note" style="margin-bottom:8px">Simulation du coût de mise à disposition d'un salarié jusqu'au prix client (TTC).</div>
+   <div style="margin-bottom:10px"><button class="btn p sm" onclick="fichePrixForm()">+ Nouvelle simulation</button></div>
+   <div class="panel"><div style="overflow:auto"><table style="width:100%"><tr><th>Réf.</th><th>Titre</th><th>Client</th><th>Salarié</th><th class="r">TTC</th><th></th></tr>
+   ${list.length?list.map(f=>`<tr><td>${esc(f.ref||'')}</td><td>${esc(f.title||'')}</td><td>${esc(f.client||'')}</td><td>${esc(f.employeeName||'')}</td><td class="r"><b>${fpMoney(f.computed.ttc)}</b></td>
+     <td style="white-space:nowrap"><button class="btn ghost sm" onclick="fichePrixForm('${f.id}')">Ouvrir</button> <button class="btn ghost sm" onclick="fpExport('${f.id}')">Excel</button> <button class="btn ghost sm" style="color:var(--red)" onclick="fpDelete('${f.id}')">Supprimer</button></td></tr>`).join(""):'<tr><td colspan="6" class="note">Aucune simulation.</td></tr>'}</table></div></div>`;
+}
+async function fichePrixForm(idv){
+  const [defs, cnvs] = await Promise.all([api("/ficheprix/defaults"), api("/config/conventions").catch(()=>[])]);
+  let f=null; if(idv){ f=await api("/ficheprix/"+idv).catch(()=>null); }
+  window._FP={cnvs, id:idv||null};
+  const params=(f&&f.params)||defs.params;
+  const elements=(f&&f.elements&&f.elements.length)?f.elements:defs.elements.map(l=>({label:l,amount:0}));
+  const cnvOpt=`<option value="">- Convention -</option>`+cnvs.map(c=>`<option value="${c.id}" ${f&&f.conventionId===c.id?'selected':''}>${esc(c.name)}</option>`).join("");
+  view.innerHTML=`<button class="btn ghost sm" onclick="fichePrixView()">← Fiches de prix</button>
+   <h1>${idv?'Modifier la simulation':'Nouvelle simulation'}</h1>
+   <div class="grid2">
+     <div class="panel"><b>Informations</b>
+       <label>Titre</label><input id="fpTitle" value="${esc(f?f.title:'Simulation')}">
+       <label>Client</label><input id="fpClient" value="${esc(f?f.client:'')}">
+       <label>Salarié / candidat</label><input id="fpEmp" value="${esc(f?f.employeeName:'')}">
+       <label>Date d'embauche</label><input id="fpDate" type="date" value="${f?(f.hiringDate||'').slice(0,10):''}">
+       <label>Convention</label><select id="fpCnv" onchange="fpCnvChange()">${cnvOpt}</select>
+       <label>Catégorie (auto-remplit le salaire de base)</label><select id="fpCat" onchange="fpCatChange()"><option value="">-</option></select></div>
+     <div class="panel"><b>Paramètres</b>
+       <div class="grid2">
+         <div><label>Charges patronales (%)</label><input id="fpCP" type="number" step="any" value="${params.chargesPatronalesPct}" oninput="fpRecalc()"></div>
+         <div><label>Marge admin (%)</label><input id="fpMarge" type="number" step="any" value="${params.margePct}" oninput="fpRecalc()"></div>
+         <div><label>TVA (%)</label><input id="fpTVA" type="number" step="any" value="${params.tvaPct}" oninput="fpRecalc()"></div>
+         <div><label>Prov. fin contrat (% brut /12)</label><input id="fpFin" type="number" step="any" value="${params.provisionFinContratPct}" oninput="fpRecalc()"></div>
+         <div><label>Prov. congés (brut ÷ N)</label><input id="fpCong" type="number" step="any" value="${params.provisionCongesDiv}" oninput="fpRecalc()"></div></div>
+       <b style="display:block;margin-top:8px">Frais fixes</b>
+       <table id="fpFrais">${(params.fraisFixes||[]).map(fpFraisRow).join("")}</table>
+       <button class="btn ghost sm" onclick="document.getElementById('fpFrais').insertAdjacentHTML('beforeend',fpFraisRow({label:'',amount:0}));fpRecalc()">+ Frais</button></div></div>
+   <div class="panel" style="margin-top:12px"><b>Éléments de salaire</b>
+     <div style="overflow:auto"><table id="fpEls" style="width:100%"><tr><th>Élément</th><th class="r">Montant (XAF)</th><th></th></tr>
+       ${elements.map(fpElRow).join("")}</table></div>
+     <button class="btn ghost sm" onclick="document.getElementById('fpEls').insertAdjacentHTML('beforeend',fpElRow({label:'',amount:0}));fpRecalc()">+ Élément</button></div>
+   <div class="panel" style="margin-top:12px"><b>Résultat</b><div id="fpResult" style="margin-top:6px"></div></div>
+   <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+     <button class="btn p" onclick="fpSave()">${idv?'Enregistrer':'Créer la simulation'}</button>
+     ${idv?`<button class="btn ghost" onclick="fpExport('${idv}')">Exporter en Excel</button>`:''}
+     ${idv?`<button class="btn ghost" style="color:var(--red)" onclick="fpDelete('${idv}')">Supprimer</button>`:''}</div>`;
+  fpCnvChange(f?f.category:'');
+  fpRecalc();
+}
+function fpElRow(e){ return `<tr class="fpel"><td><input class="fpelLbl" value="${esc((e&&e.label)||'')}"></td><td><input class="fpelAmt" type="number" step="any" value="${e&&e.amount!=null?e.amount:0}" oninput="fpRecalc()" style="width:140px"></td><td><button class="btn ghost sm" onclick="this.closest('.fpel').remove();fpRecalc()">Retirer</button></td></tr>`; }
+function fpFraisRow(x){ return `<tr class="fpfx"><td><input class="fpfxLbl" value="${esc((x&&x.label)||'')}"></td><td><input class="fpfxAmt" type="number" step="any" value="${x&&x.amount!=null?x.amount:0}" oninput="fpRecalc()" style="width:120px"></td><td><button class="btn ghost sm" onclick="this.closest('.fpfx').remove();fpRecalc()">Retirer</button></td></tr>`; }
+function fpReadParams(){ const g=i=>document.getElementById(i); return {chargesPatronalesPct:Number(g('fpCP').value)||0,margePct:Number(g('fpMarge').value)||0,tvaPct:Number(g('fpTVA').value)||0,provisionFinContratPct:Number(g('fpFin').value)||0,provisionCongesDiv:Number(g('fpCong').value)||12,fraisFixes:[...document.querySelectorAll('#fpFrais .fpfx')].map(r=>({label:r.querySelector('.fpfxLbl').value,amount:Number(r.querySelector('.fpfxAmt').value)||0}))}; }
+function fpReadEls(){ return [...document.querySelectorAll('#fpEls .fpel')].map(r=>({label:r.querySelector('.fpelLbl').value,amount:Number(r.querySelector('.fpelAmt').value)||0})); }
+function fpComputeClient(els,p){ const N=v=>Number(v)||0; const brut=els.reduce((s,e)=>s+N(e.amount),0); const provC=p.provisionCongesDiv?brut/p.provisionCongesDiv:0; const provF=brut*(N(p.provisionFinContratPct)/100)/12; const st1=brut+provC+provF; const cp=st1*(N(p.chargesPatronalesPct)/100); const ff=(p.fraisFixes||[]).reduce((s,x)=>s+N(x.amount),0); const t2=st1+cp+ff; const marge=t2*(N(p.margePct)/100); const ht=t2+marge; const tva=ht*(N(p.tvaPct)/100); const ttc=ht+tva; return {brut,provC,provF,st1,cp,ff,t2,marge,ht,tva,ttc}; }
+function fpRecalc(){ const box=document.getElementById('fpResult'); if(!box)return; const c=fpComputeClient(fpReadEls(),fpReadParams()); const M=v=>Math.round(v).toLocaleString('fr-FR')+' F';
+  const line=(l,v,b)=>`<tr><td style="${b?'font-weight:700':''}">${l}</td><td class="r" style="${b?'font-weight:700':''}">${M(v)}</td></tr>`;
+  box.innerHTML=`<table style="width:100%;max-width:480px">${line('Salaire brut',c.brut,1)}${line('Provision congés',c.provC)}${line('Provision fin de contrat',c.provF)}${line('Sous-total 1',c.st1,1)}${line('Charges patronales',c.cp)}${line('Frais fixes',c.ff)}${line('Total 2 (contributions employeur)',c.t2,1)}${line('Marge administrative',c.marge)}${line('Montant HT',c.ht,1)}${line('TVA',c.tva)}${line('MONTANT TTC',c.ttc,1)}</table>`;
+}
+function fpCnvChange(preCat){ const sel=document.getElementById('fpCnv'), cat=document.getElementById('fpCat'); if(!sel||!cat)return; const c=(window._FP.cnvs||[]).find(x=>x.id===sel.value); const grid=(c&&c.grid)||[]; cat.innerHTML='<option value="">-</option>'+grid.map(g=>`<option value="${esc(g.category)}" ${preCat===g.category?'selected':''}>${esc(g.category)}${g.label?' - '+esc(g.label):''} (${Math.round(g.baseSalary).toLocaleString('fr-FR')})</option>`).join(""); if(preCat) fpCatChange(); }
+function fpCatChange(){ const sel=document.getElementById('fpCnv'), cat=document.getElementById('fpCat'); const c=(window._FP.cnvs||[]).find(x=>x.id===sel.value); const g=((c&&c.grid)||[]).find(x=>x.category===cat.value); if(g){ const first=document.querySelector('#fpEls .fpel .fpelAmt'); const firstLbl=document.querySelector('#fpEls .fpel .fpelLbl'); if(first){ if(firstLbl && !/base/i.test(firstLbl.value)) firstLbl.value='Salaire de base'; first.value=g.baseSalary; } fpRecalc(); } }
+async function fpSave(){ const g=i=>document.getElementById(i); const sel=g('fpCnv'); const body={ title:g('fpTitle').value,client:g('fpClient').value,employeeName:g('fpEmp').value,hiringDate:g('fpDate').value, conventionId:sel.value, conventionName:sel.value?(sel.options[sel.selectedIndex]||{}).text||'':'', category:g('fpCat').value, elements:fpReadEls(), params:fpReadParams() };
+  try{ if(window._FP.id){ await api('/ficheprix/'+window._FP.id,{method:'PUT',body:JSON.stringify(body)}); alert('Simulation enregistrée.'); } else { await api('/ficheprix',{method:'POST',body:JSON.stringify(body)}); alert('Simulation créée.'); } fichePrixView(); }catch(e){ alert(e.message); } }
+async function fpExport(idv){ try{ const r=await fetch('/api/ficheprix/'+idv+'/export',{headers:{Authorization:'Bearer '+TOKEN}}); if(!r.ok)throw new Error('Export indisponible'); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='fiche_prix.xlsx'; a.click(); }catch(e){ alert(e.message); } }
+async function fpDelete(idv){ if(!confirm("Supprimer cette simulation ? Cette action est irréversible."))return; try{ await api('/ficheprix/'+idv,{method:'DELETE'}); fichePrixView(); }catch(e){ alert(e.message); } }
 
 /* ================= M5: Career & Performance ================= */
 const RD_TAG = r => ({READY_NOW:'<span class="tag green">Prêt maintenant</span>',READY_1_2Y:'<span class="tag amber">Prêt sous 1-2 ans</span>',TO_DEVELOP:'<span class="tag gray">À développer</span>'}[r]||r);

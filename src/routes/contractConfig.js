@@ -104,14 +104,65 @@ router.put("/conventions/:id/grid", allow("GPF", "CD", "ADM"), (req, res) => {
   const cnv = mine(db.conventions, req).find(c => c.id === req.params.id);
   if (!cnv) return res.status(404).json({ error: "Not found" });
   const grid = req.body?.grid;
-  if (!Array.isArray(grid) || !grid.length) return res.status(400).json({ error: "grid array required" });
-  const cats = mine(db.referentials, req).find(r => r.key === "categories")?.values || [];
-  const bad = grid.filter(g => !cats.includes(g.category) || !(Number(g.baseSalary) >= 0));
-  if (bad.length) return res.status(400).json({ error: "Invalid rows: " + bad.map(b => b.category).join(",") });
+  if (!Array.isArray(grid)) return res.status(400).json({ error: "grid array required [{category,label,baseSalary}]" });
+  // Free-form category codes (real conventions use codes like 6D, 11E...) + optional label.
+  const rows = grid.filter(g => String(g.category || "").trim()).map(g => ({
+    category: String(g.category).trim(), label: String(g.label || "").trim(), baseSalary: Number(g.baseSalary) || 0 }));
   const before = cnv.grid;
-  cnv.grid = grid.map(g => ({ category: g.category, baseSalary: Number(g.baseSalary) })); save();
+  cnv.grid = rows; save();
   audit(req.user, "CONFIG_CHANGED", "Convention", cnv.id, { name: cnv.name, before, after: cnv.grid });
   res.json(cnv);
+});
+
+router.put("/conventions/:id", allow("ADM"), (req, res) => {
+  const cnv = mine(db.conventions, req).find(c => c.id === req.params.id);
+  if (!cnv) return res.status(404).json({ error: "Not found" });
+  const name = String((req.body || {}).name || "").trim();
+  if (!name) return res.status(400).json({ error: "name required" });
+  if (mine(db.conventions, req).find(c => c.id !== cnv.id && c.name === name)) return res.status(409).json({ error: "Convention exists" });
+  cnv.name = name; save();
+  audit(req.user, "CONFIG_CHANGED", "Convention", cnv.id, { renamed: name });
+  res.json(cnv);
+});
+
+router.delete("/conventions/:id", allow("ADM"), (req, res) => {
+  const cnv = mine(db.conventions, req).find(c => c.id === req.params.id);
+  if (!cnv) return res.status(404).json({ error: "Not found" });
+  const used = mine(db.portfolios, req).some(pf => pf.conventionId === cnv.id);
+  if (used) return res.status(409).json({ error: "Convention rattachée à un portefeuille - détachez-la d'abord." });
+  db.conventions = db.conventions.filter(c => c.id !== cnv.id); save();
+  audit(req.user, "CONFIG_CHANGED", "Convention", cnv.id, { deleted: cnv.name });
+  res.json({ ok: true });
+});
+
+/* One-click: add the standard Cameroon collective agreements (idempotent by name, empty grids). */
+const CMR_CONVENTIONS = [
+  "Convention Collective Nationale du Commerce",
+  "Convention Collective des Banques et Établissements Financiers",
+  "Convention Collective Nationale des Assurances",
+  "Convention Collective du Bâtiment et des Travaux Publics (BTP)",
+  "Convention Collective des Industries de Transformation",
+  "Convention Collective des Transports Routiers et Activités Auxiliaires",
+  "Convention Collective des Auxiliaires de Transport (Transit / Consignation)",
+  "Convention Collective des Entreprises de Gardiennage et de Sécurité Privée",
+  "Convention Collective des Hôtels, Bars, Restaurants et Établissements assimilés",
+  "Convention Collective des Professions du Pétrole",
+  "Convention Collective des Entreprises de Télécommunications",
+  "Convention Collective des Industries Alimentaires",
+  "Convention Collective des Boulangeries et Pâtisseries",
+  "Convention Collective des Cliniques et Établissements de Santé Privés",
+  "Convention Collective des Auxiliaires Médicaux",
+  "Convention Collective des Professions de l'Enseignement Privé Laïc",
+];
+router.post("/conventions/seed-cameroon", allow("ADM"), (req, res) => {
+  const have = new Set(mine(db.conventions, req).map(c => c.name));
+  let added = 0;
+  for (const name of CMR_CONVENTIONS) if (!have.has(name)) {
+    db.conventions.push(stamp({ id: id("cnv"), name, grid: [] }, req)); added++;
+  }
+  if (added) save();
+  audit(req.user, "CONFIG_CHANGED", "Convention", "seed", { added });
+  res.json({ added, total: mine(db.conventions, req).length });
 });
 
 module.exports = router;
