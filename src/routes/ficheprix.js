@@ -128,41 +128,117 @@ router.delete("/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   res.json({ ok: true });
 });
 
-router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
-  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+function dataUrlToBuffer(d) {
+  if (!d || typeof d !== "string") return null;
+  const m = d.match(/^data:image\/(png|jpe?g);base64,(.+)$/i);
+  if (!m) return null;
+  try { return { buf: Buffer.from(m[2], "base64"), ext: m[1].toLowerCase().startsWith("jp") ? "jpeg" : "png" }; }
+  catch (e) { return null; }
+}
+function brandCtx(req) {
+  let b = {}; try { b = require("./settings").settings().branding || {}; } catch (e) {}
+  const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1")) || {};
+  const co = b.company || {};
+  return {
+    name: co.name || b.tagline || t.name || b.appName || "SGRHP",
+    address: [co.address, co.city].filter(Boolean).join(", ") || [t.hqAddress, t.hqCity].filter(Boolean).join(", "),
+    niu: co.niu || t.niu || "",
+    contact: [t.phone, t.email].filter(Boolean).join(" \u00b7 "),
+    logo: dataUrlToBuffer(b.logo || t.logo),
+  };
+}
+function buildRows(f, c, p) {
+  const rows = [];
+  (f.elements || []).forEach(e => rows.push([e.label || "", N(e.amount), false]));
+  rows.push(["SALAIRE BRUT", c.brut, true]);
+  rows.push(["Provision cong\u00e9s (1/12)", c.provConges, false]);
+  rows.push(["Provision fin de contrat", c.provFin, false]);
+  rows.push(["SOUS-TOTAL 1", c.sousTotal1, true]);
+  rows.push(["Charges patronales (" + p.chargesPatronalesPct + "%)", c.chargesPatronales, false]);
+  (p.fraisFixes || []).forEach(x => rows.push([x.label || "Frais", N(x.amount), false]));
+  rows.push(["TOTAL 2 (contributions employeur)", c.total2, true]);
+  rows.push(["Charges administratives + marge (" + p.margePct + "%)", c.marge, false]);
+  rows.push(["MONTANT HT", c.ht, true]);
+  rows.push(["TVA (" + p.tvaPct + "%)", c.tva, false]);
+  rows.push(["MONTANT TTC", c.ttc, true]);
+  return rows;
+}
+const ttcWords = (c) => (frWords(Math.round(c.ttc)) + " francs CFA").replace(/^./, s => s.toUpperCase());
+
+router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), async (req, res) => {
   const f = mine(db.fichesPrix, req).find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: "Introuvable" });
-  const c = compute(f);
-  const aoa = [];
-  aoa.push(["FICHE DE PRIX / SIMULATION"]);
-  aoa.push([f.title || ""]);
-  aoa.push(["Client", f.client || ""]);
-  aoa.push(["Salarié / candidat", f.employeeName || ""]);
-  aoa.push(["Convention", f.conventionName || ""]);
-  aoa.push(["Catégorie", f.category || ""]);
-  aoa.push(["Date d'embauche", f.hiringDate || ""]);
-  aoa.push([]);
-  aoa.push(["ÉLÉMENTS DE SALAIRE", "Montant (XAF)"]);
-  (f.elements || []).forEach(e => aoa.push([e.label || "", N(e.amount)]));
-  aoa.push(["SALAIRE BRUT", c.brut]);
-  aoa.push(["Provision congés (1/12)", c.provConges]);
-  aoa.push(["Provision fin de contrat", c.provFin]);
-  aoa.push(["SOUS-TOTAL 1", c.sousTotal1]);
-  const p = Object.assign({}, DEFAULT_PARAMS, f.params || {});
-  aoa.push(["Charges patronales (" + p.chargesPatronalesPct + "%)", c.chargesPatronales]);
-  (p.fraisFixes || []).forEach(x => aoa.push([x.label || "Frais", N(x.amount)]));
-  aoa.push(["TOTAL 2 (contributions employeur)", c.total2]);
-  aoa.push(["Charges administratives + marge (" + p.margePct + "%)", c.marge]);
-  aoa.push(["MONTANT HT", c.ht]);
-  aoa.push(["TVA (" + p.tvaPct + "%)", c.tva]);
-  aoa.push(["MONTANT TTC", c.ttc]);
-  aoa.push([]);
-  aoa.push(["Arrêté à la somme de", (frWords(Math.round(c.ttc)) + " francs CFA").replace(/^./, s => s.toUpperCase())]);
-  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [{ wch: 42 }, { wch: 18 }];
-  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Fiche de prix");
-  res.setHeader("Content-Disposition", 'attachment; filename="fiche_prix.xlsx"');
-  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+  const c = compute(f); const p = Object.assign({}, DEFAULT_PARAMS, f.params || {});
+  const rows = buildRows(f, c, p); const brand = brandCtx(req); const words = ttcWords(c);
+  const fname = 'attachment; filename="fiche_prix.xlsx"';
+  const ctype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  // Prefer ExcelJS (embeds the company logo); fall back to xlsx (branded text header).
+  try {
+    const ExcelJS = require("exceljs");
+    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet("Fiche de prix");
+    ws.columns = [{ width: 46 }, { width: 20 }];
+    let r = 1;
+    if (brand.logo) { try { const imgId = wb.addImage({ buffer: brand.logo.buf, extension: brand.logo.ext }); ws.addImage(imgId, { tl: { col: 0, row: 0 }, ext: { width: 120, height: 50 } }); r = 4; } catch (e) {} }
+    ws.getCell("B1").value = brand.name; ws.getCell("B1").font = { bold: true, size: 12 };
+    ws.getCell("B2").value = brand.address; ws.getCell("B3").value = brand.contact;
+    r = Math.max(r, 4);
+    ws.getCell("A" + r).value = "FICHE DE PRIX"; ws.getCell("A" + r).font = { bold: true, size: 14 }; r += 2;
+    [["Titre", f.title], ["Client", f.client], ["Salari\u00e9 / candidat", f.employeeName], ["Convention", f.conventionName], ["Cat\u00e9gorie", f.category], ["Date d'embauche", f.hiringDate]]
+      .forEach(m => { ws.getCell("A" + r).value = m[0]; ws.getCell("A" + r).font = { bold: true }; ws.getCell("B" + r).value = m[1] || ""; r++; });
+    r++;
+    ws.getCell("A" + r).value = "\u00c9L\u00c9MENTS / RUBRIQUES"; ws.getCell("B" + r).value = "Montant (XAF)"; ws.getRow(r).font = { bold: true }; r++;
+    rows.forEach(row => { ws.getCell("A" + r).value = row[0]; const cell = ws.getCell("B" + r); cell.value = row[1]; cell.numFmt = "#,##0"; if (row[2]) ws.getRow(r).font = { bold: true }; r++; });
+    r++; ws.getCell("A" + r).value = "Arr\u00eat\u00e9 \u00e0 la somme de"; ws.getCell("A" + r).font = { bold: true }; ws.getCell("B" + r).value = words;
+    const buf = await wb.xlsx.writeBuffer();
+    res.setHeader("Content-Disposition", fname); res.setHeader("Content-Type", ctype);
+    return res.send(Buffer.from(buf));
+  } catch (e) {
+    let XLSX; try { XLSX = require("xlsx"); } catch (e2) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+    const aoa = [[brand.name], [brand.address], [brand.contact], [], ["FICHE DE PRIX"],
+      ["Titre", f.title || ""], ["Client", f.client || ""], ["Salari\u00e9 / candidat", f.employeeName || ""],
+      ["Convention", f.conventionName || ""], ["Cat\u00e9gorie", f.category || ""], ["Date d'embauche", f.hiringDate || ""],
+      [], ["\u00c9L\u00c9MENTS / RUBRIQUES", "Montant (XAF)"]];
+    rows.forEach(rw => aoa.push([rw[0], rw[1]])); aoa.push([]); aoa.push(["Arr\u00eat\u00e9 \u00e0 la somme de", words]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [{ wch: 46 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Fiche de prix");
+    res.setHeader("Content-Disposition", fname); res.setHeader("Content-Type", ctype);
+    return res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+  }
+});
+
+router.get("/:id/pdf", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  let PDFDocument; try { PDFDocument = require("pdfkit"); } catch (e) { return res.status(500).json({ error: "PDF indisponible" }); }
+  const f = mine(db.fichesPrix, req).find(x => x.id === req.params.id);
+  if (!f) return res.status(404).json({ error: "Introuvable" });
+  const c = compute(f); const p = Object.assign({}, DEFAULT_PARAMS, f.params || {});
+  const rows = buildRows(f, c, p); const brand = brandCtx(req); const words = ttcWords(c);
+  const doc = new PDFDocument({ size: "A4", margin: 40 });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'attachment; filename="fiche_prix.pdf"');
+  doc.pipe(res);
+  let y = 40;
+  if (brand.logo) { try { doc.image(brand.logo.buf, 40, y, { fit: [120, 54] }); } catch (e) {} }
+  doc.fontSize(14).font("Helvetica-Bold").fillColor("#111111").text(brand.name, 170, y, { width: 385 });
+  doc.fontSize(9).font("Helvetica").fillColor("#555555").text([brand.address, brand.contact, brand.niu ? ("NIU: " + brand.niu) : ""].filter(Boolean).join("\n"), 170, y + 18, { width: 385 });
+  doc.fillColor("#111111"); y += 74;
+  doc.moveTo(40, y).lineTo(555, y).strokeColor("#cccccc").stroke(); y += 12;
+  doc.fontSize(16).font("Helvetica-Bold").text("FICHE DE PRIX", 40, y); y += 20;
+  doc.fontSize(9).font("Helvetica").fillColor("#666666").text("R\u00e9f. " + (f.ref || "") + "   \u00b7   " + new Date().toLocaleDateString("fr-FR"), 40, y); doc.fillColor("#111111"); y += 22;
+  const info = (l, v) => { doc.fontSize(10).font("Helvetica-Bold").fillColor("#111111").text(l + " :", 40, y, { width: 150 }); doc.font("Helvetica").text(v || "-", 160, y, { width: 395 }); y += 15; };
+  info("Titre", f.title); info("Client", f.client); info("Salari\u00e9 / candidat", f.employeeName); info("Convention", f.conventionName); info("Cat\u00e9gorie", f.category); info("Date d'embauche", f.hiringDate);
+  y += 8;
+  const money = x => Math.round(Number(x) || 0).toLocaleString("fr-FR") + " FCFA";
+  doc.rect(40, y, 515, 18).fill("#f0f0f0"); doc.fillColor("#111111").fontSize(10).font("Helvetica-Bold");
+  doc.text("\u00c9l\u00e9ment / rubrique", 46, y + 4); doc.text("Montant", 405, y + 4, { width: 144, align: "right" }); y += 22;
+  rows.forEach(row => {
+    if (y > 770) { doc.addPage(); y = 40; }
+    doc.fontSize(10).font(row[2] ? "Helvetica-Bold" : "Helvetica").fillColor("#111111");
+    doc.text(row[0], 46, y, { width: 350 }); doc.text(money(row[1]), 405, y, { width: 144, align: "right" }); y += 15;
+    if (row[2]) { doc.moveTo(40, y - 2).lineTo(555, y - 2).strokeColor("#e5e5e5").stroke(); }
+  });
+  y += 10; doc.fontSize(10).font("Helvetica-Oblique").fillColor("#333333").text("Arr\u00eat\u00e9 \u00e0 la somme de : " + words, 40, y, { width: 515 });
+  doc.fontSize(8).fillColor("#999999").font("Helvetica").text(brand.name + " \u2014 g\u00e9n\u00e9r\u00e9 par SGRHP le " + new Date().toLocaleDateString("fr-FR"), 40, 805, { width: 515, align: "center" });
+  doc.end();
 });
 
 module.exports = router;

@@ -2408,7 +2408,7 @@ async function fichePrixView(){
    <div style="margin-bottom:10px"><button class="btn p sm" onclick="fichePrixForm()">+ Nouvelle simulation</button></div>
    <div class="panel"><div style="overflow:auto"><table style="width:100%"><tr><th>Réf.</th><th>Titre</th><th>Client</th><th>Salarié</th><th class="r">TTC</th><th></th></tr>
    ${list.length?list.map(f=>`<tr><td>${esc(f.ref||'')}</td><td>${esc(f.title||'')}</td><td>${esc(f.client||'')}</td><td>${esc(f.employeeName||'')}</td><td class="r"><b>${fpMoney(f.computed.ttc)}</b></td>
-     <td style="white-space:nowrap"><button class="btn ghost sm" onclick="fichePrixForm('${f.id}')">Ouvrir</button> <button class="btn ghost sm" onclick="fpExport('${f.id}')">Excel</button> <button class="btn ghost sm" style="color:var(--red)" onclick="fpDelete('${f.id}')">Supprimer</button></td></tr>`).join(""):'<tr><td colspan="6" class="note">Aucune simulation.</td></tr>'}</table></div></div>`;
+     <td style="white-space:nowrap"><button class="btn ghost sm" onclick="fichePrixForm('${f.id}')">Ouvrir</button> <button class="btn ghost sm" onclick="fpExport('${f.id}')">Excel</button> <button class="btn ghost sm" onclick="fpPdf('${f.id}')">PDF</button> <button class="btn ghost sm" style="color:var(--red)" onclick="fpDelete('${f.id}')">Supprimer</button></td></tr>`).join(""):'<tr><td colspan="6" class="note">Aucune simulation.</td></tr>'}</table></div></div>`;
 }
 async function fichePrixForm(idv){
   const [defs, cnvs, pfs, rubs, sels] = await Promise.all([
@@ -2453,6 +2453,7 @@ async function fichePrixForm(idv){
    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
      <button class="btn p" onclick="fpSave()">${idv?'Enregistrer':'Créer la simulation'}</button>
      ${idv?`<button class="btn ghost" onclick="fpExport('${idv}')">Exporter en Excel</button>`:''}
+     ${idv?`<button class="btn ghost" onclick="fpPdf('${idv}')">Exporter en PDF</button>`:''}
      ${idv?`<button class="btn ghost" style="color:var(--red)" onclick="fpDelete('${idv}')">Supprimer</button>`:''}</div>`;
   fpCnvChange(f?f.category:'');
   fpRecalc();
@@ -2472,6 +2473,7 @@ function fpCatChange(){ const sel=document.getElementById('fpCnv'), cat=document
 async function fpSave(){ const g=i=>document.getElementById(i); const sel=g('fpCnv'); const body={ title:g('fpTitle').value,client:g('fpClient').value,employeeName:g('fpEmp').value,hiringDate:g('fpDate').value, conventionId:sel.value, conventionName:sel.value?(sel.options[sel.selectedIndex]||{}).text||'':'', category:g('fpCat').value, elements:fpReadEls(), params:fpReadParams() };
   try{ if(window._FP.id){ await api('/ficheprix/'+window._FP.id,{method:'PUT',body:JSON.stringify(body)}); alert('Simulation enregistrée.'); } else { await api('/ficheprix',{method:'POST',body:JSON.stringify(body)}); alert('Simulation créée.'); } fichePrixView(); }catch(e){ alert(e.message); } }
 async function fpExport(idv){ try{ const r=await fetch('/api/ficheprix/'+idv+'/export',{headers:{Authorization:'Bearer '+TOKEN}}); if(!r.ok)throw new Error('Export indisponible'); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='fiche_prix.xlsx'; a.click(); }catch(e){ alert(e.message); } }
+async function fpPdf(idv){ try{ const r=await fetch('/api/ficheprix/'+idv+'/pdf',{headers:{Authorization:'Bearer '+TOKEN}}); if(!r.ok)throw new Error('PDF indisponible'); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='fiche_prix.pdf'; a.click(); }catch(e){ alert(e.message); } }
 async function fpDelete(idv){ if(!confirm("Supprimer cette simulation ? Cette action est irréversible."))return; try{ await api('/ficheprix/'+idv,{method:'DELETE'}); fichePrixView(); }catch(e){ alert(e.message); } }
 
 /* ================= M5: Career & Performance ================= */
