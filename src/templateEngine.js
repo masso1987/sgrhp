@@ -74,8 +74,9 @@ function autoContext(employeeId) {
   }
   if (gross > 0) base.salary_gross = gross;
   // Convention collective of the employee's portfolio: name + salary figures
-  const cnv = _mine("conventions").find(x => x.id === pf?.conventionId);
+  const cnv = _mine("conventions").find(x => x.id === (c.conventionId || pf?.conventionId));
   if (cnv) base.collective_agreement = cnv.name;
+  else if (c.conventionName) base.collective_agreement = c.conventionName;
   if (base.salary_base === undefined && c.category) {
     const row = (cnv?.grid || []).find(g => g.category === c.category)
       || _mine("salaryGrid").find(g => g.category === c.category);

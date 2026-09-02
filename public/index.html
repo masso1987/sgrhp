@@ -1226,16 +1226,16 @@ async function empForm(edit) {
     <div class="grid3"><div><label>Civilité</label><select id="fCiv"><option value=""></option><option>M</option><option>Mme</option><option>Mlle</option></select></div><div><label>Prénom</label><input id="fFirst"></div><div><label>Nom</label><input id="fLast"></div></div>
     <div class="grid3">
       <div><label>Portefeuille ${ME.role === "GPF" ? '<span class="tag gray">vos portefeuilles rattachés</span>' : ""}</label>
-      <select id="fPf" onchange="syncCnv()">${myPfs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
+      <select id="fPf" onchange="syncCnv(true)">${myPfs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
       <div><label>Date d'embauche</label><input id="fHire" type="date"></div>
       <div><label>Type de contrat</label><select id="fCt" onchange="fEndWrap.classList.toggle('hidden', !(window._CTYPES.find(t=>t.name===this.value)||{}).fixedTerm)">
       ${ctypes.map(t => `<option>${esc(t.name)}</option>`).join("")}</select></div></div>
     <div id="fEndWrap" class="hidden"><label>Date de fin de contrat <span class="tag amber">obligatoire pour les contrats à durée déterminée</span></label><input id="fEnd" type="date" style="max-width:220px"></div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;background:#f8fafc">
-      <label>Convention collective <span class="tag gray">issue du portefeuille sélectionné</span></label>
-      <div id="fCnvName" style="font-weight:600;margin:4px 0 8px">-</div>
-      <div class="grid2"><div><label>Catégorie (grille de la convention)</label>
-        <select id="fCat"><option value="">- sélectionner -</option></select></div>
+      <label>Convention collective <span class="tag gray">par défaut : celle du portefeuille - modifiable</span></label>
+      <select id="fCnv" onchange="syncCnv()"><option value="">- sélectionner -</option>${cnvs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
+      <div class="grid2" style="margin-top:6px"><div><label>Catégorie (grille de la convention)</label>
+        <select id="fCat" onchange="empCatChange()"><option value="">- sélectionner -</option></select></div>
         <div><label>Échelon</label><input id="fStep" placeholder="e.g. 2"></div></div>
     </div>
     <div class="grid3">
@@ -1272,10 +1272,10 @@ async function empForm(edit) {
     <div class="err hidden" id="fErr"></div>
     <button class="btn p" onclick="empSave('${edit ? edit.id : ""}')">${edit ? "Enregistrer les modifications" : "Créer le dossier"}</button>
     <button class="btn ghost" onclick="employees()">Annuler</button></div>`;
-  syncCnv();
+  syncCnv(true);
   if (edit) {
     if (edit.civility) fCiv.value = edit.civility; fFirst.value = edit.firstName || ""; fLast.value = edit.lastName || "";
-    if (edit.portfolioId) fPf.value = edit.portfolioId; syncCnv();
+    if (edit.portfolioId) fPf.value = edit.portfolioId; syncCnv(true);
     fHire.value = edit.hireDate || ""; fBirth.value = edit.birthDate || ""; fBp.value = edit.birthPlace || "";
     if (edit.maritalStatus) fMs.value = edit.maritalStatus;
     fCni.value = edit.cniNumber || ""; fCniExp.value = edit.cniExpiry || ""; fCnps.value = edit.cnpsNumber || "";
@@ -1285,7 +1285,7 @@ async function empForm(edit) {
     fDipe.value = edit.dipe || ""; fBank.value = edit.bankName || ""; fAcct.value = edit.bankAccount || "";
     const c = edit.contract || {};
     if (c.type) fCt.value = c.type; if (c.paymentMethod) fPay.value = c.paymentMethod;
-    if (c.category) fCat.value = c.category; if (c.step) fStep.value = c.step;
+    if (c.conventionId && document.getElementById("fCnv")) { fCnv.value = c.conventionId; syncCnv(); } if (c.category) fCat.value = c.category; if (c.step) fStep.value = c.step;
     const ft = (window._CTYPES.find(t =>t.name === fCt.value) || {}).fixedTerm;
     fEndWrap.classList.toggle("hidden", !ft); if (c.endDate) fEnd.value = c.endDate;
     // salary rubriques rendered by renderSalEls (portfolio-scoped)
@@ -1301,15 +1301,29 @@ async function empDelete(id, name) {
     } else if (!e.requiresConfirmation) alert(e.message);
   }
 }
-function syncCnv() {
-  const pf = (window._MYPFS || []).find(p =>p.id === fPf.value);
-  const cnv = (window._CNVS || []).find(c =>c.id === pf?.conventionId);
-  fCnvName.textContent = cnv ? cnv.name : "No convention attached to this portfolio (admin: Portfolio Config)";
-  const rows = (cnv?.grid || []).filter(g =>g.baseSalary >= 0);
-  fCat.innerHTML = '<option value="">- sélectionner -</option>' + rows.map(g =>
-    `<option value="${esc(g.category)}">${esc(g.category)} - base ${Number(g.baseSalary).toLocaleString("fr-FR")} F CFA</option>`).join("");
-  // render the salary rubriques allocated to this portfolio (portfolio-scoped)
+function syncCnv(fromPortfolio) {
+  const pf = (window._MYPFS || []).find(p => p.id === fPf.value);
+  const cnvSel = document.getElementById("fCnv");
+  if (fromPortfolio && cnvSel && pf && pf.conventionId) cnvSel.value = pf.conventionId;
+  const cnvId = cnvSel ? cnvSel.value : (pf && pf.conventionId);
+  const cnv = (window._CNVS || []).find(c => c.id === cnvId);
+  const rows = (cnv && cnv.grid ? cnv.grid : []).filter(g => g.baseSalary >= 0);
+  const fc = document.getElementById("fCat");
+  if (fc) fc.innerHTML = '<option value="">- sélectionner -</option>' + rows.map(g =>
+    `<option value="${esc(g.category)}" data-base="${g.baseSalary}">${esc(g.category)}${g.label ? " (" + esc(g.label) + ")" : ""} - base ${Number(g.baseSalary).toLocaleString("fr-FR")} F CFA</option>`).join("");
   renderSalEls(fPf.value, window._EDIT_SALARY);
+}
+function empCatChange() {
+  const sel = document.getElementById("fCat"); const opt = sel && sel.selectedOptions[0]; if (!opt) return;
+  const base = Number(opt.getAttribute("data-base") || 0); if (!base) return;
+  const box = document.getElementById("salElsBox"); if (!box) return;
+  for (const inp of box.querySelectorAll("[data-selamt]")) {
+    if ((inp.getAttribute("data-selamt") || "").toLowerCase().includes("base")) {
+      inp.value = base; inp.classList.remove("hidden");
+      const chk = box.querySelector('[data-selname="' + inp.getAttribute("data-selamt") + '"]'); if (chk) chk.checked = true;
+      break;
+    }
+  }
 }
 function renderSalEls(pfId, existingSalary) {
   const box = document.getElementById("salElsBox"); if (!box) return;
@@ -1342,6 +1356,8 @@ async function empSave(editId) {
       emergencyName: fEmgName.value, emergencyPhone: fEmgTel.value,
       emergencyContact: [fEmgName.value, fEmgTel.value].filter(Boolean).join(" - "), email: fEmail.value,
       contract: { type: fCt.value, category: fCat.value || undefined, step: fStep.value || undefined,
+        conventionId: (document.getElementById("fCnv") || {}).value || undefined,
+        conventionName: (function(){ const s=document.getElementById("fCnv"); return s && s.selectedOptions[0] && s.value ? s.selectedOptions[0].text : undefined; })(),
         paymentMethod: fPay.value, startDate: fHire.value,
         endDate: (window._CTYPES.find(t=>t.name===fCt.value)||{}).fixedTerm ? fEnd.value : null },
       salary: Object.fromEntries([...view.querySelectorAll("[data-selname]")].filter(c =>c.checked)

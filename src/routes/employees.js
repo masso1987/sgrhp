@@ -61,10 +61,11 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
   if (b.cnpsNumber && mine(db.employees, req).find(e => e.cnpsNumber && e.cnpsNumber === b.cnpsNumber))
     return res.status(409).json({ error: `CNPS number ${b.cnpsNumber} already belongs to another employee` });
   // Category must exist in the referential when provided
-  if (b.contract?.category) {
-    const cats = db.referentials.find(x => x.key === "categories")?.values || [];
-    if (!cats.includes(b.contract.category))
-      return res.status(400).json({ error: `Unknown category. Configured: ${cats.join(", ")}` });
+  // Category is driven by the selected collective agreement's grid (source of truth).
+  if (b.contract?.category && b.contract.conventionId) {
+    const cnv = db.conventions.find(x => x.id === b.contract.conventionId);
+    if (cnv && Array.isArray(cnv.grid) && cnv.grid.length && !cnv.grid.some(g => g.category === b.contract.category))
+      return res.status(400).json({ error: "Catégorie absente de la grille de la convention sélectionnée." });
   }
   if (b.contract) {
     const ct = db.contractTypes.find(t => t.name === b.contract.type);
