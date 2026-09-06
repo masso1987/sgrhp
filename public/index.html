@@ -474,7 +474,7 @@ const I18N = {
 "Changer mon mot de passe": "Change my password",
 "Mot de passe actuel": "Current password",
 "Nouveau mot de passe": "New password",
-"10 caractères minimum, avec majuscule, minuscule et chiffre.": "At least 10 characters, with uppercase, lowercase and a digit.",
+"8 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.": "At least 8 characters, with uppercase, lowercase, a digit and a special character.",
 "Modifier": "Edit",
 "Mot de passe modifié.": "Password changed.",
 "2FA activée. Elle vous sera demandée à la prochaine connexion.": "2FA enabled. It will be requested at your next sign-in.",
@@ -1055,7 +1055,6 @@ async function boot() {
   renderFooter();
   launcherPlaceholder();
   showLauncher();
-  startAccessPolling();
   connectChat();
   refreshChatUnread();
   if(!window._chatPoll) window._chatPoll=setInterval(refreshChatUnread, 30000);
@@ -1133,6 +1132,7 @@ function enterModule(g){ hideLauncher(); goGroup(g); }
 // take effect live - no re-login required.
 function startAccessPolling() {
   if (window._accessPoll) clearInterval(window._accessPoll);
+  return; /* desactive: plus de sondage periodique des droits */
   window._accessPoll = setInterval(async () => {
     if (!TOKEN) return;
     try {
@@ -1637,8 +1637,10 @@ async function linkPf(uid, btn) {
   catch (e) { alert(e.message); }
 }
 async function userSave() {
-  try { await api("/users", { method: "POST", body: JSON.stringify({
-      fullName: uName.value, email: uEmail.value, role: uRole.value, password: uPass.value }) }); users(); }
+  try { const r = await api("/users", { method: "POST", body: JSON.stringify({
+      fullName: uName.value, email: uEmail.value, role: uRole.value, password: uPass.value }) });
+    if (r && r.pendingConfirmation) alert("Utilisateur cree. Un email de confirmation a ete envoye : le compte reste inactif tant que l'utilisateur n'a pas clique le lien.");
+    users(); }
   catch (e) { uErr.textContent = e.message; uErr.classList.remove("hidden"); }
 }
 
@@ -3006,7 +3008,7 @@ async function accountView() {
     <div class="panel"><b>Changer mon mot de passe</b>
       <label>Mot de passe actuel</label><input id="acCur" type="password">
       <label>Nouveau mot de passe</label><input id="acNew" type="password">
-      <p style="font-size:11px;color:var(--muted)">10 caractères minimum, avec majuscule, minuscule et chiffre.</p>
+      <p style="font-size:11px;color:var(--muted)">8 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.</p>
       <div class="err hidden" id="acErr"></div>
       <button class="btn p" onclick="changePw()">Modifier</button></div>
   </div>`;

@@ -53,21 +53,41 @@ function verifyPw(pw, stored) {
 }
 /** Policy: >=10 chars, upper, lower, digit; rejects the demo password in production. */
 function passwordPolicy(pw) {
-  if (!pw || pw.length < 10) return "Le mot de passe doit contenir au moins 10 caractères";
+  if (!pw || pw.length < 8) return "Le mot de passe doit contenir au moins 8 caractères";
   if (!/[a-z]/.test(pw)) return "Le mot de passe doit contenir une minuscule";
   if (!/[A-Z]/.test(pw)) return "Le mot de passe doit contenir une majuscule";
   if (!/[0-9]/.test(pw)) return "Le mot de passe doit contenir un chiffre";
+  if (!/[^A-Za-z0-9]/.test(pw)) return "Le mot de passe doit contenir un caractère spécial";
   if (/^(demo|password|azerty|123456)/i.test(pw)) return "Mot de passe trop courant";
   return null;
+}
+/* Account confirmation (email) + reset-link helpers. */
+function newConfirmToken(user) {
+  user.confirmed = false; user.active = false;
+  user.confirmToken = crypto.randomBytes(24).toString("hex");
+  user.confirmExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  return user.confirmToken;
+}
+function confirmAccount(token) {
+  if (!token) return null;
+  const user = db.users.find(u => u.confirmToken === token);
+  if (!user) return null;
+  if (user.confirmExpires && Date.now() > new Date(user.confirmExpires).getTime()) return { expired: true };
+  user.confirmed = true; user.active = true; delete user.confirmToken; delete user.confirmExpires; save();
+  return { user };
 }
 
 /* ---------- login ---------- */
 function login(req, res) {
   const { email, password, totp } = req.body || {};
-  const user = db.users.find(u => u.email === email && u.active);
+  const user = db.users.find(u => u.email === email);
   const fail = (msg, code = 401) => res.status(code).json({ error: msg });
 
   if (!user) return fail("Identifiants invalides");
+  if (user.active === false) {
+    if (user.confirmed === false) return fail("Compte non confirmé — cliquez le lien de confirmation envoyé par email.", 403);
+    return fail("Compte désactivé — contactez votre administrateur.", 403);
+  }
   if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
     const mins = Math.ceil((new Date(user.lockedUntil) - Date.now()) / 60000);
     return fail(`Compte temporairement verrouillé — réessayez dans ${mins} min`, 423);
@@ -85,6 +105,10 @@ function login(req, res) {
     return fail("Identifiants invalides");
   }
 
+  // Reset link / temporary password expires after 30 minutes.
+  if (user.tempPasswordExpires && Date.now() > new Date(user.tempPasswordExpires).getTime())
+    return fail("Mot de passe temporaire expiré — demandez une nouvelle réinitialisation.", 401);
+
   // Two-factor: policy-driven (Settings > Security)
   const needs2fa = twoFaRequiredFor(user);
   if (needs2fa) {
@@ -99,7 +123,7 @@ function login(req, res) {
     }
   }
 
-  user.failedLogins = 0; user.lockedUntil = null; save();
+  user.failedLogins = 0; user.lockedUntil = null; user.tempPasswordExpires = null; save();
   const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: user.tenantId || "t1" },
     SECRET, { expiresIn: `${policy().sessionHours}h` });
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" }, "LOGIN", "User", user.id, {});
@@ -198,9 +222,10 @@ function forgotPassword(req, res) {
   const generic = { ok: true, message: "Si un compte existe pour cet email, un mot de passe temporaire vient d'être envoyé." };
   const user = db.users.find(u => (u.email || "").toLowerCase() === email);
   if (!user || user.active === false) return res.json(generic);
-  const tmp = "Cible" + Math.random().toString(36).slice(2, 7) + new Date().getFullYear() + "!";
-  user.password = hash(tmp); user.failedLogins = 0; user.lockedUntil = null; save();
-  try { mailer.trySend(user.email, "Réinitialisation de votre mot de passe", `Bonjour ${user.fullName},\n\nVotre mot de passe temporaire est : ${tmp}\n\nConnectez-vous puis changez-le dans « Mon compte » dès que possible.`); } catch (e) {}
+  const tmp = "Cible" + crypto.randomBytes(4).toString("hex") + "!A";
+  user.password = hash(tmp); user.failedLogins = 0; user.lockedUntil = null;
+  user.tempPasswordExpires = new Date(Date.now() + 30 * 60 * 1000).toISOString(); save();
+  try { mailer.trySend(user.email, "Réinitialisation de votre mot de passe", `Bonjour ${user.fullName},\n\nVotre mot de passe temporaire est : ${tmp}\n\nCe mot de passe expire dans 30 minutes. Connectez-vous puis changez-le dans « Mon compte » immédiatement.`); } catch (e) {}
   return res.json(generic);
 }
 
@@ -215,5 +240,5 @@ function totpDisable(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { login, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive,
+module.exports = { login, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive, newConfirmToken, confirmAccount,
   totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor };

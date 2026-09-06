@@ -40,7 +40,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "30mb" }));
 
 // Brute-force protection on authentication (§8.2)
-const LOGIN_MAX = process.env.LOGIN_LIMIT === undefined ? 20 : Number(process.env.LOGIN_LIMIT);
+const LOGIN_MAX = process.env.LOGIN_LIMIT === undefined ? 10 : Number(process.env.LOGIN_LIMIT);
 const loginLimiter = LOGIN_MAX > 0
   ? rateLimit({ windowMs: 15 * 60 * 1000, max: LOGIN_MAX, standardHeaders: true, legacyHeaders: false,
       message: { error: "Trop de tentatives de connexion — réessayez dans quelques minutes" } })
@@ -62,6 +62,14 @@ app.post("/api/2fa/confirm", loginLimiter, require("./auth").totpConfirm);
 
 // Health endpoint for load balancers / uptime monitoring
 // Public branding — no auth, so the login screen reflects the tenant's identity
+app.get("/api/confirm", (req, res) => {
+  const r = require("./auth").confirmAccount(req.query.token);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  const page = (title, msg, ok) => `<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="font-family:Inter,system-ui,sans-serif;background:#f5f8f7;margin:0;padding:48px 16px"><div style="max-width:460px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:28px;text-align:center"><h1 style="color:${ok ? "#065f46" : "#b91c1c"};font-size:20px;margin:0 0 8px">${title}</h1><p style="color:#374151">${msg}</p><a href="/" style="display:inline-block;margin-top:14px;background:#065f46;color:#fff;text-decoration:none;padding:9px 18px;border-radius:8px">Aller à la connexion</a></div></body></html>`;
+  if (r && r.user) return res.send(page("Compte confirmé", "Votre compte est activé. Vous pouvez maintenant vous connecter.", true));
+  if (r && r.expired) return res.status(400).send(page("Lien expiré", "Ce lien de confirmation a expiré. Contactez votre administrateur pour recréer le compte.", false));
+  return res.status(400).send(page("Lien invalide", "Ce lien de confirmation est invalide ou déjà utilisé.", false));
+});
 app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});

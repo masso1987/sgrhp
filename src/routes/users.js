@@ -29,12 +29,20 @@ router.post("/", allow("ADM"), (req, res) => {
   if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Email exists" });
   const pwErr = passwordPolicy(password);
   if (pwErr) return res.status(400).json({ error: pwErr });
-  const u = stamp({ id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true }, req);
+  const mailer = require("../mailer");
+  const smtpOn = !!(mailer.cfg() || {}).enabled;
+  const u = stamp({ id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true, confirmed: true }, req);
   if (role === "RQ") _grantModuleIfTenant(u, "quality");
+  if (smtpOn) require("../auth").newConfirmToken(u);   // inactive until the user confirms by email
   db.users.push(u); save();
-  audit(req.user, "CREATED", "User", u.id, { email, role });
-  const { password: _, ...safe } = u;
-  res.status(201).json(safe);
+  audit(req.user, "CREATED", "User", u.id, { email, role, pendingConfirmation: smtpOn });
+  if (smtpOn) {
+    const base = `${req.protocol}://${req.get("host")}`;
+    try { mailer.trySend(u.email, "Confirmez votre compte SGRHP",
+      `Bonjour ${u.fullName},\n\nUn compte SGRHP a été créé pour vous. Cliquez le lien ci-dessous pour l'activer :\n\n${base}/api/confirm?token=${u.confirmToken}\n\nCe lien expire dans 24 heures. Tant que le compte n'est pas confirmé, la connexion est impossible.`); } catch (e) {}
+  }
+  const { password: _, confirmToken: __, ...safe } = u;
+  res.status(201).json({ ...safe, pendingConfirmation: smtpOn });
 });
 // ADM links portfolios to a GPF user (one GPF can hold several portfolios)
 router.put("/:id/portfolios", allow("ADM", "SADM"), (req, res) => {
