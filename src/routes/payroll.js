@@ -77,9 +77,24 @@ function configOf(req) {
 }
 function baseSalaryOf(emp, req) {
   if (emp.salary && Number(emp.salary.base) > 0) return Number(emp.salary.base);
-  const cat = emp.contract && emp.contract.category;
+  const c = emp.contract || {}; const cat = c.category;
+  // 1) Convention collective grid (nouvelle source de vérité) — par conventionId, sinon toute convention ayant la catégorie.
+  if (cat) {
+    const convs = mine(db.conventions, req);
+    const byId = c.conventionId ? convs.find(x => x.id === c.conventionId) : null;
+    const rowIn = (cnv) => (cnv && Array.isArray(cnv.grid) ? cnv.grid : []).find(g => g.category === cat && Number(g.baseSalary) > 0);
+    let row = rowIn(byId);
+    if (!row) for (const cnv of convs) { row = rowIn(cnv); if (row) break; }
+    if (row) return Number(row.baseSalary);
+  }
+  // 2) Grille salariale héritée (catégories du référentiel).
   const g = mine(db.salaryGrid, req).find(x => x.category === cat);
-  return g ? Number(g.baseSalary) : 0;
+  if (g && Number(g.baseSalary) > 0) return Number(g.baseSalary);
+  // 3) Un élément de salaire dont le nom évoque le salaire de base.
+  if (emp.salary) for (const [k, v] of Object.entries(emp.salary)) {
+    if (/base/i.test(k) && Number(v) > 0) return Number(v);
+  }
+  return 0;
 }
 function seniorityYears(emp, period) {
   const hire = emp.hireDate || (emp.contract && emp.contract.startDate);
@@ -105,7 +120,7 @@ function structureToInput(emp, req) {
     const amount = Number(salary[el.name]);
     if (!amount) continue;
     const code = el.rubriqueCode || TAG_RUB[el.tag] || null; const rub = code ? rubOf(code) : null;
-    if (code === "1000" || el.tag === "salary_base") { baseSalary = amount; continue; }
+    if (code === "1000" || el.tag === "salary_base" || /salaire de base/i.test(el.name || "")) { baseSalary = amount; continue; }
     if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount, prorate: true }; continue; }
     gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount, prorate: true,
       cnps: rub ? !!rub.cnps : true, impo: rub ? !!rub.impo : true });
