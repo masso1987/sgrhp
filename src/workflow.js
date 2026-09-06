@@ -62,13 +62,13 @@ function resubmitTemplateDoc(documentId, provided, user) {
 }
 
 /** GPF submits an employee file. Gate: all required portfolio docs uploaded (§2.3). */
-function submitEmployeeFile(employeeId, user) {
+function submitEmployeeFile(employeeId, user, opts = {}) {
   const emp = db.employees.find(e => e.id === employeeId);
   if (!emp) { const e = new Error("Employee not found"); e.status = 404; throw e; }
   const pf = db.portfolios.find(p => p.id === emp.portfolioId);
   const uploaded = new Set(db.files.filter(f => f.employeeId === employeeId).map(f => f.docType));
   const missing = (pf?.required || []).filter(c => !uploaded.has(c));
-  if (missing.length) {
+  if (!opts.skipGate && missing.length) {
     const e = new Error(`Cannot submit: required documents missing (${missing.join(", ")}) — §2.3`);
     e.status = 400; throw e;
   }

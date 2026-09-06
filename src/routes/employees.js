@@ -86,7 +86,10 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
   const emp = stamp({ id: id("emp"), status: "DRAFT", createdBy: req.user.id, createdAt: new Date().toISOString(), ...b }, req);
   db.employees.push(emp); save();
   audit(req.user, "CREATED", "Employee", emp.id, { name: `${b.firstName} ${b.lastName}` });
-  res.status(201).json({ ...emp, checklist: checklist(emp) });
+  // Auto-entrée dans le circuit de validation CD -> RJ dès la création (documents ajoutables ensuite).
+  let workflow = null;
+  try { workflow = wf.submitEmployeeFile(emp.id, req.user, { skipGate: true }); } catch (e) { /* non bloquant */ }
+  res.status(201).json({ ...emp, checklist: checklist(emp), workflow: workflow ? { status: workflow.status, stage: "CD" } : null });
 });
 
 router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
