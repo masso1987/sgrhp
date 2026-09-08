@@ -680,7 +680,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const cum = (db.payCumuls || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1") && c.employeeId === s.employeeId && c.year === s.period.slice(0, 4));
   const workedDays = (r.meta && r.meta.workedDays != null) ? r.meta.workedDays : 30;
 
-  const NAVY = "#1b2a4a", MUT = "#6b7280", LINE = "#e5e7eb", CARD = "#f6f8fb", STRIPE = "#f2f5f9", TXT = "#111827";
+  const NAVY = "#1b2a4a", MUT = "#000000", LINE = "#e5e7eb", CARD = "#f6f8fb", STRIPE = "#f2f5f9", TXT = "#000000";
   const L = 30, RgT = 565, W = RgT - L;
   const txt = (x, y, str, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 7.5).fillColor(o.c || TXT)
     .text(str == null ? "" : String(str), x, y, { width: o.w, align: o.a || "left", lineBreak: false }); };
@@ -689,10 +689,10 @@ function drawPayslipModern(doc, s, emp, tenant) {
   let y = 28;
   /* HEADER */
   card(L, y, W, 52, CARD);
-  txt(L + 12, y + 9, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 12, c: NAVY, w: 250 });
+  txt(L + 12, y + 9, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 12, c: TXT, w: 250 });
   txt(L + 12, y + 26, [CO.address, CO.city].filter(Boolean).join(" · "), { s: 6.5, c: MUT, w: 250 });
   txt(L + 12, y + 37, `N° Contribuable ${CO.niu || tenant.niu || "—"}   ·   N° Employeur ${CO.employerNo || tenant.cnpsEmployer || "—"}`, { s: 6.5, c: MUT, w: 260 });
-  txt(RgT - 240, y + 7, "BULLETIN DE PAIE", { b: 1, s: 12, c: NAVY, w: 228, a: "right" });
+  txt(RgT - 240, y + 7, "BULLETIN DE PAIE", { b: 1, s: 12, c: TXT, w: 228, a: "right" });
   txt(RgT - 240, y + 24, `Période du ${dS} au ${dE}`, { s: 7, c: MUT, w: 228, a: "right" });
   txt(RgT - 240, y + 34, `Payé le ${dE} par ${C.paymentMethod || "Virement"}`, { s: 7, c: MUT, w: 228, a: "right" });
   txt(RgT - 240, y + 44, `Banque ${String(emp.bankName || C.bankName || "—").slice(0,18)}  Cpte ${emp.bankAccount || C.bankIban || "—"}`, { s: 6.5, c: MUT, w: 228, a: "right" });
@@ -702,7 +702,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const empH = 92;
   card(L, y, W, empH, CARD);
   txt(L + 12, y + 8, `${emp.civility || ""} ${(emp.firstName||"")} ${(emp.lastName||"")}`.trim(), { b: 1, s: 11, c: TXT, w: 300 });
-  txt(RgT - 160, y + 9, `Matricule ${s.matricule || "—"}`, { b: 1, s: 8, c: NAVY, w: 148, a: "right" });
+  txt(RgT - 160, y + 9, `Matricule ${s.matricule || "—"}`, { b: 1, s: 8, c: TXT, w: 148, a: "right" });
   doc.save(); doc.moveTo(L + 12, y + 26).lineTo(RgT - 12, y + 26).strokeColor(LINE).stroke(); doc.restore();
   const colL = L + 12, colM = L + 190, colR = L + 372;
   const pairs = [
@@ -719,7 +719,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   /* generic table */
   const drawTable = (title, cols, headers, rows, totalRow) => {
     const rowH = 13.5, headH = 15;
-    txt(L + 2, y, title, { b: 1, s: 8.5, c: NAVY }); y += 13;
+    txt(L + 2, y, title, { b: 1, s: 8.5, c: TXT }); y += 13;
     const top = y, bh = headH + rows.length * rowH + (totalRow ? rowH : 0);
     doc.save(); doc.roundedRect(L, y, W, headH, 3).fill(NAVY); doc.restore();
     headers.forEach((h, i) => txt(cols[i].x + (cols[i].a === "right" ? 0 : 6), y + 4, h, { b: 1, s: 6.5, c: "#ffffff", w: cols[i].w - 6, a: cols[i].a }));
@@ -727,7 +727,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
     rows.forEach((rw, ri) => { if (ri % 2) { doc.save(); doc.rect(L, y, W, rowH).fill(STRIPE); doc.restore(); }
       rw.forEach((v, i) => txt(cols[i].x + (cols[i].a === "right" ? 0 : 6), y + 3, v, { s: 7.5, w: cols[i].w - 6, a: cols[i].a, c: TXT })); y += rowH; });
     if (totalRow) { doc.save(); doc.rect(L, y, W, rowH).fill("#e9eef5"); doc.restore();
-      totalRow.forEach((v, i) => { if (v != null && v !== "") txt(cols[i].x + (cols[i].a === "right" ? 0 : 6), y + 3, v, { b: 1, s: 8, w: cols[i].w - 6, a: cols[i].a, c: NAVY }); }); y += rowH; }
+      totalRow.forEach((v, i) => { if (v != null && v !== "") txt(cols[i].x + (cols[i].a === "right" ? 0 : 6), y + 3, v, { b: 1, s: 8, w: cols[i].w - 6, a: cols[i].a, c: TXT }); }); y += rowH; }
     doc.save(); doc.roundedRect(L, top, W, bh, 3).stroke(LINE); doc.restore(); y += 8;
   };
 
@@ -757,7 +757,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   ];
   const rowsPerCol = Math.ceil(sumRows.length / 2), sumH = 22 + rowsPerCol * 13 + 8;
   card(L, y, W, sumH, CARD);
-  txt(L + 12, y + 8, "CUMUL DE LA PÉRIODE", { b: 1, s: 8.5, c: NAVY });
+  txt(L + 12, y + 8, "CUMUL DE LA PÉRIODE", { b: 1, s: 8.5, c: TXT });
   const colW = (W - 24) / 2;
   sumRows.forEach((rw, i) => { const col = Math.floor(i / rowsPerCol), row = i % rowsPerCol;
     const bx = L + 12 + col * colW, byy = y + 24 + row * 13;
@@ -768,7 +768,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   if (y > 700) { doc.addPage(); y = 28; }
   doc.save(); doc.roundedRect(L, y, W, 34, 4).fill(NAVY); doc.restore();
   txt(L + 14, y + 11, "NET À PAYER", { b: 1, s: 11, c: "#ffffff", w: 200 });
-  txt(RgT - 214, y + 8, F(t.netAPayer) + " FCFA", { b: 1, s: 15, c: "#ffffff", w: 200, a: "right" });
+  txt(RgT - 150, y + 11, F(t.netAPayer) + " FCFA", { b: 1, s: 11, c: "#ffffff", w: 136, a: "right" });
   y += 42;
 
   /* CONGÉS + AUTHENTIFICATION */
