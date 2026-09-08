@@ -2403,6 +2403,7 @@ async function selMap(id, rubriqueCode) {
   catch (e) { alert(e.message); }
 }
 async function selDel(id) {
+  if (!confirm("Supprimer cet élément de salaire ?")) return;
   await api(`/config/salary-elements/${id}`, { method: "DELETE" }); templatesView();
 }
 async function cttAdd() {
@@ -4036,6 +4037,7 @@ function bulletinRenderEls(all) {
     : '<small style="color:var(--muted)">Aucun élément variable ce mois.</small>';
 }
 async function bulletinDelEl(id) {
+  if (!confirm("Supprimer cet élément variable ?")) return;
   try { await api("/payroll/elements/" + id, { method: "DELETE" });
     const { run, empId } = BULLETIN_CTX; const els = await api(`/payroll/elements?period=${run.period}&employeeId=${empId}`);
     BULLETIN_CTX.els = els; bulletinRenderEls(els); } catch (e) { alert(e.message); }
@@ -4121,6 +4123,7 @@ async function payLoadElements(period, employeeId) {
     : `<small style="color:var(--muted)">Aucun élément saisi pour ce salarié.</small>`;
 }
 async function payDelElement(id, period, employeeId) {
+  if (!confirm("Supprimer cet élément de paie ?")) return;
   try { await api("/payroll/elements/" + id, { method: "DELETE" }); payLoadElements(period, employeeId); }
   catch (e) { alert(e.message); }
 }
