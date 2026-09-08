@@ -664,130 +664,135 @@ function drawPayslip(doc, s, emp, tenant) {
 function drawPayslipModern(doc, s, emp, tenant) {
   const t = s.result.totals, r = s.result;
   const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
+  const NB = (n) => { if (n == null || n === "") return ""; const v = Number(n); if (isNaN(v)) return String(n); return (Math.round(v * 1000) / 1000).toString().replace(".", ","); };
   const C = emp.contract || {};
   const CO = (db.settings && db.settings.branding && db.settings.branding.company) || {};
   const MS = { Single: "Célibataire", Married: "Marié(e)", Divorced: "Divorcé(e)", Widowed: "Veuf(ve)" };
+  const fdate = (d) => { if (!d) return ""; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : d; };
+  const shortConv = (n) => { if (!n) return ""; const stop = new Set(["convention","conventions","collective","collectives","nationale","interprofessionnelle","de","du","des","la","le","les","l","d"]); const w = String(n).replace(/[''’]/g, " ").split(/\s+/).filter(Boolean); while (w.length && stop.has(w[0].toLowerCase())) w.shift(); const o = w.join(" ") || String(n); return o.charAt(0).toUpperCase() + o.slice(1); };
+  const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if (!h) return ""; const d = new Date(s.period + "-01"); let m = (d.getFullYear()-h.getFullYear())*12 + (d.getMonth()-h.getMonth()); if (m < 0) m = 0; return `${Math.floor(m/12)} an(s) ${m%12} mois`; })();
+  const _pf = (db.portfolios || []).find(p => p.id === emp.portfolioId);
+  const _conv = _pf ? (db.conventions || []).find(c => c.id === _pf.conventionId) : null;
+  const convName = C.convention || emp.convention || (_conv && _conv.name) || "";
   const [yy, mm] = s.period.split("-"); const last = new Date(Number(yy), Number(mm), 0).getDate();
   const dS = `01/${mm}/${yy.slice(2)}`, dE = `${String(last).padStart(2, "0")}/${mm}/${yy.slice(2)}`;
   const cum = (db.payCumuls || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1") && c.employeeId === s.employeeId && c.year === s.period.slice(0, 4));
-  const NAVY = "#1b2a4a", MUT = "#6b7280", LINE = "#e5e7eb", CARD = "#f6f8fb", TXT = "#111827";
+  const workedDays = (r.meta && r.meta.workedDays != null) ? r.meta.workedDays : 30;
+
+  const NAVY = "#1b2a4a", MUT = "#6b7280", LINE = "#e5e7eb", CARD = "#f6f8fb", STRIPE = "#f2f5f9", TXT = "#111827";
   const L = 30, RgT = 565, W = RgT - L;
-
-  const txt = (x, y, str, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 8).fillColor(o.c || TXT)
+  const txt = (x, y, str, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 7.5).fillColor(o.c || TXT)
     .text(str == null ? "" : String(str), x, y, { width: o.w, align: o.a || "left", lineBreak: false }); };
-  const card = (x, y, w, h, fill) => { doc.save(); doc.roundedRect(x, y, w, h, 5).fillAndStroke(fill || CARD, LINE); doc.restore(); };
+  const card = (x, y, w, h, fill) => { doc.save(); doc.roundedRect(x, y, w, h, 4).fillAndStroke(fill || "#ffffff", LINE); doc.restore(); };
 
-  let y = 30;
+  let y = 28;
   /* HEADER */
-  card(L, y, W, 60);
-  txt(L + 14, y + 12, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 13, c: NAVY, w: 300 });
-  txt(L + 14, y + 31, "BULLETIN DE PAIE", { b: 1, s: 8, c: MUT, w: 300 });
-  txt(RgT - 214, y + 22, `${dS}  ›  ${dE}`, { s: 9, c: MUT, w: 200, a: "right" });
-  y += 74;
+  card(L, y, W, 52, CARD);
+  txt(L + 12, y + 9, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 12, c: NAVY, w: 250 });
+  txt(L + 12, y + 26, [CO.address, CO.city].filter(Boolean).join(" · "), { s: 6.5, c: MUT, w: 250 });
+  txt(L + 12, y + 37, `N° Contribuable ${CO.niu || tenant.niu || "—"}   ·   N° Employeur ${CO.employerNo || tenant.cnpsEmployer || "—"}`, { s: 6.5, c: MUT, w: 260 });
+  txt(RgT - 240, y + 7, "BULLETIN DE PAIE", { b: 1, s: 12, c: NAVY, w: 228, a: "right" });
+  txt(RgT - 240, y + 24, `Période du ${dS} au ${dE}`, { s: 7, c: MUT, w: 228, a: "right" });
+  txt(RgT - 240, y + 34, `Payé le ${dE} par ${C.paymentMethod || "Virement"}`, { s: 7, c: MUT, w: 228, a: "right" });
+  txt(RgT - 240, y + 44, `Banque ${String(emp.bankName || C.bankName || "—").slice(0,18)}  Cpte ${emp.bankAccount || C.bankIban || "—"}`, { s: 6.5, c: MUT, w: 228, a: "right" });
+  y += 60;
 
-  /* EMPLOYÉ + CATÉGORIE cards */
-  const half = (W - 12) / 2;
-  card(L, y, half, 58); card(L + half + 12, y, half, 58);
-  txt(L + 12, y + 10, "EMPLOYÉ", { b: 1, s: 7, c: MUT });
-  txt(L + 12, y + 24, `${(emp.firstName || "")} ${(emp.lastName || "")}`.trim(), { b: 1, s: 12, c: TXT, w: half - 20 });
-  txt(L + 12, y + 41, `Matricule ${s.matricule || "—"}  ·  CNPS ${emp.cnpsNumber || "—"}  ·  ${emp.department || C.position || ""}`, { s: 7, c: MUT, w: half - 20 });
-  txt(L + half + 24, y + 10, "CATÉGORIE", { b: 1, s: 7, c: MUT });
-  txt(L + half + 24, y + 26, C.category || "—", { b: 1, s: 12, c: TXT, w: half - 20 });
-  const enf = emp.children != null ? `${emp.children} enfant${emp.children > 1 ? "s" : ""}` : "";
-  txt(L + half + 24, y + 43, `${MS[emp.maritalStatus] || emp.maritalStatus || ""}${enf ? " · " + enf : ""}`, { s: 7, c: MUT, w: half - 20 });
-  y += 72;
+  /* EMPLOYÉ card — full detail grid */
+  const empH = 92;
+  card(L, y, W, empH, CARD);
+  txt(L + 12, y + 8, `${emp.civility || ""} ${(emp.firstName||"")} ${(emp.lastName||"")}`.trim(), { b: 1, s: 11, c: TXT, w: 300 });
+  txt(RgT - 160, y + 9, `Matricule ${s.matricule || "—"}`, { b: 1, s: 8, c: NAVY, w: 148, a: "right" });
+  doc.save(); doc.moveTo(L + 12, y + 26).lineTo(RgT - 12, y + 26).strokeColor(LINE).stroke(); doc.restore();
+  const colL = L + 12, colM = L + 190, colR = L + 372;
+  const pairs = [
+    ["Conv. coll.", shortConv(convName)], ["Emploi", C.position || emp.position || ""], ["Catégorie", C.category || ""],
+    ["N° CNPS", emp.cnpsNumber || ""], ["Sit. Fam.", MS[emp.maritalStatus] || emp.maritalStatus || ""], ["Nbre Enfants", emp.children != null ? String(emp.children) : ""],
+    ["Date Embauche", fdate(emp.hireDate)], ["Ancienneté", yrs], ["Qualification", emp.qualification || ""],
+    ["N° DIPE", emp.dipe || CO.dipe || tenant.dipe || ""], ["Département", emp.department || ""], ["Jour / Mois", F2(workedDays)],
+  ];
+  const cx = [colL, colM, colR]; let gy = y + 32;
+  pairs.forEach((p, i) => { const c = cx[i % 3]; if (i % 3 === 0 && i) gy += 15;
+    txt(c, gy, p[0], { b: 1, s: 6.5, c: MUT, w: 60 }); txt(c + 58, gy, p[1], { s: 7.5, c: TXT, w: 116 }); });
+  y += empH + 8;
 
-  /* helper : table with 5 cols (N°, Désignation, Base, Part salariale, Part patronale) */
-  const COLS = [{ x: L, w: 34, a: "left" }, { x: L + 34, w: 214, a: "left" }, { x: L + 248, w: 96, a: "right" }, { x: L + 344, w: 96, a: "right" }, { x: L + 440, w: W - 440, a: "right" }];
-  const drawTable = (title, headers, rows, totalRow) => {
-    const rowH = 16, headH = 18, n = rows.length;
-    const bh = headH + n * rowH + (totalRow ? rowH : 0);
-    // section title
-    txt(L + 2, y, title, { b: 1, s: 9, c: NAVY }); y += 15;
-    // header band
+  /* generic table */
+  const drawTable = (title, cols, headers, rows, totalRow) => {
+    const rowH = 13.5, headH = 15;
+    txt(L + 2, y, title, { b: 1, s: 8.5, c: NAVY }); y += 13;
+    const top = y, bh = headH + rows.length * rowH + (totalRow ? rowH : 0);
     doc.save(); doc.roundedRect(L, y, W, headH, 3).fill(NAVY); doc.restore();
-    headers.forEach((h, i) => txt(COLS[i].x + (COLS[i].a === "right" ? 0 : 8), y + 5, h, { b: 1, s: 7, c: "#ffffff", w: COLS[i].w - 8, a: COLS[i].a }));
+    headers.forEach((h, i) => txt(cols[i].x + (cols[i].a === "right" ? 0 : 6), y + 4, h, { b: 1, s: 6.5, c: "#ffffff", w: cols[i].w - 6, a: cols[i].a }));
     y += headH;
-    rows.forEach((rw, ri) => {
-      if (ri % 2) { doc.save(); doc.rect(L, y, W, rowH).fill(CARD); doc.restore(); }
-      rw.forEach((v, i) => txt(COLS[i].x + (COLS[i].a === "right" ? 0 : 8), y + 4, v, { s: 8, w: COLS[i].w - 8, a: COLS[i].a, c: TXT }));
-      y += rowH;
-    });
-    if (totalRow) {
-      doc.save(); doc.rect(L, y, W, rowH).fill("#eef2f7"); doc.restore();
-      totalRow.forEach((v, i) => { if (v != null && v !== "") txt(COLS[i].x + (COLS[i].a === "right" ? 0 : 8), y + 4, v, { b: 1, s: 8.5, w: COLS[i].w - 8, a: COLS[i].a, c: NAVY }); });
-      y += rowH;
-    }
-    doc.save(); doc.roundedRect(L, y - bh - 0, W, bh, 3).stroke(LINE); doc.restore();
-    y += 10;
+    rows.forEach((rw, ri) => { if (ri % 2) { doc.save(); doc.rect(L, y, W, rowH).fill(STRIPE); doc.restore(); }
+      rw.forEach((v, i) => txt(cols[i].x + (cols[i].a === "right" ? 0 : 6), y + 3, v, { s: 7.5, w: cols[i].w - 6, a: cols[i].a, c: TXT })); y += rowH; });
+    if (totalRow) { doc.save(); doc.rect(L, y, W, rowH).fill("#e9eef5"); doc.restore();
+      totalRow.forEach((v, i) => { if (v != null && v !== "") txt(cols[i].x + (cols[i].a === "right" ? 0 : 6), y + 3, v, { b: 1, s: 8, w: cols[i].w - 6, a: cols[i].a, c: NAVY }); }); y += rowH; }
+    doc.save(); doc.roundedRect(L, top, W, bh, 3).stroke(LINE); doc.restore(); y += 8;
   };
 
-  const dlbl = (l) => (l.label || "").toString();
+  /* Rémunération : N° | Désignation | Nombre | Base | Part salariale | Part patronale */
+  const gcols = [{x:L,w:26,a:"left"},{x:L+26,w:176,a:"left"},{x:L+202,w:66,a:"right"},{x:L+268,w:82,a:"right"},{x:L+350,w:100,a:"right"},{x:L+450,w:W-450,a:"right"}];
   const gains = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
-  drawTable("Rémunération", ["N°", "Désignation", "Base", "Part salariale", "Part patronale"],
-    gains.map(l => [l.code || "", dlbl(l), l.base ? F(l.base) : "", F(l.gain), ""]),
-    ["", "TOTAL BRUT", "", F(t.brutTotal), ""]);
+  drawTable("Rémunération", gcols, ["N°","Désignation","Nombre","Base","Part salariale","Part patronale"],
+    gains.map(l => [l.code||"", (l.label||""), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", F(l.gain), ""]),
+    ["","TOTAL BRUT","","",F(t.brutTotal),""]);
 
+  /* Cotisations : N° | Cotisation | Base | Taux | Part salariale | Part patronale */
+  const ccols = [{x:L,w:26,a:"left"},{x:L+26,w:150,a:"left"},{x:L+176,w:80,a:"right"},{x:L+256,w:54,a:"right"},{x:L+310,w:120,a:"right"},{x:L+430,w:W-430,a:"right"}];
   const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
-  drawTable("Cotisations & retenues", ["N°", "Cotisations", "Base", "Part salariale", "Part patronale"],
-    cot.map(l => [l.code || "", dlbl(l), l.base ? F(l.base) : "", l.retenue ? F(l.retenue) : "", l.employer ? F(l.employer) : ""]),
-    ["", "TOTAL COTISATIONS", "", F((t.cnpsSalarie || 0) + (t.totalImpots || 0)), F((t.cnpsPatronal || 0) + (t.cfcPatronal || 0))]);
+  drawTable("Cotisations & retenues", ccols, ["N°","Cotisation","Base","Taux","Part salariale","Part patronale"],
+    cot.map(l => [l.code||"", (l.label||""), l.base?F2(l.base):"", l.rate?(l.rate*100).toFixed(2):"", l.retenue?F(l.retenue):"", l.employer?F(l.employer):""]),
+    ["","TOTAL COTISATIONS","","",F((t.cnpsSalarie||0)+(t.totalImpots||0)),F((t.cnpsPatronal||0)+(t.cfcPatronal||0))]);
 
-  /* page break guard before summary */
-  if (y > 640) { doc.addPage(); y = 30; }
+  if (y > 648) { doc.addPage(); y = 28; }
 
-  /* CUMUL DE LA PÉRIODE — dedicated summary card */
+  /* CUMUL DE LA PÉRIODE — dedicated, 2 columns */
   const heuresSupp = r.lines.filter(l => l.hours).reduce((a, l) => a + Number(l.hours || 0), 0);
   const sumRows = [
-    ["Salaire brut", F(t.brutTotal)],
-    ["Charges salariales", F((t.cnpsSalarie || 0) + (t.totalImpots || 0))],
-    ["Charges patronales", F((t.cnpsPatronal || 0) + (t.cfcPatronal || 0))],
-    ["Avantages en nature", F(t.avantagesNature || 0)],
-    ["Salaire taxable", F(t.netImposable || 0)],
-    ["Jours travaillés", String((r.meta && r.meta.workedDays) != null ? r.meta.workedDays : 30)],
-    ["Heures supplémentaires", String(heuresSupp || 0)],
+    ["Salaire brut", F(t.brutTotal)], ["Charges salariales", F((t.cnpsSalarie||0)+(t.totalImpots||0))],
+    ["Charges patronales", F((t.cnpsPatronal||0)+(t.cfcPatronal||0))], ["Avantages en nature", F(t.avantagesNature||0)],
+    ["Salaire taxable", F(t.netImposable||0)], ["Jours travaillés", F2(workedDays)],
+    ["Heures supplémentaires", NB(heuresSupp)||"0"], ["Cumul brut annuel", F(cum ? cum.brut : t.brutTotal)],
   ];
-  const sumH = 24 + sumRows.length * 15 + 10;
-  card(L, y, W, sumH);
-  txt(L + 12, y + 10, "CUMUL DE LA PÉRIODE", { b: 1, s: 9, c: NAVY });
-  let sy = y + 28;
-  sumRows.forEach(([lb, v]) => { txt(L + 14, sy, lb, { s: 8, c: MUT, w: 300 }); txt(RgT - 160, sy, v + " FCFA", { b: 1, s: 8.5, c: TXT, w: 146, a: "right" }); sy += 15; });
-  y += sumH + 12;
+  const rowsPerCol = Math.ceil(sumRows.length / 2), sumH = 22 + rowsPerCol * 13 + 8;
+  card(L, y, W, sumH, CARD);
+  txt(L + 12, y + 8, "CUMUL DE LA PÉRIODE", { b: 1, s: 8.5, c: NAVY });
+  const colW = (W - 24) / 2;
+  sumRows.forEach((rw, i) => { const col = Math.floor(i / rowsPerCol), row = i % rowsPerCol;
+    const bx = L + 12 + col * colW, byy = y + 24 + row * 13;
+    txt(bx, byy, rw[0], { s: 7.5, c: MUT, w: colW - 90 }); txt(bx + colW - 92, byy, rw[1] + " FCFA", { b: 1, s: 8, c: TXT, w: 80, a: "right" }); });
+  y += sumH + 8;
 
-  /* NET À PAYER — placed at its usual place, at the bottom of the summary */
-  if (y > 690) { doc.addPage(); y = 30; }
-  doc.save(); doc.roundedRect(L, y, W, 40, 5).fill(NAVY); doc.restore();
-  txt(L + 16, y + 13, "NET À PAYER", { b: 1, s: 11, c: "#ffffff", w: 200 });
-  txt(RgT - 216, y + 10, F(t.netAPayer) + " FCFA", { b: 1, s: 16, c: "#ffffff", w: 200, a: "right" });
-  y += 54;
+  /* NET À PAYER — usual place, bottom */
+  if (y > 700) { doc.addPage(); y = 28; }
+  doc.save(); doc.roundedRect(L, y, W, 34, 4).fill(NAVY); doc.restore();
+  txt(L + 14, y + 11, "NET À PAYER", { b: 1, s: 11, c: "#ffffff", w: 200 });
+  txt(RgT - 214, y + 8, F(t.netAPayer) + " FCFA", { b: 1, s: 15, c: "#ffffff", w: 200, a: "right" });
+  y += 42;
 
   /* CONGÉS + AUTHENTIFICATION */
-  const bh2 = 66;
-  card(L, y, half, bh2); card(L + half + 12, y, half, bh2);
-  txt(L + 12, y + 10, "CONGÉS", { b: 1, s: 7, c: MUT });
-  txt(L + 12, y + 26, `Pris : ${(r.meta && r.meta.leaveTaken) || 0}`, { s: 8, c: TXT });
-  txt(L + 12, y + 40, `Restant : ${(r.meta && r.meta.leaveBalance) || 0}`, { s: 8, c: TXT });
-  txt(L + 12, y + 54, `Acquis : ${(r.meta && r.meta.leaveAccrued) || 2.5} j/mois`, { s: 8, c: TXT });
-  txt(L + half + 24, y + 10, "AUTHENTIFICATION", { b: 1, s: 7, c: MUT });
-  // QR code (vector) — verifies the payslip
+  const half = (W - 10) / 2, bh2 = 52;
+  card(L, y, half, bh2); card(L + half + 10, y, half, bh2);
+  txt(L + 10, y + 8, "CONGÉS", { b: 1, s: 6.5, c: MUT });
+  txt(L + 10, y + 22, `Pris ${(r.meta && r.meta.leaveTaken) || 0}    ·    Restant ${(r.meta && r.meta.leaveBalance) || 0}`, { s: 7.5, c: TXT, w: half - 20 });
+  txt(L + 10, y + 35, `Acquis ${(r.meta && r.meta.leaveAccrued) || 2.5} j/mois`, { s: 7.5, c: TXT, w: half - 20 });
+  txt(L + half + 20, y + 8, "AUTHENTIFICATION", { b: 1, s: 6.5, c: MUT });
   try {
     const QR = require("qrcode");
     const base = process.env.PUBLIC_URL || "";
     const url = `${base}/verify/${s.id}?h=${payslipSig(s)}`;
     const m = QR.create(url, { errorCorrectionLevel: "M" }).modules;
-    const nn = m.size, bits = m.data, qsz = 40, qx = L + half + 24, qy = y + 22, csz = qsz / nn;
+    const nn = m.size, bits = m.data, qsz = 34, qx = L + half + 20, qy = y + 16, csz = qsz / nn;
     doc.fillColor("#000");
     for (let rr = 0; rr < nn; rr++) for (let cc = 0; cc < nn; cc++) if (bits[rr * nn + cc]) doc.rect(qx + cc * csz, qy + rr * csz, csz + 0.4, csz + 0.4).fill();
   } catch (e) {}
-  txt(L + half + 24 + 50, y + 30, "Signature", { s: 8, c: MUT });
-  doc.save(); doc.moveTo(L + half + 24 + 50, y + 50).lineTo(L + W - 12, y + 50).dash(2, { space: 2 }).strokeColor(MUT).stroke(); doc.undash(); doc.restore();
-  y += bh2 + 10;
+  txt(L + half + 20 + 44, y + 22, "Signature", { s: 7.5, c: MUT });
+  doc.save(); doc.moveTo(L + half + 20 + 44, y + 40).lineTo(L + W - 10, y + 40).dash(2, { space: 2 }).strokeColor(MUT).stroke(); doc.undash(); doc.restore();
+  y += bh2 + 6;
 
-  /* FOOTER */
-  txt(L, 812, "Conservez ce bulletin de paie sans limitation de durée.", { s: 6, c: MUT, w: 400 });
-  txt(RgT - 120, 812, (CO.name || tenant.name || "SGRHP"), { b: 1, s: 6, c: MUT, w: 120, a: "right" });
+  txt(L, Math.min(y, 812), "Conservez ce bulletin de paie sans limitation de durée.", { s: 6, c: MUT, w: 400 });
 }
-
 function payslipDoc(s, emp, tenant) { const doc = new PDFDocument({ margin: 18, size: "A4" }); drawPayslip(doc, s, emp, tenant); return doc; }
 function payslipBuffer(s, emp, tenant) {
   return new Promise((resolve, reject) => {
