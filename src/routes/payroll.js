@@ -766,10 +766,11 @@ function drawPayslipModern(doc, s, emp, tenant) {
 
   /* NET À PAYER — usual place, bottom */
   if (y > 700) { doc.addPage(); y = 28; }
-  doc.save(); doc.roundedRect(L, y, W, 34, 4).fill(NAVY); doc.restore();
-  txt(L + 14, y + 11, "NET À PAYER", { b: 1, s: 11, c: "#ffffff", w: 200 });
-  txt(RgT - 208, y + 11, F(t.netAPayer) + " FCFA", { b: 1, s: 11, c: "#ffffff", w: 200, a: "right" });
-  y += 42;
+  const nbw = 240, nbx = RgT - nbw;
+  doc.save(); doc.roundedRect(nbx, y, nbw, 36, 4).fill(NAVY); doc.restore();
+  txt(nbx + 12, y + 7, "NET À PAYER", { b: 1, s: 8, c: "#ffffff", w: nbw - 24 });
+  txt(nbx + 12, y + 19, F(t.netAPayer) + " FCFA", { b: 1, s: 12, c: "#ffffff", w: nbw - 24, a: "right" });
+  y += 44;
 
   /* CONGÉS + AUTHENTIFICATION */
   const half = (W - 10) / 2, bh2 = 52;
