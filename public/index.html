@@ -4355,6 +4355,15 @@ async function payconfigView() {
   const num = (path, val) => `<input type="number" step="any" data-cfg="${path}" value="${val}" style="max-width:110px">`;
   view.innerHTML = `<h1>Paramètres paie</h1>
   <div class="note">Barèmes et taux (Cameroun) - modifiables. Ils s'appliquent au prochain calcul de paie.</div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">MODÈLE DU BULLETIN DE PAIE</b>
+    <div style="display:flex;gap:10px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">
+      <div><label>Design du bulletin (PDF)</label>
+        <select id="paySlipDesign" style="max-width:280px">
+          <option value="classic" ${(cfg.payslipDesign||"classic")==="classic"?"selected":""}>Classique (tableau détaillé, net en haut)</option>
+          <option value="modern" ${cfg.payslipDesign==="modern"?"selected":""}>Moderne (cartes, cumuls dédiés, net en bas)</option>
+        </select></div>
+      <span class="note">Le design choisi s'applique à tous les bulletins générés (PDF individuel et lot).</span>
+    </div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">CAISSE CNPS (retraite / prestations familiales / accident du travail)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>Plafond mensuel</label>${num("cnps.ceiling", cfg.cnps.ceiling)}</div>
@@ -4528,6 +4537,7 @@ async function paySaveConfig() {
   body.irpp.brackets = barRead("irpp");
   body.rav = barRead("rav");
   body.tdl = barRead("tdl");
+  const _pd = document.getElementById("paySlipDesign"); if (_pd) body.payslipDesign = _pd.value;
   try {
     await api("/payroll/config", { method: "PUT", body: JSON.stringify(body) });
     cfgErr.classList.add("hidden"); cfgOk.textContent = "Enregistré ";

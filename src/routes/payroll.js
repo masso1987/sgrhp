@@ -506,6 +506,8 @@ router.get("/payslips/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 
 /* PDF bulletin de paie */
 function drawPayslip(doc, s, emp, tenant) {
+  const _cfg = (db.payrollConfig || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1")) || {};
+  if ((_cfg.payslipDesign || "classic") === "modern") return drawPayslipModern(doc, s, emp, tenant);
   const t = s.result.totals, r = s.result;
   const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
@@ -659,6 +661,133 @@ function drawPayslip(doc, s, emp, tenant) {
   T(18, 812, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 500 });
   T(520, 812, "TAKE CARE", { b: 1, s: 7 });
 }
+function drawPayslipModern(doc, s, emp, tenant) {
+  const t = s.result.totals, r = s.result;
+  const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const C = emp.contract || {};
+  const CO = (db.settings && db.settings.branding && db.settings.branding.company) || {};
+  const MS = { Single: "Célibataire", Married: "Marié(e)", Divorced: "Divorcé(e)", Widowed: "Veuf(ve)" };
+  const [yy, mm] = s.period.split("-"); const last = new Date(Number(yy), Number(mm), 0).getDate();
+  const dS = `01/${mm}/${yy.slice(2)}`, dE = `${String(last).padStart(2, "0")}/${mm}/${yy.slice(2)}`;
+  const cum = (db.payCumuls || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1") && c.employeeId === s.employeeId && c.year === s.period.slice(0, 4));
+  const NAVY = "#1b2a4a", MUT = "#6b7280", LINE = "#e5e7eb", CARD = "#f6f8fb", TXT = "#111827";
+  const L = 30, RgT = 565, W = RgT - L;
+
+  const txt = (x, y, str, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 8).fillColor(o.c || TXT)
+    .text(str == null ? "" : String(str), x, y, { width: o.w, align: o.a || "left", lineBreak: false }); };
+  const card = (x, y, w, h, fill) => { doc.save(); doc.roundedRect(x, y, w, h, 5).fillAndStroke(fill || CARD, LINE); doc.restore(); };
+
+  let y = 30;
+  /* HEADER */
+  card(L, y, W, 60);
+  txt(L + 14, y + 12, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 13, c: NAVY, w: 300 });
+  txt(L + 14, y + 31, "BULLETIN DE PAIE", { b: 1, s: 8, c: MUT, w: 300 });
+  txt(RgT - 214, y + 22, `${dS}  ›  ${dE}`, { s: 9, c: MUT, w: 200, a: "right" });
+  y += 74;
+
+  /* EMPLOYÉ + CATÉGORIE cards */
+  const half = (W - 12) / 2;
+  card(L, y, half, 58); card(L + half + 12, y, half, 58);
+  txt(L + 12, y + 10, "EMPLOYÉ", { b: 1, s: 7, c: MUT });
+  txt(L + 12, y + 24, `${(emp.firstName || "")} ${(emp.lastName || "")}`.trim(), { b: 1, s: 12, c: TXT, w: half - 20 });
+  txt(L + 12, y + 41, `Matricule ${s.matricule || "—"}  ·  CNPS ${emp.cnpsNumber || "—"}  ·  ${emp.department || C.position || ""}`, { s: 7, c: MUT, w: half - 20 });
+  txt(L + half + 24, y + 10, "CATÉGORIE", { b: 1, s: 7, c: MUT });
+  txt(L + half + 24, y + 26, C.category || "—", { b: 1, s: 12, c: TXT, w: half - 20 });
+  const enf = emp.children != null ? `${emp.children} enfant${emp.children > 1 ? "s" : ""}` : "";
+  txt(L + half + 24, y + 43, `${MS[emp.maritalStatus] || emp.maritalStatus || ""}${enf ? " · " + enf : ""}`, { s: 7, c: MUT, w: half - 20 });
+  y += 72;
+
+  /* helper : table with 5 cols (N°, Désignation, Base, Part salariale, Part patronale) */
+  const COLS = [{ x: L, w: 34, a: "left" }, { x: L + 34, w: 214, a: "left" }, { x: L + 248, w: 96, a: "right" }, { x: L + 344, w: 96, a: "right" }, { x: L + 440, w: W - 440, a: "right" }];
+  const drawTable = (title, headers, rows, totalRow) => {
+    const rowH = 16, headH = 18, n = rows.length;
+    const bh = headH + n * rowH + (totalRow ? rowH : 0);
+    // section title
+    txt(L + 2, y, title, { b: 1, s: 9, c: NAVY }); y += 15;
+    // header band
+    doc.save(); doc.roundedRect(L, y, W, headH, 3).fill(NAVY); doc.restore();
+    headers.forEach((h, i) => txt(COLS[i].x + (COLS[i].a === "right" ? 0 : 8), y + 5, h, { b: 1, s: 7, c: "#ffffff", w: COLS[i].w - 8, a: COLS[i].a }));
+    y += headH;
+    rows.forEach((rw, ri) => {
+      if (ri % 2) { doc.save(); doc.rect(L, y, W, rowH).fill(CARD); doc.restore(); }
+      rw.forEach((v, i) => txt(COLS[i].x + (COLS[i].a === "right" ? 0 : 8), y + 4, v, { s: 8, w: COLS[i].w - 8, a: COLS[i].a, c: TXT }));
+      y += rowH;
+    });
+    if (totalRow) {
+      doc.save(); doc.rect(L, y, W, rowH).fill("#eef2f7"); doc.restore();
+      totalRow.forEach((v, i) => { if (v != null && v !== "") txt(COLS[i].x + (COLS[i].a === "right" ? 0 : 8), y + 4, v, { b: 1, s: 8.5, w: COLS[i].w - 8, a: COLS[i].a, c: NAVY }); });
+      y += rowH;
+    }
+    doc.save(); doc.roundedRect(L, y - bh - 0, W, bh, 3).stroke(LINE); doc.restore();
+    y += 10;
+  };
+
+  const dlbl = (l) => (l.label || "").toString();
+  const gains = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
+  drawTable("Rémunération", ["N°", "Désignation", "Base", "Part salariale", "Part patronale"],
+    gains.map(l => [l.code || "", dlbl(l), l.base ? F(l.base) : "", F(l.gain), ""]),
+    ["", "TOTAL BRUT", "", F(t.brutTotal), ""]);
+
+  const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
+  drawTable("Cotisations & retenues", ["N°", "Cotisations", "Base", "Part salariale", "Part patronale"],
+    cot.map(l => [l.code || "", dlbl(l), l.base ? F(l.base) : "", l.retenue ? F(l.retenue) : "", l.employer ? F(l.employer) : ""]),
+    ["", "TOTAL COTISATIONS", "", F((t.cnpsSalarie || 0) + (t.totalImpots || 0)), F((t.cnpsPatronal || 0) + (t.cfcPatronal || 0))]);
+
+  /* page break guard before summary */
+  if (y > 640) { doc.addPage(); y = 30; }
+
+  /* CUMUL DE LA PÉRIODE — dedicated summary card */
+  const heuresSupp = r.lines.filter(l => l.hours).reduce((a, l) => a + Number(l.hours || 0), 0);
+  const sumRows = [
+    ["Salaire brut", F(t.brutTotal)],
+    ["Charges salariales", F((t.cnpsSalarie || 0) + (t.totalImpots || 0))],
+    ["Charges patronales", F((t.cnpsPatronal || 0) + (t.cfcPatronal || 0))],
+    ["Avantages en nature", F(t.avantagesNature || 0)],
+    ["Salaire taxable", F(t.netImposable || 0)],
+    ["Jours travaillés", String((r.meta && r.meta.workedDays) != null ? r.meta.workedDays : 30)],
+    ["Heures supplémentaires", String(heuresSupp || 0)],
+  ];
+  const sumH = 24 + sumRows.length * 15 + 10;
+  card(L, y, W, sumH);
+  txt(L + 12, y + 10, "CUMUL DE LA PÉRIODE", { b: 1, s: 9, c: NAVY });
+  let sy = y + 28;
+  sumRows.forEach(([lb, v]) => { txt(L + 14, sy, lb, { s: 8, c: MUT, w: 300 }); txt(RgT - 160, sy, v + " FCFA", { b: 1, s: 8.5, c: TXT, w: 146, a: "right" }); sy += 15; });
+  y += sumH + 12;
+
+  /* NET À PAYER — placed at its usual place, at the bottom of the summary */
+  if (y > 690) { doc.addPage(); y = 30; }
+  doc.save(); doc.roundedRect(L, y, W, 40, 5).fill(NAVY); doc.restore();
+  txt(L + 16, y + 13, "NET À PAYER", { b: 1, s: 11, c: "#ffffff", w: 200 });
+  txt(RgT - 216, y + 10, F(t.netAPayer) + " FCFA", { b: 1, s: 16, c: "#ffffff", w: 200, a: "right" });
+  y += 54;
+
+  /* CONGÉS + AUTHENTIFICATION */
+  const bh2 = 66;
+  card(L, y, half, bh2); card(L + half + 12, y, half, bh2);
+  txt(L + 12, y + 10, "CONGÉS", { b: 1, s: 7, c: MUT });
+  txt(L + 12, y + 26, `Pris : ${(r.meta && r.meta.leaveTaken) || 0}`, { s: 8, c: TXT });
+  txt(L + 12, y + 40, `Restant : ${(r.meta && r.meta.leaveBalance) || 0}`, { s: 8, c: TXT });
+  txt(L + 12, y + 54, `Acquis : ${(r.meta && r.meta.leaveAccrued) || 2.5} j/mois`, { s: 8, c: TXT });
+  txt(L + half + 24, y + 10, "AUTHENTIFICATION", { b: 1, s: 7, c: MUT });
+  // QR code (vector) — verifies the payslip
+  try {
+    const QR = require("qrcode");
+    const base = process.env.PUBLIC_URL || "";
+    const url = `${base}/verify/${s.id}?h=${payslipSig(s)}`;
+    const m = QR.create(url, { errorCorrectionLevel: "M" }).modules;
+    const nn = m.size, bits = m.data, qsz = 40, qx = L + half + 24, qy = y + 22, csz = qsz / nn;
+    doc.fillColor("#000");
+    for (let rr = 0; rr < nn; rr++) for (let cc = 0; cc < nn; cc++) if (bits[rr * nn + cc]) doc.rect(qx + cc * csz, qy + rr * csz, csz + 0.4, csz + 0.4).fill();
+  } catch (e) {}
+  txt(L + half + 24 + 50, y + 30, "Signature", { s: 8, c: MUT });
+  doc.save(); doc.moveTo(L + half + 24 + 50, y + 50).lineTo(L + W - 12, y + 50).dash(2, { space: 2 }).strokeColor(MUT).stroke(); doc.undash(); doc.restore();
+  y += bh2 + 10;
+
+  /* FOOTER */
+  txt(L, 812, "Conservez ce bulletin de paie sans limitation de durée.", { s: 6, c: MUT, w: 400 });
+  txt(RgT - 120, 812, (CO.name || tenant.name || "SGRHP"), { b: 1, s: 6, c: MUT, w: 120, a: "right" });
+}
+
 function payslipDoc(s, emp, tenant) { const doc = new PDFDocument({ margin: 18, size: "A4" }); drawPayslip(doc, s, emp, tenant); return doc; }
 function payslipBuffer(s, emp, tenant) {
   return new Promise((resolve, reject) => {
