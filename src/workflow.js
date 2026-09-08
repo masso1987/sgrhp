@@ -67,7 +67,10 @@ function submitEmployeeFile(employeeId, user, opts = {}) {
   if (!emp) { const e = new Error("Employee not found"); e.status = 404; throw e; }
   const pf = db.portfolios.find(p => p.id === emp.portfolioId);
   const uploaded = new Set(db.files.filter(f => f.employeeId === employeeId).map(f => f.docType));
-  const missing = (pf?.required || []).filter(c => !uploaded.has(c));
+  // Gate à la création : seuls les documents "requis à la création" (CNI + choix admin) sont obligatoires.
+  // Les autres documents requis peuvent être fournis après création et sont suivis dans le SMQ (conformité).
+  const gateList = (pf && Array.isArray(pf.requiredCreation) && pf.requiredCreation.length) ? pf.requiredCreation : ["V"];
+  const missing = gateList.filter(c => !uploaded.has(c));
   if (!opts.skipGate && missing.length) {
     const e = new Error(`Cannot submit: required documents missing (${missing.join(", ")}) — §2.3`);
     e.status = 400; throw e;

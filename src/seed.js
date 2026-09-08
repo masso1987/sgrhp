@@ -3,26 +3,26 @@ const { db, save, id } = require("./store");
 const { hash } = require("./auth");
 
 const DOC_TYPES = [
-  ["I","Employment application to the General Manager","PDF"],
-  ["II","Detailed location plan","PDF/IMG"],
-  ["III","ID photo","IMG"],
-  ["IV","Birth certificate","PDF"],
-  ["V","National ID card (CNI) — with validity date","PDF/IMG"],
-  ["VI","Marriage certificate (if applicable)","PDF"],
-  ["VII","Diplomas / certificates / habilitations","PDF"],
-  ["VIII","Previous work certificates","PDF"],
-  ["IX","Updated CV","PDF/DOCX"],
-  ["X","Bank identity statement (RIB)","PDF/IMG"],
-  ["XI","CNPS affiliation certificate","PDF"],
-  ["XII","Previous employer termination notice","PDF"],
-  ["XIII","Hiring notice","PDF"],
-  ["XIV","Affiliation control statement","PDF"],
-  ["XV","Sanctions (positive or negative)","PDF"],
-  ["XVI","Medical visits (history) — expiry alert","PDF"],
-  ["XVII","Criminal record extract","PDF"],
-  ["XVIII","Job description (PDF/Excel upload)","PDF/XLSX"],
-  ["XIX","Decision management (PDF/Excel upload)","PDF/XLSX"],
-  ["XX","Other complementary documents","PDF/XLSX"],
+  ["I","Employment application to the General Manager","PDF","Demande d'emploi adressée au Directeur Général"],
+  ["II","Detailed location plan","PDF/IMG","Plan de localisation détaillé"],
+  ["III","ID photo","IMG","Photo d'identité (4x4)"],
+  ["IV","Birth certificate","PDF","Acte de naissance"],
+  ["V","National ID card (CNI) — with validity date","PDF/IMG","Carte nationale d'identité (CNI) — avec date de validité"],
+  ["VI","Marriage certificate (if applicable)","PDF","Acte de mariage (le cas échéant)"],
+  ["VII","Diplomas / certificates / habilitations","PDF","Diplômes / certificats / habilitations"],
+  ["VIII","Previous work certificates","PDF","Certificats de travail antérieurs"],
+  ["IX","Updated CV","PDF/DOCX","Curriculum vitae à jour"],
+  ["X","Bank identity statement (RIB)","PDF/IMG","Relevé d'identité bancaire (RIB)"],
+  ["XI","CNPS affiliation certificate","PDF","Attestation d'affiliation CNPS"],
+  ["XII","Previous employer termination notice","PDF","Attestation de cessation de l'employeur précédent"],
+  ["XIII","Hiring notice","PDF","Note d'embauche"],
+  ["XIV","Affiliation control statement","PDF","État de contrôle d'affiliation"],
+  ["XV","Sanctions (positive or negative)","PDF","Sanctions (positives ou négatives)"],
+  ["XVI","Medical visits (history) — expiry alert","PDF","Visites médicales (historique) — alerte d'expiration"],
+  ["XVII","Criminal record extract","PDF","Extrait de casier judiciaire"],
+  ["XVIII","Job description (PDF/Excel upload)","PDF/XLSX","Fiche de poste (PDF/Excel)"],
+  ["XIX","Decision management (PDF/Excel upload)","PDF/XLSX","Gestion des décisions (PDF/Excel)"],
+  ["XX","Other complementary documents","PDF/XLSX","Autres documents complémentaires"],
 ];
 const CNI = "V";
 
@@ -100,11 +100,11 @@ function seedTenantData(tid) {
 
 function seed() {
   if (db.users.length) return;
-  db.docTypes = DOC_TYPES.map(([code, label, formats]) => ({ code, label, formats }));
+  db.docTypes = DOC_TYPES.map(([code, label, formats, labelFr]) => ({ code, label, labelFr, formats }));
 
-  const pf1 = { id: id("pf"), tenantId: "t1", name: "Industrial Clients", required: ["I","III","IV","V","VII","IX","X","XI","XVI"] };
-  const pf2 = { id: id("pf"), tenantId: "t1", name: "Banking & Services", required: ["I","III","IV","V","VII","VIII","IX","X","XVII"] };
-  const pf3 = { id: id("pf"), tenantId: "t1", name: "Head Office Staff",  required: ["III","IV","V","IX","X"] };
+  const pf1 = { id: id("pf"), tenantId: "t1", name: "Industrial Clients", required: ["I","III","IV","V","VII","IX","X","XI","XVI"], requiredCreation: ["V"] };
+  const pf2 = { id: id("pf"), tenantId: "t1", name: "Banking & Services", required: ["I","III","IV","V","VII","VIII","IX","X","XVII"], requiredCreation: ["V"] };
+  const pf3 = { id: id("pf"), tenantId: "t1", name: "Head Office Staff",  required: ["III","IV","V","IX","X"], requiredCreation: ["V"] };
   db.portfolios.push(pf1, pf2, pf3);
 
   const mk = (email, fullName, role, portfolioIds = []) =>
@@ -241,5 +241,11 @@ function ensureAccounts() {
   }
   save();
 }
-function ensureReferentials() { seedTenantData("t1"); ensureAccounts(); save(); }
+function backfillDocTypes() {
+  // Backfill bilingual labels + requiredCreation on databases seeded before this change.
+  const FR = {}; for (const [code,,, labelFr] of DOC_TYPES) FR[code] = labelFr;
+  (db.docTypes || []).forEach(d => { if (!d.labelFr && FR[d.code]) d.labelFr = FR[d.code]; });
+  (db.portfolios || []).forEach(p => { if (!Array.isArray(p.requiredCreation)) p.requiredCreation = [CNI]; });
+}
+function ensureReferentials() { seedTenantData("t1"); ensureAccounts(); backfillDocTypes(); save(); }
 module.exports = { seed, ensureReferentials, seedTenantData, CNI };

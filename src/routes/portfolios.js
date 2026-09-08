@@ -12,7 +12,8 @@ router.post("/", allow("ADM"), (req, res) => {
   if (!req.body.name) return res.status(400).json({ error: "Name required" });
   // CNI is mandatory in every new portfolio (§2.3.3)
   const required = [...new Set([CNI, ...(req.body.required || [])])];
-  const pf = stamp({ id: id("pf"), name: req.body.name, required }, req);
+  const requiredCreation = [...new Set([CNI, ...((req.body.requiredCreation || []).filter(c => required.includes(c)))])];
+  const pf = stamp({ id: id("pf"), name: req.body.name, required, requiredCreation }, req);
   db.portfolios.push(pf); save();
   audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { created: pf.name, required });
   res.status(201).json(pf);
@@ -28,8 +29,12 @@ router.put("/:id/requirements", allow("ADM"), (req, res) => {
   const invalid = docTypes.filter(c => !db.docTypes.find(d => d.code === c));
   if (invalid.length) return res.status(400).json({ error: `Unknown doc types: ${invalid}` });
   const before = pf.required;
-  pf.required = [...new Set(docTypes)]; save();
-  audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { name: pf.name, before, after: pf.required });
+  pf.required = [...new Set(docTypes)];
+  // Sous-ensemble requis à la création (CNI toujours inclus) ; le reste est exigé pour le dossier mais peut être fourni après création (suivi SMQ).
+  const rc = Array.isArray(req.body.requiredCreation) ? req.body.requiredCreation : (pf.requiredCreation || [CNI]);
+  pf.requiredCreation = [...new Set([CNI, ...rc.filter(c => pf.required.includes(c))])];
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { name: pf.name, before, after: pf.required, requiredCreation: pf.requiredCreation });
   res.json(pf);
 });
 
