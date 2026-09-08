@@ -1410,8 +1410,8 @@ async function empDetail(id) {
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
     <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles. Every upload/download is logged.</div>
-    <div class="panel">${e.checklist.slice().sort(docSort).map(c => `
-      <div class="doc-row"><div><b>${c.code}.</b> ${esc(docLabelL(c))} <small style="color:var(--muted)">(${c.formats})</small>
+    <div class="panel">${e.checklist.slice().sort(docSort).map((c, i) => `
+      <div class="doc-row"><div><b>${i + 1}.</b> ${esc(docLabelL(c))} <small style="color:var(--muted)">(${c.formats})</small>
         ${c.locked ? '<span class="tag red">'+tt("OBLIGATOIRE","REQUIRED")+'</span>' : (c.atCreation ? '<span class="tag red">'+tt("À la création","At creation")+'</span>' : '<span class="tag" style="background:#e5edff;color:#3730a3">'+tt("À fournir","To provide")+'</span>')}</div>
       <div>${c.uploaded
         ? `<span class="tag green">${tt("Déposée","Uploaded")}</span> ${fileBtns(e, c.code)}`
@@ -1466,8 +1466,8 @@ async function portfolios() {
       <button class="btn ghost sm" onclick="pfCnvSave('${pf.id}')">Rattacher</button></div>
     <div class="note" style="margin-top:8px">Cochez « Requis » pour les documents du dossier. Cochez « À la création » pour ceux exigés dès la création (CNI toujours verrouillée) ; les autres pourront être fournis après et seront suivis dans le SMQ.</div>
     <table style="width:100%;margin-top:8px"><tr><th style="text-align:left">Document</th><th style="width:80px">Requis</th><th style="width:110px">À la création</th></tr>
-      ${types.slice().sort(docSort).map(t => { const rc = (pf.requiredCreation||["V"]).includes(t.code); return `
-      <tr><td><b>${esc(t.code)}.</b> ${esc(docLabelL(t))} ${t.code === "V" ? '<span class="tag red">'+tt("VERROUILLÉ","LOCKED")+'</span>' : ""}</td>
+      ${types.slice().sort(docSort).map((t, i) => { const rc = (pf.requiredCreation||["V"]).includes(t.code); return `
+      <tr><td><b>${i + 1}.</b> ${esc(docLabelL(t))} ${t.code === "V" ? '<span class="tag red">'+tt("VERROUILLÉ","LOCKED")+'</span>' : ""}</td>
         <td style="text-align:center"><input type="checkbox" data-code="${t.code}" ${t.code === "V" || pf.required.includes(t.code) ? "checked" : ""} ${t.code === "V" ? "disabled" : ""} onchange="pfReqToggle(this)"></td>
         <td style="text-align:center"><input type="checkbox" data-rc="${t.code}" ${t.code === "V" || rc ? "checked" : ""} ${t.code === "V" ? "disabled" : ""}></td></tr>`; }).join("")}
     </table>
@@ -1977,8 +1977,8 @@ async function empDetail(id) {
         return `<tr><td>${esc(h.intitule||"")}</td><td>${esc(h.organisme||"")}</td><td>${esc(h.reference||"")}</td><td>${esc((h.obtainedDate||"").slice(0,10))}</td><td>${esc((h.expiryDate||"").slice(0,10))}</td><td>${st}</td>${canEditHab ? `<td style="white-space:nowrap"><button class="btn ghost sm" onclick='habForm("${e.id}",${JSON.stringify(h).replace(/'/g,"&#39;")})'>Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="habDel('${h.id}','${e.id}')">Suppr.</button></td>` : ""}</tr>`; }).join("")}</table></div>` : '<div class="note" style="margin-top:6px">Aucune habilitation / formation enregistrée. Les échéances alimentent les rappels et la conformité SMQ.</div>'}
     </div>
     <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles.</div>
-    <div class="panel">${e.checklist.slice().sort(docSort).map(c => `
-      <div class="doc-row"><div><b>${c.code}.</b> ${esc(docLabelL(c))} <small style="color:var(--muted)">(${c.formats})</small>
+    <div class="panel">${e.checklist.slice().sort(docSort).map((c, i) => `
+      <div class="doc-row"><div><b>${i + 1}.</b> ${esc(docLabelL(c))} <small style="color:var(--muted)">(${c.formats})</small>
         ${c.locked ? '<span class="tag red">'+tt("OBLIGATOIRE","REQUIRED")+'</span>' : (c.atCreation ? '<span class="tag red">'+tt("À la création","At creation")+'</span>' : '<span class="tag" style="background:#e5edff;color:#3730a3">'+tt("À fournir","To provide")+'</span>')}</div>
       <div>${c.uploaded
         ? `<span class="tag green">${tt("Déposée","Uploaded")}</span> ${fileBtns(e, c.code)}`
