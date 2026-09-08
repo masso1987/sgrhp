@@ -768,7 +768,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   if (y > 700) { doc.addPage(); y = 28; }
   doc.save(); doc.roundedRect(L, y, W, 34, 4).fill(NAVY); doc.restore();
   txt(L + 14, y + 11, "NET À PAYER", { b: 1, s: 11, c: "#ffffff", w: 200 });
-  txt(RgT - 150, y + 11, F(t.netAPayer) + " FCFA", { b: 1, s: 11, c: "#ffffff", w: 136, a: "right" });
+  txt(RgT - 208, y + 11, F(t.netAPayer) + " FCFA", { b: 1, s: 11, c: "#ffffff", w: 200, a: "right" });
   y += 42;
 
   /* CONGÉS + AUTHENTIFICATION */
