@@ -1,6 +1,8 @@
 /** Complete employee file export as PDF — all information in one document. */
 const router = require("express").Router();
 const PDFDocument = require("pdfkit");
+const path = require("path");
+const fs = require("fs");
 const { db } = require("../store");
 const { allow } = require("../rbac");
 const { mine } = require("../store");
@@ -26,10 +28,27 @@ router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const KV = (k, v) => { doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#444").text(k + " : ", { continued: true })
     .font("Helvetica").fillColor("#000").text(String(v ?? "—")); };
 
-  doc.fontSize(16).fillColor("#1e3a5f").font("Helvetica-Bold").text("CIBLE RH EMPLOI S.A.", { align: "center" });
-  doc.fontSize(13).text(`DOSSIER EMPLOYÉ — ${emp.firstName} ${emp.lastName}`, { align: "center" });
+  // Photo d'identité 4x4 (type III) en haut à gauche du dossier.
+  const PW = 113, PH = 113, PX = 46, PY = 46;   // 4 cm ≈ 113 pt
+  const photo = files.find(f => f.docType === "III" && /image\/(png|jpe?g)/i.test(f.contentType || ""));
+  let photoDrawn = false;
+  if (photo) {
+    try {
+      const fp = path.join(__dirname, "..", "..", "uploads", photo.storedAs);
+      if (fs.existsSync(fp)) { doc.image(fp, PX, PY, { fit: [PW, PH], align: "center", valign: "center" }); photoDrawn = true; }
+    } catch (e) { photoDrawn = false; }
+  }
+  if (photoDrawn) doc.rect(PX, PY, PW, PH).strokeColor("#1e3a5f").lineWidth(1).stroke();
+
+  // Bloc titre : décalé à droite de la photo pour éviter le chevauchement.
+  const tx = photoDrawn ? PX + PW + 14 : PX;
+  const tw = 549 - tx;
+  doc.fontSize(16).fillColor("#1e3a5f").font("Helvetica-Bold").text("CIBLE RH EMPLOI S.A.", tx, PY + 6, { width: tw, align: "center" });
+  doc.fontSize(13).text(`DOSSIER EMPLOYÉ — ${emp.firstName} ${emp.lastName}`, tx, doc.y, { width: tw, align: "center" });
   doc.fontSize(8).fillColor("#777").font("Helvetica")
-    .text(`Généré le ${new Date().toLocaleString("fr-FR")} par ${req.user.fullName || req.user.id} — Confidentiel`, { align: "center" });
+    .text(`Généré le ${new Date().toLocaleString("fr-FR")} par ${req.user.fullName || req.user.id} — Confidentiel`, tx, doc.y, { width: tw, align: "center" });
+  // Reprendre sous la photo/titre, pleine largeur.
+  doc.x = 46; doc.y = Math.max(doc.y, PY + PH + 8);
 
   H("1. Informations personnelles");
   KV("Nom & Prénoms", `${emp.firstName} ${emp.lastName}`);
