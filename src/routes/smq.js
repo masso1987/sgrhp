@@ -555,6 +555,77 @@ router.get("/improvements-summary", allow(...RO), (req, res) => {
   res.json({ grid, totals, origines: IMP_ORIGINES, enRetard, ouvertes: totals.total - totals.cloturee });
 });
 
+// Suivi consolidé des actions planifiées (toutes fiches) + efficacité (§10.2).
+router.get("/actions-tracker", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const rows = mine(db.smqImprovements, req);
+  const procName = (pid) => { const p = mine(db.smqProcesses, req).find(x => x.id === pid); return p ? (p.code + " · " + p.intitule) : ""; };
+  const today = now().slice(0, 10);
+  const DONE = ["faite", "verifiee", "cloturee"];
+  const actions = [];
+  for (const r of rows) {
+    (r.actions || []).forEach((a, i) => {
+      const done = DONE.includes(a.statut);
+      const enRetard = !!a.echeance && a.echeance < today && !done;
+      actions.push({
+        ficheId: r.id, ficheRef: r.ref, origine: r.origine || "", processId: r.processId || null, process: procName(r.processId),
+        n: i + 1, libelle: a.action || "", responsable: a.responsable || "", echeance: a.echeance || "",
+        statut: enRetard ? "en_retard" : (a.statut || "planifiee"), done, enRetard,
+        ficheStatut: r.statut, efficacite: r.verifResultat || "",
+      });
+    });
+  }
+  const byStatut = {}; IMP_ACT_STATUTS.forEach(k => byStatut[k] = 0);
+  actions.forEach(a => { byStatut[a.statut] = (byStatut[a.statut] || 0) + 1; });
+  // Efficacité mesurée au niveau des fiches ayant un plan d'actions.
+  const withPlan = rows.filter(r => (r.actions || []).length);
+  const eff = { conforme: 0, non_conforme: 0, en_attente: 0 };
+  withPlan.forEach(r => { eff[r.verifResultat === "conforme" ? "conforme" : r.verifResultat === "non_conforme" ? "non_conforme" : "en_attente"]++; });
+  const mesurees = eff.conforme + eff.non_conforme;
+  const tauxEfficacite = mesurees ? Math.round(eff.conforme / mesurees * 1000) / 10 : 0;
+  const total = actions.length, done = actions.filter(a => a.done).length;
+  actions.sort((a, b) => (a.enRetard === b.enRetard ? String(a.echeance || "~").localeCompare(String(b.echeance || "~")) : (a.enRetard ? -1 : 1)));
+  res.json({
+    total, done, enRetard: actions.filter(a => a.enRetard).length,
+    tauxRealisation: total ? Math.round(done / total * 1000) / 10 : 0,
+    byStatut, efficacite: eff, mesurees, tauxEfficacite,
+    fichesAvecPlan: withPlan.length, actions,
+  });
+});
+
+// Préparation des audits : planification, constats ouverts, couverture, prêt-à-auditer.
+router.get("/audit-prep", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const auds = mine(db.smqAudits, req);
+  const items = mine(db.smqAuditItems, req);
+  const imps = mine(db.smqImprovements, req);
+  const today = now().slice(0, 10);
+  const list = auds.map(a => {
+    const its = items.filter(i => i.auditId === a.id);
+    const evalues = its.filter(i => i.conformite);
+    const nc = its.filter(i => i.conformite === "NC");
+    return {
+      id: a.id, ref: a.ref, titre: a.titre || a.perimetre || "", type: a.type || "interne",
+      statut: a.statut || "planifie", datePrevue: a.datePrevue || a.date || "",
+      auditeur: a.auditeur || a.responsable || "",
+      items: its.length, evalues: evalues.length, couverture: its.length ? Math.round(evalues.length / its.length * 100) : 0,
+      nc: nc.length, ncMajeures: nc.filter(i => i.gravite === "majeure").length,
+      aVenir: (a.statut === "planifie") && (!a.datePrevue || a.datePrevue >= today),
+    };
+  }).sort((a, b) => String(a.datePrevue || "~").localeCompare(String(b.datePrevue || "~")));
+  // Constats d'audit sans fiche d'amélioration associée.
+  const ncSansFiche = items.filter(i => i.conformite === "NC" && !imps.some(m => m.origine && String(m.origine).includes("Audit") && m.description && m.description.includes(i.clause)));
+  res.json({
+    total: auds.length,
+    planifies: auds.filter(a => a.statut === "planifie").length,
+    realises: auds.filter(a => a.statut === "realise" || a.statut === "cloture").length,
+    ncOuvertes: items.filter(i => i.conformite === "NC").length,
+    ncSansFiche: ncSansFiche.length,
+    prochains: list.filter(a => a.aVenir).slice(0, 5),
+    audits: list,
+  });
+});
+
 /* ============================ Traçabilité qualité (événements) + configuration ============================ */
 router.get("/events", allow(...RO), (req, res) => {
   let rows = mine(db.smqEvents, req).slice();
