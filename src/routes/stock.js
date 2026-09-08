@@ -775,6 +775,52 @@ router.delete("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => 
   res.json({ ok: true });
 });
 
+/* ================= Dotation EPI (par portefeuille / salarié) ================= */
+if (!db.epiIssues) db.epiIssues = [];
+const _today = () => new Date().toISOString().slice(0, 10);
+function epiRows(req, pfId) {
+  let emps = mine(db.employees, req).filter(e => Array.isArray(e.epi) && e.epi.length);
+  if (pfId) emps = emps.filter(e => e.portfolioId === pfId);
+  const issues = mine(db.epiIssues, req);
+  return emps.map(e => {
+    const lines = (e.epi || []).map(l => {
+      const issued = issues.filter(i => i.employeeId === e.id && (l.productId ? i.productId === l.productId : i.designation === (l.designation || "")))
+        .reduce((s, i) => s + Q(i.quantity), 0);
+      return { productId: l.productId || "", designation: l.designation || (l.productId ? pName(req, l.productId) : ""), planned: Q(l.quantity), year: l.year || "", issued, remaining: Math.max(0, Q(l.quantity) - issued) };
+    });
+    const planned = lines.reduce((s, l) => s + l.planned, 0), issued = lines.reduce((s, l) => s + l.issued, 0);
+    return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId, lines, planned, issued, pct: planned ? Math.round(issued / planned * 100) : 0 };
+  });
+}
+router.get("/epi", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(epiRows(req, req.query.portfolioId || null)));
+router.get("/epi/progress", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const rows = epiRows(req);
+  const byPf = {};
+  for (const r of rows) { const k = r.portfolioId || "-"; (byPf[k] = byPf[k] || { portfolioId: k, planned: 0, issued: 0, employees: 0 }); byPf[k].planned += r.planned; byPf[k].issued += r.issued; byPf[k].employees++; }
+  const tot = rows.reduce((a, r) => { a.planned += r.planned; a.issued += r.issued; return a; }, { planned: 0, issued: 0 });
+  res.json({ perPortfolio: Object.values(byPf).map(x => ({ ...x, pct: x.planned ? Math.round(x.issued / x.planned * 100) : 0 })),
+    total: { ...tot, pct: tot.planned ? Math.round(tot.issued / tot.planned * 100) : 0 }, employees: rows });
+});
+router.post("/epi/issue", allow("ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {};
+  const emp = mine(db.employees, req).find(e => e.id === b.employeeId);
+  if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
+  const qty = Q(b.quantity);
+  if (!(qty > 0)) return res.status(400).json({ error: "Quantité invalide" });
+  let prod = null;
+  if (b.productId) {
+    prod = _prod(req, b.productId);
+    if (!prod) return res.status(404).json({ error: "Produit introuvable" });
+    if (qty > Q(prod.qty || 0)) return res.status(400).json({ error: `Stock insuffisant pour « ${prod.name} » (disponible ${Q(prod.qty || 0)})` });
+    prod.qty = Q((prod.qty || 0) - qty);
+    logMove(req, { date: _today(), type: "dotation", productId: prod.id, qty: -qty, ref: "Dotation EPI", note: `${emp.firstName || ""} ${emp.lastName || ""}`.trim() });
+  }
+  const rec = stamp({ id: id("epi"), employeeId: emp.id, portfolioId: emp.portfolioId, productId: b.productId || "", designation: b.designation || (prod && prod.name) || "", quantity: qty, date: _today(), by: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.epiIssues.push(rec); save();
+  audit(req.user, "CREATED", "EpiIssue", rec.id, { employee: emp.id, product: b.productId || null, qty });
+  res.json({ ok: true, issue: rec });
+});
+
 module.exports = router;
 module.exports.seedStock = seedStock;
 

@@ -976,6 +976,7 @@ const NAV = [
   { k: "stocksalesreturns", label: "Retours de vente", sec: "Ventes", roles: ["ADM","CD","GPF"], cap: "stock.ventes", module: "stock", grp: "stock" },
   { k: "stockadjust", label: "Ajustement", sec: "Stock", roles: ["ADM","CD","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
   { k: "stockmoves", label: "Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
+  { k: "stockepi", label: "Dotation EPI", sec: "Dotation", roles: ["ADM","CD","RJ","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
   { k: "stocklocations", label: "Emplacements", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
   { k: "stocktransfers", label: "Transferts de stock", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
     { k: "stockexpenses", label: "Dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
@@ -1159,7 +1160,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1213,9 +1214,9 @@ const pfName = id => (PFS.find(p =>p.id === id) || {}).name || id;
 
 async function empForm(edit) {
   PFS = await api("/portfolios");
-  const [ctypes, sels, me, cnvs] = await Promise.all([
-    api("/config/contract-types"), api("/config/salary-elements"), api("/me"), api("/config/conventions")]);
-  window._CTYPES = ctypes; window._CNVS = cnvs;
+  const [ctypes, sels, me, cnvs, stkp] = await Promise.all([
+    api("/config/contract-types"), api("/config/salary-elements"), api("/me"), api("/config/conventions"), api("/stock/products").catch(()=>[])]);
+  window._CTYPES = ctypes; window._CNVS = cnvs; window._STKP = stkp || [];
   const myPfs = ME.role === "GPF" ? PFS.filter(p => (me.portfolioIds || []).includes(p.id)) : PFS;
   window._MYPFS = myPfs;
   window._SELS = sels;
@@ -1256,6 +1257,11 @@ async function empForm(edit) {
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
       <label>Éléments de salaire <span class="tag gray">rubriques du portefeuille - décochez celles qui ne s'appliquent pas, puis saisissez les montants</span></label>
       <div id="salElsBox"></div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
+      <label>Dotation EPI (annuelle) <span class="tag gray">équipements de protection à fournir - suivi dans Stock et SMQ</span></label>
+      <div style="overflow:auto"><table style="width:100%" id="epiBox"><tr><th>Produit (stock)</th><th>Désignation</th><th>Quantité</th><th>Année</th><th></th></tr>${(edit && edit.epi || []).map(empEpiRow).join("")}</table></div>
+      <button class="btn ghost sm" onclick="document.getElementById('epiBox').insertAdjacentHTML('beforeend',empEpiRow({}))">+ Ligne EPI</button>
     </div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
       <label>Informations paie <span class="tag gray">figurent sur le bulletin de paie</span></label>
@@ -1302,6 +1308,9 @@ async function empDelete(id, name) {
     } else if (!e.requiresConfirmation) alert(e.message);
   }
 }
+function empEpiRow(l){ l=l||{}; const opts='<option value="">- produit (optionnel) -</option>'+((window._STKP||[]).map(p=>`<option value="${p.id}" ${l.productId===p.id?'selected':''}>${esc(p.name)}${p.qty!=null?' (stock '+p.qty+')':''}</option>`).join(""));
+  return `<tr class="epirow"><td><select class="epiProd" onchange="epiProdSync(this)">${opts}</select></td><td><input class="epiDes" value="${esc(l.designation||'')}" placeholder="Désignation EPI"></td><td><input class="epiQty" type="number" min="0" step="1" value="${l.quantity!=null?l.quantity:''}" style="width:90px"></td><td><input class="epiYear" type="number" value="${l.year||new Date().getFullYear()}" style="width:90px"></td><td><button class="btn ghost sm" onclick="this.closest('.epirow').remove()">Retirer</button></td></tr>`; }
+function epiProdSync(sel){ const tr=sel.closest('.epirow'); const des=tr.querySelector('.epiDes'); if(sel.value && !des.value){ const opt=sel.selectedOptions[0]; des.value=(opt?opt.textContent:'').replace(/\s*\(stock[^)]*\)\s*$/,''); } }
 function syncCnv(fromPortfolio) {
   const pf = (window._MYPFS || []).find(p => p.id === fPf.value);
   const cnvSel = document.getElementById("fCnv");
@@ -1356,6 +1365,7 @@ async function empSave(editId) {
       bankName: fBank.value || undefined, bankAccount: fAcct.value || undefined,
       emergencyName: fEmgName.value, emergencyPhone: fEmgTel.value,
       emergencyContact: [fEmgName.value, fEmgTel.value].filter(Boolean).join(" - "), email: fEmail.value,
+      epi: [...view.querySelectorAll(".epirow")].map(r => ({ productId: r.querySelector(".epiProd").value || undefined, designation: r.querySelector(".epiDes").value.trim(), quantity: Number(r.querySelector(".epiQty").value) || 0, year: Number(r.querySelector(".epiYear").value) || undefined })).filter(x => (x.designation || x.productId) && x.quantity > 0),
       contract: { type: fCt.value, category: fCat.value || undefined, step: fStep.value || undefined,
         conventionId: (document.getElementById("fCnv") || {}).value || undefined,
         conventionName: (function(){ const s=document.getElementById("fCnv"); return s && s.selectedOptions[0] && s.value ? s.selectedOptions[0].text : undefined; })(),
@@ -8294,6 +8304,31 @@ async function stockLoadRefs(force){
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
 function stkUnitName(id){ const u=(window._STK.units||[]).find(x=>x.id===id); return u?(u.shortName||u.name):""; }
+
+/* ================= Stock : Dotation EPI ================= */
+async function stockEpiView(){
+  const [pfs, data] = await Promise.all([api("/portfolios").catch(()=>[]), api("/stock/epi/progress").catch(()=>({perPortfolio:[],total:{},employees:[]}))]);
+  const pfName=idv=>{const p=(pfs||[]).find(x=>x.id===idv);return p?p.name:(idv||"-");};
+  const sel=window._epiPf||"";
+  const emps=(data.employees||[]).filter(e=>!sel||e.portfolioId===sel);
+  const bar=pct=>`<div style="background:#e5e7eb;border-radius:6px;height:8px;overflow:hidden;width:120px;display:inline-block;vertical-align:middle"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>=100?'#16a34a':pct>=50?'#f97316':'#dc2626'}"></div></div> ${pct}%`;
+  const tot=data.total||{planned:0,issued:0,pct:0};
+  view.innerHTML=`<h1>Dotation EPI</h1>
+   <div class="note" style="margin-bottom:8px">EPI planifiés par salarié (saisis à la création/modification). « Livrer » décrémente le stock du produit lié.</div>
+   <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+     <div><label>Portefeuille</label><select onchange="window._epiPf=this.value;stockEpiView()" style="max-width:320px"><option value="">Tous</option>${(pfs||[]).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select></div>
+     <div class="panel" style="margin:0"><div class="note">Avancement global</div><div>${bar(tot.pct||0)} <span class="note">(${tot.issued||0}/${tot.planned||0})</span></div></div>
+   </div>
+   ${emps.length?emps.map(e=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>${esc(e.name)} <span class="note">(${esc(pfName(e.portfolioId))})</span></b><span>${bar(e.pct)}</span></div>
+     <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>EPI</th><th class="r">Prévu</th><th class="r">Livré</th><th class="r">Reste</th><th></th></tr>
+     ${e.lines.map(l=>`<tr><td>${esc(l.designation||'')}</td><td class="r">${l.planned}</td><td class="r">${l.issued}</td><td class="r">${l.remaining}</td>
+       <td>${l.remaining>0?`<button class="btn ghost sm" onclick="epiIssue('${e.employeeId}','${l.productId||''}','${esc((l.designation||'').replace(/'/g,'&#39;'))}',${l.remaining})">Livrer</button>`:'<span style="color:#16a34a;font-weight:600">Complet</span>'}</td></tr>`).join("")}</table></div></div>`).join(""):'<div class="panel note">Aucune dotation EPI planifiée pour ce filtre.</div>'}`;
+}
+async function epiIssue(employeeId,productId,designation,remaining){
+  const q=prompt("Quantité à livrer :",remaining); if(q===null)return; const qty=Number(q); if(!(qty>0))return;
+  try{ await api("/stock/epi/issue",{method:"POST",body:JSON.stringify({employeeId,productId:productId||undefined,designation,quantity:qty})}); stockEpiView(); }
+  catch(e){ alert(e.message); }
+}
 
 async function stockHome(){
   const d=await api("/stock/dashboard").catch(()=>null);
