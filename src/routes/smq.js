@@ -1592,4 +1592,67 @@ router.get("/conformite", allow(...RO), (req, res) => {
   res.json({ global, perPortfolio, perEmployee: perEmp.sort((a, b) => Number(a.conform) - Number(b.conform)), smq });
 });
 
+/* ===================== Veille réglementaire ===================== */
+if (!db.smqVeille) db.smqVeille = [];
+const VEILLE_CONF = ["Totalement Conforme", "Partiellement Conforme", "Non Conforme", "Non applicable"];
+function veilleSummary(rows) {
+  const applicable = rows.filter(r => (r.applicabilite || "APPLICABLE").toUpperCase().startsWith("APPLIC"));
+  const evalRows = applicable.filter(r => r.conformite);
+  const tot = evalRows.filter(r => r.conformite === "Totalement Conforme").length;
+  const part = evalRows.filter(r => r.conformite === "Partiellement Conforme").length;
+  const non = evalRows.filter(r => r.conformite === "Non Conforme").length;
+  const score = evalRows.length ? Math.round((tot + part * 0.5) / evalRows.length * 100) : null;
+  return { total: rows.length, applicable: applicable.length, evaluated: evalRows.length, tot, part, non, pendingEval: applicable.length - evalRows.length, score };
+}
+router.get("/veille", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  let rows = mine(db.smqVeille, req);
+  if (req.query.portfolioId) rows = rows.filter(r => (r.portfolioId || "") === req.query.portfolioId);
+  res.json({ rows, summary: veilleSummary(rows) });
+});
+router.post("/veille", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const rec = stamp({ id: id("vgl"), portfolioId: b.portfolioId || "", activite: b.activite || "", texte: b.texte || "",
+    exigence: b.exigence || "", applicabilite: b.applicabilite || "APPLICABLE", motif: b.motif || "", conformite: b.conformite || "",
+    createdAt: now() }, req);
+  db.smqVeille.push(rec); save(); audit(req.user, "CREATED", "SmqVeille", rec.id, {}); res.status(201).json(rec);
+});
+router.put("/veille/:id", allow(...RW), (req, res) => {
+  const r = mine(db.smqVeille, req).find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  ["portfolioId", "activite", "texte", "exigence", "applicabilite", "motif", "conformite"].forEach(k => { if (b[k] !== undefined) r[k] = b[k]; });
+  save(); audit(req.user, "UPDATED", "SmqVeille", r.id, {}); res.json(r);
+});
+router.delete("/veille/:id", allow(...RW), (req, res) => {
+  const r = mine(db.smqVeille, req).find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Introuvable" });
+  db.smqVeille = db.smqVeille.filter(x => x.id !== r.id); save(); audit(req.user, "DELETED", "SmqVeille", r.id, {}); res.json({ ok: true });
+});
+router.post("/veille/import", allow(...RW), smqImport.single("file"), (req, res) => {
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const buf = xlsxBuf(req); if (!buf) return res.status(400).json({ error: "Fichier manquant" });
+  let rows; try { const wb = XLSX.read(buf, { type: "buffer", cellDates: true, sheetRows: 20000, bookDeps: false });
+    const ws = wb.Sheets["Recap"] || wb.Sheets[wb.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" });
+  } catch (e) { return res.status(400).json({ error: "Lecture Excel impossible : " + e.message }); }
+  const pfId = (req.body && req.body.portfolioId) || "";
+  let start = 0; for (let i = 0; i < Math.min(rows.length, 8); i++) if (String((rows[i] || [])[0] || "").toLowerCase().includes("activit")) { start = i + 1; break; }
+  let activite = "", texte = "", added = 0;
+  for (let i = start; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const a = String(r[0] || "").trim(), b = String(r[1] || "").trim(), ex = String(r[2] || "").trim(),
+      ap = String(r[3] || "").trim(), mo = String(r[4] || "").trim(), co = String(r[5] || "").trim();
+    if (a) { activite = a; texte = ""; }
+    if (b) texte = b;
+    if (!b && !ex && !ap && !co) continue;
+    if (!activite && !texte && !ex) continue;
+    db.smqVeille.push(stamp({ id: id("vgl"), portfolioId: pfId, activite, texte, exigence: ex, applicabilite: ap || "APPLICABLE", motif: mo, conformite: co, createdAt: now() }, req));
+    added++;
+  }
+  if (added) save();
+  audit(req.user, "CONFIG_CHANGED", "SmqVeille", "import", { added });
+  res.json({ added });
+});
+
 module.exports = router;

@@ -996,6 +996,7 @@ const NAV = [
   { k: "smqaxes", label: "Politique & axes", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
   { k: "smqstakeholders", label: "Parties intéressées", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite" },
   { k: "smqscope", label: "Domaine & exclusions", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite" },
+  { k: "smqveille", label: "Veille réglementaire", sec: "Système", roles: ["ADM","RQ","CD","RJ"], module: "quality", grp: "qualite" },
   { k: "smqgov", label: "Gouvernance SMQ", sec: "Système", roles: ["ADM","RQ"], module: "quality", grp: "qualite" },
   { k: "smqdocs", label: "Maîtrise documentaire", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
   { k: "smqdoctypes", label: "Types de documents", sec: "Documentation", roles: ["ADM","RQ","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
@@ -1162,7 +1163,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6789,6 +6790,65 @@ function smqProcName(id){ const p=(window._SMQ.procs||[]).find(x=>x.id===id); re
 
 /* ---------- Tableau de bord ---------- */
 /* ================= SMQ : Conformité du personnel ================= */
+/* ================= SMQ : Veille réglementaire ================= */
+const VEILLE_CONF=["Totalement Conforme","Partiellement Conforme","Non Conforme","Non applicable"];
+async function smqVeilleView(){
+  const [pfs] = await Promise.all([api("/portfolios").catch(()=>[])]);
+  window._VGLPFS=pfs;
+  const pf=window._VGLPF||"";
+  const d=await api("/smq/veille"+(pf?("?portfolioId="+encodeURIComponent(pf)):"")).catch(()=>({rows:[],summary:{}}));
+  window._VGL=d;
+  const S=d.summary||{};
+  const pfName=id=>{const p=(pfs||[]).find(x=>x.id===id);return p?p.name:(id||"-");};
+  const confCol=c=>c==="Totalement Conforme"?'#16a34a':c==="Partiellement Conforme"?'#f97316':c==="Non Conforme"?'#dc2626':'#6b7280';
+  const canEdit=["ADM","RQ","CD","RJ"].includes(ME.role);
+  view.innerHTML=`<h1>Veille réglementaire</h1>
+   <div class="note" style="margin-bottom:8px">Registre des exigences légales et réglementaires applicables et de leur niveau de conformité.</div>
+   <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+     <div><label>Portefeuille</label><select onchange="window._VGLPF=this.value;smqVeilleView()" style="max-width:280px;margin:0"><option value="">Tous</option>${(pfs||[]).map(p=>`<option value="${p.id}" ${pf===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select></div>
+     ${canEdit?`<button class="btn p sm" onclick="veilleForm()">+ Ajouter</button>
+     <label class="btn ghost sm" style="cursor:pointer">Importer (Excel)<input type="file" accept=".xlsx,.xls" style="display:none" onchange="veilleImport(this)"></label>`:''}
+   </div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+     <div class="panel" style="flex:1;min-width:150px"><div class="note">Score de conformité</div><div style="font-size:22px;font-weight:700;color:${S.score>=80?'#16a34a':S.score>=50?'#f97316':'#dc2626'}">${S.score==null?'-':S.score+'%'}</div></div>
+     <div class="panel" style="flex:1;min-width:120px"><div class="note">Totalement conforme</div><div style="font-size:20px;font-weight:700;color:#16a34a">${S.tot||0}</div></div>
+     <div class="panel" style="flex:1;min-width:120px"><div class="note">Partiellement</div><div style="font-size:20px;font-weight:700;color:#f97316">${S.part||0}</div></div>
+     <div class="panel" style="flex:1;min-width:120px"><div class="note">Non conforme</div><div style="font-size:20px;font-weight:700;color:#dc2626">${S.non||0}</div></div>
+     <div class="panel" style="flex:1;min-width:120px"><div class="note">À évaluer</div><div style="font-size:20px;font-weight:700">${S.pendingEval||0}</div></div>
+   </div>
+   <div class="panel"><div style="overflow:auto"><table style="width:100%;font-size:12px"><tr><th>Activité</th><th>Texte normatif</th><th>Exigence</th><th>Applicabilité</th><th>Motif</th><th>Conformité</th>${canEdit?'<th></th>':''}</tr>
+   ${(d.rows||[]).length?(d.rows||[]).map(r=>`<tr><td>${esc(r.activite||'')}</td><td>${esc(r.texte||'')}</td><td>${esc(r.exigence||'')}</td>
+     <td>${esc(r.applicabilite||'')}</td><td>${esc(r.motif||'')}</td><td style="color:${confCol(r.conformite)};font-weight:600">${esc(r.conformite||'')}</td>
+     ${canEdit?`<td style="white-space:nowrap"><button class="btn ghost sm" onclick='veilleForm(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="veilleDel('${r.id}')">Suppr.</button></td>`:''}</tr>`).join(""):`<tr><td colspan="${canEdit?7:6}" class="note">Aucune entrée. Importez l'Excel ou ajoutez manuellement.</td></tr>`}</table></div></div>`;
+}
+function veilleForm(r){
+  r=r||{}; const pfs=window._VGLPFS||[];
+  const opt=(arr,sel)=>arr.map(x=>`<option value="${esc(x)}" ${sel===x?'selected':''}>${esc(x)}</option>`).join("");
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:640px"><b>${r.id?'Modifier':'Nouvelle'} entrée - veille réglementaire</b>
+    <label>Portefeuille</label><select id="vgPf"><option value="">- Tous / général -</option>${pfs.map(p=>`<option value="${p.id}" ${r.portfolioId===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select>
+    <label>Activité</label><input id="vgAct" value="${esc(r.activite||'')}">
+    <label>Texte normatif</label><input id="vgTxt" value="${esc(r.texte||'')}">
+    <label>Exigence</label><input id="vgEx" value="${esc(r.exigence||'')}" placeholder="Article, alinéa…">
+    <div class="grid2"><div><label>Applicabilité</label><select id="vgAp"><option ${r.applicabilite==='APPLICABLE'?'selected':''}>APPLICABLE</option><option ${r.applicabilite==='NON APPLICABLE'?'selected':''}>NON APPLICABLE</option></select></div>
+      <div><label>Niveau de conformité</label><select id="vgCo"><option value="">-</option>${opt(VEILLE_CONF,r.conformite)}</select></div></div>
+    <label>Motif (si non applicable / non conforme)</label><input id="vgMo" value="${esc(r.motif||'')}">
+    <div class="err hidden" id="vgErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="veilleSave('${r.id||''}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function veilleSave(id,btn){
+  const g=i=>document.getElementById(i);
+  const body={portfolioId:g("vgPf").value,activite:g("vgAct").value,texte:g("vgTxt").value,exigence:g("vgEx").value,applicabilite:g("vgAp").value,conformite:g("vgCo").value,motif:g("vgMo").value};
+  try{ await api("/smq/veille"+(id?("/"+id):""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqVeilleView(); }
+  catch(e){ const el=g("vgErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function veilleDel(id){ if(!confirm("Supprimer cette entrée ?"))return; try{ await api("/smq/veille/"+id,{method:"DELETE"}); smqVeilleView(); }catch(e){ alert(e.message); } }
+async function veilleImport(input){ const f=input.files&&input.files[0]; if(!f)return; input.value="";
+  const pf=window._VGLPF||""; 
+  try{ const r=await smqUploadXlsx("/api/smq/veille/import",f,pf?{portfolioId:pf}:{}); alert(r.added+" entrée(s) importée(s)."); smqVeilleView(); }
+  catch(e){ alert(e.message); } }
+
 async function smqConformiteView(){
   let d; try{ d=await api("/smq/conformite"); }catch(e){ view.innerHTML='<h1>Conformité du personnel</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
   window._CONF=d;
