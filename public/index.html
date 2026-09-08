@@ -1346,18 +1346,18 @@ function empCatChange() {
 function renderSalEls(pfId, existingSalary) {
   const box = document.getElementById("salElsBox"); if (!box) return;
   const pf = (window._MYPFS || []).find(p =>p.id === pfId);
-  const names = new Set((pf && Array.isArray(pf.salaryElements)) ? pf.salaryElements : []);
-  if (existingSalary) Object.keys(existingSalary).forEach(n =>names.add(n));
-  const list = (window._SELS || []).filter(x =>names.has(x.name));
+  const allocated = new Set((pf && Array.isArray(pf.salaryElements)) ? pf.salaryElements : []);
+  const list = (window._SELS || []).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),"fr",{sensitivity:"base"}));
   if (!list.length) { box.innerHTML = '<small style="color:var(--muted)">Aucune rubrique allouée à ce portefeuille. Ajoutez-en dans Config \u203a Portefeuilles \u2192 Rubriques de salaire.</small>'; return; }
   box.innerHTML = list.map(x => {
-    const has = existingSalary ? (existingSalary[x.name] != null) : true;
-    const amt = (existingSalary && existingSalary[x.name] != null) ? existingSalary[x.name] : "";
-    return `<div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-      <label class="chk" style="flex:1;padding:2px"><input type="checkbox" data-selname="${esc(x.name)}" ${has ? "checked" : ""}
-        onchange="this.closest('div').querySelector('[data-selamt]').classList.toggle('hidden', !this.checked)">
-        <span>${esc(x.name)}${x.rubriqueCode ? ` <span class="tag gray">rub. ${esc(x.rubriqueCode)}</span>` : ""}</span></label>
-      <input data-selamt="${esc(x.name)}" type="number" placeholder="Montant F CFA" value="${amt}" class="${has ? "" : "hidden"}" style="max-width:170px;margin:0"></div>`;
+    const set = !!(existingSalary && existingSalary[x.name] != null);
+    const has = set || (existingSalary ? false : allocated.has(x.name));
+    const amt = set ? existingSalary[x.name] : "";
+    return `<div class="salrow" style="display:flex;gap:8px;align-items:center;margin-top:6px">
+      <label class="chk" style="flex:1;padding:2px"><input type="checkbox" class="salchk" data-selname="${esc(x.name)}" ${has ? "checked" : ""}
+        onchange="const a=this.closest('.salrow').querySelector('.salamt'); a.style.display=this.checked?'':'none'; if(this.checked)a.focus();">
+        <span>${esc(x.name)}${x.rubriqueCode ? ` <span class="tag gray">rub. ${esc(x.rubriqueCode)}</span>` : ""}${allocated.has(x.name) ? ' <span class="tag" style="background:#e5edff;color:#3730a3">portefeuille</span>' : ""}</span></label>
+      <input class="salamt" data-selamt="${esc(x.name)}" type="number" min="0" placeholder="Montant F CFA" value="${amt}" style="max-width:170px;margin:0${has ? "" : ";display:none"}"></div>`;
   }).join("");
 }
 async function empSave(editId) {
@@ -1379,9 +1379,12 @@ async function empSave(editId) {
         conventionName: (function(){ const s=document.getElementById("fCnv"); return s && s.selectedOptions[0] && s.value ? s.selectedOptions[0].text : undefined; })(),
         paymentMethod: fPay.value, startDate: fHire.value,
         endDate: (window._CTYPES.find(t=>t.name===fCt.value)||{}).fixedTerm ? fEnd.value : null },
-      salary: Object.fromEntries([...view.querySelectorAll("[data-selname]")].filter(c =>c.checked)
-        .map(c => [c.dataset.selname, view.querySelector(`[data-selamt="${c.dataset.selname}"]`).value])
-        .filter(([n, v]) =>v !== "" && v != null)) };
+      salary: Object.fromEntries([...view.querySelectorAll(".salrow")].map(row => {
+          const c = row.querySelector(".salchk"), a = row.querySelector(".salamt");
+          if (!c || !c.checked || !a) return null;
+          const v = a.value; if (v === "" || v == null || !(Number(v) >= 0)) return null;
+          return [c.dataset.selname, Number(v)];
+        }).filter(Boolean)) };
     const e = editId
       ? await api("/employees/" + editId, { method: "PUT", body: JSON.stringify(_payload) })
       : await api("/employees", { method: "POST", body: JSON.stringify(_payload) });
