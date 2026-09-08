@@ -60,6 +60,19 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
     return res.status(409).json({ error: `CNI number ${b.cniNumber} already belongs to another employee` });
   if (b.cnpsNumber && mine(db.employees, req).find(e => e.cnpsNumber && e.cnpsNumber === b.cnpsNumber))
     return res.status(409).json({ error: `CNPS number ${b.cnpsNumber} already belongs to another employee` });
+  if (b.email && mine(db.employees, req).some(e => (e.email || "").toLowerCase() === String(b.email).toLowerCase()))
+    return res.status(409).json({ error: "Cet email est déjà utilisé par un autre employé" });
+  if (b.phone && mine(db.employees, req).some(e => (e.phone || "") === b.phone))
+    return res.status(409).json({ error: "Ce numéro de téléphone est déjà utilisé par un autre employé" });
+  if (String(b.matricule || "").trim() && mine(db.employees, req).some(e => (e.matricule || "") === String(b.matricule).trim()))
+    return res.status(409).json({ error: "Ce matricule existe déjà" });
+  // Matricule: auto-généré si non fourni (ancien salarié : le GPF peut le saisir). Unique par tenant.
+  if (!String(b.matricule || "").trim()) {
+    const nums = mine(db.employees, req).map(e => parseInt(String(e.matricule || "").replace(/\D/g, ""), 10)).filter(n => !isNaN(n));
+    let n = (nums.length ? Math.max(...nums) : 0) + 1, mat;
+    do { mat = "MAT" + String(n).padStart(4, "0"); n++; } while (mine(db.employees, req).some(e => e.matricule === mat));
+    b.matricule = mat;
+  } else b.matricule = String(b.matricule).trim();
   // Category must exist in the referential when provided
   // Category is driven by the selected collective agreement's grid (source of truth).
   if (b.contract?.category && b.contract.conventionId) {
@@ -101,6 +114,12 @@ router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
     return res.status(409).json({ error: "CNI number already belongs to another employee" });
   if (req.body.cnpsNumber && mine(db.employees, req).find(e => e.id !== emp.id && e.cnpsNumber === req.body.cnpsNumber))
     return res.status(409).json({ error: "CNPS number already belongs to another employee" });
+  if (req.body.email && mine(db.employees, req).some(e => e.id !== emp.id && (e.email || "").toLowerCase() === String(req.body.email).toLowerCase()))
+    return res.status(409).json({ error: "Cet email est déjà utilisé par un autre employé" });
+  if (req.body.phone && mine(db.employees, req).some(e => e.id !== emp.id && (e.phone || "") === req.body.phone))
+    return res.status(409).json({ error: "Ce téléphone est déjà utilisé par un autre employé" });
+  if (req.body.matricule && mine(db.employees, req).some(e => e.id !== emp.id && (e.matricule || "") === String(req.body.matricule).trim()))
+    return res.status(409).json({ error: "Ce matricule existe déjà" });
   Object.assign(emp, req.body, { id: emp.id }); save();
   audit(req.user, "UPDATED", "Employee", emp.id, { changed: Object.keys(req.body) });
   res.json(emp);

@@ -1900,7 +1900,12 @@ async function empDetail(id) {
     ${rejBanner}
     ${canEdit && (!doc || doc.status === "DRAFT") ? `
       <button class="btn p" style="margin-bottom:12px" ${complete ? "" : "disabled title='Upload all required documents first'"}
-        onclick="empSubmit('${e.id}')">Soumettre pour validation ${complete ? "" : "(pièces incomplètes)"}</button>` : ""}
+        onclick="empSubmit('${e.id}')">Soumettre pour validation ${complete ? "" : "(pièces incomplètes)"}</button>`
+      : (doc && doc.status === "GENERATED"
+          ? `<span style="display:inline-block;margin-bottom:12px;padding:5px 14px;border-radius:8px;background:#dcfce7;color:#16a34a;font-weight:700">Validé</span>`
+          : (doc && doc.status === "SUBMITTED"
+              ? `<span style="display:inline-block;margin-bottom:12px;padding:5px 14px;border-radius:8px;background:#fef3c7;color:#b45309;font-weight:700">En cours de validation (${doc.currentStage || "CD"})</span>`
+              : ""))}
     ${wfHtml}
     <div class="panel"><b style="font-size:12px;color:var(--muted)">PERSONAL & CONTRACT</b>
     <div class="grid3" style="margin-top:8px;font-size:13px">
