@@ -632,7 +632,7 @@ const I18N = {
 "Saisissez une adresse de test.": "Enter a test address.",
 "Notifications email": "Email notifications",
 "Modèles & destinataires des notifications": "Notification templates & recipients",
-"Personnalisez les messages envoyés (français et anglais) et les adresses qui reçoivent chaque type de notification. Variables : {{title}}, {{initiator}}, {{validator}}, {{reason}}, {{stage}}, {{sla}}, {{elapsed}}.": "Customise the messages sent (French and English) and the addresses that receive each notification type. Variables: {{title}}, {{initiator}}, {{validator}}, {{reason}}, {{stage}}, {{sla}}, {{elapsed}}.",
+"Personnalisez les messages envoyés (français et anglais) et les adresses qui reçoivent chaque type de notification. Variables : {{title}}, {{initiator}}, {{validator}}, {{reason}}, {{stage}}, {{sla}}, {{elapsed}}. Pour l'alerte d'expiration : {{employee}}, {{document}}, {{date}}, {{daysLeft}}, {{state}}, {{portfolio}}.": "Customise the messages sent (French and English) and the addresses that receive each notification type. Variables: {{title}}, {{initiator}}, {{validator}}, {{reason}}, {{stage}}, {{sla}}, {{elapsed}}.",
 "Sujet (FR)": "Subject (FR)",
 "Sujet (EN)": "Subject (EN)",
 "Message (FR)": "Message (FR)",
@@ -2427,14 +2427,34 @@ async function cttAdd() {
 
 /* ================= RH : Conventions collectives ================= */
 /* ================= RH : Alertes d'expiration ================= */
+function expiryYMD(d){
+  // Reste en années / mois / jours (ou dépassement).
+  const past = d < 0; let n = Math.abs(d);
+  const y = Math.floor(n/365); n -= y*365; const mo = Math.floor(n/30); const da = n - mo*30;
+  const parts = []; if (y) parts.push(y+" an"+(y>1?"s":"")); if (mo) parts.push(mo+" mois"); if (da||!parts.length) parts.push(da+" j");
+  const txt = parts.join(" ");
+  return past ? '<span style="color:#dc2626;font-weight:600">Expiré depuis '+txt+'</span>'
+    : '<span style="color:'+(d<=30?'#dc2626':(d<=90?'#f97316':'#16a34a'))+';font-weight:600">'+txt+'</span>';
+}
 async function expiringView(){
   const list=await api("/hr/expiring").catch(()=>[]);
-  const badge=d=>{ const c=d<0?'#dc2626':(d<=30?'#dc2626':(d<=90?'#f97316':'#16a34a')); const t=d<0?('Expiré ('+Math.abs(d)+' j)'):(d+' j'); return '<span style="color:'+c+';font-weight:600">'+t+'</span>'; };
+  const mode=window._EXPMODE||"portfolio";
+  const rowsOf=(items)=>items.map(x=>`<tr${x.daysLeft<0?' style="background:rgba(220,38,38,.06)"':''}><td>${esc(x.employeeName)}</td><td>${esc(x.label)}${x.fileName?' <span class="note">('+esc(x.fileName)+')</span>':''}</td><td>${esc((x.expiryDate||'').slice(0,10))}</td><td>${expiryYMD(x.daysLeft)}</td></tr>`).join("");
+  // Regroupement
+  const groups={}; const keyer = mode==="type" ? (x=>x.typeLabel||x.label) : (x=>x.portfolioName||"(sans portefeuille)");
+  list.forEach(x=>{ const k=keyer(x); (groups[k]=groups[k]||[]).push(x); });
+  const gkeys=Object.keys(groups).sort((a,b)=>a.localeCompare(b,"fr"));
+  const section=(title,items)=>`<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(title)}</b><span class="note">${items.length} échéance(s) · ${items.filter(i=>i.daysLeft<0).length} expirée(s)</span></div>
+    <div style="overflow:auto;margin-top:6px"><table style="width:100%"><tr><th>Salarié</th><th>Document / échéance</th><th>Date</th><th>Reste</th></tr>${rowsOf(items.slice().sort((a,b)=>a.daysLeft-b.daysLeft))}</table></div></div>`;
   view.innerHTML=`<h1>Alertes d'expiration</h1>
-   <div class="note" style="margin-bottom:8px">Documents, validité CNI et contrats arrivant à échéance. Rappels automatiques par email (GPF + salarié) à partir de 90 jours, puis environ chaque mois.</div>
-   ${ME.role!=="GPF"?`<div style="margin-bottom:10px"><button class="btn p sm" onclick="expiringRemind()">Envoyer les rappels maintenant</button></div>`:''}
-   <div class="panel"><div style="overflow:auto"><table style="width:100%"><tr><th>Salarié</th><th>Document / échéance</th><th>Date</th><th>Reste</th></tr>
-   ${list.length?list.map(x=>`<tr><td>${esc(x.employeeName)}</td><td>${esc(x.label)}${x.fileName?' <span class="note">('+esc(x.fileName)+')</span>':''}</td><td>${esc((x.expiryDate||'').slice(0,10))}</td><td>${badge(x.daysLeft)}</td></tr>`).join(""):'<tr><td colspan="4" class="note">Aucune échéance dans la période suivie.</td></tr>'}</table></div></div>`;
+   <div class="note" style="margin-bottom:8px">Documents, validité CNI, contrats (CDD) et habilitations arrivant à échéance. Rappels automatiques par email (GPF + salarié) à partir de 90 jours, puis environ chaque mois. Le temps restant est indiqué en années / mois / jours.</div>
+   <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+     <span class="note">Regrouper par :</span>
+     <button class="btn ${mode==="portfolio"?"p":"ghost"} sm" onclick="window._EXPMODE='portfolio';expiringView()">Portefeuille</button>
+     <button class="btn ${mode==="type"?"p":"ghost"} sm" onclick="window._EXPMODE='type';expiringView()">Type de document</button>
+     ${ME.role!=="GPF"?`<span style="flex:1"></span><button class="btn p sm" onclick="expiringRemind()">Envoyer les rappels maintenant</button>`:''}
+   </div>
+   ${gkeys.length?gkeys.map(k=>section(k,groups[k])).join(""):'<div class="panel note">Aucune échéance dans la période suivie.</div>'}`;
 }
 async function expiringRemind(){ try{ const r=await api("/hr/expiring/remind",{method:"POST"}); alert(r.sent+" rappel(s) envoyé(s)."+(r.sent===0?" (aucune échéance à notifier, ou email SMTP non configuré)":"")); }catch(e){ alert(e.message); } }
 
@@ -3699,7 +3719,7 @@ async function testEmail() {
 
 /* ---- Notification templates (FR/EN) + recipients: their own screen ---- */
 const EVENT_LABELS = { submitted:"Soumission (à valider)", validated:"Validation", rejected:"Rejet",
-  slaWarning:"Alerte délai 36h", slaBreach:"Dépassement 48h" };
+  slaWarning:"Alerte délai 36h", slaBreach:"Dépassement 48h", expiry:"Alerte d'expiration de document" };
 async function mailtplView() {
   const s = await api("/settings"); const T = s.emailTemplates, R = s.emailRecipients;
   view.innerHTML = `<h1>Modèles & destinataires des notifications</h1>

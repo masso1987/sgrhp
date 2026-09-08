@@ -28,7 +28,7 @@ const DEFAULTS = {
     mailgun: { region: "us", domain: "", smtpLogin: "", smtpPassword: "" },
     sendmail: { path: "/usr/sbin/sendmail" },
   },
-  emailRecipients: { globalCC: "", byEvent: { submitted: "", validated: "", rejected: "", slaWarning: "", slaBreach: "" } },
+  emailRecipients: { globalCC: "", byEvent: { submitted: "", validated: "", rejected: "", slaWarning: "", slaBreach: "", expiry: "" } },
   emailTemplates: {
     submitted: { subjectFr: "Nouveau document à valider : {{title}}", subjectEn: "New document to validate: {{title}}",
       bodyFr: "Bonjour,\n\nLe document « {{title}} » a été soumis par {{initiator}} et attend votre validation (délai : {{sla}}h).\n\n— SGRHP", 
@@ -44,6 +44,9 @@ const DEFAULTS = {
     slaBreach: { subjectFr: "Dépassement de délai : {{title}}", subjectEn: "SLA breach: {{title}}",
       bodyFr: "Le délai de 48h est dépassé pour « {{title}} » ({{elapsed}}h).\n\n— SGRHP",
       bodyEn: "The 48h deadline is exceeded for \"{{title}}\" ({{elapsed}}h).\n\n— SGRHP" },
+    expiry: { subjectFr: "Alerte d'expiration : {{document}} — {{employee}}", subjectEn: "Expiry alert: {{document}} — {{employee}}",
+      bodyFr: "Bonjour,\n\nLe document « {{document}} » de {{employee}} ({{portfolio}}) {{state}} (échéance : {{date}}).\nMerci de préparer le renouvellement.\n\n— SGRHP",
+      bodyEn: "Hello,\n\nThe document \"{{document}}\" of {{employee}} ({{portfolio}}) {{state}} (due: {{date}}).\nPlease prepare the renewal.\n\n— SGRHP" },
   },
   branding: {
     theme: "emerald",

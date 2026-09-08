@@ -9,7 +9,8 @@ const DAY = 86400000, WINDOW = 90, CADENCE = 28, STOP_AFTER = 365;
 
 const daysLeft = (s) => { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : Math.ceil((d.getTime() - Date.now()) / DAY); };
 const empName = (e) => `${e.firstName || ""} ${e.lastName || ""}`.trim();
-const docLabel = (code) => { const d = (db.docTypes || []).find(x => x.code === code); return d ? d.label : code; };
+const docLabel = (code) => { const d = (db.docTypes || []).find(x => x.code === code); return d ? (d.labelFr || d.label) : code; };
+const pfName = (pid) => { const p = (db.portfolios || []).find(x => x.id === pid); return p ? p.name : ""; };
 
 function items(tenantId) {
   const out = [];
@@ -17,16 +18,16 @@ function items(tenantId) {
   const byId = {}; emps.forEach(e => byId[e.id] = e);
   for (const f of (db.files || [])) {
     if (!f.expiryDate) continue; const e = byId[f.employeeId]; if (!e) continue;
-    out.push({ kind: "file", id: f.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, email: e.email, label: docLabel(f.docType), fileName: f.fileName, expiryDate: f.expiryDate, daysLeft: daysLeft(f.expiryDate) });
+    out.push({ kind: "file", id: f.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, portfolioName: pfName(e.portfolioId), email: e.email, label: docLabel(f.docType), typeLabel: docLabel(f.docType), fileName: f.fileName, expiryDate: f.expiryDate, daysLeft: daysLeft(f.expiryDate) });
   }
   for (const e of emps) {
-    if (e.cniExpiry) out.push({ kind: "cni", id: e.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, email: e.email, label: "Validité CNI", expiryDate: e.cniExpiry, daysLeft: daysLeft(e.cniExpiry) });
+    if (e.cniExpiry) out.push({ kind: "cni", id: e.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, portfolioName: pfName(e.portfolioId), email: e.email, label: "Validité CNI", typeLabel: "Validité CNI", expiryDate: e.cniExpiry, daysLeft: daysLeft(e.cniExpiry) });
     const end = e.contract && e.contract.endDate;
-    if (end) out.push({ kind: "contract", id: e.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, email: e.email, label: "Fin de contrat (CDD)", expiryDate: end, daysLeft: daysLeft(end) });
+    if (end) out.push({ kind: "contract", id: e.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, portfolioName: pfName(e.portfolioId), email: e.email, label: "Fin de contrat (CDD)", typeLabel: "Fin de contrat (CDD)", expiryDate: end, daysLeft: daysLeft(end) });
   }
   for (const h of (db.smqHabilitations || [])) {
     if (!h.expiryDate) continue; const e = byId[h.employeeId]; if (!e) continue;
-    out.push({ kind: "habilitation", id: h.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, email: e.email, label: "Habilitation : " + (h.intitule || h.reference || h.type || ""), expiryDate: h.expiryDate, daysLeft: daysLeft(h.expiryDate) });
+    out.push({ kind: "habilitation", id: h.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, portfolioName: pfName(e.portfolioId), email: e.email, label: "Habilitation : " + (h.intitule || h.reference || h.type || ""), typeLabel: "Habilitations & formations", expiryDate: h.expiryDate, daysLeft: daysLeft(h.expiryDate) });
   }
   return out.filter(x => x.daysLeft !== null).sort((a, b) => a.daysLeft - b.daysLeft);
 }
@@ -44,14 +45,17 @@ function scanAndRemind() {
     if (last && (now - new Date(last).getTime()) < CADENCE * DAY) continue;
     const e = db.employees.find(x => x.id === it.employeeId); if (!e) continue;
     const when = new Date(it.expiryDate).toLocaleDateString("fr-FR");
-    const state = it.daysLeft < 0 ? `a expiré depuis ${Math.abs(it.daysLeft)} jour(s)` : `expire dans ${it.daysLeft} jour(s) (le ${when})`;
-    const subject = `Expiration : ${it.label} — ${it.employeeName}`;
-    const body = `Le document « ${it.label} » de ${it.employeeName} ${state}.\nMerci de préparer le renouvellement.`;
+    const state = it.daysLeft < 0 ? `a expiré depuis ${Math.abs(it.daysLeft)} jour(s)` : `expire dans ${it.daysLeft} jour(s)`;
+    // Message personnalisable (Administration › Modèles de notifications › Alerte d'expiration).
+    let tpl = null; try { tpl = require("./routes/settings").settings().emailTemplates.expiry; } catch (x) {}
+    const fill = (str) => String(str || "").replace(/{{\s*(\w+)\s*}}/g, (m, k) => ({ employee: it.employeeName, document: it.label, date: when, daysLeft: String(it.daysLeft), state, portfolio: it.portfolioName || "" }[k] ?? ""));
+    const subject = tpl && tpl.subjectFr ? fill(tpl.subjectFr) : `Expiration : ${it.label} — ${it.employeeName}`;
+    const body = tpl && tpl.bodyFr ? fill(tpl.bodyFr) : `Le document « ${it.label} » de ${it.employeeName} ${state}.\nMerci de préparer le renouvellement.`;
     for (const g of gpfsOf(e)) {
       db.notifications.push({ id: id("ntf"), userId: g.id, subject, body, ref: it.employeeId, at: new Date().toISOString(), readAt: null });
       if (g.email) { try { mailer.trySend(g.email, `SGRHP — ${subject}`, body); } catch (x) {} }
     }
-    if (it.email) { try { mailer.trySend(it.email, `Rappel : ${it.label}`, `Bonjour ${it.employeeName},\n\nVotre document « ${it.label} » ${state}. Merci de fournir le renouvellement à votre gestionnaire.\n\n—\nSGRHP`); } catch (x) {} }
+    if (it.email) { try { mailer.trySend(it.email, subject, body); } catch (x) {} }
     setLast(it, new Date().toISOString()); sent++;
   }
   if (sent) save();
