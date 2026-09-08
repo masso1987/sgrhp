@@ -822,6 +822,51 @@ router.post("/epi/issue", allow("ADM", "CD", "GPF"), (req, res) => {
   res.json({ ok: true, issue: rec });
 });
 
+/* Historique des remises EPI d'un salarié (ou tous) */
+router.get("/epi/issues", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  let list = mine(db.epiIssues, req);
+  if (req.query.employeeId) list = list.filter(i => i.employeeId === req.query.employeeId);
+  const eName = (eid) => { const e = mine(db.employees, req).find(x => x.id === eid); return e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : ""; };
+  res.json(list.map(i => ({ ...i, employeeName: eName(i.employeeId), productName: i.productId ? pName(req, i.productId) : (i.designation || "") }))
+    .sort((a, b) => String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""))));
+});
+/* Corriger une remise (ajuste le stock du produit lié) */
+router.put("/epi/issue/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+  const rec = mine(db.epiIssues, req).find(x => x.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "Remise introuvable" });
+  const b = req.body || {};
+  const newQty = b.quantity !== undefined ? Q(b.quantity) : Q(rec.quantity);
+  if (!(newQty > 0)) return res.status(400).json({ error: "Quantité invalide" });
+  if (rec.productId) {
+    const prod = _prod(req, rec.productId);
+    if (prod) {
+      const delta = newQty - Q(rec.quantity);          // >0 = on sort davantage
+      if (delta > 0 && delta > Q(prod.qty || 0)) return res.status(400).json({ error: `Stock insuffisant pour « ${prod.name} » (disponible ${Q(prod.qty || 0)})` });
+      if (delta !== 0) { prod.qty = Q((prod.qty || 0) - delta);
+        logMove(req, { date: _today(), type: "dotation", productId: prod.id, qty: -delta, ref: "Correction dotation EPI", note: rec.id }); }
+    }
+  }
+  rec.quantity = newQty;
+  if (b.designation !== undefined && !rec.productId) rec.designation = b.designation;
+  if (b.date) rec.date = b.date;
+  rec.updatedAt = new Date().toISOString(); save();
+  audit(req.user, "UPDATED", "EpiIssue", rec.id, { qty: newQty });
+  res.json({ ok: true, issue: rec });
+});
+/* Supprimer une remise (restaure le stock du produit lié) */
+router.delete("/epi/issue/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+  const rec = mine(db.epiIssues, req).find(x => x.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: "Remise introuvable" });
+  if (rec.productId) {
+    const prod = _prod(req, rec.productId);
+    if (prod) { prod.qty = Q((prod.qty || 0) + Q(rec.quantity));
+      logMove(req, { date: _today(), type: "dotation", productId: prod.id, qty: Q(rec.quantity), ref: "Annulation dotation EPI", note: rec.id }); }
+  }
+  db.epiIssues.splice(db.epiIssues.indexOf(rec), 1); save();
+  audit(req.user, "DELETED", "EpiIssue", rec.id, { employee: rec.employeeId });
+  res.json({ ok: true });
+});
+
 /* Fiche de dotation EPI (imprimable, avec zone de signature) */
 router.get("/epi/fiche/:employeeId.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const PDFDocument = require("pdfkit");
@@ -838,6 +883,18 @@ router.get("/epi/fiche/:employeeId.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, 
     const last = issues.filter(i => (l.productId ? i.productId === l.productId : i.designation === (l.designation || ""))).map(i => i.date).sort().pop() || "";
     return { designation: l.designation || (l.productId ? pName(req, l.productId) : ""), planned: Q(l.quantity), issued, remaining: Math.max(0, Q(l.quantity) - issued), last };
   });
+  // Plan par clé (produit ou désignation) pour calculer le reste au fil des remises.
+  const planByKey = {}; (emp.epi || []).filter(l => !l.year || String(l.year) === year).forEach(l => { planByKey[l.productId || ("d:" + (l.designation || ""))] = Q(l.quantity); });
+  // Historique chronologique des remises de l'année (récapitulatif cumulé).
+  const cum = {};
+  const history = issues.filter(i => !i.date || String(i.date).slice(0, 4) === year)
+    .sort((a, b) => String(a.date || a.createdAt || "").localeCompare(String(b.date || b.createdAt || "")))
+    .map(i => {
+      const key = i.productId || ("d:" + (i.designation || ""));
+      cum[key] = (cum[key] || 0) + Q(i.quantity);
+      const plan = planByKey[key] || 0;
+      return { date: i.date || (i.createdAt || "").slice(0, 10), designation: i.productId ? pName(req, i.productId) : (i.designation || ""), qty: Q(i.quantity), cumul: cum[key], remaining: plan ? Math.max(0, plan - cum[key]) : 0 };
+    });
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Fiche_dotation_EPI_${emp.lastName || ""}_${year}.pdf"`);
@@ -872,6 +929,25 @@ router.get("/epi/fiche/:employeeId.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, 
   doc.y = y + 6;
   const tot = lines.reduce((a, r) => { a.p += r.planned; a.i += r.issued; a.r += r.remaining; return a; }, { p: 0, i: 0, r: 0 });
   doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#1e3a5f").text(`Total — prévu ${tot.p} · livré ${tot.i} · reste ${tot.r}`, M, doc.y, { align: "right", width: R - M });
+
+  // Historique des remises (registre cumulé)
+  doc.moveDown(1);
+  doc.fontSize(11).font("Helvetica-Bold").fillColor("#1e3a5f").text("Historique des remises", M, doc.y);
+  doc.moveDown(.3);
+  const hcols = [{ l: "Date", w: 90, a: "left" }, { l: "Équipement (EPI)", w: 210, a: "left" }, { l: "Remis", w: 60, a: "right" }, { l: "Cumul", w: 60, a: "right" }, { l: "Reste", w: 83, a: "right" }];
+  y = doc.y;
+  doc.rect(M, y, R - M, 18).fill("#1e3a5f"); doc.fillColor("#fff").fontSize(9.5).font("Helvetica-Bold");
+  x = M; for (const c of hcols) { doc.text(c.l, x + 4, y + 5, { width: c.w - 8, align: c.a }); x += c.w; }
+  y += 18; doc.font("Helvetica").fillColor("#000");
+  const hRow = (r, i) => {
+    if (y > 740) { doc.addPage(); y = 46; }
+    if (i % 2) { doc.rect(M, y, R - M, 16).fill("#f4f6f9"); doc.fillColor("#000"); }
+    x = M; const cells = [fr(r.date), r.designation, String(r.qty), String(r.cumul), String(r.remaining)];
+    hcols.forEach((c, j) => { doc.fontSize(9.5).fillColor("#000").text(cells[j], x + 4, y + 4, { width: c.w - 8, align: c.a }); x += c.w; });
+    y += 16;
+  };
+  if (history.length) history.forEach(hRow); else { doc.fontSize(9.5).text("Aucune remise enregistrée pour cette année.", M + 4, y + 4); y += 16; }
+  doc.y = y + 6;
 
   doc.moveDown(2);
   doc.fontSize(9).fillColor("#000").font("Helvetica").text("Je soussigné(e) reconnais avoir reçu les équipements de protection individuelle listés ci-dessus et m'engage à les porter et à les entretenir conformément aux consignes de sécurité.", M, doc.y, { width: R - M });

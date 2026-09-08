@@ -8719,7 +8719,7 @@ async function stockEpiView(){
      <div><label>Portefeuille</label><select onchange="window._epiPf=this.value;stockEpiView()" style="max-width:320px"><option value="">Tous</option>${(pfs||[]).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select></div>
      <div class="panel" style="margin:0"><div class="note">Avancement global</div><div>${bar(tot.pct||0)} <span class="note">(${tot.issued||0}/${tot.planned||0})</span></div></div>
    </div>
-   ${emps.length?emps.map(e=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center"><b>${esc(e.name)} <span class="note">(${esc(pfName(e.portfolioId))})</span></b><span style="display:inline-flex;gap:8px;align-items:center">${bar(e.pct)} <button class="btn ghost sm" onclick="epiFiche('${e.employeeId}')">Fiche de dotation</button></span></div>
+   ${emps.length?emps.map(e=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center"><b>${esc(e.name)} <span class="note">(${esc(pfName(e.portfolioId))})</span></b><span style="display:inline-flex;gap:8px;align-items:center">${bar(e.pct)} <button class="btn ghost sm" onclick="epiHistory('${e.employeeId}','${esc(e.name.replace(/'/g,"&#39;"))}')">Historique / corriger</button> <button class="btn ghost sm" onclick="epiFiche('${e.employeeId}')">Fiche de dotation</button></span></div>
      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>EPI</th><th class="r">Prévu</th><th class="r">Livré</th><th class="r">Reste</th><th></th></tr>
      ${e.lines.map(l=>`<tr><td>${esc(l.designation||'')}</td><td class="r">${l.planned}</td><td class="r">${l.issued}</td><td class="r">${l.remaining}</td>
        <td>${l.remaining>0?`<button class="btn ghost sm" onclick="epiIssue('${e.employeeId}','${l.productId||''}','${esc((l.designation||'').replace(/'/g,'&#39;'))}',${l.remaining})">Livrer</button>`:'<span style="color:#16a34a;font-weight:600">Complet</span>'}</td></tr>`).join("")}</table></div></div>`).join(""):'<div class="panel note">Aucune dotation EPI planifiée pour ce filtre.</div>'}`;
@@ -8732,6 +8732,30 @@ async function epiIssue(employeeId,productId,designation,remaining){
 async function epiFiche(employeeId){
   const yr=prompt("Année de la fiche de dotation :",new Date().getFullYear()); if(yr===null)return;
   try{ const r=await fetch("/api/stock/epi/fiche/"+employeeId+".pdf?year="+encodeURIComponent(yr),{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Fiche indisponible"); const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="Fiche_dotation_EPI.pdf"; a.click(); }
+  catch(e){ alert(e.message); }
+}
+async function epiHistory(employeeId,name){
+  const rows=await api("/stock/epi/issues?employeeId="+employeeId).catch(()=>[]);
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:600px"><b>Historique des remises — ${esc(name||"")}</b>
+    <div class="note" style="margin:4px 0 8px">Corrigez ou supprimez une remise en cas d'erreur. Le stock du produit lié est réajusté automatiquement.</div>
+    <div style="max-height:360px;overflow:auto"><table style="width:100%"><tr><th>Date</th><th>EPI</th><th class="r">Qté</th><th></th></tr>
+      ${rows.length?rows.map(r=>`<tr><td>${esc((r.date||"").slice(0,10))}</td><td>${esc(r.productName||r.designation||"")}</td><td class="r">${r.quantity}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="epiEdit('${r.id}',${r.quantity},'${esc((r.date||"").slice(0,10))}','${employeeId}','${esc((name||"").replace(/'/g,"&#39;"))}')">Corriger</button>
+        <button class="btn ghost sm" style="color:var(--red)" onclick="epiDel('${r.id}','${employeeId}','${esc((name||"").replace(/'/g,"&#39;"))}')">Suppr.</button></td></tr>`).join(""):'<tr><td colspan="4" class="note">Aucune remise enregistrée.</td></tr>'}
+    </table></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function epiEdit(idv,qty,date,employeeId,name){
+  const q=prompt("Nouvelle quantité remise :",qty); if(q===null)return; const nq=Number(q); if(!(nq>0))return alert("Quantité invalide");
+  const d=prompt("Date de la remise (AAAA-MM-JJ) :",date||new Date().toISOString().slice(0,10)); if(d===null)return;
+  try{ await api("/stock/epi/issue/"+idv,{method:"PUT",body:JSON.stringify({quantity:nq,date:d})}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await stockEpiView(); epiHistory(employeeId,name); }
+  catch(e){ alert(e.message); }
+}
+async function epiDel(idv,employeeId,name){
+  if(!confirm("Supprimer cette remise ? Le stock sera restauré."))return;
+  try{ await api("/stock/epi/issue/"+idv,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await stockEpiView(); epiHistory(employeeId,name); }
   catch(e){ alert(e.message); }
 }
 
