@@ -8140,18 +8140,16 @@ function smqImpOpen(idv){ go("smqimprovements"); }
 /* ---------- Ressources : compétences, fournisseurs, métrologie ---------- */
 /* Compétences / habilitations (lien RH) */
 async function smqCompetencesView(){
-  const [rows,sum]=await Promise.all([api("/smq/competences").catch(()=>[]),api("/smq/competences-summary").catch(()=>null)]);
+  const d=await api("/smq/habilitations-all").catch(()=>({rows:[],summary:{}}));
+  const rows=d.rows||[], sum=d.summary||{};
+  const stTag=(r)=>r.status==="expiree"?'<span class="tag" style="background:#dc2626;color:#fff">Expirée</span>':r.status==="bientot"?'<span class="tag" style="background:#f97316;color:#fff">'+r.daysLeft+' j</span>':r.status==="ajour"?'<span class="tag green">À jour</span>':'<span class="note">-</span>';
   view.innerHTML=`<h1>Compétences & habilitations</h1>
-    <div style="margin-bottom:8px"><button class="btn p" onclick="smqCompForm()">+ Compétence</button></div>
-    ${sum&&sum.expirant.length?`<div class="panel" style="margin-bottom:10px;border-left:4px solid #dc2626"><b>Habilitations à échéance</b>
-      <table style="margin-top:6px;width:100%"><tr><th>Employé</th><th>Compétence</th><th>Expiration</th></tr>
-      ${sum.expirant.map(e=>`<tr><td>${esc(e.employeeName||"")}</td><td>${esc(e.competence)}</td><td>${e.expiree?'<span class="tag" style="background:#dc2626;color:#fff">'+esc(e.dateExpiration)+' (expirée)</span>':esc(e.dateExpiration)}</td></tr>`).join("")}</table></div>`:''}
-    <div class="panel"><table style="width:100%"><tr><th>Employé</th><th>Poste</th><th>Compétence</th><th class="r">Requis</th><th class="r">Actuel</th><th>Écart</th><th>Habilitation</th><th>Expiration</th><th></th></tr>
-      ${rows.map(r=>{const ecart=(Number(r.niveauActuel)||0)<(Number(r.niveauRequis)||0);return `<tr><td>${esc(r.employeeName||"")}</td><td>${esc(r.poste||"")}</td><td>${esc(r.competence||"")}</td>
-        <td class="r">${esc(String(r.niveauRequis||""))}</td><td class="r">${esc(String(r.niveauActuel||""))}</td>
-        <td>${ecart?'<span class="tag" style="background:#f97316;color:#fff">Écart</span>':'<span class="tag green">OK</span>'}</td>
-        <td>${r.habilitation?'':'-'}</td><td>${esc(r.dateExpiration||"")}</td>
-        <td><button class="btn ghost sm" onclick="smqCompForm('${r.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqCompDel('${r.id}')">Suppr.</button></td></tr>`;}).join("")||'<tr><td colspan="9" class="note">Aucune compétence enregistrée.</td></tr>'}</table></div>`;
+    <div class="note" style="margin-bottom:8px">Suivi (lecture seule) des habilitations et formations saisies par le GPF dans le module Principal (dossier employé). Le SMQ assure le suivi des échéances ; toute modification se fait dans le dossier du salarié.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      ${[["Total",sum.total||0],["À jour",sum.ajour||0],["Bientôt (≤90 j)",sum.bientot||0],["Expirées",sum.expirees||0]].map(([l,v],i)=>`<div style="flex:1;min-width:120px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600;color:${i===3&&v?'#dc2626':i===2&&v?'#f97316':'inherit'}">${v}</div></div>`).join("")}
+    </div>
+    <div class="panel"><div style="overflow:auto"><table style="width:100%"><tr><th>Employé</th><th>Portefeuille</th><th>Intitulé</th><th>Type</th><th>Organisme</th><th>Réf.</th><th>Obtenue</th><th>Expire</th><th>Statut</th></tr>
+      ${rows.map(r=>`<tr${r.status==="expiree"?' style="background:rgba(220,38,38,.06)"':''}><td>${esc(r.employeeName||"")}</td><td class="note">${esc(r.portfolioName||"")}</td><td>${esc(r.intitule||"")}</td><td>${esc(r.type||"")}</td><td>${esc(r.organisme||"")}</td><td>${esc(r.reference||"")}</td><td>${esc((r.obtainedDate||"").slice(0,10))}</td><td>${esc((r.expiryDate||"").slice(0,10))}</td><td>${stTag(r)}</td></tr>`).join("")||'<tr><td colspan="9" class="note">Aucune habilitation saisie. Le GPF les enregistre dans le dossier du salarié (module Principal).</td></tr>'}</table></div></div>`;
 }
 async function smqCompForm(idv){
   const [rows,emps]=await Promise.all([idv?api("/smq/competences").catch(()=>[]):Promise.resolve([]),api("/employees").catch(()=>[])]);

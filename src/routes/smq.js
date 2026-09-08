@@ -1168,6 +1168,24 @@ const DAYS = (d) => { const t = new Date(); const x = new Date(d); return Math.r
 crud("competences", "smqCompetences",
   ["employeeId", "employeeName", "poste", "competence", "niveauRequis", "niveauActuel", "habilitation", "dateObtention", "dateExpiration", "preuveFileId"],
   "competence", "employeeName");
+// Suivi (lecture seule) des habilitations & formations saisies par le GPF (module Principal).
+router.get("/habilitations-all", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const emps = mine(db.employees, req); const pfs = mine(db.portfolios, req);
+  const eById = {}; emps.forEach(e => eById[e.id] = e); const pById = {}; pfs.forEach(p => pById[p.id] = p);
+  const DAY = 86400000, today = Date.now();
+  const rows = mine(db.smqHabilitations, req).map(h => {
+    const e = eById[h.employeeId] || {}; const pf = pById[e.portfolioId] || {};
+    const dl = h.expiryDate ? Math.ceil((new Date(h.expiryDate).getTime() - today) / DAY) : null;
+    return { id: h.id, employeeId: h.employeeId, employeeName: `${e.firstName || ""} ${e.lastName || ""}`.trim(),
+      portfolioId: e.portfolioId || "", portfolioName: pf.name || "", intitule: h.intitule || "", type: h.type || "",
+      organisme: h.organisme || "", reference: h.reference || "", obtainedDate: h.obtainedDate || "", expiryDate: h.expiryDate || "",
+      daysLeft: dl, status: dl == null ? "na" : (dl < 0 ? "expiree" : (dl <= 90 ? "bientot" : "ajour")) };
+  }).sort((a, b) => String(a.expiryDate || "9999").localeCompare(String(b.expiryDate || "9999")));
+  const summary = { total: rows.length, expirees: rows.filter(r => r.status === "expiree").length,
+    bientot: rows.filter(r => r.status === "bientot").length, ajour: rows.filter(r => r.status === "ajour").length };
+  res.json({ rows, summary });
+});
 router.get("/competences-summary", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
   const rows = mine(db.smqCompetences, req);
