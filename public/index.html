@@ -991,6 +991,7 @@ const NAV = [
 
   { k: "smqworkspace", label: "Mon espace", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
+  { k: "smqconform", label: "Conformité du personnel", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqprocesses", label: "Cartographie & processus", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.processes", module: "quality", grp: "qualite" },
   { k: "smqaxes", label: "Politique & axes", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
   { k: "smqstakeholders", label: "Parties intéressées", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite" },
@@ -1161,7 +1162,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6787,6 +6788,47 @@ const SMQ_DOC_STATUS={brouillon:'<span class="tag gray">Brouillon</span>',verifi
 function smqProcName(id){ const p=(window._SMQ.procs||[]).find(x=>x.id===id); return p?(p.code+" - "+p.intitule):""; }
 
 /* ---------- Tableau de bord ---------- */
+/* ================= SMQ : Conformité du personnel ================= */
+async function smqConformiteView(){
+  let d; try{ d=await api("/smq/conformite"); }catch(e){ view.innerHTML='<h1>Conformité du personnel</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  window._CONF=d;
+  const G=d.global||{};
+  const col=p=>p>=100?'#16a34a':(p>=70?'#f97316':'#dc2626');
+  const kpi=(lbl,val,c,sub)=>`<div class="panel" style="flex:1;min-width:150px"><div class="note">${lbl}</div><div style="font-size:22px;font-weight:700;color:${c||''}">${val}</div>${sub?`<div class="note">${sub}</div>`:''}</div>`;
+  const bar=p=>`<div style="background:#e5e7eb;border-radius:6px;height:8px;width:120px;display:inline-block;vertical-align:middle;overflow:hidden"><div style="height:100%;width:${Math.min(100,p)}%;background:${col(p)}"></div></div> ${p}%`;
+  view.innerHTML=`<h1>Conformité du personnel</h1>
+    <div class="note" style="margin-bottom:8px">Vue de conformité des salariés : documents administratifs, visite médicale, dotation EPI et validité des documents/habilitations.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      ${kpi("Salariés conformes", (G.conformPct||0)+"%", col(G.conformPct||0), (G.conform||0)+" / "+(G.employees||0))}
+      ${kpi("Documents administratifs", (G.adminPct||0)+"%", col(G.adminPct||0))}
+      ${kpi("Visite médicale", (G.medicalPct||0)+"%", col(G.medicalPct||0))}
+      ${kpi("Dotation EPI", (G.epiPct||0)+"%", col(G.epiPct||0))}
+      ${kpi("Documents valides", (G.docsValidPct||0)+"%", col(G.docsValidPct||0))}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="panel" style="min-width:240px"><b style="font-size:13px">Conformité globale</b><div style="position:relative;height:180px;margin-top:6px"><canvas id="confDonut"></canvas></div></div>
+      <div class="panel" style="flex:1;min-width:280px"><b style="font-size:13px">Conformité par portefeuille</b><div style="position:relative;height:180px;margin-top:6px"><canvas id="confPfBar"></canvas></div></div>
+      <div class="panel" style="min-width:200px"><b style="font-size:13px">Activités SMQ</b>
+        <div style="margin-top:8px;font-size:13px"><div>Fiches d'amélioration ouvertes : <b>${d.smq.improvementsOpen}</b> / ${d.smq.improvementsTotal}</div>
+        <div style="margin-top:4px">Réclamations ouvertes : <b>${d.smq.claimsOpen}</b> / ${d.smq.claimsTotal}</div></div></div>
+    </div>
+    <div class="panel" style="margin-bottom:12px"><b>Par portefeuille</b>
+      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Portefeuille</th><th class="r">Effectif</th><th>Conforme</th><th>Admin</th><th>Médical</th><th>EPI</th><th>Docs</th></tr>
+      ${(d.perPortfolio||[]).map(p=>`<tr><td>${esc(p.name)}</td><td class="r">${p.employees}</td><td>${bar(p.conformPct)}</td><td>${bar(p.adminPct)}</td><td>${bar(p.medicalPct)}</td><td>${bar(p.epiPct)}</td><td>${bar(p.docsValidPct)}</td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucun salarié.</td></tr>'}</table></div></div>
+    <div class="panel"><b>Salariés non conformes</b>
+      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Salarié</th><th>Portefeuille</th><th>Admin</th><th>Médical</th><th>EPI</th><th>Docs</th><th>Écarts</th></tr>
+      ${(d.perEmployee||[]).filter(e=>!e.conform).map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(smqPfName(e.portfolioId))}</td>
+        <td>${flag(e.adminOk)}</td><td>${flag(e.medicalOk)}</td><td>${e.epiPct>=100?flag(true):e.epiPct+'%'}</td><td>${flag(e.docsValid)}</td>
+        <td style="font-size:12px;color:#b45309">${e.issues.map(esc).join(" · ")}</td></tr>`).join("")||'<tr><td colspan="7" class="note" style="color:#16a34a">Tous les salariés sont conformes.</td></tr>'}</table></div></div>`;
+  const okc=(d.global.conform||0), notc=(d.global.employees||0)-okc;
+  if(await ensureChartJs() && window.Chart){
+    const dn=document.getElementById("confDonut"); if(dn) new window.Chart(dn,{type:"doughnut",data:{labels:["Conformes","Non conformes"],datasets:[{data:[okc,notc],backgroundColor:["#16a34a","#dc2626"]}]},options:{plugins:{legend:{position:"bottom",labels:{boxWidth:12,font:{size:11}}}},maintainAspectRatio:false}});
+    const bc=document.getElementById("confPfBar"); if(bc) new window.Chart(bc,{type:"bar",data:{labels:(d.perPortfolio||[]).map(p=>p.name),datasets:[{label:"% conforme",data:(d.perPortfolio||[]).map(p=>p.conformPct),backgroundColor:(d.perPortfolio||[]).map(p=>p.conformPct>=100?"#16a34a":p.conformPct>=70?"#f97316":"#dc2626")}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+"%"}}},maintainAspectRatio:false}});
+  }
+}
+function flag(ok){ return ok?'<span style="color:#16a34a;font-weight:700">OK</span>':'<span style="color:#dc2626;font-weight:700">Non</span>'; }
+function smqPfName(id){ const d=window._CONF; if(d&&d.perPortfolio){ const p=d.perPortfolio.find(x=>x.portfolioId===id); if(p) return p.name; } const pf=((typeof PFS!=="undefined"&&PFS)||[]).find(x=>x.id===id); return pf?pf.name:(id||"-"); }
+
 async function smqHome(){
   const d=await api("/smq/dashboard").catch(()=>null);
   if(!d){ view.innerHTML='<h1>Qualité (SMQ)</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
