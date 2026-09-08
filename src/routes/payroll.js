@@ -358,9 +358,12 @@ router.post("/runs/:id/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, re
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   if (run.status === "CLOSED") return res.status(409).json({ error: "Paie clôturée" });
 
-  const emps = mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED");
-  // clear previous payslips for this run
-  db.payslips = db.payslips.filter(s => !(s.runId === run.id && (s.tenantId || "t1") === (run.tenantId || "t1")));
+  const pfId = req.body && req.body.portfolioId;
+  let emps = mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED");
+  if (pfId) emps = emps.filter(e => e.portfolioId === pfId);
+  const empIds = new Set(emps.map(e => e.id));
+  // clear previous payslips for this run (scoped to the selected portfolio when given)
+  db.payslips = db.payslips.filter(s => !(s.runId === run.id && (s.tenantId || "t1") === (run.tenantId || "t1") && (!pfId || empIds.has(s.employeeId))));
   let n = 0;
   for (const emp of emps) {
     const base = baseSalaryOf(emp, req);
@@ -374,9 +377,10 @@ router.post("/runs/:id/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, re
     }, req));
     n++;
   }
-  run.status = "CALCULATED"; run.computedAt = new Date().toISOString(); run.count = n;
+  run.status = "CALCULATED"; run.computedAt = new Date().toISOString();
+  run.count = mine(db.payslips, req).filter(x => x.runId === run.id).length;
   save();
-  audit(req.user, "COMPUTED", "PayRun", run.id, { period: run.period, employees: n });
+  audit(req.user, "COMPUTED", "PayRun", run.id, { period: run.period, employees: n, portfolioId: pfId || null });
   res.json({ run, computed: n, totals: runTotals(run, req) });
 });
 
@@ -501,8 +505,7 @@ router.get("/payslips/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 });
 
 /* PDF bulletin de paie */
-function payslipDoc(s, emp, tenant) {
-  const doc = new PDFDocument({ margin: 18, size: "A4" });
+function drawPayslip(doc, s, emp, tenant) {
   const t = s.result.totals, r = s.result;
   const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
@@ -655,8 +658,8 @@ function payslipDoc(s, emp, tenant) {
   /* ===== FOOTER ===== */
   T(18, 812, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 500 });
   T(520, 812, "TAKE CARE", { b: 1, s: 7 });
-  return doc;
 }
+function payslipDoc(s, emp, tenant) { const doc = new PDFDocument({ margin: 18, size: "A4" }); drawPayslip(doc, s, emp, tenant); return doc; }
 function payslipBuffer(s, emp, tenant) {
   return new Promise((resolve, reject) => {
     const doc = payslipDoc(s, emp, tenant);
@@ -679,6 +682,104 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
   res.setHeader("Content-Disposition", `attachment; filename="Bulletin_${(s.employeeName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
   const doc = payslipDoc(s, emp, tenant);
   doc.pipe(res); doc.end();
+});
+
+/* Tous les bulletins d'une paie (option: un portefeuille) en un seul PDF */
+router.get("/runs/:id/payslips.pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const pfId = req.query.portfolioId || null;
+  const empById = {}; mine(db.employees, req).forEach(e => empById[e.id] = e);
+  let slips = mine(db.payslips, req).filter(s => s.runId === run.id);
+  if (pfId) slips = slips.filter(s => { const e = empById[s.employeeId]; return e && e.portfolioId === pfId; });
+  slips.sort((a, b) => String(a.employeeName || "").localeCompare(String(b.employeeName || "")));
+  if (!slips.length) return res.status(404).json({ error: "Aucun bulletin pour ce filtre" });
+  const tenant = (db.tenants || []).find(t => t.id === (run.tenantId || "t1")) || { name: "SGRHP" };
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Bulletins_${run.period}${pfId ? "_portefeuille" : ""}.pdf"`);
+  const doc = new PDFDocument({ margin: 18, size: "A4" });
+  doc.pipe(res);
+  slips.forEach((s, i) => { if (i) doc.addPage(); try { drawPayslip(doc, s, empById[s.employeeId] || {}, tenant); } catch (e) {} });
+  doc.end();
+});
+
+/* ===================== FICHE INDIVIDUELLE (annuelle) ===================== */
+const FI_MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+function ficheIndividuelle(eid, year, req) {
+  const emp = mine(db.employees, req).find(e => e.id === eid); if (!emp) return null;
+  const yr = String(year);
+  const byMonth = {};
+  mine(db.payslips, req).filter(s => s.employeeId === eid && String(s.period || "").slice(0, 4) === yr)
+    .forEach(s => { byMonth[parseInt(String(s.period).slice(5, 7), 10)] = s; });
+  const idx = {};
+  for (let m = 1; m <= 12; m++) { const s = byMonth[m]; if (!s) continue;
+    for (const l of (s.result.lines || [])) {
+      const amt = l.kind === "GAIN" ? (l.gain || 0) : ((l.retenue || 0) || (l.employer || 0));
+      if (!amt) continue;
+      const r = idx[l.code] || (idx[l.code] = { code: l.code, label: l.label, kind: l.kind, monthly: new Array(12).fill(0) });
+      r.monthly[m - 1] += amt;
+    }
+  }
+  const rubriques = Object.values(idx).map(r => ({ ...r, total: r.monthly.reduce((a, b) => a + b, 0) }))
+    .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  const sumRow = (label, fn) => { const monthly = new Array(12).fill(0); for (let m = 1; m <= 12; m++) { const s = byMonth[m]; if (s) monthly[m - 1] = Math.round(fn(s.result.totals || {}, s.result.meta || {}) || 0); } return { label, monthly, total: monthly.reduce((a, b) => a + b, 0) }; };
+  const summary = [
+    sumRow("Total Brut", t => t.brutTotal), sumRow("Cotisations salariales", t => t.totalRetenues),
+    sumRow("Cotisations patronales", t => t.chargesPatronales), sumRow("Net imposable", t => t.netImposable),
+    sumRow("Net à payer", t => t.netAPayer), sumRow("Coût total employeur", t => t.coutTotalEmployeur),
+    sumRow("Jours de présence", (t, meta) => meta.workedDays || 0),
+  ];
+  return { employee: { id: emp.id, name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), matricule: emp.matricule || "", category: (emp.contract && emp.contract.category) || "" }, year: Number(year), months: FI_MOIS, rubriques, summary };
+}
+router.get("/employees/:eid/fiche", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const year = req.query.year || new Date().getFullYear();
+  const fi = ficheIndividuelle(req.params.eid, year, req);
+  if (!fi) return res.status(404).json({ error: "Employé introuvable" });
+  res.json(fi);
+});
+router.get("/employees/:eid/fiche.xlsx", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const fi = ficheIndividuelle(req.params.eid, req.query.year || new Date().getFullYear(), req);
+  if (!fi) return res.status(404).json({ error: "Employé introuvable" });
+  const head = ["Rubrique", ...fi.months.map(m => m.slice(0, 4)), "Total"];
+  const aoa = [[`Fiche individuelle — ${fi.employee.name} (${fi.employee.matricule})`], [`Année ${fi.year}`], [], head];
+  fi.rubriques.forEach(r => aoa.push([`${r.code} ${r.label}`, ...r.monthly.map(x => Math.round(x)), Math.round(r.total)]));
+  aoa.push([]);
+  fi.summary.forEach(r => aoa.push([r.label, ...r.monthly.map(x => Math.round(x)), Math.round(r.total)]));
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [{ wch: 34 }, ...fi.months.map(() => ({ wch: 10 })), { wch: 12 }];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Fiche individuelle");
+  res.setHeader("Content-Disposition", `attachment; filename="FI_${(fi.employee.name || "").replace(/[^\w]/g, "_")}_${fi.year}.xlsx"`);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+});
+router.get("/employees/:eid/fiche.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const fi = ficheIndividuelle(req.params.eid, req.query.year || new Date().getFullYear(), req);
+  if (!fi) return res.status(404).json({ error: "Employé introuvable" });
+  const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const doc = new PDFDocument({ margin: 20, size: "A4", layout: "landscape" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="FI_${(fi.employee.name || "").replace(/[^\w]/g, "_")}_${fi.year}.pdf"`);
+  doc.pipe(res);
+  doc.fontSize(13).font("Helvetica-Bold").text(`Fiche individuelle — ${fi.employee.name}`, 20, 20);
+  doc.fontSize(9).font("Helvetica").fillColor("#555").text(`Matricule ${fi.employee.matricule || "-"} · Catégorie ${fi.employee.category || "-"} · Année ${fi.year}`, 20, 38);
+  doc.fillColor("#111");
+  const X0 = 20, W = 802, cLabel = 150, cTot = 60, cM = (W - cLabel - cTot) / 12;
+  let y = 58;
+  const rowH = 13;
+  const drawRow = (label, cells, bold, total) => {
+    if (y > 545) { doc.addPage(); y = 20; }
+    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(7);
+    doc.text(label, X0, y, { width: cLabel - 2, ellipsis: true });
+    cells.forEach((c, i) => doc.text(F(c), X0 + cLabel + i * cM, y, { width: cM - 2, align: "right" }));
+    doc.text(F(total), X0 + cLabel + 12 * cM, y, { width: cTot - 2, align: "right" });
+    y += rowH;
+  };
+  drawRow("Rubrique", fi.months.map((m, i) => m.slice(0, 3)), true, "Total");
+  doc.moveTo(X0, y - 2).lineTo(X0 + W, y - 2).strokeColor("#ccc").stroke();
+  fi.rubriques.forEach(r => drawRow(`${r.code} ${r.label}`, r.monthly, false, r.total));
+  y += 4; doc.moveTo(X0, y - 2).lineTo(X0 + W, y - 2).strokeColor("#999").stroke();
+  fi.summary.forEach(r => drawRow(r.label, r.monthly, true, r.total));
+  doc.end();
 });
 
 /* ===================== LIVRE DE PAIE ========================== */
