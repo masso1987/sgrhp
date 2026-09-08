@@ -8719,7 +8719,7 @@ async function stockEpiView(){
      <div><label>Portefeuille</label><select onchange="window._epiPf=this.value;stockEpiView()" style="max-width:320px"><option value="">Tous</option>${(pfs||[]).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select></div>
      <div class="panel" style="margin:0"><div class="note">Avancement global</div><div>${bar(tot.pct||0)} <span class="note">(${tot.issued||0}/${tot.planned||0})</span></div></div>
    </div>
-   ${emps.length?emps.map(e=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>${esc(e.name)} <span class="note">(${esc(pfName(e.portfolioId))})</span></b><span>${bar(e.pct)}</span></div>
+   ${emps.length?emps.map(e=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center"><b>${esc(e.name)} <span class="note">(${esc(pfName(e.portfolioId))})</span></b><span style="display:inline-flex;gap:8px;align-items:center">${bar(e.pct)} <button class="btn ghost sm" onclick="epiFiche('${e.employeeId}')">Fiche de dotation</button></span></div>
      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>EPI</th><th class="r">Prévu</th><th class="r">Livré</th><th class="r">Reste</th><th></th></tr>
      ${e.lines.map(l=>`<tr><td>${esc(l.designation||'')}</td><td class="r">${l.planned}</td><td class="r">${l.issued}</td><td class="r">${l.remaining}</td>
        <td>${l.remaining>0?`<button class="btn ghost sm" onclick="epiIssue('${e.employeeId}','${l.productId||''}','${esc((l.designation||'').replace(/'/g,'&#39;'))}',${l.remaining})">Livrer</button>`:'<span style="color:#16a34a;font-weight:600">Complet</span>'}</td></tr>`).join("")}</table></div></div>`).join(""):'<div class="panel note">Aucune dotation EPI planifiée pour ce filtre.</div>'}`;
@@ -8727,6 +8727,11 @@ async function stockEpiView(){
 async function epiIssue(employeeId,productId,designation,remaining){
   const q=prompt("Quantité à livrer :",remaining); if(q===null)return; const qty=Number(q); if(!(qty>0))return;
   try{ await api("/stock/epi/issue",{method:"POST",body:JSON.stringify({employeeId,productId:productId||undefined,designation,quantity:qty})}); stockEpiView(); }
+  catch(e){ alert(e.message); }
+}
+async function epiFiche(employeeId){
+  const yr=prompt("Année de la fiche de dotation :",new Date().getFullYear()); if(yr===null)return;
+  try{ const r=await fetch("/api/stock/epi/fiche/"+employeeId+".pdf?year="+encodeURIComponent(yr),{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Fiche indisponible"); const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="Fiche_dotation_EPI.pdf"; a.click(); }
   catch(e){ alert(e.message); }
 }
 
@@ -9963,6 +9968,7 @@ const STOCK_REPORTS=[
   {k:"tax",l:"Impôt (TVA)",f:["date"]},
   {k:"by-user",l:"Représentant (par utilisateur)",f:["date"]},
   {k:"expenses",l:"Dépenses",f:["date"]},
+  {k:"epi-dotation",l:"Dotation EPI",f:["date"]},
   {k:"expiry",l:"Expiration du stock",f:["product","category","brand"]},
   {k:"transfers",l:"Transferts de stock",f:["date"]},
   {k:"activity",l:"Journal d'activité",f:["date","product"]},

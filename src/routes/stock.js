@@ -778,6 +778,7 @@ router.delete("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => 
 /* ================= Dotation EPI (par portefeuille / salarié) ================= */
 if (!db.epiIssues) db.epiIssues = [];
 const _today = () => new Date().toISOString().slice(0, 10);
+function pfNameOf(req, pid){ const p = mine(db.portfolios, req).find(x => x.id === pid); return p ? p.name : ""; }
 function epiRows(req, pfId) {
   let emps = mine(db.employees, req).filter(e => Array.isArray(e.epi) && e.epi.length);
   if (pfId) emps = emps.filter(e => e.portfolioId === pfId);
@@ -819,6 +820,70 @@ router.post("/epi/issue", allow("ADM", "CD", "GPF"), (req, res) => {
   db.epiIssues.push(rec); save();
   audit(req.user, "CREATED", "EpiIssue", rec.id, { employee: emp.id, product: b.productId || null, qty });
   res.json({ ok: true, issue: rec });
+});
+
+/* Fiche de dotation EPI (imprimable, avec zone de signature) */
+router.get("/epi/fiche/:employeeId.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const PDFDocument = require("pdfkit");
+  const emp = mine(db.employees, req).find(e => e.id === req.params.employeeId);
+  if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
+  const year = String(req.query.year || new Date().getFullYear());
+  const pf = mine(db.portfolios, req).find(p => p.id === emp.portfolioId);
+  const issues = mine(db.epiIssues, req).filter(i => i.employeeId === emp.id);
+  const tenant = (db.tenants || []).find(t => t.id === (emp.tenantId || "t1"));
+  const brand = (db.settings && db.settings.branding) || {};
+  const fr = d => d ? new Date(d).toLocaleDateString("fr-FR") : "";
+  const lines = (emp.epi || []).filter(l => !l.year || String(l.year) === year).map(l => {
+    const issued = issues.filter(i => (l.productId ? i.productId === l.productId : i.designation === (l.designation || ""))).reduce((s, i) => s + Q(i.quantity), 0);
+    const last = issues.filter(i => (l.productId ? i.productId === l.productId : i.designation === (l.designation || ""))).map(i => i.date).sort().pop() || "";
+    return { designation: l.designation || (l.productId ? pName(req, l.productId) : ""), planned: Q(l.quantity), issued, remaining: Math.max(0, Q(l.quantity) - issued), last };
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Fiche_dotation_EPI_${emp.lastName || ""}_${year}.pdf"`);
+  const doc = new PDFDocument({ margin: 46, size: "A4" }); doc.pipe(res);
+  const M = 46, R = 549;
+  if (brand.logo && /^data:image\/(png|jpe?g)/i.test(brand.logo)) { try { doc.image(Buffer.from(brand.logo.split(",")[1], "base64"), M, 40, { fit: [120, 48] }); } catch (e) {} }
+  doc.fontSize(15).fillColor("#1e3a5f").font("Helvetica-Bold").text((tenant && tenant.name) || brand.appName || "SGRHP", M, 48, { align: "right" });
+  doc.fontSize(13).fillColor("#000").text("FICHE DE DOTATION EPI", M, 96, { align: "center" });
+  doc.moveTo(M, 116).lineTo(R, 116).strokeColor("#e8833a").lineWidth(1.5).stroke();
+  doc.moveDown(1.2);
+  const KV = (k, v) => doc.fontSize(10).font("Helvetica-Bold").fillColor("#444").text(k + " : ", M, doc.y, { continued: true }).font("Helvetica").fillColor("#000").text(String(v || "—"));
+  KV("Salarié", `${emp.firstName || ""} ${emp.lastName || ""}`.trim());
+  KV("Matricule", emp.matricule || "—");
+  KV("Client / portefeuille", pf ? pf.name : "—");
+  KV("Poste", emp.position || emp.qualification || "—");
+  KV("Année de dotation", year);
+  doc.moveDown(.6);
+
+  // Tableau
+  const cols = [{ l: "Équipement (EPI)", w: 210, a: "left" }, { l: "Prévu", w: 55, a: "right" }, { l: "Livré", w: 55, a: "right" }, { l: "Reste", w: 55, a: "right" }, { l: "Dernière remise", w: 128, a: "left" }];
+  let x = M, y = doc.y;
+  doc.rect(M, y, R - M, 18).fill("#1e3a5f"); doc.fillColor("#fff").fontSize(9.5).font("Helvetica-Bold");
+  x = M; for (const c of cols) { doc.text(c.l, x + 4, y + 5, { width: c.w - 8, align: c.a }); x += c.w; }
+  y += 18; doc.font("Helvetica").fillColor("#000");
+  const drawRow = (r, i) => {
+    if (i % 2) { doc.rect(M, y, R - M, 16).fill("#f4f6f9"); doc.fillColor("#000"); }
+    x = M; const cells = [r.designation, String(r.planned), String(r.issued), String(r.remaining), r.last ? fr(r.last) : "—"];
+    cols.forEach((c, j) => { doc.fontSize(9.5).fillColor("#000").text(cells[j], x + 4, y + 4, { width: c.w - 8, align: c.a }); x += c.w; });
+    y += 16;
+  };
+  if (lines.length) lines.forEach(drawRow); else { doc.fontSize(9.5).text("Aucun EPI planifié pour cette année.", M + 4, y + 4); y += 16; }
+  doc.y = y + 6;
+  const tot = lines.reduce((a, r) => { a.p += r.planned; a.i += r.issued; a.r += r.remaining; return a; }, { p: 0, i: 0, r: 0 });
+  doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#1e3a5f").text(`Total — prévu ${tot.p} · livré ${tot.i} · reste ${tot.r}`, M, doc.y, { align: "right", width: R - M });
+
+  doc.moveDown(2);
+  doc.fontSize(9).fillColor("#000").font("Helvetica").text("Je soussigné(e) reconnais avoir reçu les équipements de protection individuelle listés ci-dessus et m'engage à les porter et à les entretenir conformément aux consignes de sécurité.", M, doc.y, { width: R - M });
+  const sy = doc.y + 40;
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#000");
+  doc.text("Le salarié", M, sy); doc.text("Le responsable (dotation)", M + 300, sy);
+  doc.moveTo(M, sy + 46).lineTo(M + 200, sy + 46).strokeColor("#999").lineWidth(.8).stroke();
+  doc.moveTo(M + 300, sy + 46).lineTo(M + 300 + 200, sy + 46).stroke();
+  doc.fontSize(8).fillColor("#777").font("Helvetica").text("Nom, date et signature", M, sy + 50);
+  doc.text("Nom, date et signature", M + 300, sy + 50);
+  doc.fontSize(7.5).fillColor("#999").text(`Éditée le ${new Date().toLocaleString("fr-FR")} — ${(tenant && tenant.name) || "SGRHP"}`, M, 800, { align: "center", width: R - M });
+  doc.end();
 });
 
 module.exports = router;
@@ -1038,6 +1103,21 @@ router.get("/reports", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
       .map(e => ({ ref: e.ref, date: e.date, categoryName: cats[e.categoryId] || "", supplierName: cName(req, e.supplierId), note: e.note || "", amount: R2(e.amount) }))
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     out.totals = { amount: sum(out.rows, "amount") };
+  }
+  else if (type === "epi-dotation") {
+    const yr = (f.from || "").slice(0, 4) || String(new Date().getFullYear());
+    const issues = mine(db.epiIssues, req);
+    out.title = "Rapport de dotation EPI" + (yr ? " — " + yr : "");
+    out.columns = [C("employee", "Salarié"), C("portfolio", "Client / portefeuille"), C("designation", "EPI"), C("planned", "Prévu", "qty"), C("issued", "Livré", "qty"), C("remaining", "Reste", "qty"), C("pct", "Taux", "pct")];
+    const rows = [];
+    for (const r of epiRows(req, null)) {
+      for (const l of r.lines) {
+        if (yr && l.year && String(l.year) !== String(yr)) continue;
+        rows.push({ employee: r.name, portfolio: pfNameOf(req, r.portfolioId), designation: l.designation, planned: l.planned, issued: l.issued, remaining: l.remaining, pct: l.planned ? Math.round(l.issued / l.planned * 100) : 0 });
+      }
+    }
+    out.rows = rows.sort((a, b) => a.employee.localeCompare(b.employee) || a.designation.localeCompare(b.designation));
+    out.totals = { planned: sum(out.rows, "planned"), issued: sum(out.rows, "issued"), remaining: sum(out.rows, "remaining") };
   }
   else return res.status(400).json({ error: "Type de rapport inconnu" });
   res.json(out);
