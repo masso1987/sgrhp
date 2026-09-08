@@ -184,6 +184,32 @@ router.post("/:id/leave", allow("GPF", "ADM"), (req, res) => {
   res.status(201).json(doc);
 });
 
+if (!db.smqHabilitations) db.smqHabilitations = [];
+const _empPfMap = (req) => { const m = {}; mine(db.employees, req).forEach(e => m[e.id] = e.portfolioId); return m; };
+const _gpfPfs = (req) => { const u = db.users.find(x => x.id === req.user.id); return new Set((u && u.portfolioIds) || []); };
+router.get("/habilitations", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  let list = mine(db.smqHabilitations, req);
+  if (req.query.employeeId) list = list.filter(h => h.employeeId === req.query.employeeId);
+  if (req.user.role === "GPF") { const pfs = _gpfPfs(req), em = _empPfMap(req); list = list.filter(h => pfs.has(em[h.employeeId])); }
+  res.json(list.sort((a, b) => String(a.expiryDate || "9999").localeCompare(String(b.expiryDate || "9999"))));
+});
+router.post("/habilitations", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  const b = req.body || {};
+  if (!b.employeeId || !mine(db.employees, req).some(e => e.id === b.employeeId)) return res.status(400).json({ error: "Salarié invalide" });
+  const rec = stamp({ id: id("hab"), employeeId: b.employeeId, intitule: b.intitule || "", type: b.type || "", organisme: b.organisme || "",
+    reference: b.reference || "", obtainedDate: b.obtainedDate || "", expiryDate: b.expiryDate || "", createdAt: new Date().toISOString() }, req);
+  db.smqHabilitations.push(rec); save(); audit(req.user, "CREATED", "Habilitation", rec.id, { employee: b.employeeId }); res.status(201).json(rec);
+});
+router.put("/habilitations/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  const h = mine(db.smqHabilitations, req).find(x => x.id === req.params.id); if (!h) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {}; ["intitule", "type", "organisme", "reference", "obtainedDate", "expiryDate"].forEach(k => { if (b[k] !== undefined) h[k] = b[k]; });
+  h.reminderAt = null; save(); audit(req.user, "UPDATED", "Habilitation", h.id, {}); res.json(h);
+});
+router.delete("/habilitations/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  const h = mine(db.smqHabilitations, req).find(x => x.id === req.params.id); if (!h) return res.status(404).json({ error: "Introuvable" });
+  db.smqHabilitations = db.smqHabilitations.filter(x => x.id !== h.id); save(); audit(req.user, "DELETED", "Habilitation", h.id, {}); res.json({ ok: true });
+});
+
 router.get("/expiring", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   let list = expiry.items(req.user.tenantId || "t1");
   if (req.user.role === "GPF") { const u = db.users.find(x => x.id === req.user.id); const pfs = new Set((u && u.portfolioIds) || []); list = list.filter(x => pfs.has(x.portfolioId)); }

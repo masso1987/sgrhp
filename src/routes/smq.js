@@ -1552,7 +1552,7 @@ router.get("/conformite", allow(...RO), (req, res) => {
   const now = Date.now(), MED = "XVI";
   const emps = mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED");
   const pfs = mine(db.portfolios, req); const pfById = {}; pfs.forEach(p => pfById[p.id] = p);
-  const files = mine(db.files, req); const issues = mine(db.epiIssues, req);
+  const files = mine(db.files, req); const issues = mine(db.epiIssues, req); const habs = mine(db.smqHabilitations, req);
   const perEmp = emps.map(e => {
     const my = files.filter(f => f.employeeId === e.id);
     const uploaded = new Set(my.map(f => f.docType));
@@ -1567,24 +1567,27 @@ router.get("/conformite", allow(...RO), (req, res) => {
     const expired = my.filter(f => f.expiryDate && new Date(f.expiryDate).getTime() < now);
     const cniExpired = e.cniExpiry && new Date(e.cniExpiry).getTime() < now;
     const docsValid = expired.length === 0 && !cniExpired;
-    const conform = adminOk && medicalOk && epiPct >= 100 && docsValid;
+    const myHabs = habs.filter(h => h.employeeId === e.id);
+    const habsOk = !myHabs.some(h => h.expiryDate && new Date(h.expiryDate).getTime() < now);
+    const conform = adminOk && medicalOk && epiPct >= 100 && docsValid && habsOk;
     const issuesList = [];
     if (!adminOk) issuesList.push(`Documents administratifs incomplets (${missing.length} manquant(s))`);
     if (!medicalOk) issuesList.push("Visite médicale absente ou expirée");
     if (plan && epiPct < 100) issuesList.push(`Dotation EPI ${epiPct}%`);
     if (!docsValid) issuesList.push(`Document(s) expiré(s)${cniExpired ? " (CNI)" : ""}`);
+    if (!habsOk) issuesList.push("Habilitation(s) expirée(s)");
     return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId,
-      adminOk, medicalOk, epiPct, docsValid, conform, issues: issuesList };
+      adminOk, medicalOk, epiPct, docsValid, habsOk, conform, issues: issuesList };
   });
   const pctOf = (arr, f) => arr.length ? Math.round(arr.filter(f).length / arr.length * 100) : 100;
   const avgEpi = (arr) => arr.length ? Math.round(arr.reduce((a, x) => a + x.epiPct, 0) / arr.length) : 100;
   const global = { employees: perEmp.length, conform: perEmp.filter(x => x.conform).length,
     conformPct: pctOf(perEmp, x => x.conform), adminPct: pctOf(perEmp, x => x.adminOk),
-    medicalPct: pctOf(perEmp, x => x.medicalOk), epiPct: avgEpi(perEmp), docsValidPct: pctOf(perEmp, x => x.docsValid) };
+    medicalPct: pctOf(perEmp, x => x.medicalOk), epiPct: avgEpi(perEmp), docsValidPct: pctOf(perEmp, x => x.docsValid), habsPct: pctOf(perEmp, x => x.habsOk) };
   const perPortfolio = pfs.map(p => { const g = perEmp.filter(x => x.portfolioId === p.id); return {
     portfolioId: p.id, name: p.name, employees: g.length,
     conformPct: pctOf(g, x => x.conform), adminPct: pctOf(g, x => x.adminOk),
-    medicalPct: pctOf(g, x => x.medicalOk), epiPct: avgEpi(g), docsValidPct: pctOf(g, x => x.docsValid) };
+    medicalPct: pctOf(g, x => x.medicalOk), epiPct: avgEpi(g), docsValidPct: pctOf(g, x => x.docsValid), habsPct: pctOf(g, x => x.habsOk) };
   }).filter(p => p.employees > 0);
   const imps = mine(db.smqImprovements, req), claims = mine(db.smqClaims, req);
   const smq = { improvementsOpen: imps.filter(i => i.statut !== "cloturee").length, improvementsTotal: imps.length,

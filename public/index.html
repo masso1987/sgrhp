@@ -1885,11 +1885,30 @@ async function openGen(id, print) {
 }
 
 /* override empDetail with workflow panel */
+function habForm(empId, h){ h=h||{}; const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${h.id?'Modifier':'Nouvelle'} habilitation / formation</b>
+    <label>Intitulé</label><input id="hbInt" value="${esc(h.intitule||'')}" placeholder="Ex. Livret maritime, HUET, H2S, habilitation électrique...">
+    <div class="grid2"><div><label>Type</label><input id="hbTyp" value="${esc(h.type||'')}" placeholder="Formation / Habilitation / Certificat"></div>
+      <div><label>Organisme</label><input id="hbOrg" value="${esc(h.organisme||'')}"></div></div>
+    <div class="grid2"><div><label>Référence</label><input id="hbRef" value="${esc(h.reference||'')}"></div>
+      <div><label>Date d'obtention</label><input id="hbObt" type="date" value="${esc((h.obtainedDate||'').slice(0,10))}"></div></div>
+    <label>Date d'expiration</label><input id="hbExp" type="date" value="${esc((h.expiryDate||'').slice(0,10))}">
+    <div class="err hidden" id="hbErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="habSave('${empId}','${h.id||''}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function habSave(empId,hid,btn){ const g=i=>document.getElementById(i);
+  const body={employeeId:empId,intitule:g("hbInt").value,type:g("hbTyp").value,organisme:g("hbOrg").value,reference:g("hbRef").value,obtainedDate:g("hbObt").value,expiryDate:g("hbExp").value};
+  try{ await api("/hr/habilitations"+(hid?("/"+hid):""),{method:hid?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); empDetail(empId); }
+  catch(e){ const el=g("hbErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+async function habDel(hid,empId){ if(!confirm("Supprimer cette habilitation ?"))return; try{ await api("/hr/habilitations/"+hid,{method:"DELETE"}); empDetail(empId); }catch(e){ alert(e.message); } }
 async function empDetail(id) {
   const e = await api("/employees/" + id);
   const docs = await api("/documents");
+  const habs = await api("/hr/habilitations?employeeId=" + id).catch(() => []);
   const doc = docs.find(d =>d.type === "EMPLOYEE_FILE" && d.refId === id);
   const canEdit = ["GPF","ADM"].includes(ME.role);
+  const canEditHab = ["GPF","CD","RJ","ADM"].includes(ME.role);
   const complete = e.checklist.every(c =>c.uploaded);
   const lastReject = doc?.steps?.slice().reverse().find(s =>s.decision === "REJECTED");
 
@@ -1936,6 +1955,12 @@ async function empDetail(id) {
       <table style="margin-top:6px"><tr><th>Élément de salaire</th><th style="text-align:right">Montant mensuel</th></tr>
       ${Object.entries(e.salary).map(([k,v]) => `<tr><td>${esc(k)}</td><td style="text-align:right"><b>${Number(v).toLocaleString("fr-FR")}</b>XAF</td></tr>`).join("")}
       </table><div class="note" style="margin-top:6px">Ces montants alimentent automatiquement chaque bulletin de paie (rubriques fixes récurrentes), en plus des éléments variables saisis par période.</div></div>` : ""}
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px;color:var(--muted)">HABILITATIONS & FORMATIONS</b>
+      ${canEditHab ? `<button class="btn ghost sm" onclick="habForm('${e.id}')">+ Ajouter</button>` : ""}</div>
+      ${habs.length ? `<div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Intitulé</th><th>Organisme</th><th>Réf.</th><th>Obtenue</th><th>Expire</th><th>Statut</th>${canEditHab ? "<th></th>" : ""}</tr>
+      ${habs.map(h => { const dl = h.expiryDate ? Math.ceil((new Date(h.expiryDate) - Date.now())/86400000) : null; const st = dl==null ? '<span class="note">-</span>' : (dl<0 ? '<span style="color:#dc2626;font-weight:600">Expirée</span>' : (dl<=90 ? '<span style="color:#f97316;font-weight:600">'+dl+' j</span>' : '<span style="color:#16a34a;font-weight:600">à jour</span>'));
+        return `<tr><td>${esc(h.intitule||"")}</td><td>${esc(h.organisme||"")}</td><td>${esc(h.reference||"")}</td><td>${esc((h.obtainedDate||"").slice(0,10))}</td><td>${esc((h.expiryDate||"").slice(0,10))}</td><td>${st}</td>${canEditHab ? `<td style="white-space:nowrap"><button class="btn ghost sm" onclick='habForm("${e.id}",${JSON.stringify(h).replace(/'/g,"&#39;")})'>Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="habDel('${h.id}','${e.id}')">Suppr.</button></td>` : ""}</tr>`; }).join("")}</table></div>` : '<div class="note" style="margin-top:6px">Aucune habilitation / formation enregistrée. Les échéances alimentent les rappels et la conformité SMQ.</div>'}
+    </div>
     <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles.</div>
     <div class="panel">${e.checklist.map(c => `
       <div class="doc-row"><div><b>${c.code}.</b> ${esc(c.label)} <small style="color:var(--muted)">(${c.formats})</small>
@@ -6864,6 +6889,7 @@ async function smqConformiteView(){
       ${kpi("Visite médicale", (G.medicalPct||0)+"%", col(G.medicalPct||0))}
       ${kpi("Dotation EPI", (G.epiPct||0)+"%", col(G.epiPct||0))}
       ${kpi("Documents valides", (G.docsValidPct||0)+"%", col(G.docsValidPct||0))}
+      ${kpi("Habilitations", (G.habsPct||0)+"%", col(G.habsPct||0))}
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       <div class="panel" style="min-width:240px"><b style="font-size:13px">Conformité globale</b><div style="position:relative;height:180px;margin-top:6px"><canvas id="confDonut"></canvas></div></div>
@@ -6873,12 +6899,12 @@ async function smqConformiteView(){
         <div style="margin-top:4px">Réclamations ouvertes : <b>${d.smq.claimsOpen}</b> / ${d.smq.claimsTotal}</div></div></div>
     </div>
     <div class="panel" style="margin-bottom:12px"><b>Par portefeuille</b>
-      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Portefeuille</th><th class="r">Effectif</th><th>Conforme</th><th>Admin</th><th>Médical</th><th>EPI</th><th>Docs</th></tr>
-      ${(d.perPortfolio||[]).map(p=>`<tr><td>${esc(p.name)}</td><td class="r">${p.employees}</td><td>${bar(p.conformPct)}</td><td>${bar(p.adminPct)}</td><td>${bar(p.medicalPct)}</td><td>${bar(p.epiPct)}</td><td>${bar(p.docsValidPct)}</td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucun salarié.</td></tr>'}</table></div></div>
+      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Portefeuille</th><th class="r">Effectif</th><th>Conforme</th><th>Admin</th><th>Médical</th><th>EPI</th><th>Docs</th><th>Habil.</th></tr>
+      ${(d.perPortfolio||[]).map(p=>`<tr><td>${esc(p.name)}</td><td class="r">${p.employees}</td><td>${bar(p.conformPct)}</td><td>${bar(p.adminPct)}</td><td>${bar(p.medicalPct)}</td><td>${bar(p.epiPct)}</td><td>${bar(p.docsValidPct)}</td><td>${bar(p.habsPct)}</td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucun salarié.</td></tr>'}</table></div></div>
     <div class="panel"><b>Salariés non conformes</b>
-      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Salarié</th><th>Portefeuille</th><th>Admin</th><th>Médical</th><th>EPI</th><th>Docs</th><th>Écarts</th></tr>
+      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Salarié</th><th>Portefeuille</th><th>Admin</th><th>Médical</th><th>EPI</th><th>Docs</th><th>Habil.</th><th>Écarts</th></tr>
       ${(d.perEmployee||[]).filter(e=>!e.conform).map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(smqPfName(e.portfolioId))}</td>
-        <td>${flag(e.adminOk)}</td><td>${flag(e.medicalOk)}</td><td>${e.epiPct>=100?flag(true):e.epiPct+'%'}</td><td>${flag(e.docsValid)}</td>
+        <td>${flag(e.adminOk)}</td><td>${flag(e.medicalOk)}</td><td>${e.epiPct>=100?flag(true):e.epiPct+'%'}</td><td>${flag(e.docsValid)}</td><td>${flag(e.habsOk!==false)}</td>
         <td style="font-size:12px;color:#b45309">${e.issues.map(esc).join(" · ")}</td></tr>`).join("")||'<tr><td colspan="7" class="note" style="color:#16a34a">Tous les salariés sont conformes.</td></tr>'}</table></div></div>`;
   const okc=(d.global.conform||0), notc=(d.global.employees||0)-okc;
   if(await ensureChartJs() && window.Chart){

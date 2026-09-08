@@ -24,12 +24,16 @@ function items(tenantId) {
     const end = e.contract && e.contract.endDate;
     if (end) out.push({ kind: "contract", id: e.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, email: e.email, label: "Fin de contrat (CDD)", expiryDate: end, daysLeft: daysLeft(end) });
   }
+  for (const h of (db.smqHabilitations || [])) {
+    if (!h.expiryDate) continue; const e = byId[h.employeeId]; if (!e) continue;
+    out.push({ kind: "habilitation", id: h.id, employeeId: e.id, employeeName: empName(e), portfolioId: e.portfolioId, email: e.email, label: "Habilitation : " + (h.intitule || h.reference || h.type || ""), expiryDate: h.expiryDate, daysLeft: daysLeft(h.expiryDate) });
+  }
   return out.filter(x => x.daysLeft !== null).sort((a, b) => a.daysLeft - b.daysLeft);
 }
 
 const noticeField = (kind) => kind === "file" ? "reminderAt" : (kind === "cni" ? "reminderCni" : "reminderContract");
-function getLast(it) { if (it.kind === "file") { const f = db.files.find(x => x.id === it.id); return f && f.reminderAt; } const e = db.employees.find(x => x.id === it.employeeId); return e && e[noticeField(it.kind)]; }
-function setLast(it, iso) { if (it.kind === "file") { const f = db.files.find(x => x.id === it.id); if (f) f.reminderAt = iso; } else { const e = db.employees.find(x => x.id === it.employeeId); if (e) e[noticeField(it.kind)] = iso; } }
+function getLast(it) { if (it.kind === "file") { const f = db.files.find(x => x.id === it.id); return f && f.reminderAt; } if (it.kind === "habilitation") { const h = (db.smqHabilitations||[]).find(x => x.id === it.id); return h && h.reminderAt; } const e = db.employees.find(x => x.id === it.employeeId); return e && e[noticeField(it.kind)]; }
+function setLast(it, iso) { if (it.kind === "file") { const f = db.files.find(x => x.id === it.id); if (f) f.reminderAt = iso; } else if (it.kind === "habilitation") { const h = (db.smqHabilitations||[]).find(x => x.id === it.id); if (h) h.reminderAt = iso; } else { const e = db.employees.find(x => x.id === it.employeeId); if (e) e[noticeField(it.kind)] = iso; } }
 function gpfsOf(e) { return (db.users || []).filter(u => u.role === "GPF" && u.active !== false && (u.tenantId || "t1") === (e.tenantId || "t1") && (u.portfolioIds || []).includes(e.portfolioId)); }
 
 function scanAndRemind() {
