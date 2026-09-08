@@ -1204,24 +1204,31 @@ function supEvalCompute(e) {
   const note = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0;
   return Object.assign({}, e, { note });
 }
+// L'évaluation des fournisseurs est réalisée par le pilote du processus S3 (Achats) ; le SMQ assure le suivi.
+function s3ProcId(req) { const p = (db.smqProcesses || []).find(x => x.code === "S3" && (x.tenantId || "t1") === (req.user.tenantId || "t1")); return p ? p.id : null; }
+function canEvalSuppliers(req) { if (isManager(req)) return true; const pid = s3ProcId(req); return pid ? procAccess(req, pid) : false; }
+const DENY_S3 = (res) => res.status(403).json({ error: "Réservé au pilote du processus S3 (Achats) ou au responsable SMQ." });
 router.get("/supplier-evals", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
   res.json(mine(db.smqSupplierEvals, req).map(supEvalCompute).sort((a, b) => String(b.periode || "").localeCompare(String(a.periode || ""))));
 });
 const SUPEVAL_FIELDS = ["supplierId", "supplierName", "periode", "criteres", "decision", "commentaire"];
-router.post("/supplier-evals", allow(...RW), (req, res) => {
+router.post("/supplier-evals", allow(...RO), (req, res) => {
+  if (!canEvalSuppliers(req)) return DENY_S3(res);
   const b = req.body || {};
   const rec = { id: id("smq"), periode: b.periode || now().slice(0, 7), decision: b.decision || "agréé", criteres: b.criteres || {}, createdAt: now() };
   for (const f of SUPEVAL_FIELDS) if (b[f] !== undefined) rec[f] = b[f];
   db.smqSupplierEvals.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "SmqSupplierEval", rec.id, {});
   res.status(201).json(supEvalCompute(rec));
 });
-router.put("/supplier-evals/:id", allow(...RW), (req, res) => {
+router.put("/supplier-evals/:id", allow(...RO), (req, res) => {
+  if (!canEvalSuppliers(req)) return DENY_S3(res);
   const e = mine(db.smqSupplierEvals, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
   for (const f of SUPEVAL_FIELDS) if (req.body[f] !== undefined) e[f] = req.body[f];
   e.updatedAt = now(); save(); res.json(supEvalCompute(e));
 });
-router.delete("/supplier-evals/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/supplier-evals/:id", allow(...RO), (req, res) => {
+  if (!canEvalSuppliers(req)) return DENY_S3(res);
   const e = mine(db.smqSupplierEvals, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
   db.smqSupplierEvals.splice(db.smqSupplierEvals.indexOf(e), 1); save(); res.json({ ok: true });
 });
@@ -1229,7 +1236,7 @@ router.get("/supplier-evals-summary", allow(...RO), (req, res) => {
   const rows = mine(db.smqSupplierEvals, req).map(supEvalCompute);
   const byDecision = {}; rows.forEach(r => { byDecision[r.decision] = (byDecision[r.decision] || 0) + 1; });
   const agrees = (byDecision["agréé"] || 0) + (byDecision["sous conditions"] || 0);
-  res.json({ total: rows.length, byDecision, tauxAgrees: rows.length ? Math.round(agrees / rows.length * 1000) / 10 : 0, noteMoyenne: rows.length ? Math.round(rows.reduce((a, r) => a + r.note, 0) / rows.length * 10) / 10 : 0 });
+  res.json({ total: rows.length, byDecision, tauxAgrees: rows.length ? Math.round(agrees / rows.length * 1000) / 10 : 0, noteMoyenne: rows.length ? Math.round(rows.reduce((a, r) => a + r.note, 0) / rows.length * 10) / 10 : 0, canEdit: canEvalSuppliers(req) });
 });
 
 /* --- Métrologie / équipements (§7.1.5) --- */

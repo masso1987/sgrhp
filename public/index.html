@@ -8179,15 +8179,17 @@ async function smqCompDel(idv){ if(!confirm("Supprimer ?"))return; try{ await ap
 const SUP_DECISION_TAG={"agréé":'<span class="tag green">Agréé</span>',"sous conditions":'<span class="tag" style="background:#f97316;color:#fff">Sous conditions</span>',"à éviter":'<span class="tag" style="background:#b45309;color:#fff">À éviter</span>',"rejeté":'<span class="tag" style="background:#dc2626;color:#fff">Rejeté</span>'};
 async function smqSupplierEvalsView(){
   const [rows,sum]=await Promise.all([api("/smq/supplier-evals").catch(()=>[]),api("/smq/supplier-evals-summary").catch(()=>null)]);
+  const canEdit=!!(sum&&sum.canEdit);
   view.innerHTML=`<h1>Évaluation des fournisseurs</h1>
-    <div style="margin-bottom:8px"><button class="btn p" onclick="smqSupForm()">+ Évaluation</button></div>
+    <div class="note" style="margin-bottom:8px">L'évaluation est réalisée par le pilote du processus S3 (Achats). ${canEdit?"Vous pouvez saisir et mettre à jour les évaluations.":"Le SMQ assure le suivi (lecture seule) ; la saisie est faite par le pilote S3."}</div>
+    ${canEdit?`<div style="margin-bottom:8px"><button class="btn p" onclick="smqSupForm()">+ Évaluation</button></div>`:''}
     ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
       ${[["Évaluations",sum.total],["Note moyenne",sum.noteMoyenne],["Taux agréés",sum.tauxAgrees+"%"]].map(([l,v])=>`<div style="flex:1;min-width:130px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
-    <div class="panel"><table style="width:100%"><tr><th>Fournisseur</th><th>Période</th><th class="r">Qualité</th><th class="r">Délai</th><th class="r">Prix</th><th class="r">Réactivité</th><th class="r">Note</th><th>Décision</th><th></th></tr>
+    <div class="panel"><table style="width:100%"><tr><th>Fournisseur</th><th>Période</th><th class="r">Qualité</th><th class="r">Délai</th><th class="r">Prix</th><th class="r">Réactivité</th><th class="r">Note</th><th>Décision</th>${canEdit?"<th></th>":""}</tr>
       ${rows.map(r=>{const c=r.criteres||{};return `<tr><td>${esc(r.supplierName||"")}</td><td>${esc(r.periode||"")}</td>
         <td class="r">${esc(String(c.qualite||"-"))}</td><td class="r">${esc(String(c.delai||"-"))}</td><td class="r">${esc(String(c.prix||"-"))}</td><td class="r">${esc(String(c.reactivite||"-"))}</td>
         <td class="r"><b>${r.note}</b></td><td>${SUP_DECISION_TAG[r.decision]||esc(r.decision||"")}</td>
-        <td><button class="btn ghost sm" onclick="smqSupForm('${r.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqSupDel('${r.id}')">Suppr.</button></td></tr>`;}).join("")||'<tr><td colspan="9" class="note">Aucune évaluation.</td></tr>'}</table></div>`;
+        ${canEdit?`<td><button class="btn ghost sm" onclick="smqSupForm('${r.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqSupDel('${r.id}')">Suppr.</button></td>`:""}</tr>`;}).join("")||`<tr><td colspan="${canEdit?9:8}" class="note">Aucune évaluation.</td></tr>`}</table></div>`;
 }
 async function smqSupForm(idv){
   const [rows,sups]=await Promise.all([idv?api("/smq/supplier-evals").catch(()=>[]):Promise.resolve([]),api("/stock/contacts?type=fournisseur").catch(()=>[])]);
