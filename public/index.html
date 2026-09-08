@@ -7897,12 +7897,16 @@ async function smqClaimsView(){
     <div style="margin-bottom:8px"><button class="btn p" onclick="smqClaimForm()">+ Nouvelle réclamation</button></div>
     ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
       ${[["Total",sum.total],["Ouvertes",sum.ouvertes],["En cours",sum.byStatut.en_cours],["Résolues",sum.byStatut.resolue],["Clôturées",sum.byStatut.cloturee],["Taux résolution",sum.tauxResolution+"%"]].map(([l,v])=>`<div style="flex:1;min-width:110px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
-    <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Date</th><th>Client</th><th>Objet</th><th>Gravité</th><th>Canal</th><th>Statut</th><th></th></tr>
-      ${rows.map(c=>`<tr><td><b>${esc(c.ref)}</b></td><td>${esc(c.date||"")}</td><td>${esc(c.clientName||"")}</td><td>${esc(c.objet||"")}</td><td>${IMP_GRAV_TAG[c.gravite]||esc(c.gravite||"")}</td><td>${esc(c.canal||"")}</td><td>${CLAIM_STAT_TAG[c.statut]||esc(c.statut)}</td>
+    <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Date</th><th>Client</th><th>Objet</th><th>Gravité</th><th>Pilote</th><th>Statut</th><th></th></tr>
+      ${rows.map(c=>{ const rw=["ADM","CD","RJ","RQ"].includes(ME.role); const closed=["resolue","cloturee"].includes(c.statut);
+        return `<tr><td><b>${esc(c.ref)}</b></td><td>${esc(c.date||"")}</td><td>${esc(c.clientName||"")}</td><td>${esc(c.objet||"")}</td><td>${IMP_GRAV_TAG[c.gravite]||esc(c.gravite||"")}</td><td>${c.piloteName?esc(c.piloteName):'<span class="note">non assignée</span>'}</td><td>${CLAIM_STAT_TAG[c.statut]||esc(c.statut)}</td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
-          <button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimForm('${c.id}')">Modifier</button>
-          ${c.improvementId?'<span class="tag" style="background:#b45309;color:#fff">Fiche </span>':`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimToFiche('${c.id}')">→ Fiche</button>`}
-          <button class="btn ghost sm" style="padding:2px 6px;font-size:12px;color:var(--red)" onclick="smqClaimDel('${c.id}')">Suppr.</button></div></td></tr>`).join("")||'<tr><td colspan="8" class="note">Aucune réclamation.</td></tr>'}</table></div>`;
+          ${rw?`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimAssign('${c.id}')">${c.piloteUserId?"Réassigner":"Assigner"}</button>`:""}
+          <button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimTreat('${c.id}')">Traiter</button>
+          ${rw&&c.statut!=="cloturee"?`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px;color:#16a34a" onclick="smqClaimClose('${c.id}')">Clôturer</button>`:""}
+          ${rw?`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimForm('${c.id}')">Modifier</button>`:""}
+          ${c.improvementId?'<span class="tag" style="background:#b45309;color:#fff">Fiche </span>':(rw?`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimToFiche('${c.id}')">&rarr; Fiche</button>`:"")}
+          ${rw?`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px;color:var(--red)" onclick="smqClaimDel('${c.id}')">Suppr.</button>`:""}</div></td></tr>`; }).join("")||'<tr><td colspan="8" class="note">Aucune réclamation.</td></tr>'}</table></div>`;
 }
 async function smqClaimForm(idv){
   const rows=idv?await api("/smq/claims").catch(()=>[]):[]; const c=idv?rows.find(x=>x.id===idv):{};
@@ -7926,6 +7930,42 @@ async function smqClaimSave(idv,btn){ const g=(x)=>(document.getElementById(x)||
 async function smqClaimDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/claims/"+idv,{method:"DELETE"}); smqClaimsView(); }catch(e){ alert(e.message); } }
 async function smqClaimToFiche(idv){ if(!confirm("Ouvrir une fiche d'amélioration pour cette réclamation ?"))return;
   try{ const r=await api("/smq/claims/"+idv+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
+async function smqClaimAssign(idv){
+  const [rows,procs,users]=await Promise.all([api("/smq/claims").catch(()=>[]),api("/smq/processes").catch(()=>[]),api("/smq/users").catch(()=>[])]);
+  const c=rows.find(x=>x.id===idv)||{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:520px"><b>Assigner la réclamation ${esc(c.ref||"")}</b>
+    <div class="note" style="margin:4px 0 8px">Choisissez le processus concerné puis le pilote responsable du traitement.</div>
+    <label>Processus</label><select id="caProc" onchange="smqClaimAssignProc(this.value)">
+      <option value="">— Sélectionner —</option>${procs.map(p=>`<option value="${p.id}" data-pil="${p.piloteUserId||""}" ${c.processId===p.id?"selected":""}>${esc(p.code||"")} · ${esc(p.intitule||"")}${p.piloteName?" ("+esc(p.piloteName)+")":""}</option>`).join("")}</select>
+    <label>Pilote responsable</label><select id="caPil">
+      <option value="">— Selon le processus —</option>${users.map(u=>`<option value="${u.id}" ${c.piloteUserId===u.id?"selected":""}>${esc(u.fullName||u.email||u.id)}</option>`).join("")}</select>
+    <div class="err hidden" id="caErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqClaimAssignSave('${idv}',this)">Assigner</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+  window._CA_PROCS=procs;
+}
+function smqClaimAssignProc(pid){ const procs=window._CA_PROCS||[]; const p=procs.find(x=>x.id===pid); const sel=document.getElementById("caPil"); if(p&&p.piloteUserId&&!sel.value) sel.value=p.piloteUserId; }
+async function smqClaimAssignSave(idv,btn){ const proc=(document.getElementById("caProc")||{}).value; const pil=(document.getElementById("caPil")||{}).value;
+  try{ await api("/smq/claims/"+idv+"/assign",{method:"POST",body:JSON.stringify({processId:proc||null,piloteUserId:pil||null})}); btn.closest(".modal-bg").remove(); smqClaimsView(); }
+  catch(e){ const el=document.getElementById("caErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+async function smqClaimTreat(idv){
+  const rows=await api("/smq/claims").catch(()=>[]); const c=rows.find(x=>x.id===idv)||{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Traiter la réclamation ${esc(c.ref||"")}</b>
+    <div class="note" style="margin:4px 0 8px">${esc(c.objet||"")}${c.piloteName?" — pilote : "+esc(c.piloteName):""}</div>
+    <div style="background:var(--sidebar-bg);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;font-size:13px">${esc(c.description||"(pas de description)")}</div>
+    <label>Analyse / traitement</label><textarea id="ctTrt" rows="3">${esc(c.traitement||"")}</textarea>
+    <label>Réponse au client</label><textarea id="ctRep" rows="2">${esc(c.reponse||"")}</textarea>
+    <label>Statut</label><select id="ctStat">${["en_cours","resolue","cloturee"].map(st=>`<option ${((c.statut==="ouverte"?"resolue":c.statut)===st)?"selected":""}>${st}</option>`).join("")}</select>
+    <div class="err hidden" id="ctErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqClaimTreatSave('${idv}',this)">Enregistrer le traitement</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function smqClaimTreatSave(idv,btn){ const g=x=>(document.getElementById(x)||{}).value;
+  try{ await api("/smq/claims/"+idv+"/treat",{method:"POST",body:JSON.stringify({traitement:g("ctTrt"),reponse:g("ctRep"),statut:g("ctStat")})}); btn.closest(".modal-bg").remove(); smqClaimsView(); }
+  catch(e){ const el=document.getElementById("ctErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+async function smqClaimClose(idv){ if(!confirm("Clôturer cette réclamation ?"))return; try{ await api("/smq/claims/"+idv+"/close",{method:"POST",body:JSON.stringify({})}); smqClaimsView(); }catch(e){ alert(e.message); } }
 
 /* ---------- Ressources : compétences, fournisseurs, métrologie ---------- */
 /* Compétences / habilitations (lien RH) */

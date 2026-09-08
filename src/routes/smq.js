@@ -889,7 +889,12 @@ router.get("/satisfaction-summary", allow(...RO), (req, res) => {
 router.get("/claims", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
   let rows = mine(db.smqClaims, req).slice();
+  if (!isManager(req) && !RW.includes(req.user.role)) {
+    const myPids = myProcessIds(req);
+    rows = rows.filter(r => (r.piloteUserId && r.piloteUserId === req.user.id) || (r.processId && myPids.includes(r.processId)));
+  }
   if (req.query && req.query.statut) rows = rows.filter(r => r.statut === req.query.statut);
+  if (req.query && req.query.mine === "1") rows = rows.filter(r => r.piloteUserId === req.user.id || (r.processId && myProcessIds(req).includes(r.processId)));
   rows.sort((a, b) => String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || "")));
   res.json(rows);
 });
@@ -899,7 +904,23 @@ function claimRef(req) {
   let max = 0; for (const x of same) { const n = parseInt(String(x.ref), 10); if (n > max) max = n; }
   return "REC-" + String(max + 1).padStart(3, "0") + "/" + y;
 }
-const CLAIM_FIELDS = ["clientName", "contactId", "date", "objet", "description", "gravite", "canal", "statut", "reponse", "closedAt"];
+const CLAIM_FIELDS = ["clientName", "contactId", "date", "objet", "description", "gravite", "canal", "statut", "reponse", "closedAt", "processId", "piloteUserId", "piloteName", "traitement", "assignedAt"];
+// Peut agir sur une réclamation : responsable SMQ, ou pilote/co-pilote du processus assigné, ou destinataire direct.
+function claimCanAct(req, c) {
+  if (isManager(req) || RW.includes(req.user.role)) return true;
+  if (c.piloteUserId && c.piloteUserId === req.user.id) return true;
+  if (c.processId && procAccess(req, c.processId)) return true;
+  return false;
+}
+// Notifie un utilisateur via message interne + push chat.
+function notifyUser(req, uid, text, link) {
+  if (!uid) return;
+  if (!db.dmMessages) db.dmMessages = [];
+  let chat = null; try { chat = require("../chat"); } catch (e) {}
+  const m = stamp({ id: id("dm"), fromId: req.user.id, fromName: req.user.fullName, toId: uid, text, at: now(), readAt: null, attachment: null, link: link || null, mentions: [] }, req);
+  db.dmMessages.push(m);
+  if (chat) try { chat.deliver(uid, { type: "message", message: m }); } catch (e) {}
+}
 router.post("/claims", allow(...RW), (req, res) => {
   const b = req.body || {};
   const rec = { id: id("smq"), ref: b.ref || claimRef(req), date: b.date || now().slice(0, 10), statut: b.statut || "ouverte", gravite: b.gravite || "mineure", createdAt: now() };
@@ -929,6 +950,52 @@ router.post("/claims/:id/to-improvement", allow(...RW), (req, res) => {
   db.smqImprovements.push(rec); c.improvementId = rec.id; save();
   audit(req.user, "CREATED", "SmqImprovement", rec.id, { ref: rec.ref, fromClaim: c.ref });
   res.status(201).json({ improvement: rec });
+});
+/* Assigner une réclamation à un processus + pilote (responsable SMQ) */
+router.post("/claims/:id/assign", allow(...RW), (req, res) => {
+  const c = mine(db.smqClaims, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  const proc = b.processId ? mine(db.smqProcesses, req).find(x => x.id === b.processId) : null;
+  if (b.processId && !proc) return res.status(400).json({ error: "Processus introuvable." });
+  const uid = b.piloteUserId || (proc && proc.piloteUserId) || null;
+  if (!uid) return res.status(400).json({ error: "Aucun pilote à assigner (indiquez un pilote ou un processus doté d'un pilote)." });
+  c.processId = b.processId || c.processId || null;
+  c.piloteUserId = uid;
+  c.piloteName = uName(uid) || (proc && proc.piloteName) || "";
+  c.assignedAt = now().slice(0, 10);
+  if (["ouverte", undefined, null, ""].includes(c.statut)) c.statut = "en_cours";
+  c.updatedAt = now(); save();
+  notifyUser(req, uid, `Réclamation ${c.ref} vous est assignée pour traitement : ${c.objet || c.clientName || ""}.`, { type: "view", id: "smqclaims", label: "Réclamation " + c.ref });
+  audit(req.user, "ASSIGNED", "SmqClaim", c.id, { ref: c.ref, pilote: c.piloteName, processId: c.processId });
+  res.json(c);
+});
+/* Traitement par le pilote (analyse + réponse, passe en résolue) */
+router.post("/claims/:id/treat", allow(...RO), (req, res) => {
+  const c = mine(db.smqClaims, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
+  if (!claimCanAct(req, c)) return res.status(403).json({ error: "Réservé au pilote assigné ou au responsable SMQ." });
+  const b = req.body || {};
+  if (b.traitement !== undefined) c.traitement = b.traitement;
+  if (b.reponse !== undefined) c.reponse = b.reponse;
+  const st = b.statut && CLAIM_STATUTS.includes(b.statut) ? b.statut : "resolue";
+  c.statut = st;
+  if (st === "cloturee" && !c.closedAt) c.closedAt = now().slice(0, 10);
+  c.treatedBy = req.user.fullName; c.treatedAt = now().slice(0, 10);
+  c.updatedAt = now(); save();
+  // Prévenir le responsable SMQ que le traitement est prêt.
+  (db.users || []).filter(u => (u.tenantId || "t1") === (req.user.tenantId || "t1") && (u.smqManager || ["RJ", "RQ"].includes(u.role)) && u.id !== req.user.id)
+    .forEach(u => notifyUser(req, u.id, `Réclamation ${c.ref} traitée par ${req.user.fullName} — à vérifier / clôturer.`, { type: "view", id: "smqclaims", label: "Réclamation " + c.ref }));
+  audit(req.user, "TREATED", "SmqClaim", c.id, { ref: c.ref, statut: st });
+  res.json(c);
+});
+/* Clôture (responsable SMQ) */
+router.post("/claims/:id/close", allow(...RW), (req, res) => {
+  const c = mine(db.smqClaims, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
+  c.statut = "cloturee"; c.closedAt = now().slice(0, 10);
+  if (req.body && req.body.reponse !== undefined) c.reponse = req.body.reponse;
+  c.updatedAt = now(); save();
+  if (c.piloteUserId && c.piloteUserId !== req.user.id) notifyUser(req, c.piloteUserId, `Réclamation ${c.ref} clôturée par ${req.user.fullName}.`, { type: "view", id: "smqclaims", label: "Réclamation " + c.ref });
+  audit(req.user, "CLOSED", "SmqClaim", c.id, { ref: c.ref });
+  res.json(c);
 });
 router.get("/claims-summary", allow(...RO), (req, res) => {
   const rows = mine(db.smqClaims, req);
@@ -1284,7 +1351,7 @@ router.get("/documents/:id/file", allow(...RO), (req, res) => {
 });
 /* ---- Contexte de gouvernance pour l'utilisateur courant ---- */
 router.get("/users", allow(...RO), (req, res) => {
-  if (!isManager(req)) return res.status(403).json({ error: "Réservé au responsable SMQ ou à l'administrateur." });
+  if (!isManager(req) && !RW.includes(req.user.role)) return res.status(403).json({ error: "Réservé au responsable SMQ ou à l'administrateur." });
   res.json((db.users || []).filter(u => (u.tenantId || "t1") === (req.user.tenantId || "t1") && u.role !== "SADM")
     .map(u => ({ id: u.id, fullName: u.fullName, role: u.role, smqManager: !!u.smqManager, active: u.active })));
 });
