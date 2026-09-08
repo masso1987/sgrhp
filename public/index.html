@@ -939,6 +939,7 @@ const NAV = [
   { k: "payroll", label: "Bulletins & traitements", sec: "Traitement", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payconfig", label: "Paramètres paie", sec: "Paramétrage", roles: ["ADM"], module: "payroll", grp: "paie" },
   { k: "payfiche", label: "Fiche individuelle", sec: "États", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
+  { k: "payetats", label: "Livre & états de paie", sec: "États", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
 
   { k: "billhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
   { k: "billing", label: "Annexes de facturation", sec: "Documents", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
@@ -1168,7 +1169,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -3754,6 +3755,23 @@ function payStatusTag(s) {
 
 /* ---- Runs list ---- */
 /* ---- Tableau de bord Paie ---- */
+/* ================= Paie : Livre & états (par période) ================= */
+async function payEtatsView(){
+  const runs=await api("/payroll/runs").catch(()=>[]);
+  const rid=window._ETRUN||(runs[0]&&runs[0].id)||"";
+  view.innerHTML=`<h1>Livre & états de paie</h1>
+   <div class="note" style="margin-bottom:8px">Éditez, par période de paie, le livre de paie, l'état des cotisations et la passation comptable.</div>
+   <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+     <div><label>Période de paie</label><select id="etRun" style="max-width:280px" onchange="window._ETRUN=this.value;payEtatsView()"><option value="">- choisir -</option>${runs.map(r=>`<option value="${r.id}" ${rid===r.id?'selected':''}>${esc(r.period)} · ${esc(({OPEN:'ouverte',CALCULATED:'calculée',CLOSED:'clôturée'})[r.status]||r.status||'')}</option>`).join("")}</select></div>
+   </div>
+   ${rid?`<div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
+     ${hasRight("payroll.livre") ? `<button class="btn ghost" onclick="payLivre('${rid}')">Livre de paie</button>` : ""}
+     ${hasRight("payroll.cotisations") ? `<button class="btn ghost" onclick="payCotis('${rid}')">États des cotisations</button>` : ""}
+     ${hasRight("payroll.compta") ? `<button class="btn ghost" onclick="payJournal('${rid}')">Passation comptable</button>` : ""}
+     ${!hasRight("payroll.livre")&&!hasRight("payroll.cotisations")&&!hasRight("payroll.compta")?'<span class="note">Vous n\'avez pas les droits pour ces états. Demandez-les à votre administrateur.</span>':''}
+   </div>`:'<div class="panel note">Aucune paie enregistrée. Créez une période dans le module Paie.</div>'}
+   <div id="etBody" style="margin-top:10px"></div>`;
+}
 /* ================= Paie : Fiche individuelle (annuelle) ================= */
 async function payFicheView(){
   const emps=await api("/employees").catch(()=>[]);
@@ -3881,10 +3899,7 @@ async function payRunView(id) {
   <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
     ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">Clôturer la période</button>` : ""}
-    ${hasRight("payroll.livre") ? `<button class="btn ghost" onclick="payLivre('${run.id}')">Livre de paie</button>` : ""}
-    ${hasRight("payroll.cotisations") ? `<button class="btn ghost" onclick="payCotis('${run.id}')">États des cotisations</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">Ordre de virement</button>` : ""}
-    ${hasRight("payroll.compta") ? `<button class="btn ghost" onclick="payJournal('${run.id}')">Passation comptable</button>` : ""}
     ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
       <select id="emailPf" style="max-width:210px;margin:0"><option value="">Tous les portefeuilles</option>${(PFS || []).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
       <button class="btn ghost" onclick="payEmailPortfolio('${run.id}')">Envoyer les bulletins</button>` : ""}
@@ -4270,7 +4285,7 @@ function payPdf(id, print) {
 /* ---- Livre de paie & cotisations ---- */
 async function payLivre(id) {
   const { run, rows, totals } = await api(`/payroll/runs/${id}/livre`);
-  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('payetats')">← Retour</button>
   <h1 style="margin-top:10px">Livre de paie - ${esc(run.period)} <span style="float:right"><button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/livre/pdf','Livre_de_paie_${run.period}.pdf')">PDF</button> <button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/livre/excel','Livre_de_paie_${run.period}.xlsx')">Excel</button></span></h1>
   <div class="panel"><table><tr><th>Matricule</th><th>Salarié</th><th style="text-align:right">Brut</th>
     <th style="text-align:right">Retenues</th><th style="text-align:right">Net</th><th style="text-align:right">Coût empl.</th></tr>
@@ -4284,7 +4299,7 @@ async function payLivre(id) {
 }
 async function payCotis(id) {
   const { run, lignes, totals } = await api(`/payroll/runs/${id}/cotisations`);
-  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('payetats')">← Retour</button>
   <h1 style="margin-top:10px">États des cotisations - ${esc(run.period)} <span style="float:right"><button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/cotisations/pdf','Etat_cotisations_${run.period}.pdf')">PDF</button> <button class="btn ghost sm" onclick="payDownload('/payroll/runs/${id}/cotisations/excel','Etat_cotisations_${run.period}.xlsx')">Excel</button></span></h1>
   <div class="note">Base de déclaration CNPS et impôts (DIPE).</div>
   <div class="panel"><table><tr><th>Code</th><th>Cotisation</th><th style="text-align:right">Base</th>
@@ -4297,7 +4312,7 @@ async function payCotis(id) {
 
 async function payJournal(id) {
   const j = await api("/payroll/runs/" + id + "/journal");
-  view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${id}')">← Retour</button>
+  view.innerHTML = `<button class="btn ghost sm" onclick="go('payetats')">← Retour</button>
   <h1 style="margin-top:10px">Passation comptable - ${esc(j.run.period)}
     <button class="btn ghost sm" style="float:right" onclick="payDownload('/payroll/runs/${id}/journal/export','Journal_paie_${j.run.period}.csv')">Export</button></h1>
   <div class="note">Écritures du journal de paie. ${j.balanced ? '<span style="color:var(--green)">Équilibré </span>' : '<span style="color:var(--red)">Déséquilibré </span>'}</div>
