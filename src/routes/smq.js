@@ -1809,9 +1809,16 @@ router.get("/conformite", allow(...RO), (req, res) => {
     const adminOk = missing.length === 0;
     const med = my.find(f => f.docType === MED);
     const medicalOk = !!med && (!med.expiryDate || new Date(med.expiryDate).getTime() >= now);
-    const plan = (e.epi || []).reduce((a, l) => a + (Number(l.quantity) || 0), 0);
-    const iss = issues.filter(i => i.employeeId === e.id).reduce((a, i) => a + (Number(i.quantity) || 0), 0);
+    const myIssues = issues.filter(i => i.employeeId === e.id);
+    const epiDetail = (e.epi || []).map(l => {
+      const gaveL = myIssues.filter(i => (l.productId ? i.productId === l.productId : (i.designation || "") === (l.designation || "")))
+        .reduce((a, i) => a + (Number(i.quantity) || 0), 0);
+      return { designation: l.designation || "", planned: Number(l.quantity) || 0, issued: gaveL, remaining: Math.max(0, (Number(l.quantity) || 0) - gaveL) };
+    });
+    const plan = epiDetail.reduce((a, l) => a + l.planned, 0);
+    const iss = epiDetail.reduce((a, l) => a + Math.min(l.issued, l.planned), 0);
     const epiPct = plan ? Math.min(100, Math.round(iss / plan * 100)) : 100;
+    const epiNever = plan > 0 && myIssues.length === 0;
     const expired = my.filter(f => f.expiryDate && new Date(f.expiryDate).getTime() < now);
     const cniExpired = e.cniExpiry && new Date(e.cniExpiry).getTime() < now;
     const docsValid = expired.length === 0 && !cniExpired;
@@ -1821,11 +1828,11 @@ router.get("/conformite", allow(...RO), (req, res) => {
     const issuesList = [];
     if (!adminOk) issuesList.push(`Documents administratifs incomplets (${missing.length} manquant(s))`);
     if (!medicalOk) issuesList.push("Visite médicale absente ou expirée");
-    if (plan && epiPct < 100) issuesList.push(`Dotation EPI ${epiPct}%`);
+    if (plan && epiPct < 100) issuesList.push(epiNever ? "Dotation EPI non demarree" : `Dotation EPI ${epiPct}%`);
     if (!docsValid) issuesList.push(`Document(s) expiré(s)${cniExpired ? " (CNI)" : ""}`);
     if (!habsOk) issuesList.push("Habilitation(s) expirée(s)");
     return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId,
-      adminOk, medicalOk, epiPct, docsValid, habsOk, conform, issues: issuesList };
+      adminOk, medicalOk, epiPct, epiDetail, epiNever, docsValid, habsOk, conform, issues: issuesList };
   });
   const pctOf = (arr, f) => arr.length ? Math.round(arr.filter(f).length / arr.length * 100) : 100;
   const avgEpi = (arr) => arr.length ? Math.round(arr.reduce((a, x) => a + x.epiPct, 0) / arr.length) : 100;

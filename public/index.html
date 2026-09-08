@@ -6867,6 +6867,7 @@ function smqProcName(id){ const p=(window._SMQ.procs||[]).find(x=>x.id===id); re
 
 /* ---------- Tableau de bord ---------- */
 /* ================= SMQ : Conformité du personnel ================= */
+function epiToggle(id){const r=document.getElementById(id);if(r)r.style.display=(r.style.display==='none'?'':'none');}
 /* ================= SMQ : Veille réglementaire ================= */
 const VEILLE_CONF=["Totalement Conforme","Partiellement Conforme","Non Conforme","Non applicable"];
 async function smqVeilleView(){
@@ -6955,9 +6956,16 @@ async function smqConformiteView(){
       ${(d.perPortfolio||[]).map(p=>`<tr><td>${esc(p.name)}</td><td class="r">${p.employees}</td><td>${bar(p.conformPct)}</td><td>${bar(p.adminPct)}</td><td>${bar(p.medicalPct)}</td><td>${bar(p.epiPct)}</td><td>${bar(p.docsValidPct)}</td><td>${bar(p.habsPct)}</td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucun salarié.</td></tr>'}</table></div></div>
     <div class="panel"><b>Salariés non conformes</b>
       <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>Salarié</th><th>Portefeuille</th><th>Admin</th><th>Médical</th><th>EPI</th><th>Docs</th><th>Habil.</th><th>Écarts</th></tr>
-      ${(d.perEmployee||[]).filter(e=>!e.conform).map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${esc(smqPfName(e.portfolioId))}</td>
-        <td>${flag(e.adminOk)}</td><td>${flag(e.medicalOk)}</td><td>${e.epiPct>=100?flag(true):e.epiPct+'%'}</td><td>${flag(e.docsValid)}</td><td>${flag(e.habsOk!==false)}</td>
-        <td style="font-size:12px;color:#b45309">${e.issues.map(esc).join(" · ")}</td></tr>`).join("")||'<tr><td colspan="7" class="note" style="color:#16a34a">Tous les salariés sont conformes.</td></tr>'}</table></div></div>`;
+      ${(d.perEmployee||[]).filter(e=>!e.conform).map(e=>{
+        const hasPlan=e.epiDetail&&e.epiDetail.length;
+        const epiCell=hasPlan?`<span style="cursor:pointer;text-decoration:underline dotted" onclick="epiToggle('epid_${e.employeeId}')">${e.epiNever?'<span class="tag" style="background:#dc2626;color:#fff">non démarrée</span>':(e.epiPct>=100?flag(true):e.epiPct+'%')}</span>`:flag(true);
+        const outstanding=hasPlan?e.epiDetail.filter(l=>l.remaining>0):[];
+        const detRow=outstanding.length?`<tr id="epid_${e.employeeId}" style="display:none"><td colspan="8" style="background:var(--sidebar-bg);font-size:12px"><b>EPI restants à remettre :</b> ${outstanding.map(l=>esc(l.designation)+" ("+l.issued+"/"+l.planned+", reste "+l.remaining+")").join(" · ")}</td></tr>`:"";
+        return `<tr><td><b>${esc(e.name)}</b></td><td>${esc(smqPfName(e.portfolioId))}</td>
+        <td>${flag(e.adminOk)}</td><td>${flag(e.medicalOk)}</td><td>${epiCell}</td><td>${flag(e.docsValid)}</td><td>${flag(e.habsOk!==false)}</td>
+        <td style="font-size:12px;color:#b45309">${e.issues.map(esc).join(" · ")}</td></tr>${detRow}`;
+      }).join("")||'<tr><td colspan="8" class="note" style="color:#16a34a">Tous les salariés sont conformes.</td></tr>'}</table></div></div>
+    ${(()=>{const ep=(d.perEmployee||[]).filter(e=>e.epiDetail&&e.epiDetail.length&&e.epiPct<100);return ep.length?`<div class="panel"><b>Suivi de la dotation EPI</b><div class="note" style="margin:2px 0 6px">Salariés dont la dotation EPI planifiée n'est pas complète. Le SMQ assure le suivi ; la remise se fait au module Stock.</div><div style="overflow:auto"><table style="width:100%"><tr><th>Salarié</th><th>Portefeuille</th><th>Avancement</th><th>EPI restants</th></tr>${ep.map(e=>`<tr${e.epiNever?' style="background:rgba(220,38,38,.06)"':''}><td><b>${esc(e.name)}</b>${e.epiNever?' <span class="tag" style="background:#dc2626;color:#fff">non démarrée</span>':''}</td><td>${esc(smqPfName(e.portfolioId))}</td><td>${bar(e.epiPct)}</td><td style="font-size:12px">${e.epiDetail.filter(l=>l.remaining>0).map(l=>esc(l.designation)+" (reste "+l.remaining+"/"+l.planned+")").join(" · ")||"—"}</td></tr>`).join("")}</table></div></div>`:"";})()}`;
   const okc=(d.global.conform||0), notc=(d.global.employees||0)-okc;
   if(await ensureChartJs() && window.Chart){
     const dn=document.getElementById("confDonut"); if(dn) new window.Chart(dn,{type:"doughnut",data:{labels:["Conformes","Non conformes"],datasets:[{data:[okc,notc],backgroundColor:["#16a34a","#dc2626"]}]},options:{plugins:{legend:{position:"bottom",labels:{boxWidth:12,font:{size:11}}}},maintainAspectRatio:false}});
