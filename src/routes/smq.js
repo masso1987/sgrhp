@@ -1831,8 +1831,15 @@ router.get("/conformite", allow(...RO), (req, res) => {
     if (plan && epiPct < 100) issuesList.push(epiNever ? "Dotation EPI non demarree" : `Dotation EPI ${epiPct}%`);
     if (!docsValid) issuesList.push(`Document(s) expiré(s)${cniExpired ? " (CNI)" : ""}`);
     if (!habsOk) issuesList.push("Habilitation(s) expirée(s)");
+    // Pourcentages par salarié (pour un affichage homogène avec l'EPI).
+    const adminPct = required.length ? Math.round((required.length - missing.length) / required.length * 100) : 100;
+    const medicalPct = medicalOk ? 100 : 0;
+    const totalDocs = my.length + (e.cniExpiry ? 1 : 0);
+    const docsValidPctE = totalDocs ? Math.round((totalDocs - expired.length - (cniExpired ? 1 : 0)) / totalDocs * 100) : 100;
+    const habsPctE = myHabs.length ? Math.round(myHabs.filter(h => !(h.expiryDate && new Date(h.expiryDate).getTime() < now)).length / myHabs.length * 100) : 100;
     return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId,
-      adminOk, medicalOk, epiPct, epiDetail, epiNever, docsValid, habsOk, conform, issues: issuesList };
+      adminOk, medicalOk, epiPct, epiDetail, epiNever, docsValid, habsOk, conform,
+      adminPct, medicalPct, docsValidPctE, habsPctE, issues: issuesList };
   });
   const pctOf = (arr, f) => arr.length ? Math.round(arr.filter(f).length / arr.length * 100) : 100;
   const avgEpi = (arr) => arr.length ? Math.round(arr.reduce((a, x) => a + x.epiPct, 0) / arr.length) : 100;
