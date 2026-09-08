@@ -1005,6 +1005,91 @@ router.get("/claims-summary", allow(...RO), (req, res) => {
   res.json({ total: rows.length, byStatut, ouvertes: rows.length - resolues, tauxResolution: rows.length ? Math.round(resolues / rows.length * 1000) / 10 : 0 });
 });
 
+/* ============================ Évaluations client / salarié via formulaire partageable (§9.1.2) ============================ */
+const EVAL_DEFAULTS = {
+  client: [
+    { id: "q1", label: "Qualité globale de la prestation", kind: "rating" },
+    { id: "q2", label: "Respect des délais et engagements", kind: "rating" },
+    { id: "q3", label: "Compétence et professionnalisme des intervenants", kind: "rating" },
+    { id: "q4", label: "Réactivité et communication", kind: "rating" },
+    { id: "q5", label: "Recommanderiez-vous nos services ?", kind: "rating" },
+    { id: "c1", label: "Commentaires et suggestions", kind: "text" },
+  ],
+  employee: [
+    { id: "q1", label: "Conditions de travail sur site", kind: "rating" },
+    { id: "q2", label: "Accompagnement et suivi RH", kind: "rating" },
+    { id: "q3", label: "Ponctualité de la paie", kind: "rating" },
+    { id: "q4", label: "Équipements et EPI fournis", kind: "rating" },
+    { id: "q5", label: "Satisfaction générale", kind: "rating" },
+    { id: "c1", label: "Remarques", kind: "text" },
+  ],
+};
+function evalToken() { return require("crypto").randomBytes(9).toString("base64url"); }
+function evalScore(form, answers) {
+  const rq = (form.questions || []).filter(q => q.kind === "rating");
+  const max = Number(form.scaleMax) || 5;
+  const vals = rq.map(q => Number(answers[q.id])).filter(v => !isNaN(v) && v > 0);
+  if (!vals.length) return null;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length / max * 1000) / 10;
+}
+router.get("/evals", allow(...RO), (req, res) => {
+  seedSMQ(req.user.tenantId || "t1");
+  const rows = mine(db.smqEvalForms, req).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const resp = mine(db.smqEvalResponses, req);
+  res.json(rows.map(f => ({ ...f, responseCount: resp.filter(r => r.formId === f.id).length })));
+});
+router.post("/evals", allow(...RW), (req, res) => {
+  const b = req.body || {};
+  const type = b.type === "employee" ? "employee" : "client";
+  const rec = stamp({
+    id: id("smq"), type, title: b.title || (type === "client" ? "Évaluation de la satisfaction client" : "Évaluation de la satisfaction du personnel"),
+    intro: b.intro || "", token: evalToken(), scaleMax: Number(b.scaleMax) || 5,
+    questions: Array.isArray(b.questions) && b.questions.length ? b.questions : EVAL_DEFAULTS[type],
+    targetName: b.targetName || "", active: b.active !== false, createdAt: now(),
+  }, req);
+  db.smqEvalForms.push(rec); save(); audit(req.user, "CREATED", "SmqEvalForm", rec.id, { type });
+  res.status(201).json(rec);
+});
+router.put("/evals/:id", allow(...RW), (req, res) => {
+  const f = mine(db.smqEvalForms, req).find(x => x.id === req.params.id); if (!f) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  for (const k of ["title", "intro", "scaleMax", "questions", "targetName", "active", "type"]) if (b[k] !== undefined) f[k] = b[k];
+  f.updatedAt = now(); save(); res.json(f);
+});
+router.delete("/evals/:id", allow(...RW), (req, res) => {
+  const f = mine(db.smqEvalForms, req).find(x => x.id === req.params.id); if (!f) return res.status(404).json({ error: "Introuvable" });
+  db.smqEvalForms.splice(db.smqEvalForms.indexOf(f), 1);
+  db.smqEvalResponses = db.smqEvalResponses.filter(r => r.formId !== f.id);
+  save(); audit(req.user, "DELETED", "SmqEvalForm", f.id, {}); res.json({ ok: true });
+});
+router.post("/evals/:id/rotate-token", allow(...RW), (req, res) => {
+  const f = mine(db.smqEvalForms, req).find(x => x.id === req.params.id); if (!f) return res.status(404).json({ error: "Introuvable" });
+  f.token = evalToken(); f.updatedAt = now(); save(); res.json({ token: f.token });
+});
+router.get("/evals/:id/responses", allow(...RO), (req, res) => {
+  const f = mine(db.smqEvalForms, req).find(x => x.id === req.params.id); if (!f) return res.status(404).json({ error: "Introuvable" });
+  const rows = mine(db.smqEvalResponses, req).filter(r => r.formId === f.id).sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const scored = rows.map(r => r.score).filter(v => v != null);
+  const moyenne = scored.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length * 10) / 10 : 0;
+  // Moyenne par question notée.
+  const perQ = {};
+  (f.questions || []).filter(q => q.kind === "rating").forEach(q => {
+    const vals = rows.map(r => Number((r.answers || {})[q.id])).filter(v => !isNaN(v) && v > 0);
+    perQ[q.id] = { label: q.label, moyenne: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100 : 0, n: vals.length };
+  });
+  res.json({ form: f, total: rows.length, moyenne, perQ, responses: rows });
+});
+router.get("/evals-summary", allow(...RO), (req, res) => {
+  const forms = mine(db.smqEvalForms, req), resp = mine(db.smqEvalResponses, req);
+  const by = (t) => {
+    const fids = forms.filter(f => f.type === t).map(f => f.id);
+    const rs = resp.filter(r => fids.includes(r.formId));
+    const sc = rs.map(r => r.score).filter(v => v != null);
+    return { forms: fids.length, responses: rs.length, moyenne: sc.length ? Math.round(sc.reduce((a, b) => a + b, 0) / sc.length * 10) / 10 : 0 };
+  };
+  res.json({ client: by("client"), employee: by("employee") });
+});
+
 /* ============================ Ressources : compétences, fournisseurs, métrologie (§7.1, §7.2, §8.4) ============================ */
 const DAYS = (d) => { const t = new Date(); const x = new Date(d); return Math.round((x - t) / 86400000); };
 
@@ -1724,5 +1809,32 @@ router.post("/veille/import", allow(...RW), smqImport.single("file"), (req, res)
   audit(req.user, "CONFIG_CHANGED", "SmqVeille", "import", { added });
   res.json({ added });
 });
+
+
+/* ---- Accès public (sans authentification) au formulaire d'évaluation ---- */
+function publicEvalByToken(token) {
+  if (!token) return null;
+  return (db.smqEvalForms || []).find(f => f.token === token && f.active !== false) || null;
+}
+function publicEvalSubmit(token, body) {
+  const f = publicEvalByToken(token);
+  if (!f) return { error: "Formulaire introuvable ou clôturé.", code: 404 };
+  const b = body || {};
+  const answers = (b.answers && typeof b.answers === "object") ? b.answers : {};
+  const rated = (f.questions || []).some(q => q.kind === "rating" && Number(answers[q.id]) > 0);
+  if (!rated) return { error: "Merci de renseigner au moins une note.", code: 400 };
+  const rec = {
+    id: id("smq"), tenantId: f.tenantId || "t1", formId: f.id, type: f.type,
+    respondentName: String(b.respondentName || "").slice(0, 120), respondentEmail: String(b.respondentEmail || "").slice(0, 160),
+    targetName: String(b.targetName || f.targetName || "").slice(0, 160),
+    answers, comment: String(b.comment || "").slice(0, 4000),
+    score: evalScore(f, answers), at: now(),
+  };
+  if (!db.smqEvalResponses) db.smqEvalResponses = [];
+  db.smqEvalResponses.push(rec); save();
+  return { ok: true };
+}
+router.publicEvalByToken = publicEvalByToken;
+router.publicEvalSubmit = publicEvalSubmit;
 
 module.exports = router;

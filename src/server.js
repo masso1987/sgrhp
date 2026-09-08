@@ -95,6 +95,53 @@ app.get("/verify/:id", (req, res) => {
   res.send(wrap(`<div style="border:2px solid #10b981;border-radius:12px;padding:24px;background:#fff"><h1 style="color:#065f46;margin:0 0 8px">Bulletin authentique</h1><p style="color:#374151;margin:0 0 12px">Emis par <b>${esc(tenant ? tenant.name : "")}</b> via le systeme RH &amp; Paie (SGRHP).</p><table style="width:100%;border-top:1px solid #e5e7eb;font-size:15px">${row("Salarie", esc(s.employeeName))}${row("Matricule", esc(s.matricule || "-"))}${row("Periode", esc(s.period))}${row("Net a payer", Math.round(tot.netAPayer).toLocaleString("fr-FR") + " XAF")}${row("Reference", esc(String(s.id).toUpperCase()))}</table></div>`));
 });
 
+// ---- Formulaires d'evaluation publics (client / salarie) — sans authentification ----
+const evalLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: "Trop de requetes." } });
+function evalEsc(v) { return String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+app.get("/eval/:token", (req, res) => {
+  const smq = require("./routes/smq");
+  const { db } = require("./store");
+  const settings = require("./routes/settings").settings();
+  const f = smq.publicEvalByToken && smq.publicEvalByToken(req.params.token);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  const tenant = f && (db.tenants || []).find(t => t.id === (f.tenantId || "t1"));
+  const brandName = (tenant && tenant.name) || (settings.branding && settings.branding.appName) || "SGRHP";
+  const shell = (inner) => `<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=robots content="noindex"><title>${evalEsc(f ? f.title : "Evaluation")}</title><style>body{font-family:Inter,system-ui,sans-serif;background:#f5f8f7;margin:0;padding:32px 14px;color:#111827}.card{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:26px}h1{font-size:20px;margin:0 0 6px}.sub{color:#6b7280;font-size:14px;margin:0 0 16px}label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}input,textarea{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d1d5db;border-radius:9px;font-size:14px;font-family:inherit}.rate{display:flex;gap:6px;flex-wrap:wrap}.rate button{flex:0 0 auto;width:42px;height:42px;border:1px solid #d1d5db;border-radius:9px;background:#fff;font-size:15px;cursor:pointer}.rate button.on{background:#065f46;color:#fff;border-color:#065f46}.q{border-top:1px solid #f0f0f0;padding-top:6px;margin-top:6px}.send{margin-top:18px;background:#065f46;color:#fff;border:0;padding:11px 20px;border-radius:9px;font-size:15px;cursor:pointer;width:100%}.foot{text-align:center;color:#9ca3af;font-size:12px;margin-top:16px}</style></head><body><div class=card>${inner}</div><p class=foot>${evalEsc(brandName)} — Systeme de management de la qualite</p></body></html>`;
+  if (!f) return res.status(404).send(shell(`<h1>Formulaire indisponible</h1><p class=sub>Ce lien d'evaluation est invalide ou a ete cloture.</p>`));
+  const max = Number(f.scaleMax) || 5;
+  const qs = (f.questions || []).map(q => {
+    if (q.kind === "rating") {
+      const btns = Array.from({ length: max }, (_, i) => `<button type=button data-q="${q.id}" data-v="${i + 1}" onclick="pick(this)">${i + 1}</button>`).join("");
+      return `<div class=q><label>${evalEsc(q.label)}</label><div class=rate data-for="${q.id}">${btns}</div><input type=hidden name="a_${q.id}" id="a_${q.id}"></div>`;
+    }
+    return `<div class=q><label>${evalEsc(q.label)}</label><textarea rows=3 id="a_${q.id}" name="a_${q.id}"></textarea></div>`;
+  }).join("");
+  const inner = `<h1>${evalEsc(f.title)}</h1><p class=sub>${evalEsc(f.intro || (f.type === "client" ? "Votre avis nous aide a ameliorer nos services. Merci de prendre quelques minutes." : "Votre retour est important. Ce questionnaire est anonyme si vous le souhaitez."))}</p>
+    <div id=err style="display:none;color:#b91c1c;font-size:14px;margin-bottom:8px"></div>
+    <div id=ok style="display:none;text-align:center;padding:20px 0"><h1 style="color:#065f46">Merci !</h1><p class=sub>Votre reponse a bien ete enregistree.</p></div>
+    <form id=frm>
+      <label>Votre nom ${f.type === "client" ? "/ entreprise" : "(optionnel)"}</label><input id=rname>
+      <label>Email (optionnel)</label><input id=remail type=email>
+      ${f.type === "client" ? '<label>Prestation / contrat concerne (optionnel)</label><input id=rtarget>' : '<label>Site / poste (optionnel)</label><input id=rtarget>'}
+      ${qs}
+      <button type=button class=send onclick="send(this)">Envoyer mon evaluation</button>
+    </form>
+    <script>
+      var A={};
+      function pick(b){var q=b.getAttribute("data-q"),v=b.getAttribute("data-v");A[q]=Number(v);document.getElementById("a_"+q).value=v;var box=document.querySelector('.rate[data-for="'+q+'"]');Array.prototype.forEach.call(box.children,function(x){x.classList.toggle("on",Number(x.getAttribute("data-v"))<=Number(v));});}
+      function send(btn){btn.disabled=true;var ans={};${JSON.stringify((f.questions || []).map(q => ({ id: q.id, kind: q.kind })))}.forEach(function(q){var el=document.getElementById("a_"+q.id);if(el&&el.value!=="")ans[q.id]=q.kind==="rating"?Number(el.value):el.value;});
+        var body={respondentName:(document.getElementById("rname")||{}).value,respondentEmail:(document.getElementById("remail")||{}).value,targetName:(document.getElementById("rtarget")||{}).value,answers:ans};
+        fetch("/api/eval/${evalEsc(f.token)}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});}).then(function(x){if(x.ok){document.getElementById("frm").style.display="none";document.getElementById("ok").style.display="block";}else{btn.disabled=false;var e=document.getElementById("err");e.textContent=x.j.error||"Erreur";e.style.display="block";}}).catch(function(){btn.disabled=false;var e=document.getElementById("err");e.textContent="Erreur reseau";e.style.display="block";});}
+    </script>`;
+  res.send(shell(inner));
+});
+app.post("/api/eval/:token", evalLimiter, express.json({ limit: "1mb" }), (req, res) => {
+  const smq = require("./routes/smq");
+  const r = smq.publicEvalSubmit ? smq.publicEvalSubmit(req.params.token, req.body) : { error: "Indisponible", code: 500 };
+  if (r.error) return res.status(r.code || 400).json({ error: r.error });
+  res.json({ ok: true });
+});
+
 app.get("/health", (req, res) => {
   const store = require("./store");
   res.json({ status: store.lastError ? "degraded" : "ok",
