@@ -151,6 +151,9 @@ app.use("/api/messages", require("./routes/messages"));
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
+// Rappels d'échéance (documents/CNI/contrats) : une fois par jour + peu après le démarrage.
+setInterval(() => { try { require("./expiry").scanAndRemind(); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000);
+setTimeout(() => { try { require("./expiry").scanAndRemind(); } catch (e) {} }, 30000);
 
 // 404 — JSON for the API, custom page for everything else.
 app.use((req, res, next) => {

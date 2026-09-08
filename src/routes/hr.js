@@ -5,6 +5,7 @@
  * on RJ approval the amendment is applied / the leave is deducted.
  */
 const router = require("express").Router();
+const expiry = require("../expiry");
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
 const { mine, stamp } = require("../store");
@@ -182,5 +183,12 @@ router.post("/:id/leave", allow("GPF", "ADM"), (req, res) => {
   notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
   res.status(201).json(doc);
 });
+
+router.get("/expiring", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  let list = expiry.items(req.user.tenantId || "t1");
+  if (req.user.role === "GPF") { const u = db.users.find(x => x.id === req.user.id); const pfs = new Set((u && u.portfolioIds) || []); list = list.filter(x => pfs.has(x.portfolioId)); }
+  res.json(list);
+});
+router.post("/expiring/remind", allow("CD", "RJ", "ADM"), (req, res) => res.json({ sent: expiry.scanAndRemind() }));
 
 module.exports = { router, leaveBalance };
