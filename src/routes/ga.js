@@ -43,6 +43,7 @@ const SOURCES = {
   statut:         { label: "Statut (Employé/Cadre)", fn: c => c.emp.statut || "" },
   csp:            { label: "Catégorie socio-professionnelle", fn: c => c.emp.csp || "" },
   ntt:            { label: "N° technique temporaire (NTT)", fn: c => c.emp.ntt || "" },
+  niu:            { label: "NIU (Identifiant Unique)", fn: c => c.emp.niu || "" },
   etablissement:  { label: "Établissement", fn: c => c.emp.establishment || (c.pf && c.pf.name) || "" },
   ibanBanque:     { label: "IBAN", fn: c => (c.emp.bank && c.emp.bank.iban) || "" },
   libelleCompte:  { label: "Libellé du compte", fn: c => (c.emp.bank && c.emp.bank.label) || "" },
