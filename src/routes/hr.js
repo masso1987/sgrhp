@@ -217,4 +217,74 @@ router.get("/expiring", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
 });
 router.post("/expiring/remind", allow("CD", "RJ", "ADM"), (req, res) => res.json({ sent: expiry.scanAndRemind() }));
 
+/* ============================ AVI + Lettre de fin de contrat ============================ */
+const wf = require("../workflow");
+const AVI_DIR = path.join(__dirname, "..", "..", "uploads", "avi");
+require("fs").mkdirSync(AVI_DIR, { recursive: true });
+const aviUpload = multer({ storage: multer.diskStorage({ destination: AVI_DIR,
+  filename: (q, f, cb) => cb(null, `${Date.now()}-${(f.originalname||"lettre").replace(/[^\w.\-]/g, "_")}`) }),
+  limits: { fileSize: 15 * 1024 * 1024 } });
+
+/* Créer une demande d'AVI : la lettre de demande (banque) est obligatoire, puis circuit de validation. */
+router.post("/avi", allow("GPF", "ADM", "CD", "RJ"), aviUpload.single("letter"), (req, res) => {
+  const b = req.body || {};
+  const emp = mine(db.employees, req).find(e => e.id === b.employeeId);
+  if (!emp) return res.status(400).json({ error: "Salarié introuvable" });
+  if (!req.file) return res.status(400).json({ error: "La lettre de demande d'AVI (fichier) est obligatoire avant génération." });
+  const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
+  const doc = {
+    id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AVI", refId: emp.id,
+    title: `AVI — ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+    createdById: req.user.id, createdAt: new Date().toISOString(), status: "DRAFT", cycle: 1, steps: [], generatedFile: null,
+    attachment: { fileName: req.file.originalname, storedAs: req.file.filename, at: new Date().toISOString() },
+    data: {
+      employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), civility: civ,
+      matricule: emp.matricule || "", variant: b.variant === "mission" ? "mission" : "permanent",
+      fonction: b.fonction || emp.position || (emp.contract && emp.contract.category) || "",
+      missionCompany: b.missionCompany || "", hireDate: emp.hireDate || "",
+      contractType: (emp.contract && emp.contract.type) || "CDI",
+      bankName: b.bankName || (emp.bank && emp.bank.name) || emp.bankName || "",
+      accountNumber: b.accountNumber || (emp.bank && emp.bank.account) || emp.bankAccount || "",
+      purpose: b.purpose || "", ref: b.ref || "", date: b.date || new Date().toISOString().slice(0, 10),
+    },
+  };
+  db.documents.push(doc);
+  audit(req.user, "CREATED", "Document", doc.id, { type: "AVI", employee: emp.id });
+  wf.startWorkflow(doc, req.user); save();
+  res.status(201).json(wf.withTimer(doc));
+});
+
+/* Générer une lettre de fin de contrat à la banque (après clôture du contrat). */
+router.post("/:id/contract-letter", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const emp = mine(db.employees, req).find(e => e.id === req.params.id);
+  if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
+  const c = emp.contract || {};
+  if (!c.endDate) return res.status(400).json({ error: "Le contrat n'a pas de date de fin. Mettez d'abord fin au contrat." });
+  const b = req.body || {};
+  const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
+  const doc = {
+    id: id("doc"), tenantId: req.user.tenantId || "t1", type: "CONTRACT_END", refId: emp.id,
+    title: `Lettre fin de contrat — ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+    createdById: req.user.id, createdAt: new Date().toISOString(), status: "DRAFT", cycle: 1, steps: [], generatedFile: null,
+    data: {
+      employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), civility: civ, matricule: emp.matricule || "",
+      endDate: c.endDate, motif: c.departureReason || b.motif || "",
+      bankName: b.bankName || (emp.bank && emp.bank.name) || emp.bankName || "",
+      accountNumber: b.accountNumber || (emp.bank && emp.bank.account) || emp.bankAccount || "",
+      lastNet: b.lastNet || "", ref: b.ref || "", date: b.date || new Date().toISOString().slice(0, 10),
+    },
+  };
+  db.documents.push(doc);
+  audit(req.user, "CREATED", "Document", doc.id, { type: "CONTRACT_END", employee: emp.id });
+  wf.startWorkflow(doc, req.user); save();
+  res.status(201).json(wf.withTimer(doc));
+});
+
+/* Télécharger la lettre de demande jointe à une AVI. */
+router.get("/avi/:id/letter", allow("GPF", "ADM", "CD", "RJ", "UI"), (req, res) => {
+  const doc = mine(db.documents, req).find(d => d.id === req.params.id && d.type === "AVI");
+  if (!doc || !doc.attachment) return res.status(404).json({ error: "Pièce jointe introuvable" });
+  res.download(path.join(AVI_DIR, doc.attachment.storedAs), doc.attachment.fileName);
+});
+
 module.exports = { router, leaveBalance };

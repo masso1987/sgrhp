@@ -6,7 +6,7 @@ const { audit } = require("../audit");
 const wf = require("../workflow");
 
 // Validation queue for the caller's stage (CD or RJ), with live timers
-router.get("/queue", allow("CD", "RJ"), (req, res) => {
+router.get("/queue", allow("CD", "RJ", "RQ", "ADM"), (req, res) => {
   wf.slaScan();
   const list = mine(db.documents, req)
     .map(wf.withTimer)
@@ -67,12 +67,12 @@ router.post("/:id/resubmit", allow("GPF", "ADM"), (req, res, next) => {
   catch (e) { next(e); }
 });
 
-router.post("/:id/approve", allow("CD", "RJ"), (req, res, next) => {
+router.post("/:id/approve", allow("CD", "RJ", "RQ", "ADM"), (req, res, next) => {
   if (!mine(db.documents, req).some(d => d.id === req.params.id)) return res.status(404).json({ error: "Not found" });
   try { res.json(wf.approve(req.params.id, req.user)); } catch (e) { next(e); }
 });
 
-router.post("/:id/reject", allow("CD", "RJ"), (req, res, next) => {
+router.post("/:id/reject", allow("CD", "RJ", "RQ", "ADM"), (req, res, next) => {
   if (!mine(db.documents, req).some(d => d.id === req.params.id)) return res.status(404).json({ error: "Not found" });
   try { res.json(wf.reject(req.params.id, req.user, req.body?.reason)); } catch (e) { next(e); }
 });

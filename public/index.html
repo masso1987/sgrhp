@@ -922,6 +922,7 @@ const NAV = [
   { k: "dash", label: "Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "employees", label: "Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "generated", label: "Documents générés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
+  { k: "avi", label: "AVI (attestations bancaires)", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "dataio", label: "Import / Export", sec: "Données & validation", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "queue", label: "File de validation", sec: "Données & validation", roles: ["CD","RJ"], grp: "principal" },
 
@@ -1171,7 +1172,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1970,6 +1971,11 @@ async function endContractOpen(empId,current){
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="endContractSave('${empId}',this)">Enregistrer</button></div></div>`;
   bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
 }
+async function contractLetter(empId){
+  if(!confirm("Générer la lettre de fin de contrat à la banque ? Elle passera par le circuit de validation configuré."))return;
+  try{ await api("/hr/"+empId+"/contract-letter",{method:"POST",body:JSON.stringify({})}); alert("Lettre créée et soumise au circuit de validation. Elle sera disponible (Word) dans « Documents générés » une fois validée."); }
+  catch(e){ alert(e.message); }
+}
 async function endContractSave(empId,btn){ const d=(document.getElementById("ecDate")||{}).value, m=(document.getElementById("ecMotif")||{}).value;
   if(!d){ const e=document.getElementById("ecErr"); e.textContent="Date de fin obligatoire"; e.classList.remove("hidden"); return; }
   try{ await api("/employees/"+empId+"/end-contract",{method:"POST",body:JSON.stringify({endDate:d,motif:m||undefined})}); btn.closest(".modal-bg").remove(); empDetail(empId); }
@@ -2036,7 +2042,8 @@ async function empDetail(id) {
         <div><label>Fin</label><div>${(e.contract&&e.contract.type)==="CDI"?"durée indéterminée":esc((e.contract&&e.contract.endDate)||"-")}</div></div>
         <div><label>Mode de paiement</label><div>${esc(e.contract&&e.contract.paymentMethod||"-")}</div></div>
       </div>
-      ${(e.contract&&e.contract.endDate)?`<div class="note" style="margin-top:6px;color:#b45309">Fin de contrat prévue le <b>${esc(e.contract.endDate)}</b>${e.contract.departureReason?" — motif : "+esc(e.contract.departureReason):""}. Cette date apparaît dans la paie et les alertes d'expiration.</div>`:""}
+      ${(e.contract&&e.contract.endDate)?`<div class="note" style="margin-top:6px;color:#b45309">Fin de contrat prévue le <b>${esc(e.contract.endDate)}</b>${e.contract.departureReason?" — motif : "+esc(e.contract.departureReason):""}. Cette date apparaît dans la paie et les alertes d'expiration.</div>
+      ${canEdit?`<div style="margin-top:6px"><button class="btn ghost sm" onclick="contractLetter('${e.id}')">Générer la lettre à la banque (fin de contrat)</button></div>`:""}`:""}
       ${(e.contractsHistory&&e.contractsHistory.length)?`<div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">ANCIENS CONTRATS</b>
         <div style="overflow:auto"><table style="width:100%;margin-top:4px"><tr><th>Type</th><th>Début</th><th>Fin</th><th>Réf.</th></tr>
         ${e.contractsHistory.map(h=>`<tr><td>${esc(h.type||"-")}</td><td>${esc(h.startDate||"-")}</td><td>${esc(h.endDate||"-")}</td><td>${esc(h.reference||"")}</td></tr>`).join("")}</table></div></div>`:""}
@@ -3795,6 +3802,49 @@ async function testEmail() {
 /* ---- Notification templates (FR/EN) + recipients: their own screen ---- */
 const EVENT_LABELS = { submitted:"Soumission (à valider)", validated:"Validation", rejected:"Rejet",
   slaWarning:"Alerte délai 36h", slaBreach:"Dépassement 48h", expiry:"Alerte d'expiration de document" };
+async function aviView(){
+  const [emps,docs]=await Promise.all([api("/employees").catch(()=>[]),api("/documents").catch(()=>[])]);
+  const avis=(docs||[]).filter(d=>d.type==="AVI").sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  const stTag=(d)=>d.status==="GENERATED"?'<span class="tag green">Générée</span>':d.status==="DRAFT"?'<span class="tag red">Rejetée / brouillon</span>':`<span class="tag amber">En validation${d.currentStage?" ("+d.currentStage+")":""}</span>`;
+  view.innerHTML=`<h1>AVI — Attestations de virement irrévocable</h1>
+    <div class="note" style="max-width:780px">Document remis au salarié pour un prêt bancaire. Le GPF joint d'abord la <b>lettre de demande</b> ; l'AVI passe ensuite par le circuit de validation configuré, puis est générée (Word).</div>
+    <div style="margin:8px 0"><button class="btn p" onclick="aviForm()">+ Nouvelle demande d'AVI</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Salarié</th><th>Type</th><th>Banque</th><th>Statut</th><th>Créée le</th><th></th></tr>
+      ${avis.length?avis.map(d=>`<tr><td><b>${esc(d.data&&d.data.employeeName||"")}</b></td><td>${(d.data&&d.data.variant)==="mission"?"En mission":"Permanent"}</td><td>${esc(d.data&&d.data.bankName||"")}</td><td>${stTag(d)}</td><td>${esc((d.createdAt||"").slice(0,10))}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="aviLetter('${d.id}')">Lettre jointe</button>${d.status==="GENERATED"?` <button class="btn ghost sm" onclick="docDownload('${d.id}')">AVI (Word)</button>`:""}</td></tr>`).join(""):'<tr><td colspan="6" class="note">Aucune demande d\'AVI.</td></tr>'}
+    </table></div>`;
+  window._AVI_EMPS=emps;
+}
+function aviLetter(id){ fetch("/api/hr/avi/"+id+"/letter",{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>{if(!r.ok)throw 0;return r.blob();}).then(b=>{const u=URL.createObjectURL(b);window.open(u,"_blank");}).catch(()=>alert("Pièce jointe indisponible")); }
+function docDownload(id){ fetch("/api/documents/"+id+"/download",{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>r.blob()).then(b=>{const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download="AVI.docx";a.click();}).catch(e=>alert("Indisponible")); }
+async function aviForm(){
+  const emps=window._AVI_EMPS||await api("/employees").catch(()=>[]);
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:600px"><b>Nouvelle demande d'AVI</b>
+    <label>Salarié</label><select id="avEmp">${(emps||[]).map(e=>`<option value="${e.id}" data-b="${esc((e.bank&&e.bank.name)||e.bankName||'')}" data-c="${esc((e.bank&&e.bank.account)||e.bankAccount||'')}" data-f="${esc(e.position||(e.contract&&e.contract.category)||'')}">${esc((e.firstName||'')+' '+(e.lastName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("")}</select>
+    <div class="grid2"><div><label>Type</label><select id="avVariant" onchange="document.getElementById('avMissWrap').style.display=this.value==='mission'?'':'none'"><option value="permanent">Employé permanent</option><option value="mission">Employé en mission</option></select></div>
+      <div><label>Fonction</label><input id="avFonction"></div></div>
+    <div id="avMissWrap" style="display:none"><label>Entreprise d'accueil (mission)</label><input id="avMission"></div>
+    <div class="grid2"><div><label>Banque</label><input id="avBank"></div><div><label>N° de compte</label><input id="avAcct"></div></div>
+    <label>Objet / motif (prêt…)</label><input id="avPurpose">
+    <label>Lettre de demande (obligatoire) <span class="tag red">*</span></label><input type="file" id="avLetter" accept=".pdf,.docx,.jpg,.png">
+    <div class="err hidden" id="avErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="aviSubmit(this)">Créer & soumettre</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+  // prefill from selected employee
+  const fill=()=>{const o=document.getElementById("avEmp").selectedOptions[0]; if(!o)return; if(!document.getElementById("avBank").value)document.getElementById("avBank").value=o.dataset.b||""; if(!document.getElementById("avAcct").value)document.getElementById("avAcct").value=o.dataset.c||""; if(!document.getElementById("avFonction").value)document.getElementById("avFonction").value=o.dataset.f||"";};
+  document.getElementById("avEmp").addEventListener("change",fill); fill();
+}
+async function aviSubmit(btn){ const g=x=>(document.getElementById(x)||{}).value;
+  const f=(document.getElementById("avLetter")||{}).files; const err=document.getElementById("avErr"); err.classList.add("hidden");
+  if(!f||!f.length){ err.textContent="La lettre de demande est obligatoire."; err.classList.remove("hidden"); return; }
+  const fd=new FormData(); fd.append("letter",f[0]);
+  fd.append("employeeId",g("avEmp")); fd.append("variant",g("avVariant")); fd.append("fonction",g("avFonction"));
+  fd.append("missionCompany",g("avMission")); fd.append("bankName",g("avBank")); fd.append("accountNumber",g("avAcct")); fd.append("purpose",g("avPurpose"));
+  try{ const r=await fetch("/api/hr/avi",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok)throw new Error(j.error||"Erreur");
+    btn.closest(".modal-bg").remove(); aviView(); }
+  catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
+}
 const WF_ROLES=[["CD","Chef de département"],["RJ","Responsable juridique"],["RQ","Responsable qualité"],["ADM","Administrateur"]];
 async function workflowsView(){
   const s=await api("/settings").catch(()=>({}));

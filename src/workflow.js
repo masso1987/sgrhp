@@ -178,8 +178,64 @@ function setEmpStatus(doc, status) {
   }
 }
 
+/* Écrit un fichier généré dans uploads/generated et renvoie son nom. */
+function writeGenerated(docId, ext, buffer) {
+  const dir = path.join(__dirname, "..", "uploads", "generated");
+  fs.mkdirSync(dir, { recursive: true });
+  const fname = `${docId}${ext}`;
+  fs.writeFileSync(path.join(dir, fname), buffer);
+  return fname;
+}
+function companyInfo() {
+  const b = (db.settings && db.settings.branding) || {};
+  const c = b.company || {};
+  return { name: c.name || b.appName || "CIBLE RH EMPLOI S.A.", bp: c.address || "BP 3462 Douala",
+    dg: c.dg || "le Directeur Général", dga: c.dga || "La Directrice Générale Adjointe",
+    city: c.city || "Douala", niu: c.niu || "" };
+}
+const _fr = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? `${m[3]}/${m[2]}/${m[1]}` : (d || ""); };
+function aviParagraphs(doc) {
+  const d = doc.data || {}; const co = companyInfo();
+  const civ = d.civility || "Monsieur"; const name = d.employeeName || "";
+  const duree = (d.contractType === "CDD") ? "durée déterminée" : "durée indéterminée";
+  const p1 = d.variant === "mission"
+    ? `1- Attestons que ${civ} ${name} est employé dans notre société depuis le ${_fr(d.hireDate)}, occupe à ce jour la fonction de ${d.fonction || "……"} et présentement en mission auprès de l'entreprise ${d.missionCompany || "……"}.`
+    : `1- Attestons que ${civ} ${name} est employé permanent dans notre société depuis le ${_fr(d.hireDate)} et occupe à ce jour la fonction de ${d.fonction || "……"}.`;
+  return [
+    { text: `Réf : ${d.ref || co.name.split(" ")[0] + "/DG/DGA/RH"}`, size: 20 },
+    { text: "ATTESTATION DE VIREMENT IRRÉVOCABLE DE SALAIRE, D'EMPLOI ET DE NON ENDETTEMENT AUPRÈS DE L'EMPLOYEUR", bold: true, align: "center", size: 24 },
+    { text: `Nous soussignée ${co.name}, ${co.bp}, représentée par le Président Directeur Général ${co.dg},` },
+    { text: p1 },
+    { text: `2- Attestons qu'à la date de signature de la présente, le salarié est engagé en vertu d'un contrat à ${duree}.` },
+    { text: `3- Attestons que le salarié n'est pas redevable à ce jour vis-à-vis de ${co.name} d'une quelconque dette. Nous nous engageons sur son ordre formel à virer irrévocablement à son compte N° Compte : ${d.accountNumber || "…………"} ouvert à la ${d.bankName || "…………"}, toutes sommes qui lui seraient dues dans notre société au titre de salaire, indemnités et soldes.` },
+    { text: "4- Nous nous engageons également à virer toutes indemnités qui lui seraient dues s'il venait à quitter pour quelque raison que ce soit notre société et à aviser le Chef d'Agence et/ou le Directeur Clientèle des Particuliers de la banque de ce départ définitif au plus tard 05 jours ouvrés et/ou en même temps que le virement de liquidation de ses droits." },
+    { text: "5- Nous nous engageons à ne donner aucun acompte au salarié, et dès lors à virer la totalité de son salaire jusqu'à modification ou suspension suivant les termes du point 6 ci-dessous." },
+    { text: `6- Cet ordre ne pourra être modifié ou suspendu qu'après accord donné par le Chef d'Agence et/ou le Directeur Clientèle des Particuliers de la banque, ou après délivrance d'une attestation de non endettement, conjointement avec l'intéressé, ${civ} ${name}.` },
+    { text: "En foi de quoi, la présente attestation lui est délivrée pour servir et valoir ce que de droit. /." },
+    { text: "NB : Cette attestation doit être utilisée dans un délai de 15 jours à compter de la date de signature. " + co.name + " n'est en aucun cas une caution en cas d'octroi de prêts.", italic: true, size: 18 },
+    { text: `Fait à ${co.city}, le ${_fr(d.date) || new Date().toLocaleDateString("fr-FR")}.`, align: "right" },
+    { text: `${co.dga}`, bold: true, align: "right" },
+  ];
+}
+function contractEndParagraphs(doc) {
+  const d = doc.data || {}; const co = companyInfo();
+  const civ = d.civility || "Monsieur"; const name = d.employeeName || "";
+  return [
+    { text: `Réf : ${d.ref || ""}`, size: 20 },
+    { text: `${co.city}, le ${_fr(d.date) || new Date().toLocaleDateString("fr-FR")}`, align: "right", size: 20 },
+    { text: `À l'attention du Chef d'Agence,\n${d.bankName || "…………"}`, bold: true },
+    { text: `Objet : Fin de contrat — ${civ} ${name}`, bold: true },
+    { text: `Madame, Monsieur,` },
+    { text: `Nous vous informons que ${civ} ${name}, matricule ${d.matricule || "……"}, employé(e) de ${co.name}, a cessé ses fonctions au sein de notre société le ${_fr(d.endDate)}${d.motif ? " (motif : " + d.motif + ")" : ""}.` },
+    { text: `Le virement correspondant à son dernier salaire${d.lastNet ? " (net : " + Number(d.lastNet).toLocaleString("fr-FR") + " FCFA)" : ""} et au solde de tout compte sera effectué sur le compte N° ${d.accountNumber || "…………"} ouvert dans vos livres. En conséquence, l'attestation de virement irrévocable établie au profit de l'intéressé(e) prend fin à cette date.` },
+    { text: `Nous vous prions d'agréer, Madame, Monsieur, l'expression de nos salutations distinguées.` },
+    { text: `${co.dga}`, bold: true, align: "right" },
+  ];
+}
 /** Official document generation (§7.1): Word template rendering for template docs. */
 function generateOfficial(doc) {
+  if (doc.type === "AVI") return writeGenerated(doc.id, ".docx", require("./docgen").buildDocx(aviParagraphs(doc)));
+  if (doc.type === "CONTRACT_END") return writeGenerated(doc.id, ".docx", require("./docgen").buildDocx(contractEndParagraphs(doc)));
   if (doc.type === "AMENDMENT") {
     // Apply the approved amendment to the live contract (history stays in the document)
     const emp = db.employees.find(e => e.id === doc.refId);
@@ -230,4 +286,4 @@ const withTimer = d => {
     slaState: !step ? null : step.breachedAt ? "BREACH" : step.warnedAt ? "WARNING" : "OK" };
 };
 
-module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, SLA, WARN };
+module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, startWorkflow, SLA, WARN };
