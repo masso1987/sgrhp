@@ -940,6 +940,7 @@ const NAV = [
   { k: "payconfig", label: "Paramètres paie", sec: "Paramétrage", roles: ["ADM"], module: "payroll", grp: "paie" },
   { k: "payfiche", label: "Fiche individuelle", sec: "États", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payetats", label: "Livre & états de paie", sec: "États", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
+  { k: "ga", label: "Gestion Avancée (G.A.)", sec: "États", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
 
   { k: "billhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
   { k: "billing", label: "Annexes de facturation", sec: "Documents", roles: ["ADM","CD","RJ","GPF","UI"], module: "invoicing", grp: "facturation" },
@@ -1169,7 +1170,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6973,6 +6974,107 @@ const SMQ_DOC_STATUS={brouillon:'<span class="tag gray">Brouillon</span>',verifi
 function smqProcName(id){ const p=(window._SMQ.procs||[]).find(x=>x.id===id); return p?(p.code+" - "+p.intitule):""; }
 
 /* ---------- Tableau de bord ---------- */
+/* ================= Gestion Avancée (G.A.) — listes d'extraction paie ================= */
+function gaOpenEdit(id){ window._GAID=id||""; go("gaedit"); }
+function gaOpenRun(id){ window._GAID=id; go("garun"); }
+async function gaView(){
+  const list=await api("/ga").catch(()=>[]);
+  view.innerHTML=`<h1>Gestion Avancée — Liste des modèles</h1>
+    <div class="note" style="margin-bottom:8px">Modèles d'extraction (listes) alimentés par la paie et le personnel. Type « fixed » = fichier à colonnes de largeur fixe (ex. DIPE magnétique) ; « table » = tableau/Excel.</div>
+    <div style="margin-bottom:8px">${["ADM","CD","RJ"].includes(ME.role)?`<button class="btn p" onclick="gaOpenEdit('')">+ Nouveau modèle</button>`:''}</div>
+    <div class="panel"><table style="width:100%"><tr><th>Code</th><th>Intitulé</th><th>Type</th><th class="r">Éléments</th><th></th></tr>
+      ${list.length?list.map(m=>`<tr><td><b>GA\\${esc(m.code)}</b></td><td>${esc(m.intitule)}</td><td>${m.type==="table"?'<span class="tag blue">Table</span>':'<span class="tag">Largeur fixe</span>'}</td><td class="r">${m.nbElements}</td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="gaOpenRun('${m.id}')">Exécuter</button>
+          ${["ADM","CD","RJ"].includes(ME.role)?`<button class="btn ghost sm" onclick="gaOpenEdit('${m.id}')">Définir</button>`:''}
+          ${["ADM","CD"].includes(ME.role)?`<button class="btn ghost sm" style="color:var(--red)" onclick="gaDel('${m.id}')">Suppr.</button>`:''}</td></tr>`).join(""):'<tr><td colspan="5" class="note">Aucun modèle.</td></tr>'}
+    </table></div>`;
+}
+async function gaDel(id){ if(!confirm("Supprimer ce modèle de liste ?"))return; try{ await api("/ga/"+id,{method:"DELETE"}); gaView(); }catch(e){ alert(e.message); } }
+let _GA_SRC=null;
+async function gaEditView(){
+  const id=window._GAID||"";
+  if(!_GA_SRC) _GA_SRC=await api("/ga/sources").catch(()=>({sources:[],rubriques:[]}));
+  let m={code:"",intitule:"",titre:"",type:"fixed",confidentialite:0,fields:[]};
+  if(id){ m=await api("/ga/"+id).catch(()=>m); }
+  window._GAFIELDS=(m.fields||[]).map(f=>({label:f.label,source:f.source,taille:f.taille,decimales:f.decimales,colonne:f.colonne!==false}));
+  const srcOpts=(cur)=>{
+    const grp=(lbl,arr)=>`<optgroup label="${lbl}">${arr.map(x=>`<option value="${esc(x.key)}" ${cur===x.key?"selected":""}>${esc(x.label)}</option>`).join("")}</optgroup>`;
+    return `<option value="">—</option>`+grp("Champs",_GA_SRC.sources)+grp("Rubriques de paie",_GA_SRC.rubriques);
+  };
+  window._GA_SRCOPTS=srcOpts;
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('ga')">← Liste des modèles</button>
+    <h1 style="margin-top:10px">Définition d'une liste ${id?"— GA\\"+esc(m.code):"(nouveau)"}</h1>
+    <div class="panel"><div class="grid3">
+      <div><label>Code</label><input id="gaCode" value="${esc(m.code||"")}" placeholder="auto (LST000xx)" ${id?"readonly":""}></div>
+      <div><label>Intitulé</label><input id="gaInt" value="${esc(m.intitule||"")}"></div>
+      <div><label>Type</label><select id="gaType"><option value="fixed" ${m.type!=="table"?"selected":""}>Largeur fixe</option><option value="table" ${m.type==="table"?"selected":""}>Table / Excel</option></select></div>
+    </div>
+    <div class="grid2" style="margin-top:6px"><div><label>Titre</label><input id="gaTitre" value="${esc(m.titre||"")}"></div>
+      <div><label>Confidentialité</label><input id="gaConf" type="number" value="${Number(m.confidentialite)||0}"></div></div></div>
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>Liste des informations</b><button class="btn ghost sm" onclick="gaFieldAdd()">+ Élément</button></div>
+      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th>N°</th><th>Intitulé</th><th>Source</th><th class="r">Début</th><th class="r">Taille</th><th class="r">Déc.</th><th>Colonne</th><th></th></tr>
+        <tbody id="gaFields"></tbody></table></div>
+      <div class="note" id="gaWidth" style="margin-top:6px"></div></div>
+    <div class="err hidden" id="gaErr"></div>
+    <button class="btn p" onclick="gaSave('${id}')">Enregistrer</button>`;
+  gaRenderFields();
+}
+function gaRenderFields(){
+  const tb=document.getElementById("gaFields"); if(!tb)return; let pos=1;
+  tb.innerHTML=(window._GAFIELDS||[]).map((f,i)=>{ const deb=pos; pos+=Number(f.taille)||0;
+    return `<tr>
+      <td>${i+1}</td>
+      <td><input value="${esc(f.label||"")}" oninput="window._GAFIELDS[${i}].label=this.value" style="min-width:150px"></td>
+      <td><select onchange="window._GAFIELDS[${i}].source=this.value">${window._GA_SRCOPTS(f.source)}</select></td>
+      <td class="r">${deb}</td>
+      <td class="r"><input type="number" value="${Number(f.taille)||0}" oninput="window._GAFIELDS[${i}].taille=Number(this.value)||0;gaRenderFields()" style="width:64px;text-align:right"></td>
+      <td class="r"><input type="number" value="${Number(f.decimales)||0}" oninput="window._GAFIELDS[${i}].decimales=Number(this.value)||0" style="width:52px;text-align:right"></td>
+      <td style="text-align:center"><input type="checkbox" ${f.colonne!==false?"checked":""} onchange="window._GAFIELDS[${i}].colonne=this.checked"></td>
+      <td style="white-space:nowrap"><button class="btn ghost sm" onclick="gaFieldMove(${i},-1)">↑</button><button class="btn ghost sm" onclick="gaFieldMove(${i},1)">↓</button><button class="btn ghost sm" style="color:var(--red)" onclick="window._GAFIELDS.splice(${i},1);gaRenderFields()">×</button></td></tr>`;
+  }).join("");
+  const w=document.getElementById("gaWidth"); if(w) w.textContent=`Nombre d'éléments : ${(window._GAFIELDS||[]).length} · Largeur (ligne) : ${pos-1}`;
+}
+function gaFieldAdd(){ window._GAFIELDS=window._GAFIELDS||[]; window._GAFIELDS.push({label:"",source:"",taille:12,decimales:0,colonne:true}); gaRenderFields(); }
+function gaFieldMove(i,d){ const a=window._GAFIELDS; const j=i+d; if(j<0||j>=a.length)return; const t=a[i];a[i]=a[j];a[j]=t; gaRenderFields(); }
+async function gaSave(id){ const g=x=>(document.getElementById(x)||{}).value;
+  const body={code:g("gaCode"),intitule:g("gaInt"),titre:g("gaTitre"),type:g("gaType"),confidentialite:Number(g("gaConf"))||0,fields:(window._GAFIELDS||[]).filter(f=>f.label&&f.source)};
+  if(!body.intitule){ const e=document.getElementById("gaErr");e.textContent="Intitulé obligatoire";e.classList.remove("hidden");return; }
+  try{ const r=await api("/ga"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); window._GAID=r.id; go("ga"); }
+  catch(e){ const el=document.getElementById("gaErr");el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function gaRunView(){
+  const id=window._GAID; if(!id){ go("ga"); return; }
+  const [m,pfs,runs]=await Promise.all([api("/ga/"+id).catch(()=>null),api("/portfolios").catch(()=>[]),api("/payroll/runs").catch(()=>[])]);
+  if(!m){ view.innerHTML="<h1>G.A.</h1><div class='panel'>Introuvable.</div>"; return; }
+  const periods=[...new Set((runs||[]).map(r=>r.period))].sort().reverse();
+  if(window._GAPER===undefined) window._GAPER=periods[0]||new Date().toISOString().slice(0,7);
+  const pf=window._GAPF||"";
+  view.innerHTML=`<button class="btn ghost sm" onclick="go('ga')">← Liste des modèles</button>
+    <h1 style="margin-top:10px">GA\\${esc(m.code)} — ${esc(m.intitule)}</h1>
+    <div class="panel"><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div><label>Période</label><select id="gaPer" onchange="window._GAPER=this.value;gaRun('${id}')">${periods.length?periods.map(p=>`<option ${window._GAPER===p?"selected":""}>${p}</option>`).join(""):`<option>${window._GAPER}</option>`}</select></div>
+      <div><label>Portefeuille</label><select id="gaPf" onchange="window._GAPF=this.value;gaRun('${id}')"><option value="">Tous</option>${(pfs||[]).map(p=>`<option value="${p.id}" ${pf===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <button class="btn p sm" onclick="gaRun('${id}')">Exécuter</button>
+      ${m.type!=="table"?`<button class="btn ghost sm" onclick="gaExport('${id}','txt')">Exporter (.txt largeur fixe)</button>`:''}
+      <button class="btn ghost sm" onclick="gaExport('${id}','xlsx')">Exporter Excel</button>
+    </div></div>
+    <div id="gaOut" class="panel"><span class="note">Choisissez la période puis « Exécuter ».</span></div>`;
+  gaRun(id);
+}
+async function gaRun(id){
+  const per=(document.getElementById("gaPer")||{}).value||window._GAPER; const pf=(document.getElementById("gaPf")||{}).value||"";
+  window._GAPER=per; window._GAPF=pf;
+  const out=document.getElementById("gaOut"); if(out)out.innerHTML='<span class="note">Chargement…</span>';
+  const d=await api("/ga/"+id+"/run?period="+encodeURIComponent(per)+(pf?"&portfolioId="+pf:"")).catch(e=>{if(out)out.innerHTML='<span class="err">'+esc(e.message)+'</span>';return null;});
+  if(!d)return;
+  out.innerHTML=`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>${d.count} ligne(s)</b><span class="note">${d.type==="fixed"?("Largeur ligne : "+d.largeur):"Table"} · période ${esc(d.period)}</span></div>
+    <div style="overflow:auto"><table style="width:100%;font-size:12px"><tr>${d.columns.map(c=>`<th style="${c.numeric?'text-align:right':''}">${esc(c.label)}</th>`).join("")}</tr>
+    ${d.rows.map(r=>`<tr>${r.map((v,i)=>`<td style="${d.columns[i]&&d.columns[i].numeric?'text-align:right':''}">${esc(v==null?"":v)}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${d.columns.length}" class="note">Aucune donnée pour cette période.</td></tr>`}</table></div>`;
+}
+function gaExport(id,kind){ const per=window._GAPER||""; const pf=window._GAPF||"";
+  payDownload("/ga/"+id+"/export."+kind+"?period="+encodeURIComponent(per)+(pf?"&portfolioId="+pf:""), (kind==="txt"?"GA_"+id+".txt":"GA_"+id+".xlsx"));
+}
+
 /* ================= SMQ : Conformité du personnel ================= */
 function epiToggle(id){const r=document.getElementById(id);if(r)r.style.display=(r.style.display==='none'?'':'none');}
 /* ================= SMQ : Veille réglementaire ================= */
