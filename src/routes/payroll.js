@@ -129,7 +129,8 @@ function structureToInput(emp, req) {
   return { baseSalary, gains, transport };
 }
 
-function elementsToInput(emp, period, req) {
+function elementsToInput(emp, period, req, opts) {
+  opts = opts || {};
   // 1) recurring structure from the HR dossier
   const struct = structureToInput(emp, req);
   const gains = [...struct.gains], nonTaxable = [], otherDeductions = [], avantages = [];
@@ -165,6 +166,11 @@ function elementsToInput(emp, period, req) {
   const stdDays = cfg.standardMonthlyDays || 30;
   const workedDays = joursEl != null ? Math.max(0, Number(joursEl.days))
     : Math.max(0, stdDays - absenceDays);
+  // Injection ponctuelle (calcul à l'envers) : une rubrique d'ajustement en gain imposable/cotisable.
+  if (opts.extraGain && Number(opts.extraGain.amount)) {
+    const g = opts.extraGain;
+    gains.push({ code: g.code || "2000", label: g.label || "Ajustement", amount: Number(g.amount), cnps: g.cnps !== false, impo: g.impo !== false });
+  }
   return {
     baseSalary: struct.baseSalary,
     workedDays, standardDays: cfg.standardMonthlyDays || 30,
@@ -173,11 +179,39 @@ function elementsToInput(emp, period, req) {
     tdlBase: struct.baseSalary,
   };
 }
-function computeFor(emp, period, req) {
+function computeFor(emp, period, req, opts) {
   const cfg = configOf(req);
-  const input = elementsToInput(emp, period, req);
+  const input = elementsToInput(emp, period, req, opts);
   const result = computePayslip(input, cfg);
   return { input, result };
+}
+// Calcul à l'envers : trouve le montant de la rubrique d'ajustement donnant le net cible.
+function reverseSolve(emp, period, req, targetNet, code, label) {
+  const iterations = [];
+  const netFor = (amount) => {
+    const { result } = computeFor(emp, period, req, { extraGain: { code, label, amount } });
+    return result.totals.netAPayer;
+  };
+  const net0 = netFor(0);
+  targetNet = Number(targetNet) || 0;
+  // Si le net de base dépasse déjà la cible, rien à ajouter.
+  if (net0 >= targetNet) { iterations.push({ n: 1, montant: 0, net: Math.round(net0) }); return { amount: 0, net: Math.round(net0), iterations, alreadyReached: true }; }
+  // Borne haute : on augmente jusqu'à dépasser la cible.
+  let hi = Math.max(targetNet - net0, 1000);
+  let guard = 0;
+  while (netFor(hi) < targetNet && guard < 40) { hi *= 2; guard++; }
+  let lo = 0, amount = hi, net = 0;
+  for (let i = 0; i < 60; i++) {
+    amount = (lo + hi) / 2;
+    net = netFor(amount);
+    iterations.push({ n: i + 1, montant: Math.round(amount), net: Math.round(net) });
+    if (Math.abs(net - targetNet) < 0.5) break;
+    if (net < targetNet) lo = amount; else hi = amount;
+    if (hi - lo < 0.01) break;
+  }
+  amount = Math.round(amount);
+  net = Math.round(netFor(amount));
+  return { amount, net, iterations: iterations.slice(-12) };
 }
 
 /* ============================ CONFIG ============================ */
@@ -435,6 +469,34 @@ router.post("/simulate/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) 
   res.json({ employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || "", period, input, result, simulation: true });
 });
 
+/* Calcul à l'envers : à partir d'un net à payer cible, trouver le montant de la rubrique d'ajustement. */
+router.post("/reverse/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
+  if (!emp) return res.status(404).json({ error: "Employé introuvable" });
+  const b = req.body || {};
+  const period = b.period || new Date().toISOString().slice(0, 7);
+  const targetNet = Number(b.targetNet);
+  if (!(targetNet > 0)) return res.status(400).json({ error: "Net à payer cible invalide" });
+  const code = String(b.code || "2000");
+  const rub = mine(db.payRubriques, req).find(r => String(r.code) === code);
+  const label = b.label || (rub && rub.label) || "Ajustement (net cible)";
+  const sol = reverseSolve(emp, period, req, targetNet, code, label);
+  // Détail du bulletin obtenu avec le montant trouvé.
+  const { input, result } = computeFor(emp, period, req, { extraGain: { code, label, amount: sol.amount } });
+  const out = { employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`.trim(), matricule: emp.matricule || "", period, targetNet, code, label, amount: sol.amount, net: sol.net, iterations: sol.iterations, alreadyReached: !!sol.alreadyReached, input, result, simulation: true };
+  // Appliquer : enregistre le montant comme élément variable (PRIME) pour cette période.
+  if (b.apply) {
+    if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
+    // Retire un éventuel ajustement précédent de même code.
+    db.payElements = db.payElements.filter(e => !(e.employeeId === emp.id && e.period === period && e.reverseAdj && e.code === code && (e.tenantId || "t1") === (req.user.tenantId || "t1")));
+    const rec = stamp({ id: id("pe"), employeeId: emp.id, period, type: "PRIME", code, label, amount: sol.amount, reverseAdj: true, createdAt: new Date().toISOString() }, req);
+    db.payElements.push(rec); save();
+    audit(req.user, "REVERSE_CALC", "Employee", emp.id, { period, targetNet, code, amount: sol.amount });
+    out.applied = true; out.elementId = rec.id;
+  }
+  res.json(out);
+});
+
 /** Close the period: lock payslips and roll year-to-date cumuls. */
 router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
@@ -502,6 +564,15 @@ router.get("/payslips/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const s = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
   res.json(s);
+});
+
+/* Duplicatas : liste des bulletins d'un salarié (mois précédents). */
+router.get("/employees/:eid/payslips", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const rows = mine(db.payslips, req).filter(x => x.employeeId === req.params.eid)
+    .map(x => ({ id: x.id, period: x.period, date: (x.result && x.result.meta && x.result.meta.payDate) || x.createdAt || "",
+      net: (x.result && x.result.totals && x.result.totals.netAPayer) || 0, status: x.status }))
+    .sort((a, b) => String(b.period).localeCompare(String(a.period)));
+  res.json(rows);
 });
 
 /* PDF bulletin de paie */

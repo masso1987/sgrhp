@@ -3980,7 +3980,9 @@ async function bulletinView(runId, empId) {
     <small style="color:var(--muted)">${esc(rmeta.matricule || "")} · ${esc(run.period)}</small> ${rosterStatusTag(rmeta)}</h1>
   <div class="panel" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     ${open && canRunPay() ? `<button class="btn p" onclick="bulletinCompute('${runId}','${empId}')">Calculer ce bulletin</button>` : ""}
-    ${slip ? `<button class="btn ghost" onclick="payPdf('${slip.id}',0)">PDF</button><button class="btn ghost" onclick="payPdf('${slip.id}',1)">Imprimer</button><button class="btn ghost" onclick="bulletinEmail('${slip.id}')">Email</button>` : ""}
+    ${open && canRunPay() ? `<button class="btn ghost" onclick="revCalcOpen('${runId}','${empId}','${run.period}')">Calcul à l'envers</button>` : ""}
+    ${slip ? `<button class="btn ghost" onclick="payPreview('${slip.id}')">Aperçu</button><button class="btn ghost" onclick="payPdf('${slip.id}',0)">PDF</button><button class="btn ghost" onclick="payPdf('${slip.id}',1)">Imprimer</button><button class="btn ghost" onclick="bulletinEmail('${slip.id}')">Email</button>` : ""}
+    <button class="btn ghost" onclick="dupOpen('${empId}')">Duplicatas</button>
     ${slip && (ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit")) ? `<button class="btn ghost" onclick="payslipView('${slip.id}', true)">Corriger</button>` : ""}
     <span style="flex:1"></span>
     ${prev ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${prev}')">◀ Précédent</button>` : ""}
@@ -3989,6 +3991,71 @@ async function bulletinView(runId, empId) {
   <div class="panel" style="display:flex;gap:6px">${tab("elements", "Éléments variables")}${tab("prets", "Prêts")}${tab("structure", "Structure de paie")}${tab("calcule", "Bulletin calculé")}</div>
   <div id="bulletinTab"></div>`;
   bulletinRenderTab();
+}
+/* ---- Aperçu du bulletin (PDF inline, sans téléchargement) ---- */
+function payPreview(slipId){
+  fetch("/api/payroll/payslips/"+slipId+"/pdf?print=0",{headers:{Authorization:"Bearer "+TOKEN}})
+    .then(r=>r.blob()).then(b=>{ const u=URL.createObjectURL(b); window.open(u,"_blank"); })
+    .catch(e=>alert("Aperçu indisponible: "+e.message));
+}
+/* ---- Calcul à l'envers (net cible -> montant rubrique) ---- */
+async function revCalcOpen(runId,empId,period){
+  const rubs=await api("/payroll/rubriques").catch(()=>[]);
+  const gains=(rubs||[]).filter(r=>!r.family||/gain|prime|salaire|indemn|brut/i.test((r.family||"")+" "+(r.label||"")));
+  const opts=(gains.length?gains:rubs).map(r=>`<option value="${esc(String(r.code))}" data-l="${esc(r.label||"")}">${esc(String(r.code))} - ${esc(r.label||"")}</option>`).join("");
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Calcul à l'envers — bulletin à partir du net à payer</b>
+    <div class="note" style="margin:4px 0 8px">Saisissez le net à payer souhaité et la rubrique d'ajustement. Le logiciel calcule le montant brut de cette rubrique qui donne exactement ce net.</div>
+    <div class="grid2"><div><label>Net à payer cible (FCFA)</label><input id="rvNet" type="number" min="0" placeholder="ex. 300000"></div>
+      <div><label>Rubrique d'ajustement</label><select id="rvCode">${opts}</select></div></div>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn p sm" onclick="revCalcRun('${runId}','${empId}','${period}')">Calculer</button>
+      <button class="btn sm" id="rvApplyBtn" style="display:none" onclick="revCalcApply('${runId}','${empId}','${period}')">Appliquer au bulletin</button></div>
+    <div class="err hidden" id="rvErr" style="margin-top:6px"></div>
+    <div id="rvOut" style="margin-top:10px"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+window._REV=null;
+async function revCalcRun(runId,empId,period){
+  const net=Number((document.getElementById("rvNet")||{}).value); const sel=document.getElementById("rvCode");
+  const code=sel.value, label=sel.selectedOptions[0]?sel.selectedOptions[0].dataset.l:"";
+  const err=document.getElementById("rvErr"); err.classList.add("hidden");
+  if(!(net>0)){ err.textContent="Net à payer invalide"; err.classList.remove("hidden"); return; }
+  try{
+    const r=await api("/payroll/reverse/"+empId,{method:"POST",body:JSON.stringify({period,targetNet:net,code,label})});
+    window._REV={code,label,net};
+    const rows=(r.iterations||[]).map(it=>`<tr><td>${it.n}</td><td style="text-align:right">${fCFA(it.montant)}</td><td style="text-align:right">${fCFA(it.net)}</td></tr>`).join("");
+    document.getElementById("rvOut").innerHTML=`
+      <div class="panel" style="background:var(--sidebar-bg)"><div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div><div class="note">Montant ${esc(r.label)}</div><div style="font-size:22px;font-weight:600">${fCFA(r.amount)}</div></div>
+        <div><div class="note">Net obtenu</div><div style="font-size:22px;font-weight:600;color:${Math.abs(r.net-net)<1?'#16a34a':'#f97316'}">${fCFA(r.net)}</div></div>
+        <div><div class="note">Net cible</div><div style="font-size:22px;font-weight:600">${fCFA(net)}</div></div>
+      </div>${r.alreadyReached?'<div class="note" style="margin-top:6px;color:#f97316">Le net de base atteint déjà la cible sans ajustement.</div>':''}</div>
+      <div style="max-height:180px;overflow:auto"><table style="width:100%"><tr><th>Calcul N°</th><th style="text-align:right">Montant</th><th style="text-align:right">Net à payer</th></tr>${rows}</table></div>`;
+    document.getElementById("rvApplyBtn").style.display="";
+  }catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
+}
+async function revCalcApply(runId,empId,period){
+  const net=Number((document.getElementById("rvNet")||{}).value); const sel=document.getElementById("rvCode");
+  const code=sel.value, label=sel.selectedOptions[0]?sel.selectedOptions[0].dataset.l:"";
+  try{
+    await api("/payroll/reverse/"+empId,{method:"POST",body:JSON.stringify({period,targetNet:net,code,label,apply:true})});
+    document.querySelector(".modal-bg").remove();
+    await bulletinCompute(runId,empId);
+  }catch(e){ const err=document.getElementById("rvErr"); err.textContent=e.message; err.classList.remove("hidden"); }
+}
+/* ---- Duplicatas : bulletins des mois précédents d'un salarié ---- */
+async function dupOpen(empId){
+  const rows=await api("/payroll/employees/"+empId+"/payslips").catch(()=>[]);
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:420px"><b>Liste des bulletins</b>
+    <div class="note" style="margin:4px 0 8px">Cliquez sur une période pour éditer le duplicata (PDF).</div>
+    <div style="max-height:340px;overflow:auto"><table style="width:100%"><tr><th>Période</th><th>Date</th><th style="text-align:right">Net</th><th></th></tr>
+      ${rows.length?rows.map(r=>`<tr><td><b>${esc(r.period)}</b></td><td>${esc((r.date||"").slice(0,10))}</td><td style="text-align:right">${fCFA(r.net)}</td>
+        <td><button class="btn ghost sm" onclick="payPreview('${r.id}')">Éditer</button></td></tr>`).join(""):'<tr><td colspan="4" class="note">Aucun bulletin.</td></tr>'}
+    </table></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Quitter</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
 }
 let BULLETIN_CTX = {};
 function bulletinRenderTab() {
