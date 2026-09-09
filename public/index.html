@@ -1243,6 +1243,19 @@ async function empForm(edit) {
       <div><label>Type de contrat</label><select id="fCt" onchange="fEndWrap.classList.toggle('hidden', !(window._CTYPES.find(t=>t.name===this.value)||{}).fixedTerm)">
       ${ctypes.map(t => `<option>${esc(t.name)}</option>`).join("")}</select></div></div>
     <div id="fEndWrap" class="hidden"><label>Date de fin de contrat <span class="tag amber">obligatoire pour les contrats à durée déterminée</span></label><input id="fEnd" type="date" style="max-width:220px"></div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
+      <label>Détail du contrat</label>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Nature du contrat</label><input id="fCNature" placeholder="Droit privé"></div>
+        <div><label>Type d'entrée</label><input id="fCEntree" placeholder="Embauche"></div>
+        <div><label>Référence / N° contrat</label><input id="fCRef"></div>
+      </div>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Fin période d'essai</label><input id="fCEssai" type="date"></div>
+        <div><label>Date d'ancienneté</label><input id="fCAnc" type="date"></div>
+        <div><label>Motif du contrat</label><input id="fCMotif"></div>
+      </div>
+    </div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;background:#f8fafc">
       <label>Convention collective <span class="tag gray">par défaut : celle du portefeuille - modifiable</span></label>
       <select id="fCnv" onchange="syncCnv()"><option value="">- sélectionner -</option>${cnvs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
@@ -1257,7 +1270,11 @@ async function empForm(edit) {
     <div class="grid3">
       <div><label>Numéro CNI</label><input id="fCni"></div>
       <div><label>Validité CNI</label><input id="fCniExp" type="date"></div>
-      <div><label>Numéro CNPS</label><input id="fCnps"></div></div>
+      <div><label>N° Sécurité sociale (CNPS)</label><div style="display:flex;gap:6px"><input id="fCnps" style="flex:1" placeholder="numéro"><input id="fCnpsKey" style="width:56px" maxlength="2" placeholder="clé"></div></div></div>
+    <div class="grid3">
+      <div><label>Nationalité</label><input id="fNat" placeholder="Camerounaise"></div>
+      <div><label>Statut</label><select id="fStatut"><option value="">-</option><option>Employé</option><option>Agent de maîtrise</option><option>Cadre</option></select></div>
+      <div><label>Catégorie socio-pro. (CSP)</label><input id="fCsp"></div></div>
     <div class="grid3">
       <div><label>Téléphone</label><input id="fPhone"></div>
       <div><label>Email (envoi du bulletin)</label><input id="fEmail" type="email" placeholder="salarie@exemple.com"></div>
@@ -1282,8 +1299,27 @@ async function empForm(edit) {
         <div><label>Département</label><input id="fDept"></div>
         <div><label>Nombre d'enfants</label><input id="fChild" type="number" min="0"></div>
         <div><label>N° DIPE</label><input id="fDipe"></div>
-        <div><label>Banque</label><input id="fBank"></div>
-        <div><label>N° de compte</label><input id="fAcct"></div>
+        <div><label>N° technique temporaire (NTT)</label><input id="fNtt"></div>
+        <div><label>Établissement</label><input id="fEtab" placeholder="ex. Siège"></div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
+      <label>Coordonnées bancaires (RIB) <span class="tag gray">pour l'ordre de virement et le LISTING/DIPE</span></label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-top:6px">
+        <div style="width:90px"><label>Banque</label><input id="fRibBank" maxlength="5" placeholder="10003"></div>
+        <div style="width:90px"><label>Guichet</label><input id="fRibGui" maxlength="5" placeholder="01300"></div>
+        <div style="flex:1;min-width:160px"><label>N° compte</label><input id="fRibCpt" placeholder="02130676344"></div>
+        <div style="width:60px"><label>Clé</label><input id="fRibCle" maxlength="2" placeholder="43"></div>
+      </div>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Libellé du compte</label><input id="fRibLib"></div>
+        <div><label>Nom de la banque</label><input id="fBank" placeholder="SGC"></div>
+        <div><label>Nom du guichet</label><input id="fRibGuiNom"></div>
+      </div>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>IBAN</label><input id="fIban"></div>
+        <div><label>BIC</label><input id="fBic"></div>
+        <div><label>Code pays banque</label><input id="fBankPays" maxlength="3" placeholder="CMR"></div>
       </div>
     </div>
     <div class="err hidden" id="fErr"></div>
@@ -1296,15 +1332,19 @@ async function empForm(edit) {
     fHire.value = edit.hireDate || ""; fBirth.value = edit.birthDate || ""; fBp.value = edit.birthPlace || "";
     if (edit.maritalStatus) fMs.value = edit.maritalStatus;
     fCni.value = edit.cniNumber || ""; fCniExp.value = edit.cniExpiry || ""; fCnps.value = edit.cnpsNumber || "";
+    const _sv=(idv,val)=>{const el=document.getElementById(idv); if(el) el.value=val;};
+    _sv("fCnpsKey", edit.cnpsKey||""); _sv("fNat", edit.nationality||""); _sv("fStatut", edit.statut||""); _sv("fCsp", edit.csp||""); _sv("fNtt", edit.ntt||""); _sv("fEtab", edit.establishment||"");
     fPhone.value = edit.phone || ""; fEmail.value = edit.email || ""; fEmgName.value = edit.emergencyName || ""; fEmgTel.value = edit.emergencyPhone || "";
     fMat.value = edit.matricule || ""; fPos.value = edit.position || (edit.contract && edit.contract.position) || "";
     fQual.value = edit.qualification || ""; fDept.value = edit.department || ""; fChild.value = edit.children != null ? edit.children : "";
-    fDipe.value = edit.dipe || ""; fBank.value = edit.bankName || ""; fAcct.value = edit.bankAccount || "";
+    fDipe.value = edit.dipe || "";
+    const _b=edit.bank||{}; _sv("fBank", edit.bankName||_b.name||""); _sv("fRibBank", _b.code||edit.bankCode||""); _sv("fRibGui", _b.branch||edit.bankBranch||""); _sv("fRibCpt", _b.account||edit.bankAccount||""); _sv("fRibCle", _b.key||edit.bankKey||""); _sv("fRibLib", _b.label||""); _sv("fRibGuiNom", _b.branchName||""); _sv("fIban", _b.iban||""); _sv("fBic", _b.bic||""); _sv("fBankPays", _b.country||"");
     const c = edit.contract || {};
     if (c.type) fCt.value = c.type; if (c.paymentMethod) fPay.value = c.paymentMethod;
     if (c.conventionId && document.getElementById("fCnv")) { fCnv.value = c.conventionId; syncCnv(); } if (c.category) fCat.value = c.category; if (c.step) fStep.value = c.step;
     const ft = (window._CTYPES.find(t =>t.name === fCt.value) || {}).fixedTerm;
     fEndWrap.classList.toggle("hidden", !ft); if (c.endDate) fEnd.value = c.endDate;
+    _sv("fCNature", c.nature||""); _sv("fCEntree", c.entryType||""); _sv("fCRef", c.reference||""); _sv("fCEssai", c.trialEnd||""); _sv("fCAnc", c.seniorityDate||""); _sv("fCMotif", c.motif||"");
     // salary rubriques rendered by renderSalEls (portfolio-scoped)
   }
 }
@@ -1368,11 +1408,22 @@ async function empSave(editId) {
       civility: fCiv.value, firstName: fFirst.value, lastName: fLast.value, portfolioId: fPf.value,
       hireDate: fHire.value, birthDate: fBirth.value, birthPlace: fBp.value,
       maritalStatus: fMs.value, cniNumber: fCni.value, cniExpiry: fCniExp.value,
-      cnpsNumber: fCnps.value, phone: fPhone.value,
+      cnpsNumber: fCnps.value, cnpsKey: (document.getElementById("fCnpsKey")||{}).value || undefined,
+      nationality: (document.getElementById("fNat")||{}).value || undefined,
+      statut: (document.getElementById("fStatut")||{}).value || undefined,
+      csp: (document.getElementById("fCsp")||{}).value || undefined,
+      ntt: (document.getElementById("fNtt")||{}).value || undefined,
+      establishment: (document.getElementById("fEtab")||{}).value || undefined,
+      phone: fPhone.value,
       matricule: fMat.value || undefined, qualification: fQual.value || undefined,
       department: fDept.value || undefined, position: fPos.value || undefined,
       children: fChild.value !== "" ? Number(fChild.value) : undefined, dipe: fDipe.value || undefined,
-      bankName: fBank.value || undefined, bankAccount: fAcct.value || undefined,
+      bankName: fBank.value || undefined,
+      bankCode: (document.getElementById("fRibBank")||{}).value || undefined,
+      bankBranch: (document.getElementById("fRibGui")||{}).value || undefined,
+      bankAccount: (document.getElementById("fRibCpt")||{}).value || undefined,
+      bankKey: (document.getElementById("fRibCle")||{}).value || undefined,
+      bank: { code:(document.getElementById("fRibBank")||{}).value||"", branch:(document.getElementById("fRibGui")||{}).value||"", account:(document.getElementById("fRibCpt")||{}).value||"", key:(document.getElementById("fRibCle")||{}).value||"", label:(document.getElementById("fRibLib")||{}).value||"", name:fBank.value||"", branchName:(document.getElementById("fRibGuiNom")||{}).value||"", iban:(document.getElementById("fIban")||{}).value||"", bic:(document.getElementById("fBic")||{}).value||"", country:(document.getElementById("fBankPays")||{}).value||"" },
       emergencyName: fEmgName.value, emergencyPhone: fEmgTel.value,
       emergencyContact: [fEmgName.value, fEmgTel.value].filter(Boolean).join(" - "), email: fEmail.value,
       epi: [...view.querySelectorAll(".epirow")].map(r => ({ productId: r.querySelector(".epiProd").value || undefined, designation: r.querySelector(".epiDes").value.trim(), quantity: Number(r.querySelector(".epiQty").value) || 0, year: Number(r.querySelector(".epiYear").value) || undefined })).filter(x => (x.designation || x.productId) && x.quantity > 0),
@@ -1380,6 +1431,12 @@ async function empSave(editId) {
         conventionId: (document.getElementById("fCnv") || {}).value || undefined,
         conventionName: (function(){ const s=document.getElementById("fCnv"); return s && s.selectedOptions[0] && s.value ? s.selectedOptions[0].text : undefined; })(),
         paymentMethod: fPay.value, startDate: fHire.value,
+        nature: (document.getElementById("fCNature")||{}).value || undefined,
+        entryType: (document.getElementById("fCEntree")||{}).value || undefined,
+        reference: (document.getElementById("fCRef")||{}).value || undefined,
+        trialEnd: (document.getElementById("fCEssai")||{}).value || undefined,
+        seniorityDate: (document.getElementById("fCAnc")||{}).value || undefined,
+        motif: (document.getElementById("fCMotif")||{}).value || undefined,
         endDate: (window._CTYPES.find(t=>t.name===fCt.value)||{}).fixedTerm ? fEnd.value : null },
       salary: Object.fromEntries([...view.querySelectorAll(".salrow")].map(row => {
           const c = row.querySelector(".salchk"), a = row.querySelector(".salamt");
@@ -1405,7 +1462,7 @@ async function empDetail(id) {
       <div><label>Embauché le</label><div>${e.hireDate}</div></div>
       <div><label>Né(e) le</label><div>${e.birthDate} - ${esc(e.birthPlace || "-")}</div></div>
       <div><label>CNI</label><div>${esc(e.cniNumber)} (exp. ${e.cniExpiry})</div></div>
-      <div><label>CNPS</label><div>${esc(e.cnpsNumber || "-")}</div></div>
+      <div><label>CNPS</label><div>${esc(e.cnpsNumber || "-")}${e.cnpsKey?" clé "+esc(e.cnpsKey):""}</div></div>
       <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "-"}${e.emergencyPhone ? " · " + e.emergencyPhone : ""}</div></div>
       <div><label>Contrat</label><div>${e.contract?.type || "-"} · ${e.contract?.paymentMethod || ""}<br>
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
@@ -1918,6 +1975,26 @@ async function habSave(empId,hid,btn){ const g=i=>document.getElementById(i);
   try{ await api("/hr/habilitations"+(hid?("/"+hid):""),{method:hid?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); empDetail(empId); }
   catch(e){ const el=g("hbErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
 async function habDel(hid,empId){ if(!confirm("Supprimer cette habilitation ?"))return; try{ await api("/hr/habilitations/"+hid,{method:"DELETE"}); empDetail(empId); }catch(e){ alert(e.message); } }
+async function newContractOpen(empId){
+  const bg=document.createElement("div");bg.className="modal-bg";
+  const today=new Date().toISOString().slice(0,10);
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Nouveau contrat</b>
+    <div class="note" style="margin:4px 0 8px">Le contrat courant est archivé (dans « Anciens contrats ») avec la date de fin ci-dessous, puis un nouveau contrat démarre.</div>
+    <div class="grid2"><div><label>Date de fin de l'ancien contrat</label><input id="ncPrevEnd" type="date" value="${today}"></div>
+      <div><label>Date de début du nouveau</label><input id="ncStart" type="date" value="${today}"></div></div>
+    <div class="grid2"><div><label>Type</label><select id="ncType">${(window._CTYPES||[]).map(t=>`<option>${esc(t.name)}</option>`).join("")}</select></div>
+      <div><label>Date de fin (si CDD)</label><input id="ncEnd" type="date"></div></div>
+    <div class="grid2"><div><label>Nature</label><input id="ncNature"></div><div><label>Référence / N°</label><input id="ncRef"></div></div>
+    <div class="err hidden" id="ncErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="newContractSave('${empId}',this)">Créer le contrat</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+  if(!window._CTYPES){ api("/config/contract-types").then(t=>{window._CTYPES=t; const sel=document.getElementById("ncType"); if(sel)sel.innerHTML=(t||[]).map(x=>`<option>${esc(x.name)}</option>`).join("");}); }
+}
+async function newContractSave(empId,btn){ const g=x=>(document.getElementById(x)||{}).value;
+  const body={ previousEndDate:g("ncPrevEnd"), startDate:g("ncStart"),
+    contract:{ type:g("ncType"), startDate:g("ncStart"), endDate:g("ncEnd")||null, nature:g("ncNature")||undefined, reference:g("ncRef")||undefined } };
+  try{ await api("/employees/"+empId+"/new-contract",{method:"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); empDetail(empId); }
+  catch(e){ const el=document.getElementById("ncErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
 async function empDetail(id) {
   const e = await api("/employees/" + id);
   const docs = await api("/documents");
@@ -1962,11 +2039,28 @@ async function empDetail(id) {
       <div><label>Embauché le</label><div>${e.hireDate}</div></div>
       <div><label>Né(e) le</label><div>${e.birthDate} - ${esc(e.birthPlace || "-")}</div></div>
       <div><label>CNI</label><div>${esc(e.cniNumber)} (exp. ${e.cniExpiry})</div></div>
-      <div><label>CNPS</label><div>${esc(e.cnpsNumber || "-")}</div></div>
+      <div><label>CNPS</label><div>${esc(e.cnpsNumber || "-")}${e.cnpsKey?" clé "+esc(e.cnpsKey):""}</div></div>
       <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "-"}${e.emergencyPhone ? " · " + e.emergencyPhone : ""}</div></div>
       <div><label>Contrat</label><div>${e.contract?.type || "-"} · ${e.contract?.paymentMethod || ""}<br>
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px;color:var(--muted)">CONTRAT</b>
+      ${canEdit?`<button class="btn ghost sm" onclick="newContractOpen('${e.id}')">Nouveau contrat</button>`:""}</div>
+      <div class="grid3" style="margin-top:6px;font-size:13px">
+        <div><label>Type</label><div>${esc(e.contract&&e.contract.type||"-")}</div></div>
+        <div><label>Nature</label><div>${esc(e.contract&&e.contract.nature||"-")}</div></div>
+        <div><label>Référence / N°</label><div>${esc(e.contract&&e.contract.reference||"-")}</div></div>
+        <div><label>Début</label><div>${esc((e.contract&&e.contract.startDate)||e.hireDate||"-")}</div></div>
+        <div><label>Fin</label><div>${(e.contract&&e.contract.type)==="CDI"?"durée indéterminée":esc((e.contract&&e.contract.endDate)||"-")}</div></div>
+        <div><label>Fin période d'essai</label><div>${esc(e.contract&&e.contract.trialEnd||"-")}</div></div>
+        <div><label>Date d'ancienneté</label><div>${esc(e.contract&&e.contract.seniorityDate||"-")}</div></div>
+        <div><label>Établissement</label><div>${esc(e.establishment||"-")}</div></div>
+        <div><label>Mode de paiement</label><div>${esc(e.contract&&e.contract.paymentMethod||"-")}</div></div>
+      </div>
+      ${(e.contractsHistory&&e.contractsHistory.length)?`<div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">ANCIENS CONTRATS</b>
+        <div style="overflow:auto"><table style="width:100%;margin-top:4px"><tr><th>Type</th><th>Début</th><th>Fin</th><th>Réf.</th></tr>
+        ${e.contractsHistory.map(h=>`<tr><td>${esc(h.type||"-")}</td><td>${esc(h.startDate||"-")}</td><td>${esc(h.endDate||"-")}</td><td>${esc(h.reference||"")}</td></tr>`).join("")}</table></div></div>`:""}
+    </div>
     ${e.salary && Object.keys(e.salary).length ? `<div class="panel"><b style="font-size:12px;color:var(--muted)">STRUCTURE DE PAIE - transmise au module Paie</b>
       <table style="margin-top:6px"><tr><th>Élément de salaire</th><th style="text-align:right">Montant mensuel</th></tr>
       ${Object.entries(e.salary).map(([k,v]) => `<tr><td>${esc(k)}</td><td style="text-align:right"><b>${Number(v).toLocaleString("fr-FR")}</b>XAF</td></tr>`).join("")}

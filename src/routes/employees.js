@@ -105,6 +105,24 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
   res.status(201).json({ ...emp, checklist: checklist(emp), workflow: workflow ? { status: workflow.status, stage: "CD" } : null });
 });
 
+/* Nouveau contrat : archive le contrat courant (avec sa date de fin) et démarre un nouveau. */
+router.post("/:id/new-contract", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const emp = scoped(req).find(e => e.id === req.params.id);
+  if (!emp) return res.status(404).json({ error: "Not found" });
+  const b = req.body || {};
+  const cur = emp.contract || {};
+  if (!Array.isArray(emp.contractsHistory)) emp.contractsHistory = [];
+  // On clôture l'ancien contrat à la date de fin fournie (ou aujourd'hui).
+  const closeDate = b.previousEndDate || cur.endDate || new Date().toISOString().slice(0, 10);
+  emp.contractsHistory.push(Object.assign({}, cur, { endDate: closeDate, archivedAt: new Date().toISOString() }));
+  // Nouveau contrat courant.
+  const nc = b.contract || {};
+  emp.contract = Object.assign({ type: cur.type, category: cur.category, conventionId: cur.conventionId, conventionName: cur.conventionName, paymentMethod: cur.paymentMethod }, nc);
+  if (!emp.contract.startDate) emp.contract.startDate = b.startDate || new Date().toISOString().slice(0, 10);
+  save();
+  audit(req.user, "NEW_CONTRACT", "Employee", emp.id, { start: emp.contract.startDate });
+  res.json({ ...emp, checklist: checklist(emp) });
+});
 router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   if (!hasPerm(req, "employee.edit")) return res.status(403).json({ error: "Modification non autorisee - demandez le droit a l'administrateur" });
   const emp = scoped(req).find(e => e.id === req.params.id);

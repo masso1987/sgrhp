@@ -39,6 +39,13 @@ const SOURCES = {
   cleRib:         { label: "Clé RIB", fn: c => c.emp.bankKey || "" },
   natureContrat:  { label: "Nature du contrat", fn: c => (c.emp.contract && c.emp.contract.type) || "" },
   cnps:           { label: "N° CNPS / Sécurité sociale", fn: c => c.emp.cnpsNumber || "" },
+  nationalite:    { label: "Nationalité", fn: c => c.emp.nationality || "" },
+  statut:         { label: "Statut (Employé/Cadre)", fn: c => c.emp.statut || "" },
+  csp:            { label: "Catégorie socio-professionnelle", fn: c => c.emp.csp || "" },
+  ntt:            { label: "N° technique temporaire (NTT)", fn: c => c.emp.ntt || "" },
+  etablissement:  { label: "Établissement", fn: c => c.emp.establishment || (c.pf && c.pf.name) || "" },
+  ibanBanque:     { label: "IBAN", fn: c => (c.emp.bank && c.emp.bank.iban) || "" },
+  libelleCompte:  { label: "Libellé du compte", fn: c => (c.emp.bank && c.emp.bank.label) || "" },
   cleSecu:        { label: "Clé n° Sécurité sociale", fn: c => c.emp.cnpsKey || "" },
   // Paie (bulletin de la période)
   nbJours:        { label: "Nombre de jours", numeric: true, fn: c => c.slip ? (c.slip.result.meta.workedDays != null ? c.slip.result.meta.workedDays : 30) : 0 },
