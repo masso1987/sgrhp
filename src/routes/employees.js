@@ -105,6 +105,20 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
   res.status(201).json({ ...emp, checklist: checklist(emp), workflow: workflow ? { status: workflow.status, stage: "CD" } : null });
 });
 
+/* Mettre fin au contrat : pose une date de fin sur le contrat courant (motif optionnel). */
+router.post("/:id/end-contract", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const emp = scoped(req).find(e => e.id === req.params.id);
+  if (!emp) return res.status(404).json({ error: "Not found" });
+  const b = req.body || {};
+  if (!b.endDate) return res.status(400).json({ error: "Date de fin obligatoire" });
+  emp.contract = emp.contract || {};
+  emp.contract.endDate = b.endDate;
+  if (b.motif !== undefined) emp.contract.departureReason = b.motif;
+  emp.contract.ended = true;
+  save();
+  audit(req.user, "END_CONTRACT", "Employee", emp.id, { endDate: b.endDate, motif: b.motif || null });
+  res.json({ ...emp, checklist: checklist(emp) });
+});
 /* Nouveau contrat : archive le contrat courant (avec sa date de fin) et démarre un nouveau. */
 router.post("/:id/new-contract", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const emp = scoped(req).find(e => e.id === req.params.id);

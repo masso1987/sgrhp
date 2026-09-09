@@ -1959,6 +1959,20 @@ async function newContractOpen(empId){
   bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
   if(!window._CTYPES){ api("/config/contract-types").then(t=>{window._CTYPES=t; const sel=document.getElementById("ncType"); if(sel)sel.innerHTML=(t||[]).map(x=>`<option>${esc(x.name)}</option>`).join("");}); }
 }
+async function endContractOpen(empId,current){
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:480px"><b>Mettre fin au contrat</b>
+    <div class="note" style="margin:4px 0 8px">Posez la date de fin du contrat. Elle s'affichera dans la paie (« fin de contrat le … ») et déclenchera les alertes d'expiration.</div>
+    <label>Date de fin du contrat</label><input id="ecDate" type="date" value="${esc(current||new Date().toISOString().slice(0,10))}">
+    <label>Motif de départ (optionnel)</label><input id="ecMotif" placeholder="Fin de CDD, démission, licenciement…">
+    <div class="err hidden" id="ecErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="endContractSave('${empId}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function endContractSave(empId,btn){ const d=(document.getElementById("ecDate")||{}).value, m=(document.getElementById("ecMotif")||{}).value;
+  if(!d){ const e=document.getElementById("ecErr"); e.textContent="Date de fin obligatoire"; e.classList.remove("hidden"); return; }
+  try{ await api("/employees/"+empId+"/end-contract",{method:"POST",body:JSON.stringify({endDate:d,motif:m||undefined})}); btn.closest(".modal-bg").remove(); empDetail(empId); }
+  catch(e){ const el=document.getElementById("ecErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
 async function newContractSave(empId,btn){ const g=x=>(document.getElementById(x)||{}).value;
   const body={ previousEndDate:g("ncPrevEnd"), startDate:g("ncStart"),
     contract:{ type:g("ncType"), startDate:g("ncStart"), endDate:g("ncEnd")||null } };
@@ -2014,13 +2028,14 @@ async function empDetail(id) {
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
     <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px;color:var(--muted)">CONTRAT</b>
-      ${canEdit?`<button class="btn ghost sm" onclick="newContractOpen('${e.id}')">Nouveau contrat</button>`:""}</div>
+      ${canEdit?`<span style="display:inline-flex;gap:6px"><button class="btn ghost sm" onclick="endContractOpen('${e.id}','${(e.contract&&e.contract.endDate)||""}')">Mettre fin au contrat</button><button class="btn ghost sm" onclick="newContractOpen('${e.id}')">Nouveau contrat</button></span>`:""}</div>
       <div class="grid3" style="margin-top:6px;font-size:13px">
         <div><label>Type</label><div>${esc(e.contract&&e.contract.type||"-")}</div></div>
         <div><label>Début</label><div>${esc((e.contract&&e.contract.startDate)||e.hireDate||"-")}</div></div>
         <div><label>Fin</label><div>${(e.contract&&e.contract.type)==="CDI"?"durée indéterminée":esc((e.contract&&e.contract.endDate)||"-")}</div></div>
         <div><label>Mode de paiement</label><div>${esc(e.contract&&e.contract.paymentMethod||"-")}</div></div>
       </div>
+      ${(e.contract&&e.contract.endDate)?`<div class="note" style="margin-top:6px;color:#b45309">Fin de contrat prévue le <b>${esc(e.contract.endDate)}</b>${e.contract.departureReason?" — motif : "+esc(e.contract.departureReason):""}. Cette date apparaît dans la paie et les alertes d'expiration.</div>`:""}
       ${(e.contractsHistory&&e.contractsHistory.length)?`<div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">ANCIENS CONTRATS</b>
         <div style="overflow:auto"><table style="width:100%;margin-top:4px"><tr><th>Type</th><th>Début</th><th>Fin</th><th>Réf.</th></tr>
         ${e.contractsHistory.map(h=>`<tr><td>${esc(h.type||"-")}</td><td>${esc(h.startDate||"-")}</td><td>${esc(h.endDate||"-")}</td><td>${esc(h.reference||"")}</td></tr>`).join("")}</table></div></div>`:""}
@@ -4017,7 +4032,7 @@ function payRenderRoster() {
     <div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">${esc(pfName(pf))} - ${groups[pf].length}</b>
     <table style="margin-top:4px"><tr><th>Matricule</th><th>Salarié</th><th>Catégorie</th><th>Statut</th><th style="text-align:right">Net</th><th></th></tr>
     ${groups[pf].map(r => `<tr>
-      <td>${esc(r.matricule)}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.category || "-")}</td>
+      <td>${esc(r.matricule)}</td><td><b>${esc(r.name)}</b>${r.contractEnd?(() => { const d=Math.ceil((new Date(r.contractEnd)-Date.now())/86400000); const past=d<0; const col=past?'#dc2626':(d<=31?'#f97316':'#6b7280'); return ` <span class="tag" style="background:${col};color:#fff" title="Fin de contrat">Fin ${esc(r.contractEnd)}</span>`; })():""}</td><td>${esc(r.category || "-")}</td>
       <td>${rosterStatusTag(r)}</td><td style="text-align:right">${r.net != null ? "<b>" + fCFA(r.net) + "</b>" : "-"}</td>
       <td><button class="btn ${r.status === "PENDING" ? "p" : "ghost"} sm" onclick="bulletinView('${PAY_RUN.id}','${r.employeeId}')">Bulletin</button></td></tr>`).join("")}
     </table></div>`).join("") : `<div style="color:var(--muted);margin-top:8px">Aucun salarié.</div>`;
@@ -4067,6 +4082,7 @@ async function bulletinView(runId, empId) {
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${runId}')">Liste des salariés</button>
   <h1 style="margin-top:10px">Bulletin - ${esc(emp.firstName)} ${esc(emp.lastName)}
     <small style="color:var(--muted)">${esc(rmeta.matricule || "")} · ${esc(run.period)}</small> ${rosterStatusTag(rmeta)}</h1>
+  ${(emp.contract&&emp.contract.endDate)?(() => { const end=emp.contract.endDate; const inPeriod=String(end).slice(0,7)===run.period; const past=new Date(end)<new Date(run.period+"-01"); return `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:8px;margin-bottom:8px;color:#b45309"><b>Fin de contrat le ${esc(end)}</b>${inPeriod?" — dernier mois de paie (le contrat se termine dans cette période)":past?" — contrat déjà terminé avant cette période":""}${emp.contract.departureReason?" · motif : "+esc(emp.contract.departureReason):""}</div>`; })():""}
   <div class="panel" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     ${open && canRunPay() ? `<button class="btn p" onclick="bulletinCompute('${runId}','${empId}')">Calculer ce bulletin</button>` : ""}
     ${open && canRunPay() ? `<button class="btn ghost" onclick="revCalcOpen('${runId}','${empId}','${run.period}')">Calcul à l'envers</button>` : ""}

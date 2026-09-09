@@ -502,6 +502,7 @@ router.get("/runs/:id/roster", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res)
       portfolioId: e.portfolioId, category: (e.contract && e.contract.category) || "",
       hasBase: baseSalaryOf(e, req) > 0, status: s ? s.status : "PENDING",
       net: s ? s.result.totals.netAPayer : null, brut: s ? s.result.totals.brutTotal : null,
+      contractType: (e.contract && e.contract.type) || "", contractEnd: (e.contract && e.contract.endDate) || null,
       payslipId: s ? s.id : null, edited: s ? !!s.edited : false };
     });
   res.json({ run, roster, totals: runTotals(run, req) });
