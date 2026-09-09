@@ -138,7 +138,7 @@ function nextCode(req) {
 }
 router.get("/sources", allow(...RO), (req, res) => {
   const list = Object.keys(SOURCES).map(k => ({ key: k, label: SOURCES[k].label, numeric: !!SOURCES[k].numeric }));
-  const rubs = mine(db.payRubriques, req).map(r => ({ key: "rub:" + r.code, label: `Rubrique ${r.code} — ${r.label || ""}`, numeric: true }));
+  const rubs = mine(db.payRubriques, req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), "fr", { numeric: true })).map(r => ({ key: "rub:" + r.code, label: `Rubrique ${r.code} — ${r.label || ""}`, numeric: true }));
   res.json({ sources: list, rubriques: rubs });
 });
 router.get("/", allow(...RO), (req, res) => {
