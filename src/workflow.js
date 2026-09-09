@@ -20,6 +20,37 @@ function docOf(documentId) {
 }
 const openStep = d => d.steps.find(s => !s.decidedAt);
 
+/* ---- Workflow configurable par tenant (Administration › Circuits de validation) ---- */
+const WF_KEY = (type) => ({ EMPLOYEE_FILE: "employee_file", TEMPLATE_DOC: "template_doc", AMENDMENT: "amendment", AVI: "avi", CONTRACT_END: "contract_end" }[type] || "template_doc");
+const WF_DEFAULT = { employee_file: ["CD", "RJ"], template_doc: ["CD", "RJ"], amendment: ["CD", "RJ"], avi: ["CD", "RJ"], contract_end: ["RJ"] };
+function wfRoles(type) {
+  const key = WF_KEY(type);
+  let cfg = null; try { cfg = require("./routes/settings").settings().workflows; } catch (e) {}
+  const w = cfg && cfg[key];
+  if (w) { if (w.enabled === false) return []; if (Array.isArray(w.steps)) return w.steps.filter(Boolean); }
+  return WF_DEFAULT[key] || ["CD", "RJ"];
+}
+const mkStep = (role, at) => ({ id: id("stp"), stage: role, assignedAt: at || new Date().toISOString(),
+  warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
+/* Démarre (ou finalise si aucun niveau de validation) le circuit d'un document. */
+function startWorkflow(doc, user) {
+  const roles = wfRoles(doc.type);
+  doc.flowRoles = roles; doc.flowPos = 0;
+  doc.submittedAt = new Date().toISOString();
+  if (!roles.length) {                       // aucun niveau -> génération immédiate
+    doc.status = "GENERATED"; doc.generatedAt = new Date().toISOString();
+    doc.generatedFile = generateOfficial(doc); setEmpStatus(doc, "VALIDATED");
+    audit(user, "GENERATED", "Document", doc.id, { noWorkflow: true });
+    notify.event("validated", { userId: doc.createdById }, { title: doc.title, ref: doc.id });
+    try { notify.toRole("UI", "Nouveau document disponible", doc.title, doc.id); } catch (e) {}
+    return;
+  }
+  doc.status = "SUBMITTED";
+  doc.steps.push(mkStep(roles[0], doc.submittedAt));
+  setEmpStatus(doc, "SUBMITTED");
+  notify.event("submitted", { role: roles[0] }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
+}
+
 /** M3: create a document from an uploaded template. Missing tags must be provided (form). */
 function createFromTemplate(templateId, employeeId, provided, user) {
   const emp = db.employees.find(e => e.id === employeeId);
@@ -33,14 +64,11 @@ function createFromTemplate(templateId, employeeId, provided, user) {
     templateId, data: resolved,
     title: `${template.name} — ${emp.firstName} ${emp.lastName}`,
     createdById: user.id, createdAt: new Date().toISOString(),
-    status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null,
-    submittedAt: new Date().toISOString() };
-  doc.steps.push({ id: id("stp"), stage: "CD", assignedAt: doc.submittedAt,
-    warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
-  db.documents.push(doc); save();
+    status: "DRAFT", cycle: 1, steps: [], generatedFile: null };
+  db.documents.push(doc);
   audit(user, "CREATED", "Document", doc.id, { template: template.name });
+  startWorkflow(doc, user); save();
   audit(user, "SUBMITTED", "Document", doc.id, { cycle: 1 });
-  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
   return doc;
 }
 
@@ -51,13 +79,9 @@ function resubmitTemplateDoc(documentId, provided, user) {
   if (doc.status !== "DRAFT") { const e = new Error(`Cannot resubmit (status ${doc.status})`); e.status = 409; throw e; }
   const { resolved, missing } = engine.resolve(doc.templateId, doc.refId, { ...doc.data, ...provided });
   if (missing.length) { const e = new Error("Missing information: " + missing.join(", ")); e.status = 422; throw e; }
-  doc.data = resolved; doc.status = "SUBMITTED"; doc.cycle += 1;
-  doc.submittedAt = new Date().toISOString();
-  doc.steps.push({ id: id("stp"), stage: "CD", assignedAt: doc.submittedAt,
-    warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
-  save();
+  doc.data = resolved; doc.cycle += 1;
+  startWorkflow(doc, user); save();
   audit(user, "SUBMITTED", "Document", doc.id, { cycle: doc.cycle });
-  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
   return doc;
 }
 
@@ -86,14 +110,9 @@ function submitEmployeeFile(employeeId, user, opts = {}) {
       status: "DRAFT", cycle: 0, steps: [], generatedFile: null };
     db.documents.push(doc);
   }
-  doc.status = "SUBMITTED"; doc.cycle += 1;
-  doc.submittedAt = new Date().toISOString();
-  doc.steps.push({ id: id("stp"), stage: "CD", assignedAt: doc.submittedAt,
-    warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
-  emp.status = "SUBMITTED";
-  save();
+  doc.cycle += 1;
+  startWorkflow(doc, user); save();
   audit(user, "SUBMITTED", "Document", doc.id, { cycle: doc.cycle, title: doc.title });
-  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
   return doc;
 }
 
@@ -105,18 +124,20 @@ function approve(documentId, user) {
   step.decision = "APPROVED"; step.validatorId = user.id;
   step.elapsedH = elapsedBusinessHours(step.assignedAt);
 
-  if (user.role === "CD") {
-    doc.status = "CD_APPROVED";
-    doc.steps.push({ id: id("stp"), stage: "RJ", assignedAt: new Date().toISOString(),
-      warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
-    notify.event("submitted", { role: "RJ" }, { title: doc.title, initiator: initiatorName(doc.createdById), stage: "RJ", sla: SLA, ref: doc.id });
+  const roles = (Array.isArray(doc.flowRoles) && doc.flowRoles.length) ? doc.flowRoles : wfRoles(doc.type);
+  doc.flowPos = (doc.flowPos || 0) + 1;
+  if (doc.flowPos < roles.length) {
+    const nextRole = roles[doc.flowPos];
+    doc.status = "SUBMITTED";              // encore en cours de validation
+    doc.steps.push(mkStep(nextRole));
+    notify.event("submitted", { role: nextRole }, { title: doc.title, initiator: initiatorName(doc.createdById), stage: nextRole, sla: SLA, ref: doc.id });
   } else {
     doc.status = "GENERATED";
     doc.generatedAt = new Date().toISOString();
-    doc.generatedFile = generateOfficial(doc);   // M3 replaces with template engine
+    doc.generatedFile = generateOfficial(doc);
     setEmpStatus(doc, "VALIDATED");
     notify.event("validated", { userId: doc.createdById }, { title: doc.title, ref: doc.id });
-    notify.toRole("UI", "New document available for printing", doc.title, doc.id);
+    try { notify.toRole("UI", "New document available for printing", doc.title, doc.id); } catch (e) {}
     audit(user, "GENERATED", "Document", doc.id);
   }
   save();
@@ -134,7 +155,7 @@ function reject(documentId, user, reason) {
   step.decidedAt = new Date().toISOString();
   step.decision = "REJECTED"; step.validatorId = user.id; step.rejectReason = reason;
   step.elapsedH = elapsedBusinessHours(step.assignedAt);
-  doc.status = "DRAFT"; // returns to GPF for correction + full resubmission cycle (§5.3)
+  doc.status = "DRAFT"; doc.flowPos = 0; // retour au GPF, resoumission relance le circuit
   setEmpStatus(doc, "DRAFT");
   save();
   audit(user, "REJECTED", "Document", doc.id, { stage: user.role, reason });

@@ -1028,6 +1028,7 @@ const NAV = [
   { k: "portfolios", label: "Config. portefeuilles", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "templates", label: "Modèles de documents", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "mailtpl", label: "Notifications email", sec: "Configuration", roles: ["ADM"], grp: "admin" },
+  { k: "workflows", label: "Circuits de validation", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "users", label: "Utilisateurs", sec: "Sécurité & accès", roles: ["ADM"], grp: "admin" },
 ];
 const NAV_GROUPS = [
@@ -1170,7 +1171,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -3794,6 +3795,38 @@ async function testEmail() {
 /* ---- Notification templates (FR/EN) + recipients: their own screen ---- */
 const EVENT_LABELS = { submitted:"Soumission (à valider)", validated:"Validation", rejected:"Rejet",
   slaWarning:"Alerte délai 36h", slaBreach:"Dépassement 48h", expiry:"Alerte d'expiration de document" };
+const WF_ROLES=[["CD","Chef de département"],["RJ","Responsable juridique"],["RQ","Responsable qualité"],["ADM","Administrateur"]];
+async function workflowsView(){
+  const s=await api("/settings").catch(()=>({}));
+  const wf=s.workflows||{};
+  window._WF=JSON.parse(JSON.stringify(wf));
+  view.innerHTML=`<h1>Circuits de validation</h1>
+    <div class="note" style="max-width:760px">Définissez, pour chaque processus, les niveaux de validation (rôles) dans l'ordre. Décochez « Actif » pour supprimer toute validation (le document est généré immédiatement). Retirez tous les niveaux pour un seul contrôle, ou gardez-en un/deux selon votre organisation.</div>
+    <div id="wfList" style="margin-top:10px"></div>
+    <div class="err hidden" id="wfErr"></div>
+    <button class="btn p" style="margin-top:10px" onclick="wfSave()">Enregistrer</button>`;
+  wfRender();
+}
+function wfRender(){
+  const box=document.getElementById("wfList"); if(!box)return; const wf=window._WF;
+  box.innerHTML=Object.keys(wf).map(k=>{ const w=wf[k];
+    const chips=(w.steps||[]).map((r,i)=>`<span class="tag" style="background:var(--primary);color:#fff;display:inline-flex;gap:6px;align-items:center">${i+1}. ${esc(r)}
+      <a style="cursor:pointer" onclick="wfMove('${k}',${i},-1)">↑</a><a style="cursor:pointer" onclick="wfMove('${k}',${i},1)">↓</a><a style="cursor:pointer;color:#fecaca" onclick="wfDel('${k}',${i})">×</a></span>`).join(" ")||'<span class="note">Aucun niveau — génération immédiate</span>';
+    return `<div class="panel" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center">
+      <b>${esc(w.label||k)}</b>
+      <label class="chk" style="margin:0"><input type="checkbox" ${w.enabled!==false?"checked":""} onchange="window._WF['${k}'].enabled=this.checked;wfRender()"><span>Actif</span></label></div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">${chips}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
+        <select id="wfAdd_${k}" style="max-width:220px;margin:0">${WF_ROLES.map(r=>`<option value="${r[0]}">${r[0]} — ${esc(r[1])}</option>`).join("")}</select>
+        <button class="btn ghost sm" onclick="wfAdd('${k}')">+ Ajouter un niveau</button>
+        <span class="note">Aperçu : ${(w.enabled===false||!(w.steps||[]).length)?"soumission → génération directe":"GPF → "+(w.steps||[]).join(" → ")+" → génération"}</span></div>
+    </div>`;
+  }).join("");
+}
+function wfAdd(k){ const sel=document.getElementById("wfAdd_"+k); window._WF[k].steps=window._WF[k].steps||[]; window._WF[k].steps.push(sel.value); wfRender(); }
+function wfDel(k,i){ window._WF[k].steps.splice(i,1); wfRender(); }
+function wfMove(k,i,d){ const a=window._WF[k].steps; const j=i+d; if(j<0||j>=a.length)return; const t=a[i];a[i]=a[j];a[j]=t; wfRender(); }
+async function wfSave(){ try{ await api("/settings/workflows",{method:"PUT",body:JSON.stringify({workflows:window._WF})}); alert("Circuits de validation enregistrés."); }catch(e){ const el=document.getElementById("wfErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
 async function mailtplView() {
   const s = await api("/settings"); const T = s.emailTemplates, R = s.emailRecipients;
   view.innerHTML = `<h1>Modèles & destinataires des notifications</h1>

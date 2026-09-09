@@ -28,6 +28,13 @@ const DEFAULTS = {
     mailgun: { region: "us", domain: "", smtpLogin: "", smtpPassword: "" },
     sendmail: { path: "/usr/sbin/sendmail" },
   },
+  workflows: {
+    employee_file: { label: "Création / dossier d'un employé", enabled: true, steps: ["CD", "RJ"] },
+    template_doc:  { label: "Documents générés (modèles)", enabled: true, steps: ["CD", "RJ"] },
+    amendment:     { label: "Avenants au contrat", enabled: true, steps: ["CD", "RJ"] },
+    avi:           { label: "Attestation de virement irrévocable (AVI)", enabled: true, steps: ["CD", "RJ"] },
+    contract_end:  { label: "Lettre de fin de contrat (banque)", enabled: true, steps: ["RJ"] },
+  },
   emailRecipients: { globalCC: "", byEvent: { submitted: "", validated: "", rejected: "", slaWarning: "", slaBreach: "", expiry: "" } },
   emailTemplates: {
     submitted: { subjectFr: "Nouveau document à valider : {{title}}", subjectEn: "New document to validate: {{title}}",
@@ -92,7 +99,7 @@ router.get("/", allow("ADM"), (req, res) => {
   if (em.mailgun && em.mailgun.smtpPassword) em.mailgun.smtpPassword = MASK;
   res.json({ security: s.security, email: em,
     emailTemplates: s.emailTemplates, emailRecipients: s.emailRecipients,
-    branding: s.branding });
+    workflows: s.workflows, branding: s.branding });
 });
 
 router.put("/security", allow("ADM"), (req, res) => {
@@ -197,6 +204,21 @@ router.post("/email/test", allow("ADM"), async (req, res) => {
 });
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
+router.put("/workflows", allow("ADM"), (req, res) => {
+  const s = settings();
+  const b = req.body && req.body.workflows ? req.body.workflows : (req.body || {});
+  const ROLES = ["CD", "RJ", "RQ", "ADM", "GPF"];
+  for (const key of Object.keys(s.workflows)) {
+    if (!b[key]) continue;
+    const w = b[key];
+    if (w.enabled !== undefined) s.workflows[key].enabled = !!w.enabled;
+    if (Array.isArray(w.steps)) s.workflows[key].steps = w.steps.filter(r => ROLES.includes(r));
+    if (w.label !== undefined) s.workflows[key].label = String(w.label).slice(0, 120);
+  }
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Settings", "workflows", {});
+  res.json(s.workflows);
+});
 router.put("/branding", allow("ADM"), (req, res) => {
   const s = settings();
   const b = req.body || {};
