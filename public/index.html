@@ -3920,6 +3920,7 @@ async function payRunView(id) {
     ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">Clôturer la période</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">Ordre de virement</button>` : ""}
+    ${open && canRunPay() ? `<button class="btn ghost" onclick="tsImportOpen('${run.id}','${run.period}')">Importer pointage</button>` : ""}
     ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
       <select id="emailPf" style="max-width:210px;margin:0"><option value="">Tous les portefeuilles</option>${(PFS || []).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
       <button class="btn ghost" onclick="payEmailPortfolio('${run.id}')">Envoyer les bulletins</button>` : ""}
@@ -3963,6 +3964,35 @@ function payRenderRoster() {
     </table></div>`).join("") : `<div style="color:var(--muted);margin-top:8px">Aucun salarié.</div>`;
 }
 
+/* ---- Import d'un pointage (timesheet) ---- */
+function tsImportOpen(runId,period){
+  const pf=window._PAYPF||"";
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:520px"><b>Importer un pointage — ${esc(period)}</b>
+    <div class="note" style="margin:4px 0 8px">Colonnes reconnues : Matricule, Jours travaillés, Absence (jours), HS 20%, HS 30%, HS 40%, Heures nuit. Le pointage remplace l'assiduité et les heures supp. de la période.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn ghost sm" onclick="payDownload('/payroll/runs/${runId}/timesheet-template${pf?('?portfolioId='+pf):''}','pointage_${period}.xlsx')">Télécharger le modèle</button>
+    </div>
+    <label style="margin-top:10px">Fichier (.xlsx/.csv)</label><input type="file" id="tsFile" accept=".xlsx,.xls,.csv" style="margin:0">
+    <label class="chk" style="margin-top:8px"><input type="checkbox" id="tsCompute" checked><span>Calculer la paie après import</span></label>
+    <div class="err hidden" id="tsErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="tsImportSend('${runId}')">Importer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+async function tsImportSend(runId){
+  const f=(document.getElementById("tsFile")||{}).files; const err=document.getElementById("tsErr"); err.classList.add("hidden");
+  if(!f||!f.length){ err.textContent="Choisissez un fichier."; err.classList.remove("hidden"); return; }
+  const fd=new FormData(); fd.append("file",f[0]); fd.append("compute",document.getElementById("tsCompute").checked?"1":"0");
+  try{
+    const r=await fetch("/api/payroll/runs/"+runId+"/timesheet",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd});
+    const j=await r.json(); if(!r.ok) throw new Error(j.error||"Erreur");
+    document.querySelector(".modal-bg").remove();
+    let msg=`Pointage importé : ${j.matched} salarié(s).`;
+    if(j.computed) msg+=` ${j.computed} bulletin(s) calculé(s).`;
+    if(j.notFound&&j.notFound.length) msg+=`\n\nMatricules non trouvés : ${j.notFound.join(", ")}`;
+    alert(msg); payRunView(runId);
+  }catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
+}
 /* ---- Per-employee bulletin screen (tabs, single compute, prev/next) ---- */
 async function bulletinView(runId, empId) {
   const [emp, data] = await Promise.all([api("/employees/" + empId), api("/payroll/runs/" + runId + "/roster")]);

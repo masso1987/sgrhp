@@ -11,6 +11,8 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 const { computePayslip } = require("../payroll/engine");
 const crypto = require("crypto");
+let _multer; try { _multer = require("multer"); } catch (e) { _multer = null; }
+const tsUpload = _multer ? _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
 function verifySecret() {
   const st = db.settings = db.settings || {};
   if (!st.verifySecret) { st.verifySecret = crypto.randomBytes(24).toString("hex"); try { save(); } catch (e) {} }
@@ -416,6 +418,76 @@ router.post("/runs/:id/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, re
   save();
   audit(req.user, "COMPUTED", "PayRun", run.id, { period: run.period, employees: n, portfolioId: pfId || null });
   res.json({ run, computed: n, totals: runTotals(run, req) });
+});
+
+/* Import d'un pointage (timesheet) : jours travaillés, absences, heures supplémentaires par matricule. */
+router.get("/runs/:id/timesheet-template", allow("ADM", "GPF", "CD", "RJ"), (req, res) => {
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const pfId = req.query.portfolioId;
+  let emps = mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED");
+  if (pfId) emps = emps.filter(e => e.portfolioId === pfId);
+  const head = ["Matricule", "Nom", "Jours travailles", "Absence (jours)", "HS 20%", "HS 30%", "HS 40%", "Heures nuit"];
+  const aoa = [head];
+  emps.forEach(e => aoa.push([e.matricule || "", `${e.firstName || ""} ${e.lastName || ""}`.trim(), "", "", "", "", "", ""]));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Pointage");
+  res.setHeader("Content-Disposition", `attachment; filename="pointage_${run.period}.xlsx"`);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+});
+
+router.post("/runs/:id/timesheet", allow("ADM", "GPF", "CD", "RJ"), tsUpload.single("file"), (req, res) => {
+  if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  if (!req.file) return res.status(400).json({ error: "Fichier manquant" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  if (run.status === "CLOSED") return res.status(409).json({ error: "Paie clôturée" });
+  let rows;
+  try { const wb = XLSX.read(req.file.buffer, { type: "buffer" }); rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "", raw: false }); }
+  catch (e) { return res.status(400).json({ error: "Fichier illisible : " + e.message }); }
+  const norm = (k) => String(k || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const pick = (obj, tests) => { for (const key of Object.keys(obj)) { const nk = norm(key); if (tests.some(t => t(nk))) return obj[key]; } return undefined; };
+  const num = (v) => { const n = Number(String(v == null ? "" : v).replace(",", ".").replace(/[^0-9.\-]/g, "")); return isNaN(n) ? 0 : n; };
+  const empByMat = {}; mine(db.employees, req).forEach(e => { if (e.matricule) empByMat[String(e.matricule).trim()] = e; });
+  const TS_TYPES = ["JOURS", "ABSENCE", "HS20", "HS30", "HS40", "NUIT"];
+  let matched = 0, notFound = [];
+  for (const row of rows) {
+    const mat = String(pick(row, [nk => nk === "matricule" || nk === "mat"]) || "").trim();
+    if (!mat) continue;
+    const emp = empByMat[mat];
+    if (!emp) { notFound.push(mat); continue; }
+    const jours = pick(row, [nk => nk.startsWith("jours") || nk === "jt" || nk.includes("travaill")]);
+    const abs = pick(row, [nk => nk.startsWith("absence") || nk === "abs"]);
+    const hs20 = pick(row, [nk => nk.includes("hs20") || nk.includes("20")]);
+    const hs30 = pick(row, [nk => nk.includes("hs30") || nk.includes("30")]);
+    const hs40 = pick(row, [nk => nk.includes("hs40") || nk.includes("40")]);
+    const nuit = pick(row, [nk => nk.includes("nuit") || nk.includes("night")]);
+    // Le pointage fait autorité : on retire les éléments d'assiduité/HS existants de la période.
+    db.payElements = db.payElements.filter(e => !(e.employeeId === emp.id && e.period === run.period && (e.tenantId || "t1") === (req.user.tenantId || "t1") && TS_TYPES.includes(e.type)));
+    const addEl = (type, field, val) => { if (val === undefined || val === "" || num(val) <= 0) return; const rec = stamp({ id: id("pe"), employeeId: emp.id, period: run.period, type, fromTimesheet: true, createdAt: new Date().toISOString() }, req); rec[field] = num(val); db.payElements.push(rec); };
+    addEl("JOURS", "days", jours);
+    addEl("ABSENCE", "days", abs);
+    addEl("HS20", "hours", hs20);
+    addEl("HS30", "hours", hs30);
+    addEl("HS40", "hours", hs40);
+    addEl("NUIT", "hours", nuit);
+    matched++;
+  }
+  save();
+  audit(req.user, "TIMESHEET_IMPORT", "PayRun", run.id, { period: run.period, matched, notFound: notFound.length });
+  // Recalcule immédiatement si demandé.
+  let computed = 0;
+  if (req.body && (req.body.compute === "1" || req.body.compute === "true")) {
+    const emps = mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED");
+    const ids = new Set(rows.map(r => String(pick(r, [nk => nk === "matricule" || nk === "mat"]) || "").trim()));
+    db.payslips = db.payslips.filter(x => !(x.runId === run.id && (x.tenantId || "t1") === (run.tenantId || "t1")));
+    for (const emp of emps) { if (!baseSalaryOf(emp, req)) continue; const { input, result } = computeFor(emp, run.period, req);
+      db.payslips.push(stamp({ id: id("slip"), runId: run.id, period: run.period, employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || emp.id.slice(-6), department: (emp.contract && emp.contract.category) || "", input, result, status: "CALCULATED", generatedFile: null, createdAt: new Date().toISOString() }, req)); computed++; }
+    run.status = "CALCULATED"; run.computedAt = new Date().toISOString(); run.count = computed; save();
+  }
+  res.json({ ok: true, matched, notFound, computed });
 });
 
 // Per-employee roster for a run (status: PENDING / CALCULATED / CLOSED).
