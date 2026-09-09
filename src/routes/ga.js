@@ -126,8 +126,17 @@ function runModel(model, req, period, portfolioId) {
   return { model: m, rows, count: rows.length };
 }
 function latestPeriod(req) {
+  const slips = mine(db.payslips, req).map(s => s.period).filter(Boolean).sort();
+  if (slips.length) return slips[slips.length - 1];
   const runs = mine(db.payRuns, req).slice().sort((a, b) => String(b.period).localeCompare(String(a.period)));
   return runs.length ? runs[0].period : new Date().toISOString().slice(0, 7);
+}
+// Périodes disponibles (runs + bulletins), plus récentes d'abord.
+function availablePeriods(req) {
+  const set = new Set();
+  mine(db.payRuns, req).forEach(r => r.period && set.add(r.period));
+  mine(db.payslips, req).forEach(s => s.period && set.add(s.period));
+  return [...set].sort().reverse();
 }
 
 /* ---------------- Routes CRUD ---------------- */
@@ -136,6 +145,7 @@ function nextCode(req) {
   let n = (nums.length ? Math.max(...nums) : 0) + 1;
   return "LST" + String(n).padStart(5, "0");
 }
+router.get("/periods", allow(...RO), (req, res) => res.json(availablePeriods(req)));
 router.get("/sources", allow(...RO), (req, res) => {
   const list = Object.keys(SOURCES).map(k => ({ key: k, label: SOURCES[k].label, numeric: !!SOURCES[k].numeric }));
   const rubs = mine(db.payRubriques, req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), "fr", { numeric: true })).map(r => ({ key: "rub:" + r.code, label: `Rubrique ${r.code} — ${r.label || ""}`, numeric: true }));
@@ -182,8 +192,9 @@ router.get("/:id/run", allow(...RO), (req, res) => {
   if (!m) return res.status(404).json({ error: "Modèle introuvable" });
   const period = req.query.period || latestPeriod(req);
   const r = runModel(m, req, period, req.query.portfolioId || null);
+  const withSlip = mine(db.payslips, req).filter(x => x.period === period).length;
   res.json({
-    code: m.code, intitule: m.intitule, type: m.type || "fixed", period, count: r.count, largeur: r.model.largeur,
+    code: m.code, intitule: m.intitule, type: m.type || "fixed", period, count: r.count, largeur: r.model.largeur, computedCount: withSlip,
     columns: r.model.fields.filter(f => f.colonne !== false).map(f => ({ label: f.label, numeric: f.numeric })),
     rows: r.rows.map(row => r.model.fields.map((f, i) => f.colonne !== false ? row[i].txt : null).filter((_, i) => r.model.fields[i].colonne !== false)),
   });

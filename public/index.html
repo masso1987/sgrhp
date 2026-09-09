@@ -4031,9 +4031,9 @@ function payPreview(slipId){
 }
 /* ---- Calcul à l'envers (net cible -> montant rubrique) ---- */
 async function revCalcOpen(runId,empId,period){
-  const rubs=await api("/payroll/rubriques").catch(()=>[]);
-  const gains=(rubs||[]).filter(r=>!r.family||/gain|prime|salaire|indemn|brut/i.test((r.family||"")+" "+(r.label||"")));
-  const opts=(gains.length?gains:rubs).map(r=>`<option value="${esc(String(r.code))}" data-l="${esc(r.label||"")}">${esc(String(r.code))} - ${esc(r.label||"")}</option>`).join("");
+  let rubs=await api("/payroll/rubriques").catch(()=>[]);
+  rubs=(rubs||[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),"fr",{numeric:true}));
+  const opts=rubs.map(r=>`<option value="${esc(String(r.code))}" data-l="${esc(r.label||"")}">${esc(String(r.code))} - ${esc(r.label||"")}</option>`).join("")||'<option value="1000" data-l="Salaire de base">1000 - Salaire de base</option>';
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Calcul à l'envers — bulletin à partir du net à payer</b>
     <div class="note" style="margin:4px 0 8px">Saisissez le net à payer souhaité et la rubrique d'ajustement. Le logiciel calcule le montant brut de cette rubrique qui donne exactement ce net.</div>
@@ -7044,9 +7044,8 @@ async function gaSave(id){ const g=x=>(document.getElementById(x)||{}).value;
 }
 async function gaRunView(){
   const id=window._GAID; if(!id){ go("ga"); return; }
-  const [m,pfs,runs]=await Promise.all([api("/ga/"+id).catch(()=>null),api("/portfolios").catch(()=>[]),api("/payroll/runs").catch(()=>[])]);
+  const [m,pfs,periods]=await Promise.all([api("/ga/"+id).catch(()=>null),api("/portfolios").catch(()=>[]),api("/ga/periods").catch(()=>[])]);
   if(!m){ view.innerHTML="<h1>G.A.</h1><div class='panel'>Introuvable.</div>"; return; }
-  const periods=[...new Set((runs||[]).map(r=>r.period))].sort().reverse();
   if(window._GAPER===undefined) window._GAPER=periods[0]||new Date().toISOString().slice(0,7);
   const pf=window._GAPF||"";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('ga')">← Liste des modèles</button>
@@ -7067,7 +7066,8 @@ async function gaRun(id){
   const out=document.getElementById("gaOut"); if(out)out.innerHTML='<span class="note">Chargement…</span>';
   const d=await api("/ga/"+id+"/run?period="+encodeURIComponent(per)+(pf?"&portfolioId="+pf:"")).catch(e=>{if(out)out.innerHTML='<span class="err">'+esc(e.message)+'</span>';return null;});
   if(!d)return;
-  out.innerHTML=`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>${d.count} ligne(s)</b><span class="note">${d.type==="fixed"?("Largeur ligne : "+d.largeur):"Table"} · période ${esc(d.period)}</span></div>
+  const warn = (d.computedCount===0) ? `<div class="note" style="background:var(--red-bg,#fee);border:1px solid #fca5a5;border-radius:8px;padding:8px;margin-bottom:8px">Aucun bulletin calculé pour la période ${esc(d.period)} : les colonnes de paie seront vides. Calculez d'abord la paie de cette période (module Paie), puis relancez.</div>` : "";
+  out.innerHTML=warn+`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>${d.count} ligne(s)</b><span class="note">${d.computedCount||0} bulletin(s) · ${d.type==="fixed"?("Largeur ligne : "+d.largeur):"Table"} · période ${esc(d.period)}</span></div>
     <div style="overflow:auto"><table style="width:100%;font-size:12px"><tr>${d.columns.map(c=>`<th style="${c.numeric?'text-align:right':''}">${esc(c.label)}</th>`).join("")}</tr>
     ${d.rows.map(r=>`<tr>${r.map((v,i)=>`<td style="${d.columns[i]&&d.columns[i].numeric?'text-align:right':''}">${esc(v==null?"":v)}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${d.columns.length}" class="note">Aucune donnée pour cette période.</td></tr>`}</table></div>`;
 }
