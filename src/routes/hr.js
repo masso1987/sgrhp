@@ -232,6 +232,11 @@ router.post("/avi", allow("GPF", "ADM", "CD", "RJ"), aviUpload.single("letter"),
   if (!emp) return res.status(400).json({ error: "Salarié introuvable" });
   if (!req.file) return res.status(400).json({ error: "La lettre de demande d'AVI (fichier) est obligatoire avant génération." });
   const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
+  // Référence AVI auto-numérotée : PREFIXE/NNN/MM/YYYY (compteur par tenant et par année).
+  const _now = new Date(); const _yy = String(_now.getFullYear()); const _mm = String(_now.getMonth() + 1).padStart(2, "0");
+  const _pref = ((db.settings && db.settings.branding && db.settings.branding.company && db.settings.branding.company.aviRefPrefix) || "AVI").replace(/\/+$/, "");
+  const _nAvi = mine(db.documents, req).filter(d => d.type === "AVI" && String((d.data && d.data.ref) || "").includes("/" + _yy)).length + 1;
+  const autoRef = b.ref && String(b.ref).trim() ? b.ref : `${_pref}/${String(_nAvi).padStart(3, "0")}/${_mm}/${_yy}`;
   const doc = {
     id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AVI", refId: emp.id,
     title: `AVI — ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
@@ -245,7 +250,7 @@ router.post("/avi", allow("GPF", "ADM", "CD", "RJ"), aviUpload.single("letter"),
       contractType: (emp.contract && emp.contract.type) || "CDI",
       bankName: b.bankName || (emp.bank && emp.bank.name) || emp.bankName || "",
       accountNumber: b.accountNumber || (emp.bank && emp.bank.account) || emp.bankAccount || "",
-      purpose: b.purpose || "", ref: b.ref || "", date: b.date || new Date().toISOString().slice(0, 10),
+      purpose: b.purpose || "", ref: autoRef, date: b.date || new Date().toISOString().slice(0, 10),
     },
   };
   db.documents.push(doc);

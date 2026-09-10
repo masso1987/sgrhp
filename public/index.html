@@ -3038,6 +3038,9 @@ async function paramsView() {
         <div><label>N° Contribuable (NIU)</label><input id="coNiu" value="${esc((s.branding.company||{}).niu||'')}"></div>
         <div><label>N° Employeur (CNPS)</label><input id="coEmp" value="${esc((s.branding.company||{}).employerNo||'')}"></div>
         <div><label>N° DIPE</label><input id="coDipe" value="${esc((s.branding.company||{}).dipe||'')}"></div>
+        <div><label>Directeur Général (signataire)</label><input id="coDg" value="${esc((s.branding.company||{}).dg||'')}"></div>
+        <div><label>Directrice Générale Adjointe (signataire AVI)</label><input id="coDga" value="${esc((s.branding.company||{}).dga||'')}"></div>
+        <div><label>Préfixe des références AVI</label><input id="coAviPref" placeholder="ex. CRHE/DG/DGA/RH" value="${esc((s.branding.company||{}).aviRefPrefix||'')}"></div>
       </div>
       <button class="btn p sm" style="margin-top:8px" onclick="saveCompany()">Enregistrer la société</button>
     </div>
@@ -3123,7 +3126,7 @@ function previewBranding() {
 }
 async function saveCompany() {
   const cg = (id) => (document.getElementById(id) || {}).value || "";
-  const company = { name: cg("coName"), address: cg("coAddr"), city: cg("coCity"), niu: cg("coNiu"), employerNo: cg("coEmp"), dipe: cg("coDipe") };
+  const company = { name: cg("coName"), address: cg("coAddr"), city: cg("coCity"), niu: cg("coNiu"), employerNo: cg("coEmp"), dipe: cg("coDipe"), dg: cg("coDg"), dga: cg("coDga"), aviRefPrefix: cg("coAviPref") };
   try { const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify({ company }) }); applyBranding(b); alert("Coordonnées de la société enregistrées."); }
   catch (e) { alert(e.message); }
 }

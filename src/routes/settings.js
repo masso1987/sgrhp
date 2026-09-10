@@ -59,7 +59,7 @@ const DEFAULTS = {
     theme: "emerald",
     appName: "SGRHP",
     tagline: "Cible RH Emploi S.A.",
-    company: { name: "", address: "", city: "", niu: "", employerNo: "", dipe: "" },
+    company: { name: "", address: "", city: "", niu: "", employerNo: "", dipe: "", dg: "", dga: "", aviRefPrefix: "" },
     logo: "",                       // small data-URL, optional
     colors: {
       primary: "#1e3a5f", accent: "#e8833a", bg: "#f4f6f9",
@@ -229,7 +229,7 @@ router.put("/branding", allow("ADM"), (req, res) => {
     s.branding.theme = b.theme;
   }
   if (b.company) { s.branding.company = s.branding.company || {};
-    for (const k of ["name", "address", "city", "niu", "employerNo", "dipe"])
+    for (const k of ["name", "address", "city", "niu", "employerNo", "dipe", "dg", "dga", "aviRefPrefix"])
       if (b.company[k] !== undefined) s.branding.company[k] = String(b.company[k]).slice(0, 120);
   }
   if (b.appName !== undefined) s.branding.appName = String(b.appName).slice(0, 40) || "SGRHP";

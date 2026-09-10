@@ -190,7 +190,7 @@ function companyInfo() {
   const b = (db.settings && db.settings.branding) || {};
   const c = b.company || {};
   return { name: c.name || b.appName || "CIBLE RH EMPLOI S.A.", bp: c.address || "BP 3462 Douala",
-    dg: c.dg || "le Directeur Général", dga: c.dga || "La Directrice Générale Adjointe",
+    dg: c.dg || "le Directeur Général", dga: c.dga || "",
     city: c.city || "Douala", niu: c.niu || "" };
 }
 const _fr = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? `${m[3]}/${m[2]}/${m[1]}` : (d || ""); };
@@ -214,7 +214,8 @@ function aviParagraphs(doc) {
     { text: "En foi de quoi, la présente attestation lui est délivrée pour servir et valoir ce que de droit. /." },
     { text: "NB : Cette attestation doit être utilisée dans un délai de 15 jours à compter de la date de signature. " + co.name + " n'est en aucun cas une caution en cas d'octroi de prêts.", italic: true, size: 18 },
     { text: `Fait à ${co.city}, le ${_fr(d.date) || new Date().toLocaleDateString("fr-FR")}.`, align: "right" },
-    { text: `${co.dga}`, bold: true, align: "right" },
+    { text: "LA DIRECTRICE GÉNÉRALE ADJOINTE,", bold: true, align: "right", size: 20 },
+    { text: `${co.dga || ""}`, bold: true, align: "right" },
   ];
 }
 function contractEndParagraphs(doc) {
@@ -229,7 +230,8 @@ function contractEndParagraphs(doc) {
     { text: `Nous vous informons que ${civ} ${name}, matricule ${d.matricule || "……"}, employé(e) de ${co.name}, a cessé ses fonctions au sein de notre société le ${_fr(d.endDate)}${d.motif ? " (motif : " + d.motif + ")" : ""}.` },
     { text: `Le virement correspondant à son dernier salaire${d.lastNet ? " (net : " + Number(d.lastNet).toLocaleString("fr-FR") + " FCFA)" : ""} et au solde de tout compte sera effectué sur le compte N° ${d.accountNumber || "…………"} ouvert dans vos livres. En conséquence, l'attestation de virement irrévocable établie au profit de l'intéressé(e) prend fin à cette date.` },
     { text: `Nous vous prions d'agréer, Madame, Monsieur, l'expression de nos salutations distinguées.` },
-    { text: `${co.dga}`, bold: true, align: "right" },
+    { text: "LA DIRECTRICE GÉNÉRALE ADJOINTE,", bold: true, align: "right", size: 20 },
+    { text: `${co.dga || ""}`, bold: true, align: "right" },
   ];
 }
 /** Official document generation (§7.1): Word template rendering for template docs. */
