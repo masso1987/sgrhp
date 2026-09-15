@@ -736,7 +736,7 @@ function applyBranding(b) {
   document.querySelectorAll("[data-app-logo]").forEach(e => { e.src = _appLogo; e.style.display = "inline-block"; });
   document.querySelectorAll("[data-brand-logo]").forEach(e => { e.src = _ctxLogo; e.style.display = "inline-block"; });
   try { const fav = document.getElementById("favicon"); if (fav) fav.href = _appLogo; } catch (e) {}
-  if (b.appName) { try { document.title = b.appName + (b.tagline ? " - " + b.tagline : ""); } catch (e) {} }
+  try { document.title = b.appName || "MBOKA Mon RH"; } catch (e) {}
   try { renderFooter(); renderLoginFooter(); } catch (e) {}
   document.body.classList.toggle("compact", b.density === "compact");
 }
@@ -1095,7 +1095,8 @@ async function boot() {
 }
 function renderFooter(){
   const y=new Date().getFullYear();
-  const co=(window.ME&&ME.tenantName)||(window.BRANDING&&(BRANDING.tagline||BRANDING.appName))||"MBOKA Mon RH";
+  const _app=(window.BRANDING&&BRANDING.appName)||"MBOKA Mon RH";
+  const co = window.ME ? (ME.role==="SADM" ? _app : (ME.tenantName || _app)) : _app;
   const el=document.getElementById("appFooter");
   if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés. · <a href="#" onclick="openLegal('tos');return false">Conditions</a> · <a href="#" onclick="openLegal('privacy');return false">Confidentialité</a>`;
 }
@@ -1168,7 +1169,8 @@ function showLauncher(){
       <div class="app-lbl">${esc(G.label)}</div>${d?`<div class="app-desc">${esc(d)}</div>`:""}</div>`;
   }).join("");
   const closeBtn = window.CURRENT_VIEW ? `<button class="launcher-close" onclick="hideLauncher()">Fermer</button>` : "";
-  const brand=(BRANDING&&BRANDING.appName)||"MBOKA Mon RH", tag=(BRANDING&&BRANDING.tagline)||"";
+  const brand=(BRANDING&&BRANDING.appName)||"MBOKA Mon RH";
+  const tag = window.ME ? (ME.role==="SADM" ? "Plateforme" : (ME.tenantName||"")) : "";
   const logo=`<img src="${contextLogoSrc(BRANDING)}" style="height:34px;border-radius:8px">`;
   const hello = (window.ME&&ME.fullName)?`<div class="l-hello">Bonjour ${esc(ME.fullName.split(" ")[0]||"")} 👋</div>`:"";
   el.innerHTML=`<div class="launcher-hero">
