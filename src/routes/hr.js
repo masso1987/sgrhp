@@ -136,42 +136,81 @@ router.get("/:id/decisions", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   res.json(db.decisions.filter(d => d.employeeId === emp.id));
 });
 
-/* ---------- Leave / permissions / final settlement ---------- */
-const ACCRUAL_PER_MONTH = 1.5; // configurable in M7
+/* ---------- Leave / permissions / final settlement (CCN Commerce Art. 63/64) ---------- */
+const _eng = require("../payroll/engine");
+const LEAVE_CFG = _eng.DEFAULT_CONFIG.leave;         // barème conventionnel
+const OUVRABLE_PER_MONTH = LEAVE_CFG.ouvrablePerMonth; // Art. 63.1 : 2 j ouvrables / mois
 
+function empSeniorityYears(emp) {
+  const hire = emp.hireDate || (emp.contract && emp.contract.startDate);
+  if (!hire) return 0;
+  return Math.max(0, (Date.now() - new Date(hire)) / (365.25 * 86400e3));
+}
 function leaveBalance(emp) {
   const months = Math.max(0, Math.floor((Date.now() - new Date(emp.hireDate)) / (30.44 * 86400e3)));
-  const accrued = months * ACCRUAL_PER_MONTH;
+  const years = empSeniorityYears(emp);
+  const majoration = _eng.leaveMajoration(Math.floor(years));           // Art. 63.5
+  const annualEntitlement = LEAVE_CFG.baseAnnual + majoration;          // 24 + majoration
+  // Acquis à ce jour : base 2 j ouvrables / mois + majoration d'ancienneté courante.
+  const accrued = months * OUVRABLE_PER_MONTH + majoration;
   const taken = db.documents
     .filter(d => d.type === "LEAVE" && d.refId === emp.id && d.status === "GENERATED" && d.data.leaveType === "Congé annuel")
-    .reduce((s, d) => s + d.data.days, 0);
-  return { accrued: Math.round(accrued * 10) / 10, taken, remaining: Math.round((accrued - taken) * 10) / 10 };
+    .reduce((s, d) => s + (d.data.days || 0), 0);
+  return { accrued: Math.round(accrued * 10) / 10, taken, remaining: Math.round((accrued - taken) * 10) / 10,
+    baseAnnual: LEAVE_CFG.baseAnnual, majoration, annualEntitlement, perMonth: OUVRABLE_PER_MONTH };
+}
+// Jours de permissions exceptionnelles payées déjà consommés cette année calendaire (Art. 64.2).
+function permissionsUsedThisYear(emp) {
+  const y = new Date().getFullYear();
+  return db.documents
+    .filter(d => d.type === "LEAVE" && d.refId === emp.id && d.data.leaveType === "Permission exceptionnelle"
+      && String(d.data.startDate || d.createdAt || "").slice(0, 4) === String(y))
+    .reduce((s, d) => s + (d.data.days || 0), 0);
 }
 
 router.get("/:id/leave", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const emp = empOf(req);
   if (!emp) return res.status(404).json({ error: "Not found" });
   res.json({ balance: leaveBalance(emp),
+    permissionsScale: LEAVE_CFG.permissions, permissionsCap: LEAVE_CFG.permissionsCapDays,
+    permissionsUsed: permissionsUsedThisYear(emp),
     requests: db.documents.filter(d => d.type === "LEAVE" && d.refId === emp.id) });
+});
+// Barème des permissions exceptionnelles (Art. 64) + solde annuel restant.
+router.get("/:id/leave/permissions-scale", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  const emp = empOf(req);
+  if (!emp) return res.status(404).json({ error: "Not found" });
+  const used = permissionsUsedThisYear(emp);
+  res.json({ scale: LEAVE_CFG.permissions, cap: LEAVE_CFG.permissionsCapDays, used, remaining: Math.max(0, LEAVE_CFG.permissionsCapDays - used) });
 });
 
 router.post("/:id/leave", allow("GPF", "ADM"), (req, res) => {
   const emp = empOf(req);
   if (!emp) return res.status(404).json({ error: "Employee not found" });
-  const { leaveType, startDate, endDate, reason } = req.body || {};
+  const { leaveType, startDate, endDate, reason, permissionKey } = req.body || {};
   const ref = mine(db.referentials, req).find(r => r.key === "leaveTypes");
   if (!leaveType || !ref.values.includes(leaveType))
     return res.status(400).json({ error: `leaveType must be one of: ${ref.values.join(", ")}` });
-  let days = 0;
+  let days = 0, permissionLabel = "";
   if (leaveType !== "Solde de tout compte") {
     if (!startDate || !endDate) return res.status(400).json({ error: "startDate and endDate required" });
     days = Math.round((new Date(endDate) - new Date(startDate)) / 86400e3) + 1;
     if (days <= 0) return res.status(400).json({ error: "endDate must be after startDate" });
     if (leaveType === "Congé annuel" && days > leaveBalance(emp).remaining)
-      return res.status(400).json({ error: `Insufficient balance: ${leaveBalance(emp).remaining} days remaining, ${days} requested` });
+      return res.status(400).json({ error: `Solde insuffisant : ${leaveBalance(emp).remaining} j restants, ${days} demandés` });
+    // Art. 64 : permissions exceptionnelles — barème par événement + plafond 12 j / an.
+    if (leaveType === "Permission exceptionnelle") {
+      const ev = (LEAVE_CFG.permissions || []).find(p => p.key === permissionKey);
+      if (!ev) return res.status(400).json({ error: `permissionKey requis (Art. 64) : ${(LEAVE_CFG.permissions || []).map(p => p.key).join(", ")}` });
+      permissionLabel = ev.label;
+      if (days > ev.days) return res.status(400).json({ error: `« ${ev.label} » : ${ev.days} j payés maximum (Art. 64). Le surplus s'impute sur les congés annuels ou en permission non payée.` });
+      const used = permissionsUsedThisYear(emp);
+      if (used + days > LEAVE_CFG.permissionsCapDays)
+        return res.status(400).json({ error: `Plafond annuel de permissions atteint : ${used}/${LEAVE_CFG.permissionsCapDays} j déjà pris cette année (Art. 64.2).` });
+    }
   }
   const doc = { id: id("doc"), tenantId: req.user.tenantId || "t1", type: "LEAVE", refId: emp.id,
-    data: { leaveType, startDate, endDate, days, reason: reason || "" },
+    data: { leaveType, startDate, endDate, days, reason: reason || "", permissionKey: permissionKey || null, permissionLabel },
     title: `${leaveType} (${days ? days + "j" : "—"}) — ${emp.firstName} ${emp.lastName}`,
     createdById: req.user.id, createdAt: new Date().toISOString(),
     status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null,
@@ -277,6 +316,9 @@ router.post("/:id/contract-letter", allow("GPF", "ADM", "CD", "RJ"), (req, res) 
       bankName: b.bankName || (emp.bank && emp.bank.name) || emp.bankName || "",
       accountNumber: b.accountNumber || (emp.bank && emp.bank.account) || emp.bankAccount || "",
       lastNet: b.lastNet || "", ref: b.ref || "", date: b.date || new Date().toISOString().slice(0, 10),
+      soldeTotal: b.soldeTotal != null ? Number(b.soldeTotal) : null,
+      soldeLines: Array.isArray(b.soldeLines) ? b.soldeLines : null,
+      soldeMotif: b.soldeMotif || c.departureReason || "",
     },
   };
   db.documents.push(doc);

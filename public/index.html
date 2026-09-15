@@ -1976,6 +1976,52 @@ async function contractLetter(empId){
   try{ await api("/hr/"+empId+"/contract-letter",{method:"POST",body:JSON.stringify({})}); alert("Lettre créée et soumise au circuit de validation. Elle sera disponible (Word) dans « Documents générés » une fois validée."); }
   catch(e){ alert(e.message); }
 }
+async function soldeOpen(empId){
+  const bg=document.createElement("div");bg.className="modal-bg";
+  let motifs=[]; try{ motifs=await api("/payroll/rupture/motifs"); }catch(e){}
+  const opts=(motifs||[]).map(m=>`<option value="${esc(m.key)}">${esc(m.label)}</option>`).join("");
+  bg.innerHTML=`<div class="modal" style="max-width:640px"><b>Solde de tout compte / droits de rupture</b>
+    <div class="note" style="margin:4px 0 8px">Barème CCN Commerce (Art. 42/45/46/47/48). Les montants sont indicatifs et modifiables dans Paramètres paie ; la durée de préavis renvoie à la réglementation en vigueur.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px"><label>Motif de rupture</label><select id="sqMotif">${opts}</select></div>
+      <div style="width:150px"><label>Date de fin</label><input id="sqEnd" type="date" value="${esc(new Date().toISOString().slice(0,10))}"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+      <div style="width:150px"><label>Ancienneté (années)</label><input id="sqYears" type="number" step="0.01" placeholder="auto"></div>
+      <div style="width:160px"><label>Solde congés (jours)</label><input id="sqLeave" type="number" step="0.5" placeholder="auto"></div>
+      <div style="width:150px"><label>Sursalaire (FCFA)</label><input id="sqSur" type="number" placeholder="0"></div>
+    </div>
+    <div style="margin-top:10px"><button class="btn p sm" onclick="soldeCalc('${empId}',this)">Calculer</button></div>
+    <div id="sqOut" style="margin-top:10px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
+}
+window._lastSolde=null;
+async function soldeCalc(empId,btn){
+  const g=x=>(document.getElementById(x)||{}).value;
+  const body={ motif:g("sqMotif"), endDate:g("sqEnd")||undefined };
+  if(g("sqYears")!=="") body.seniorityYears=Number(g("sqYears"));
+  if(g("sqLeave")!=="") body.leaveDays=Number(g("sqLeave"));
+  if(g("sqSur")!=="") body.sursalaire=Number(g("sqSur"));
+  const out=document.getElementById("sqOut"); out.innerHTML="Calcul…";
+  try{
+    const r=await api("/payroll/solde/"+empId,{method:"POST",body:JSON.stringify(body)});
+    window._lastSolde=r;
+    const rows=(r.lines||[]).map(l=>`<tr><td>${esc(l.label)} ${l.article?`<span class="tag">${esc(l.article)}</span>`:""}<div class="note" style="font-size:11px;color:#6b7280">${esc(l.note||"")}</div></td><td style="text-align:right;white-space:nowrap"><b>${Number(l.amount).toLocaleString("fr-FR")}</b></td></tr>`).join("");
+    out.innerHTML=`<div class="note" style="margin-bottom:6px">Salaire moyen retenu : <b>${Number(r.monthlyRef).toLocaleString("fr-FR")}</b> FCFA · collège : <b>${esc(r.college)}</b> · ancienneté : <b>${r.seniorityYears}</b> ans</div>
+      <table class="tbl" style="width:100%"><tbody>${rows||'<tr><td colspan=2 class="note">Aucun droit dû pour ce motif (hors salaire du mois).</td></tr>'}
+      <tr style="border-top:2px solid #111"><td><b>TOTAL SOLDE DE TOUT COMPTE</b></td><td style="text-align:right"><b>${Number(r.total).toLocaleString("fr-FR")} FCFA</b></td></tr></tbody></table>
+      <div class="note" style="margin-top:6px;color:#b45309">Le salaire du dernier mois (prorata jusqu'à la date de fin) est calculé séparément dans la paie et s'ajoute à ce solde.</div>
+      <div style="margin-top:8px"><button class="btn sm" onclick="soldeToLetter('${empId}',this)">Générer la lettre à la banque avec ce solde</button></div>`;
+  }catch(e){ out.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+async function soldeToLetter(empId,btn){
+  const r=window._lastSolde; if(!r) return;
+  if(!confirm("Générer la lettre de fin de contrat à la banque (avec le détail du solde) ? Elle passera par le circuit de validation."))return;
+  try{ await api("/hr/"+empId+"/contract-letter",{method:"POST",body:JSON.stringify({ soldeTotal:r.total, soldeLines:r.lines, soldeMotif:r.motifLabel, motif:r.motifLabel })});
+    alert("Lettre créée et soumise au circuit de validation. Disponible (Word) dans « Documents générés » une fois validée."); btn.closest(".modal-bg").remove(); }
+  catch(e){ alert(e.message); }
+}
 async function endContractSave(empId,btn){ const d=(document.getElementById("ecDate")||{}).value, m=(document.getElementById("ecMotif")||{}).value;
   if(!d){ const e=document.getElementById("ecErr"); e.textContent="Date de fin obligatoire"; e.classList.remove("hidden"); return; }
   try{ await api("/employees/"+empId+"/end-contract",{method:"POST",body:JSON.stringify({endDate:d,motif:m||undefined})}); btn.closest(".modal-bg").remove(); empDetail(empId); }
@@ -2035,7 +2081,7 @@ async function empDetail(id) {
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
     <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px;color:var(--muted)">CONTRAT</b>
-      ${canEdit?`<span style="display:inline-flex;gap:6px"><button class="btn ghost sm" onclick="endContractOpen('${e.id}','${(e.contract&&e.contract.endDate)||""}')">Mettre fin au contrat</button><button class="btn ghost sm" onclick="newContractOpen('${e.id}')">Nouveau contrat</button></span>`:""}</div>
+      ${canEdit?`<span style="display:inline-flex;gap:6px"><button class="btn ghost sm" onclick="endContractOpen('${e.id}','${(e.contract&&e.contract.endDate)||""}')">Mettre fin au contrat</button><button class="btn ghost sm" onclick="newContractOpen('${e.id}')">Nouveau contrat</button><button class="btn ghost sm" onclick="soldeOpen('${e.id}')">Solde de tout compte</button></span>`:""}</div>
       <div class="grid3" style="margin-top:6px;font-size:13px">
         <div><label>Type</label><div>${esc(e.contract&&e.contract.type||"-")}</div></div>
         <div><label>Début</label><div>${esc((e.contract&&e.contract.startDate)||e.hireDate||"-")}</div></div>
@@ -2327,14 +2373,16 @@ async function hrSection(id) {
         <td>${esc(d.detail)}${d.amendmentId ? ' <span class="tag blue">avenant auto</span>' : ""}
         ${d.fileName ? ` <a style="cursor:pointer;color:var(--primary)" onclick="decDl('${d.employeeId}','${d.id}','${esc(d.fileName)}')">${esc(d.fileName)}</a>` : ""}</td></tr>`).join("")}</table>` : '<small style="color:var(--muted)">Aucun.</small>'}</div>
 
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">LEAVE & PERMISSIONS</b>
-    <div style="margin:6px 0"><span class="tag green">Balance: ${lv.balance.remaining} d</span>
-      <span class="tag gray">accrued ${lv.balance.accrued} d</span> <span class="tag gray">taken ${lv.balance.taken} d</span></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">CONGÉS & PERMISSIONS</b>
+    <div style="margin:6px 0"><span class="tag green">Solde : ${lv.balance.remaining} j</span>
+      <span class="tag gray">acquis ${lv.balance.accrued} j</span> <span class="tag gray">pris ${lv.balance.taken} j</span></div>
+    <div class="note" style="font-size:11px;color:var(--muted);margin-bottom:6px">Droit annuel : <b>${lv.balance.annualEntitlement} j</b> ouvrables (base ${lv.balance.baseAnnual} + majoration ancienneté ${lv.balance.majoration} j — Art. 63). Permissions exceptionnelles utilisées cette année : <b>${lv.permissionsUsed || 0}/${lv.permissionsCap || 12} j</b> (Art. 64).</div>
     ${canEdit ? `<div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
-      <select id="lvType" style="max-width:210px;margin:0">${lvTypes.map(t => `<option>${t}</option>`).join("")}</select>
+      <select id="lvType" style="max-width:210px;margin:0" onchange="lvTypeChange()">${lvTypes.map(t => `<option>${t}</option>`).join("")}</select>
+      <select id="lvPerm" style="max-width:260px;margin:0;display:none" onchange="lvPermChange()"><option value="">— Événement (Art. 64) —</option>${(lv.permissionsScale||[]).map(p => `<option value="${p.key}" data-days="${p.days}">${esc(p.label)} (${p.days} j)</option>`).join("")}</select>
       <input id="lvStart" type="date" style="max-width:150px;margin:0"><input id="lvEnd" type="date" style="max-width:150px;margin:0">
-      <input id="lvReason" placeholder="Reason" style="max-width:170px;margin:0">
-      <button class="btn p sm" onclick="lvCreate('${id}')">+ Submit request</button></div>` : ""}
+      <input id="lvReason" placeholder="Motif" style="max-width:170px;margin:0">
+      <button class="btn p sm" onclick="lvCreate('${id}')">+ Soumettre la demande</button></div>` : ""}
     ${lv.requests.length ? `<table><tr><th>Type</th><th>Period</th><th>Days</th><th>Statut</th></tr>
       ${lv.requests.map(r => `<tr><td>${r.data.leaveType}</td><td>${r.data.startDate || "-"} → ${r.data.endDate || "-"}</td>
         <td>${r.data.days || "-"}</td><td>${ST_TAG(r.status === "GENERATED" ? "GENERATED" : r.status)}
@@ -2364,9 +2412,17 @@ async function decCreate(id) {
     empDetail(id);
   } catch (e) { alert(e.message); }
 }
+function lvTypeChange(){ const sel=document.getElementById("lvPerm"); if(!sel) return;
+  sel.style.display = (document.getElementById("lvType").value==="Permission exceptionnelle") ? "" : "none"; }
+function lvPermChange(){ const sel=document.getElementById("lvPerm"); const o=sel.options[sel.selectedIndex];
+  const days=o&&o.getAttribute("data-days"); const st=document.getElementById("lvStart");
+  if(days&&st&&st.value){ const d=new Date(st.value); d.setDate(d.getDate()+Number(days)-1); document.getElementById("lvEnd").value=d.toISOString().slice(0,10); }
+  if(o&&o.value) document.getElementById("lvReason").value=o.text.replace(/\s*\(\d+ j\)$/,""); }
 async function lvCreate(id) {
-  try { await api(`/hr/${id}/leave`, { method: "POST", body: JSON.stringify({
-      leaveType: lvType.value, startDate: lvStart.value, endDate: lvEnd.value, reason: lvReason.value }) });
+  const perm=document.getElementById("lvPerm");
+  const body={ leaveType: lvType.value, startDate: lvStart.value, endDate: lvEnd.value, reason: lvReason.value };
+  if(lvType.value==="Permission exceptionnelle" && perm && perm.value) body.permissionKey=perm.value;
+  try { await api(`/hr/${id}/leave`, { method: "POST", body: JSON.stringify(body) });
     alert(t("Demande soumise pour validation.")); empDetail(id); }
   catch (e) { alert(e.message); }
 }

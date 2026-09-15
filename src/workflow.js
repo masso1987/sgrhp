@@ -217,18 +217,27 @@ function aviParagraphs(doc) {
     { text: "LA DIRECTRICE GÉNÉRALE ADJOINTE,", bold: true, align: "right", size: 20 },
     { text: `${co.dga || ""}`, bold: true, align: "right" },
   ];
+  const detail = [];
+  if (Array.isArray(d.soldeLines) && d.soldeLines.length) {
+    detail.push({ text: `Détail du solde de tout compte${d.soldeMotif ? " (" + d.soldeMotif + ")" : ""} :`, bold: true, size: 20 });
+    for (const l of d.soldeLines) detail.push({ text: `• ${l.label} : ${Number(l.amount).toLocaleString("fr-FR")} FCFA${l.article ? " (" + l.article + ")" : ""}`, size: 20 });
+    detail.push({ text: `TOTAL : ${Number(d.soldeTotal || 0).toLocaleString("fr-FR")} FCFA`, bold: true, size: 20 });
+  }
+  return [...body, ...detail, ...tail];
 }
 function contractEndParagraphs(doc) {
   const d = doc.data || {}; const co = companyInfo();
   const civ = d.civility || "Monsieur"; const name = d.employeeName || "";
-  return [
+  const body = [
     { text: `Réf : ${d.ref || ""}`, size: 20 },
     { text: `${co.city}, le ${_fr(d.date) || new Date().toLocaleDateString("fr-FR")}`, align: "right", size: 20 },
     { text: `À l'attention du Chef d'Agence,\n${d.bankName || "…………"}`, bold: true },
     { text: `Objet : Fin de contrat — ${civ} ${name}`, bold: true },
     { text: `Madame, Monsieur,` },
     { text: `Nous vous informons que ${civ} ${name}, matricule ${d.matricule || "……"}, employé(e) de ${co.name}, a cessé ses fonctions au sein de notre société le ${_fr(d.endDate)}${d.motif ? " (motif : " + d.motif + ")" : ""}.` },
-    { text: `Le virement correspondant à son dernier salaire${d.lastNet ? " (net : " + Number(d.lastNet).toLocaleString("fr-FR") + " FCFA)" : ""} et au solde de tout compte sera effectué sur le compte N° ${d.accountNumber || "…………"} ouvert dans vos livres. En conséquence, l'attestation de virement irrévocable établie au profit de l'intéressé(e) prend fin à cette date.` },
+    { text: `Le virement correspondant à son dernier salaire${d.lastNet ? " (net : " + Number(d.lastNet).toLocaleString("fr-FR") + " FCFA)" : ""} et au solde de tout compte${d.soldeTotal ? " d'un montant de " + Number(d.soldeTotal).toLocaleString("fr-FR") + " FCFA" : ""} sera effectué sur le compte N° ${d.accountNumber || "…………"} ouvert dans vos livres. En conséquence, l'attestation de virement irrévocable établie au profit de l'intéressé(e) prend fin à cette date.` },
+  ];
+  const tail = [
     { text: `Nous vous prions d'agréer, Madame, Monsieur, l'expression de nos salutations distinguées.` },
     { text: "LA DIRECTRICE GÉNÉRALE ADJOINTE,", bold: true, align: "right", size: 20 },
     { text: `${co.dga || ""}`, bold: true, align: "right" },

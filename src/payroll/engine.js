@@ -63,8 +63,39 @@ const DEFAULT_CONFIG = {
   overtime: { tier1Rate: 0.20, tier2Rate: 0.30, tier3Rate: 0.40, nightRate: 0.50 },
   // Seniority (^^ANCTAUX): 4% at 2 years, +2%/year, capped.
   seniority: { startYears: 2, startRate: 0.04, perYearRate: 0.02, maxRate: 0.30 },
-  leave: { daysPerMonth: 2.5 }, // CONGE1 — congés acquis / mois
+  leave: {
+    daysPerMonth: 2.5, // CONGE1 — provision comptable (jours calendaires) / mois
+    ouvrablePerMonth: 2, baseAnnual: 24, // Art. 63.1 : 2 jours ouvrables / mois = 24 / an
+    // Art. 63.5 : majoration d'ancienneté (jours ouvrables ajoutés au congé annuel)
+    seniorityMajoration: [
+      { upToYears: 5, days: 0 }, { upToYears: 10, days: 3 }, { upToYears: 15, days: 6 },
+      { upToYears: 19, days: 9 }, { upToYears: 23, days: 12 }, { upToYears: 27, days: 15 },
+      { upToYears: 31, days: 18 }, { upToYears: 35, days: 21 }, { upToYears: 39, days: 24 },
+      { upToYears: 43, days: 27 }, { upToYears: 1e9, days: 30 },
+    ],
+    // Art. 64 : permissions exceptionnelles d'absence payées (jours de travail effectif)
+    permissions: [
+      { key: "mariage_travailleur", label: "Mariage du travailleur", days: 4 },
+      { key: "accouchement_epouse", label: "Accouchement de l'épouse", days: 3 },
+      { key: "bapteme_enfant", label: "Baptême d'un enfant", days: 1 },
+      { key: "mariage_enfant", label: "Mariage d'un enfant", days: 2 },
+      { key: "deces_conjoint", label: "Décès du conjoint", days: 5 },
+      { key: "deces_enfant", label: "Décès d'un enfant", days: 3 },
+      { key: "deces_pere_mere", label: "Décès du père ou de la mère", days: 5 },
+      { key: "deces_pere_mere_conjoint", label: "Décès du père ou de la mère du conjoint légitime", days: 3 },
+      { key: "deces_frere_soeur", label: "Décès du frère ou de la sœur", days: 3 },
+    ],
+    permissionsCapDays: 12, // Art. 64.2 : plafond 12 j ouvrables / année calendaire
+  },
   legal: { transportPerDay: 1300, caissePrincipal: 33000, caisseSecondaire: 26000, logementPct: 0.40 }, // CCN Commerce (Art. 74, 78, 81)
+  // Barème de rupture / solde de tout compte (CCN Commerce Art. 42/45/46/47/48).
+  rupture: {
+    licenciement: [ { upToYears: 5, rate: 0.30 }, { upToYears: 10, rate: 0.35 }, { upToYears: 15, rate: 0.45 }, { upToYears: 20, rate: 0.50 }, { upToYears: 1e9, rate: 0.55 } ],
+    finCarriere: [ { upToYears: 5, rate: 0.45 }, { upToYears: 10, rate: 0.50 }, { upToYears: 15, rate: 0.65 }, { upToYears: 20, rate: 0.70 }, { upToYears: 1e9, rate: 0.80 } ],
+    bonneSeparation: [ { upToYears: 3, months: 4 }, { upToYears: 7, months: 7 }, { upToYears: 10, months: 10 }, { upToYears: 1e9, months: 12 } ],
+    preavisMonths: { ouvrier: 1, maitrise: 2, cadre: 3 },
+    minSeniorityIndemnite: 1, inaptitudeMinYears: 2, inaptitudeMonths: 3, penaliteRetraitePct: 0.10,
+  },
 };
 
 const r0 = (n) => Math.round(n || 0);
@@ -202,4 +233,9 @@ function computePayslip(input, configOverride) {
   };
 }
 
-module.exports = { computePayslip, DEFAULT_CONFIG, progressive, bracketAmount, seniorityRate };
+function leaveMajoration(years, cfg) {
+  const tbl = ((cfg && cfg.leave && cfg.leave.seniorityMajoration) || DEFAULT_CONFIG.leave.seniorityMajoration);
+  for (const b of tbl) if (years < b.upToYears) return b.days;
+  return tbl.length ? tbl[tbl.length - 1].days : 0;
+}
+module.exports = { computePayslip, DEFAULT_CONFIG, progressive, bracketAmount, seniorityRate, leaveMajoration };

@@ -105,6 +105,14 @@ function seniorityYears(emp, period) {
   const y = (end - new Date(hire)) / (365.25 * 24 * 3600 * 1000);
   return Math.max(0, Math.floor(y));
 }
+// Ancienneté en années décimales (pour le solde de tout compte : les fractions comptent).
+function seniorityYearsFrac(emp, endDate) {
+  const hire = emp.hireDate || (emp.contract && emp.contract.startDate);
+  if (!hire) return 0;
+  const end = endDate ? new Date(endDate) : new Date();
+  const y = (end - new Date(hire)) / (365.25 * 24 * 3600 * 1000);
+  return Math.max(0, Math.round(y * 100) / 100);
+}
 
 /** Turn variable elements for one employee/period into engine input. */
 // Build the recurring salary structure from the employee's filled-in RH salary
@@ -1514,6 +1522,38 @@ router.get("/runs/:id/journal/export", allow("ADM", "CD", "RJ", "GPF"), (req, re
   rows.push(["", "TOTAUX", j.totalDebit, j.totalCredit]);
   audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "journal", format: "csv" });
   sendCSV(res, `Journal_paie_${run.period}.csv`, rows);
+});
+
+
+/* ============ Solde de tout compte / droits de rupture (CCN Commerce Art. 42-48) ============ */
+const _solde = require("../payroll/soldeToutCompte");
+router.get("/rupture/motifs", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(_solde.MOTIFS));
+router.post("/solde/:eid", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
+  if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
+  const b = req.body || {};
+  const cfg = configOf(req);
+  const c = emp.contract || {};
+  const endDate = b.endDate || c.endDate || new Date().toISOString().slice(0, 10);
+  const period = String(endDate).slice(0, 7);
+  const salaireCategoriel = Number(b.salaireCategoriel) > 0 ? Number(b.salaireCategoriel) : baseSalaryOf(emp, req);
+  const years = Number(b.seniorityYears) >= 0 && b.seniorityYears !== undefined ? Number(b.seniorityYears) : seniorityYearsFrac(emp, endDate);
+  const sr = seniorityRate(Math.floor(years), cfg);
+  const primeAnciennete = Number(b.primeAnciennete) >= 0 && b.primeAnciennete !== "" && b.primeAnciennete !== undefined ? Number(b.primeAnciennete) : Math.round(salaireCategoriel * sr);
+  let leaveDays = Number(b.leaveDays);
+  if (!(leaveDays >= 0)) { try { leaveDays = require("./hr").leaveBalance(emp).remaining; } catch (e) { leaveDays = 0; } }
+  const dailyRate = Number(b.dailyRate) > 0 ? Number(b.dailyRate) : Math.round(salaireCategoriel / (cfg.standardMonthlyDays || 30));
+  const out = _solde.computeSolde({
+    motif: b.motif || c.departureReason || "licenciement",
+    category: c.category || "", seniorityYears: years,
+    salaireCategoriel, primeAnciennete, sursalaire: Number(b.sursalaire) || 0,
+    monthlyRef: Number(b.monthlyRef) || 0, leaveDays: leaveDays || 0, dailyRate,
+    preavisRespecte: b.preavisRespecte !== false,
+  }, cfg);
+  out.employee = { id: emp.id, name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), matricule: emp.matricule || "", category: c.category || "" };
+  out.endDate = endDate; out.period = period;
+  audit(req.user, "SOLDE_TOUT_COMPTE", "Employee", emp.id, { motif: out.motif, total: out.total });
+  res.json(out);
 });
 
 module.exports = router;
