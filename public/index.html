@@ -125,7 +125,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 <body>
 
 <div id="login">
-  <div style="text-align:center"><img data-brand-logo style="max-height:46px;display:none;margin-bottom:6px"></div><h1 data-brand-name style="text-align:center;margin-bottom:16px">SGRHP</h1>
+  <div style="text-align:center"><img data-app-logo style="max-height:64px;margin-bottom:8px"></div><h1 data-brand-name style="text-align:center;margin-bottom:16px">SGRHP</h1>
   <label>Email</label><input id="lEmail" value="" placeholder="votre@email.com" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
   <label>Mot de passe</label><input id="lPass" type="password" value="" placeholder="Mot de passe" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
   <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
@@ -702,6 +702,18 @@ const THEMES = {
   dark:   {"--primary":"#1d4ed8","--accent":"#3b82f6","--bg":"#f1f5f9","--border":"#e2e8f0","--text":"#1f2937","--topbar-bg":"#0f172a","--sidebar-bg":"#0f172a","--sidebar-border":"#1e293b","--nav-color":"#94a3b8","--nav-active-color":"#ffffff","--nav-active-bg":"#1e293b","--nav-active-border":"#3b82f6"}
 };
 const THEME_META = { emerald:["Emerald","#065f46","#10b981","#ffffff"], navy:["Navy & Amber","#1e3a5f","#e8833a","#ffffff"], indigo:["Indigo SaaS","#4338ca","#6366f1","#ffffff"], dark:["Dark sidebar","#0f172a","#3b82f6","#0f172a"] };
+function appInitials(name){ const parts=String(name||"SGRHP").trim().split(/\s+/).filter(Boolean); let ini = parts.length>=2 ? (parts[0][0]+parts[1][0]) : (parts[0]||"SG").slice(0,2); return ini.toUpperCase().slice(0,3); }
+function appMonogram(name){
+  const cs=getComputedStyle(document.documentElement);
+  const p=(cs.getPropertyValue('--primary')||'').trim()||'#065f46';
+  const a=(cs.getPropertyValue('--accent')||'').trim()||'#10b981';
+  const ini=appInitials(name);
+  const svg="<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='"+p+"'/><stop offset='1' stop-color='"+a+"'/></linearGradient></defs><rect width='96' height='96' rx='22' fill='url(#g)'/><text x='48' y='52' font-family='Inter,Segoe UI,Arial,sans-serif' font-size='"+(ini.length>2?30:38)+"' font-weight='700' fill='#ffffff' text-anchor='middle' dominant-baseline='middle'>"+ini+"</text></svg>";
+  return "data:image/svg+xml,"+encodeURIComponent(svg);
+}
+function appLogoSrc(b){ b=b||BRANDING||{}; return b.appLogo || appMonogram(b.appName||"SGRHP"); }
+// Logo affiché DANS l'app (barre, lanceur) : logo société pour un tenant, logo appli pour le super-admin ou à défaut.
+function contextLogoSrc(b){ b=b||BRANDING||{}; return (window.ME && ME.role!=="SADM" && b.logo) ? b.logo : appLogoSrc(b); }
 function applyBranding(b) {
   if (!b) return; BRANDING = b;
   const r = document.documentElement.style, key = b.theme || "emerald";
@@ -719,9 +731,10 @@ function applyBranding(b) {
   }
   document.querySelectorAll("[data-brand-name]").forEach(e =>e.textContent = b.appName || "SGRHP");
   document.querySelectorAll("[data-brand-tag]").forEach(e =>e.textContent = (window.ME && ME.tenantName) ? ME.tenantName : (b.tagline || ""));
-  document.querySelectorAll("[data-brand-logo]").forEach(e => {
-    if (b.logo) { e.src = b.logo; e.style.display = "inline-block"; } else { e.style.display = "none"; } });
-  try { const fav = document.getElementById("favicon"); if (fav && b.logo) fav.href = b.logo; } catch (e) {}
+  const _appLogo = appLogoSrc(b), _ctxLogo = contextLogoSrc(b);
+  document.querySelectorAll("[data-app-logo]").forEach(e => { e.src = _appLogo; e.style.display = "inline-block"; });
+  document.querySelectorAll("[data-brand-logo]").forEach(e => { e.src = _ctxLogo; e.style.display = "inline-block"; });
+  try { const fav = document.getElementById("favicon"); if (fav) fav.href = _appLogo; } catch (e) {}
   if (b.appName) { try { document.title = b.appName + (b.tagline ? " - " + b.tagline : ""); } catch (e) {} }
   try { renderFooter(); renderLoginFooter(); } catch (e) {}
   document.body.classList.toggle("compact", b.density === "compact");
@@ -1155,7 +1168,7 @@ function showLauncher(){
   }).join("");
   const closeBtn = window.CURRENT_VIEW ? `<button class="launcher-close" onclick="hideLauncher()">Fermer</button>` : "";
   const brand=(BRANDING&&BRANDING.appName)||"SGRHP", tag=(BRANDING&&BRANDING.tagline)||"";
-  const logo=(BRANDING&&BRANDING.logo)?`<img src="${BRANDING.logo}" style="height:34px;border-radius:8px">`:"";
+  const logo=`<img src="${contextLogoSrc(BRANDING)}" style="height:34px;border-radius:8px">`;
   const hello = (window.ME&&ME.fullName)?`<div class="l-hello">Bonjour ${esc(ME.fullName.split(" ")[0]||"")} 👋</div>`:"";
   el.innerHTML=`<div class="launcher-hero">
       <div class="launcher-top">
@@ -3758,11 +3771,20 @@ let TEN_MODULES = null, TEN_FORMS = null;
 async function tenantsView() {
   if (!TEN_MODULES) [TEN_MODULES, TEN_FORMS] = await Promise.all([api("/tenants/modules"), api("/tenants/legal-forms")]);
   const [list, ov] = await Promise.all([api("/tenants"), api("/tenants/stats/overview")]);
-  let _pb={appName:""}; try{ _pb=await api("/tenants/platform-branding"); }catch(e){}
+  let _pb={appName:"",appLogo:""}; try{ _pb=await api("/tenants/platform-branding"); }catch(e){}
+  window._PB_LOGO=undefined;
   view.innerHTML = `<h1>Plateforme - entreprises clientes</h1>
-  <div class="panel" style="max-width:520px"><b style="font-size:12px;color:var(--muted)">NOM DE L'APPLICATION (VISIBLE PAR TOUS LES TENANTS)</b>
-    <div class="note" style="margin:4px 0 8px">Ce nom s'affiche sur l'écran de connexion, la barre supérieure, le lanceur et l'onglet du navigateur de <b>tous</b> les tenants. Seul le super-administrateur peut le modifier.</div>
-    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+  <div class="panel" style="max-width:560px"><b style="font-size:12px;color:var(--muted)">IDENTITÉ DE L'APPLICATION (VISIBLE PAR TOUS LES TENANTS)</b>
+    <div class="note" style="margin:4px 0 8px">Le nom et le logo de l'application s'affichent sur l'écran de connexion, la barre supérieure, le lanceur et l'onglet du navigateur de <b>tous</b> les tenants. Seul le super-administrateur les gère. À défaut de logo, un monogramme est généré à partir du nom.</div>
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div style="text-align:center">
+        <label style="display:block">Logo de l'application</label>
+        <img id="pbLogoPrev" src="${_pb.appLogo||''}" style="height:56px;border:1px solid var(--border);border-radius:10px;padding:4px;${_pb.appLogo?'':'display:none'}">
+        <div id="pbLogoNone" class="note" style="${_pb.appLogo?'display:none;':''}font-size:11px">monogramme auto</div>
+        <div style="display:flex;gap:6px;margin-top:4px;justify-content:center">
+          <input type="file" accept="image/*" onchange="pbPickLogo(this)" style="margin:0;max-width:150px">
+          ${_pb.appLogo?'<button class="btn ghost sm" onclick="pbClearLogo()">Retirer</button>':''}</div>
+      </div>
       <div style="flex:1;min-width:200px"><label>Nom de l'application</label><input id="pbName" value="${esc(_pb.appName||'')}" placeholder="SGRHP"></div>
       <button class="btn p sm" onclick="savePlatformName()">Enregistrer</button></div></div>
   <div class="cards">
@@ -3788,11 +3810,17 @@ async function tenantsView() {
       <button class="btn ghost sm" onclick="tenantToggle('${t.id}','${t.status}')">${t.status==="ACTIVE"?"Suspendre":"Réactiver"}</button></td></tr>`).join("")}
   </table></div>`;
 }
+function pbPickLogo(inp){ const f=inp.files&&inp.files[0]; if(!f) return;
+  if(f.size>200000){ alert("Logo trop volumineux (max ~200 Ko)."); inp.value=""; return; }
+  const rd=new FileReader(); rd.onload=()=>{ window._PB_LOGO=rd.result; const p=document.getElementById("pbLogoPrev"); if(p){p.src=rd.result;p.style.display="inline-block";} const n=document.getElementById("pbLogoNone"); if(n)n.style.display="none"; }; rd.readAsDataURL(f); }
+function pbClearLogo(){ window._PB_LOGO=""; const p=document.getElementById("pbLogoPrev"); if(p)p.style.display="none"; const n=document.getElementById("pbLogoNone"); if(n)n.style.display=""; }
 async function savePlatformName(){
   const v=(document.getElementById("pbName")||{}).value||"";
-  try{ const r=await api("/tenants/platform-branding",{method:"PUT",body:JSON.stringify({appName:v})});
-    applyBranding({ ...(BRANDING||{}), appName:r.appName });
-    alert("Nom de l'application mis à jour. Il sera visible par tous les tenants."); }
+  const body={appName:v}; if(window._PB_LOGO!==undefined) body.appLogo=window._PB_LOGO;
+  try{ const r=await api("/tenants/platform-branding",{method:"PUT",body:JSON.stringify(body)});
+    applyBranding({ ...(BRANDING||{}), appName:r.appName, appLogo:r.appLogo });
+    window._PB_LOGO=undefined;
+    alert("Identité de l'application mise à jour. Elle sera visible par tous les tenants."); tenantsView(); }
   catch(e){ alert(e.message); }
 }
 async function tenantForm(id) {

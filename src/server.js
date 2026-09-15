@@ -77,7 +77,7 @@ app.get("/api/legal", (req, res) => {
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
   const b = Object.assign({}, s.branding);
-  try { const p = require("./routes/tenants").platformCfg(); if (p && p.appName) b.appName = p.appName; } catch (e) {}
+  try { const p = require("./routes/tenants").platformCfg(); if (p) { if (p.appName) b.appName = p.appName; b.appLogo = p.appLogo || ""; } } catch (e) {}
   res.json(b);
 });
 

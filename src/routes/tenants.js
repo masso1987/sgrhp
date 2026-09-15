@@ -88,12 +88,19 @@ router.get("/modules", allow("SADM"), (req, res) => res.json(MODULES));
 function platformCfg() {
   if (!db.platform) db.platform = {};
   if (db.platform.appName === undefined) { try { const s = require("./settings").settings(); db.platform.appName = (s.branding && s.branding.appName) || "SGRHP"; } catch (e) { db.platform.appName = "SGRHP"; } }
+  if (db.platform.appLogo === undefined) db.platform.appLogo = "";
   return db.platform;
 }
-router.get("/platform-branding", allow("SADM"), (req, res) => res.json({ appName: platformCfg().appName }));
+router.get("/platform-branding", allow("SADM"), (req, res) => { const p = platformCfg(); res.json({ appName: p.appName, appLogo: p.appLogo || "" }); });
 router.put("/platform-branding", allow("SADM"), (req, res) => {
-  const p = platformCfg();
-  if (req.body && req.body.appName !== undefined) p.appName = String(req.body.appName).slice(0, 40) || "SGRHP";
+  const p = platformCfg(); const b = req.body || {};
+  if (b.appName !== undefined) p.appName = String(b.appName).slice(0, 40) || "SGRHP";
+  if (b.appLogo !== undefined) {
+    if (b.appLogo && !/^data:image\/(png|jpeg|svg\+xml);base64,/.test(b.appLogo) && !/^data:image\/svg\+xml,/.test(b.appLogo) && b.appLogo.length > 0)
+      return res.status(400).json({ error: "Logo d'application invalide (image PNG/JPEG/SVG en data-URL attendue)" });
+    if (b.appLogo && b.appLogo.length > 300000) return res.status(400).json({ error: "Logo trop volumineux (max ~200 Ko)" });
+    p.appLogo = b.appLogo;
+  }
   // Répercute sur la config de marque pour les consommateurs existants.
   try { const s = require("./settings").settings(); s.branding.appName = p.appName; } catch (e) {}
   save();
