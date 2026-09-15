@@ -297,4 +297,4 @@ const withTimer = d => {
     slaState: !step ? null : step.breachedAt ? "BREACH" : step.warnedAt ? "WARNING" : "OK" };
 };
 
-module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, startWorkflow, SLA, WARN };
+module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, startWorkflow, SLA, WARN, companyInfo };

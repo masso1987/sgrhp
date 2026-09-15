@@ -334,4 +334,47 @@ router.get("/avi/:id/letter", allow("GPF", "ADM", "CD", "RJ", "UI"), (req, res) 
   res.download(path.join(AVI_DIR, doc.attachment.storedAs), doc.attachment.fileName);
 });
 
+/* Attestation de congé / permission (PDF) générée à partir de la demande (dates + type). */
+router.get("/:id/leave/:docId/attestation.pdf", allow("GPF", "CD", "RJ", "ADM", "UI"), (req, res) => {
+  const emp = mine(db.employees, req).find(e => e.id === req.params.id);
+  if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
+  const doc = db.documents.find(d => d.id === req.params.docId && d.type === "LEAVE" && d.refId === emp.id);
+  if (!doc) return res.status(404).json({ error: "Demande de congé introuvable" });
+  const d = doc.data || {}; const co = wf.companyInfo();
+  let PDFDocument; try { PDFDocument = require("pdfkit"); } catch (e) { return res.status(500).json({ error: "Génération PDF indisponible" }); }
+  const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
+  const nom = `${emp.firstName || ""} ${emp.lastName || ""}`.trim();
+  const fr = (x) => x ? new Date(x).toLocaleDateString("fr-FR") : "…………";
+  const pdf = new PDFDocument({ margin: 56, size: "A4" });
+  res.setHeader("Content-Type", "application/pdf");
+  const fname = `Attestation_${(d.leaveType||"conge").replace(/[^\w]/g,"_")}_${(emp.matricule||nom).replace(/[^\w]/g,"_")}.pdf`;
+  res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
+  pdf.pipe(res);
+  const W = pdf.page.width - 112;
+  pdf.font("Helvetica-Bold").fontSize(13).text(co.name || "SGRHP", { align: "left" });
+  pdf.font("Helvetica").fontSize(9).fillColor("#555");
+  if (co.city) pdf.text(co.city); if (co.niu) pdf.text("NIU : " + co.niu);
+  pdf.moveDown(2).fillColor("#000");
+  pdf.font("Helvetica").fontSize(10).text(`${co.city || ""}, le ${new Date().toLocaleDateString("fr-FR")}`, { align: "right" });
+  pdf.moveDown(1.5);
+  const titre = d.leaveType === "Permission exceptionnelle" ? "ATTESTATION DE PERMISSION EXCEPTIONNELLE" : "ATTESTATION DE CONGÉ";
+  pdf.font("Helvetica-Bold").fontSize(14).text(titre, { align: "center" });
+  pdf.moveDown(1.5);
+  pdf.font("Helvetica").fontSize(11);
+  const jours = d.days ? `${d.days} jour(s)` : "";
+  const objet = d.leaveType === "Permission exceptionnelle" ? (d.permissionLabel || "permission exceptionnelle") : (d.leaveType || "congé");
+  pdf.text(`Nous soussignés, ${co.name || ""}, attestons que ${civ} ${nom}${emp.matricule ? " (matricule " + emp.matricule + ")" : ""}, ` +
+    `bénéficie d'${d.leaveType === "Permission exceptionnelle" ? "une " : "un "}${objet} ` +
+    `${jours ? "de " + jours + " " : ""}du ${fr(d.startDate)} au ${fr(d.endDate)} inclus.`, { width: W, align: "justify", lineGap: 3 });
+  pdf.moveDown(1);
+  if (d.reason) pdf.text(`Motif : ${d.reason}.`, { width: W });
+  pdf.moveDown(1);
+  pdf.text("En foi de quoi la présente attestation est délivrée pour servir et valoir ce que de droit.", { width: W, align: "justify" });
+  pdf.moveDown(3);
+  pdf.font("Helvetica-Bold").text("La Direction", { align: "right" });
+  if (co.dg) pdf.font("Helvetica").text(co.dg, { align: "right" });
+  audit(req.user, "GENERATED", "Leave", doc.id, { doc: "attestation" });
+  pdf.end();
+});
+
 module.exports = { router, leaveBalance };

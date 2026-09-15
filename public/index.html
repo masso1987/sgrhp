@@ -2453,10 +2453,11 @@ async function hrSection(id) {
       <input id="lvStart" type="date" style="max-width:150px;margin:0"><input id="lvEnd" type="date" style="max-width:150px;margin:0">
       <input id="lvReason" placeholder="Motif" style="max-width:170px;margin:0">
       <button class="btn p sm" onclick="lvCreate('${id}')">+ Soumettre la demande</button></div>` : ""}
-    ${lv.requests.length ? `<table><tr><th>Type</th><th>Period</th><th>Days</th><th>Statut</th></tr>
-      ${lv.requests.map(r => `<tr><td>${r.data.leaveType}</td><td>${r.data.startDate || "-"} → ${r.data.endDate || "-"}</td>
+    ${lv.requests.length ? `<table><tr><th>Type</th><th>Période</th><th>Jours</th><th>Statut</th><th></th></tr>
+      ${lv.requests.map(r => `<tr><td>${r.data.leaveType}${r.data.permissionLabel?` <span class="note">(${esc(r.data.permissionLabel)})</span>`:""}</td><td>${r.data.startDate || "-"} → ${r.data.endDate || "-"}</td>
         <td>${r.data.days || "-"}</td><td>${ST_TAG(r.status === "GENERATED" ? "GENERATED" : r.status)}
-        ${r.status === "GENERATED" ? '<span class="tag green">Approved </span>' : ""}</td></tr>`).join("")}</table>`
+        ${r.status === "GENERATED" ? '<span class="tag green">Validé </span>' : ""}</td>
+        <td>${(r.data.startDate&&r.data.endDate)?`<button class="btn ghost sm" onclick="payDownload('/hr/${id}/leave/${r.id}/attestation.pdf','Attestation_conge.pdf')">Attestation PDF</button>`:""}</td></tr>`).join("")}</table>`
     : '<small style="color:var(--muted)">No requests.</small>'}</div></div>`;
   view.appendChild(div.firstElementChild);
 }
