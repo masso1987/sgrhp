@@ -4115,8 +4115,19 @@ function payStatusTag(s) {
 /* ================= Paie : Livre & états (par période) ================= */
 async function payEtatsView(){
   const runs=await api("/payroll/runs").catch(()=>[]);
+  if(!PFS||!PFS.length){ try{ PFS=await api("/portfolios"); }catch{} }
   const rid=window._ETRUN||(runs[0]&&runs[0].id)||"";
+  const nowM=new Date().toISOString().slice(0,7);
   view.innerHTML=`<h1>Livre & états de paie</h1>
+   <div class="panel" style="margin-bottom:12px"><b style="font-size:12px;color:var(--muted)">SUR UNE PÉRIODE (PLAGE DE MOIS / ANNÉES)</b>
+     <div class="note" style="margin:4px 0 8px">Choisissez une plage (un mois, plusieurs mois, ou à cheval sur des années) et un portefeuille facultatif, puis exportez.</div>
+     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+       <div><label>De</label><input id="rgFrom" type="month" value="${nowM}" style="margin:0"></div>
+       <div><label>À</label><input id="rgTo" type="month" value="${nowM}" style="margin:0"></div>
+       <div><label>Portefeuille</label><select id="rgPf" style="margin:0;max-width:220px"><option value="">Tous</option>${(PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
+       ${hasRight("payroll.livre")?`<span style="display:flex;gap:4px;align-items:flex-end"><span class="note" style="align-self:center">Livre :</span><button class="btn ghost sm" onclick="rgExport('livre','pdf')">PDF</button><button class="btn ghost sm" onclick="rgExport('livre','xlsx')">Excel</button><button class="btn ghost sm" onclick="rgExport('livre','csv')">CSV</button></span>`:""}
+       ${hasRight("payroll.cotisations")?`<span style="display:flex;gap:4px;align-items:flex-end"><span class="note" style="align-self:center">Cotisations :</span><button class="btn ghost sm" onclick="rgExport('cotisations','pdf')">PDF</button><button class="btn ghost sm" onclick="rgExport('cotisations','xlsx')">Excel</button><button class="btn ghost sm" onclick="rgExport('cotisations','csv')">CSV</button></span>`:""}
+     </div></div>
    <div class="note" style="margin-bottom:8px">Éditez, par période de paie, le livre de paie, l'état des cotisations et la passation comptable.</div>
    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
      <div><label>Période de paie</label><select id="etRun" style="max-width:280px" onchange="window._ETRUN=this.value;payEtatsView()"><option value="">- choisir -</option>${runs.map(r=>`<option value="${r.id}" ${rid===r.id?'selected':''}>${esc(r.period)} · ${esc(({OPEN:'ouverte',CALCULATED:'calculée',CLOSED:'clôturée'})[r.status]||r.status||'')}</option>`).join("")}</select></div>
@@ -4139,10 +4150,19 @@ async function payFicheView(){
    <div class="note" style="margin-bottom:8px">Récapitulatif annuel d'un salarié : toutes les rubriques mois par mois + totaux.</div>
    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
      <div><label>Salarié</label><select id="fiEmp" style="max-width:320px" onchange="window._FIEID=this.value;payFicheLoad()"><option value="">- choisir -</option>${emps.map(e=>`<option value="${e.id}" ${eid===e.id?'selected':''}>${esc((e.firstName||'')+' '+(e.lastName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("")}</select></div>
-     <div><label>Année</label><input id="fiYear" type="number" value="${yr}" style="width:110px" onchange="window._FIYEAR=this.value;payFicheLoad()"></div>
-     <button class="btn ghost sm" id="fiPdf" style="display:none" onclick="fiExport('pdf')">PDF</button>
-     <button class="btn ghost sm" id="fiXls" style="display:none" onclick="fiExport('xlsx')">Excel</button>
+     <div><label>Année (vue mois par mois)</label><input id="fiYear" type="number" value="${yr}" style="width:130px" onchange="window._FIYEAR=this.value;payFicheLoad()"></div>
+     <button class="btn ghost sm" id="fiPdf" style="display:none" onclick="fiExport('pdf')">PDF (année)</button>
+     <button class="btn ghost sm" id="fiXls" style="display:none" onclick="fiExport('xlsx')">Excel (année)</button>
    </div>
+   <div class="panel" style="margin-bottom:10px"><b style="font-size:12px;color:var(--muted)">EXPORT SUR UNE PLAGE (MOIS / ANNÉES)</b>
+     <div class="note" style="margin:4px 0 8px">Exporte les totaux du salarié sélectionné pour la plage choisie (peut couvrir plusieurs mois ou années).</div>
+     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+       <div><label>De</label><input id="fiFrom" type="month" value="${(new Date().getFullYear())}-01" style="margin:0"></div>
+       <div><label>À</label><input id="fiTo" type="month" value="${new Date().toISOString().slice(0,7)}" style="margin:0"></div>
+       <button class="btn ghost sm" onclick="fiRangeExport('pdf')">PDF</button>
+       <button class="btn ghost sm" onclick="fiRangeExport('xlsx')">Excel</button>
+       <button class="btn ghost sm" onclick="fiRangeExport('csv')">CSV</button>
+     </div></div>
    <div id="fiBody"></div>`;
   if(eid) payFicheLoad();
 }
@@ -4162,6 +4182,18 @@ async function payFicheLoad(){
     <div style="overflow:auto"><table style="width:100%;min-width:900px;font-size:12px"><tr><th style="text-align:left">Rubrique</th>${mh}<th class="r">Total</th></tr>
     ${fi.rubriques.length?fi.rubriques.map(rrow).join(""):'<tr><td colspan="14" class="note">Aucun bulletin calculé pour cette année.</td></tr>'}
     ${fi.summary.map(srow).join("")}</table></div></div>`;
+}
+function rgExport(kind, fmt){
+  const from=(document.getElementById("rgFrom")||{}).value, to=(document.getElementById("rgTo")||{}).value, pf=(document.getElementById("rgPf")||{}).value||"";
+  if(!from||!to){ alert("Choisissez la plage de mois."); return; }
+  const q=`from=${from}&to=${to}${pf?`&portfolioId=${pf}`:""}&format=${fmt}`;
+  payDownload(`/payroll/reports/${kind}?${q}`, `${kind==="livre"?"Livre_de_paie":"Etat_cotisations"}_${from}_${to}.${fmt==="xlsx"?"xlsx":fmt}`);
+}
+function fiRangeExport(fmt){
+  const eid=(document.getElementById("fiEmp")||{}).value||window._FIEID; if(!eid){ alert("Choisissez un salarié."); return; }
+  const from=(document.getElementById("fiFrom")||{}).value, to=(document.getElementById("fiTo")||{}).value;
+  if(!from||!to){ alert("Choisissez la plage."); return; }
+  payDownload(`/payroll/reports/fiche?employeeId=${eid}&from=${from}&to=${to}&format=${fmt}`, `Fiche_individuelle_${from}_${to}.${fmt==="xlsx"?"xlsx":fmt}`);
 }
 async function fiExport(kind){
   const eid=window._FIEID, yr=window._FIYEAR||new Date().getFullYear(); if(!eid)return;

@@ -1601,5 +1601,107 @@ router.post("/solde/:eid", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   res.json(out);
 });
 
+/* ==================== ÉTATS SUR PÉRIODE (fiche, livre, cotisations) ====================
+ * Période flexible from=YYYY-MM..to=YYYY-MM (un mois, plusieurs mois, à cheval sur des
+ * années), filtre par portefeuille et/ou salarié, export json|csv|xlsx|pdf. */
+function _monthsBetween(from, to) {
+  const out = []; if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) return out;
+  let [y, m] = from.split("-").map(Number); const [ty, tm] = to.split("-").map(Number);
+  let guard = 0;
+  while ((y < ty || (y === ty && m <= tm)) && guard < 600) { out.push(`${y}-${String(m).padStart(2,"0")}`); m++; if (m > 12) { m = 1; y++; } guard++; }
+  return out;
+}
+function _pfNameMap(req) { const map = {}; mine(db.portfolios, req).forEach(p => map[p.id] = p.name); return map; }
+function _rangeSlips(req, q) {
+  const from = q.from || q.to || new Date().toISOString().slice(0,7);
+  const to = q.to || q.from || from;
+  const lo = from < to ? from : to, hi = from < to ? to : from;
+  const empById = {}; mine(db.employees, req).forEach(e => empById[e.id] = e);
+  let slips = mine(db.payslips, req).filter(s => { const p = String(s.period||"").slice(0,7); return p >= lo && p <= hi; });
+  if (q.employeeId) slips = slips.filter(s => s.employeeId === q.employeeId);
+  if (q.portfolioId) slips = slips.filter(s => { const e = empById[s.employeeId]; return e && e.portfolioId === q.portfolioId; });
+  if (q.q) { const t = String(q.q).toLowerCase(); slips = slips.filter(s => `${s.employeeName||""} ${s.matricule||""}`.toLowerCase().includes(t)); }
+  return { slips, lo, hi, empById };
+}
+function _sendReport(req, res, { format, name, title, columns, rows, meta }) {
+  const money = (v) => String(Math.round(v||0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  format = String(format||"json").toLowerCase();
+  if (format === "csv") {
+    const head = columns.map(c => '"'+String(c.label).replace(/"/g,'""')+'"').join(";");
+    const body = rows.map(r => columns.map(c => { const v = r[c.key]; return c.money ? (v==null?"":Math.round(v)) : '"'+String(v==null?"":v).replace(/"/g,'""')+'"'; }).join(";")).join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${name}.csv"`);
+    return res.send("\ufeff" + head + "\n" + body);
+  }
+  if (format === "xlsx") {
+    let XLSX; try { XLSX = require("xlsx"); } catch(e){ return res.status(500).json({ error: "Module Excel indisponible" }); }
+    const aoa = [columns.map(c => c.label), ...rows.map(r => columns.map(c => r[c.key]==null?"":r[c.key]))];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Etat");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${name}.xlsx"`);
+    return res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+  }
+  if (format === "pdf") {
+    const doc = new PDFDocument({ margin: 24, size: "A4", layout: "landscape", bufferPages: true });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${name}.pdf"`);
+    doc.pipe(res);
+    const pw = doc.page.width, x0 = 24, usable = pw - 48;
+    doc.font("Helvetica-Bold").fontSize(13).text(title, x0, 24);
+    doc.font("Helvetica").fontSize(9).fillColor("#555").text(meta||"", x0, 42); doc.fillColor("#000");
+    const tw = columns.reduce((a,c)=>a+(c.w||70),0); const sc = usable/tw; columns.forEach(c=>c._w=(c.w||70)*sc);
+    let y = 64; const xs=[]; { let x=x0; columns.forEach(c=>{ xs.push(x); x+=c._w; }); }
+    const drawHead = () => { doc.rect(x0,y,usable,16).fillAndStroke("#E5E7EB","#9ca3af"); doc.fillColor("#000").font("Helvetica-Bold").fontSize(7.5);
+      columns.forEach((c,i)=>doc.text(c.label, xs[i]+2, y+4, { width:c._w-4, align:c.money?"right":"left", lineBreak:false })); y+=16; };
+    drawHead();
+    doc.font("Helvetica").fontSize(7.5);
+    for (const r of rows) { if (y>520){ doc.addPage({margin:24,size:"A4",layout:"landscape"}); y=30; drawHead(); doc.font("Helvetica").fontSize(7.5); }
+      columns.forEach((c,i)=>{ const v=r[c.key]; doc.text(c.money?money(v):String(v==null?"":v), xs[i]+2, y+3, { width:c._w-4, align:c.money?"right":"left", lineBreak:false }); });
+      doc.strokeColor("#e5e7eb").lineWidth(0.3).moveTo(x0,y+11).lineTo(x0+usable,y+11).stroke(); y+=12; }
+    doc.end(); return;
+  }
+  return res.json({ columns, rows, meta, title });
+}
+
+router.get("/reports/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Livre de paie non autorisé" });
+  const { slips, lo, hi, empById } = _rangeSlips(req, req.query);
+  const pfn = _pfNameMap(req);
+  const rows = slips.map(s => { const t = s.result.totals; const e = empById[s.employeeId]||{};
+    return { periode: s.period, matricule: s.matricule||"", nom: s.employeeName||"", portefeuille: pfn[e.portfolioId]||"",
+      brut: t.brutTotal, retenues: t.totalRetenues, cnps: t.cnpsSalarie, irpp: t.irpp, net: t.netAPayer, patronal: t.chargesPatronales, cout: t.coutTotalEmployeur }; })
+    .sort((a,b)=> a.periode.localeCompare(b.periode) || a.nom.localeCompare(b.nom));
+  const columns = [ {key:"periode",label:"Période",w:52},{key:"matricule",label:"Matricule",w:60},{key:"nom",label:"Salarié",w:120},{key:"portefeuille",label:"Portefeuille",w:90},
+    {key:"brut",label:"Brut",money:1,w:66},{key:"retenues",label:"Retenues",money:1,w:60},{key:"cnps",label:"CNPS",money:1,w:52},{key:"irpp",label:"IRPP",money:1,w:52},
+    {key:"net",label:"Net à payer",money:1,w:66},{key:"patronal",label:"Ch. patron.",money:1,w:60},{key:"cout",label:"Coût employeur",money:1,w:72} ];
+  _sendReport(req, res, { format: req.query.format, name: `Livre_de_paie_${lo}_${hi}`, title: `Livre de paie — ${lo} à ${hi}`, meta: `${rows.length} bulletin(s)`, columns, rows });
+});
+
+router.get("/reports/cotisations", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "États des cotisations non autorisé" });
+  const { slips, lo, hi } = _rangeSlips(req, req.query);
+  const agg = {};
+  for (const s of slips) for (const l of s.result.lines) { if (l.kind !== "COTIS" && l.kind !== "IMPOT") continue;
+    const a = agg[l.code] || (agg[l.code] = { code: l.code, libelle: l.label, base: 0, salarie: 0, patronal: 0 });
+    a.base += l.base||0; a.salarie += l.retenue||0; a.patronal += l.employer||0; }
+  const rows = Object.values(agg).map(a=>({ ...a, total: a.salarie + a.patronal })).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+  const columns = [ {key:"code",label:"Code",w:44},{key:"libelle",label:"Cotisation / impôt",w:150},{key:"base",label:"Base cumulée",money:1,w:80},
+    {key:"salarie",label:"Part salariale",money:1,w:80},{key:"patronal",label:"Part patronale",money:1,w:80},{key:"total",label:"Total",money:1,w:80} ];
+  _sendReport(req, res, { format: req.query.format, name: `Etat_cotisations_${lo}_${hi}`, title: `État des cotisations — ${lo} à ${hi}`, meta: `${slips.length} bulletin(s)`, columns, rows });
+});
+
+router.get("/reports/fiche", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const eid = req.query.employeeId; if (!eid) return res.status(400).json({ error: "employeeId requis" });
+  const { slips, lo, hi, empById } = _rangeSlips(req, Object.assign({}, req.query, { employeeId: eid }));
+  const e = empById[eid] || {}; const pfn = _pfNameMap(req);
+  const rows = slips.map(s => { const t = s.result.totals; return { periode: s.period, brut: t.brutTotal, netImposable: t.netImposable,
+      retenues: t.totalRetenues, net: t.netAPayer, patronal: t.chargesPatronales, cout: t.coutTotalEmployeur }; })
+    .sort((a,b)=>a.periode.localeCompare(b.periode));
+  const columns = [ {key:"periode",label:"Période",w:60},{key:"brut",label:"Brut",money:1,w:80},{key:"netImposable",label:"Net imposable",money:1,w:90},
+    {key:"retenues",label:"Retenues",money:1,w:80},{key:"net",label:"Net à payer",money:1,w:90},{key:"patronal",label:"Ch. patronales",money:1,w:90},{key:"cout",label:"Coût employeur",money:1,w:90} ];
+  const nm = `${e.firstName||""} ${e.lastName||""}`.trim();
+  _sendReport(req, res, { format: req.query.format, name: `Fiche_${(e.matricule||nm||eid)}_${lo}_${hi}`, title: `Fiche individuelle — ${nm} (${e.matricule||""})`, meta: `${pfn[e.portfolioId]||""} · ${lo} à ${hi}`, columns, rows });
+});
+
 module.exports = router;
 module.exports.payslipSig = payslipSig;
