@@ -779,8 +779,10 @@ router.delete("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => 
 if (!db.epiIssues) db.epiIssues = [];
 const _today = () => new Date().toISOString().slice(0, 10);
 function pfNameOf(req, pid){ const p = mine(db.portfolios, req).find(x => x.id === pid); return p ? p.name : ""; }
+function epiEnabledPfIds(req) { return new Set(mine(db.portfolios, req).filter(p => p.epiEnabled).map(p => p.id)); }
 function epiRows(req, pfId) {
-  let emps = mine(db.employees, req).filter(e => Array.isArray(e.epi) && e.epi.length);
+  const enabled = epiEnabledPfIds(req);
+  let emps = mine(db.employees, req).filter(e => Array.isArray(e.epi) && e.epi.length && enabled.has(e.portfolioId));
   if (pfId) emps = emps.filter(e => e.portfolioId === pfId);
   const issues = mine(db.epiIssues, req);
   return emps.map(e => {
@@ -793,6 +795,7 @@ function epiRows(req, pfId) {
     return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId, lines, planned, issued, pct: planned ? Math.round(issued / planned * 100) : 0 };
   });
 }
+router.get("/epi/portfolios", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.portfolios, req).filter(p => p.epiEnabled).map(p => ({ id: p.id, name: p.name }))));
 router.get("/epi", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(epiRows(req, req.query.portfolioId || null)));
 router.get("/epi/progress", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const rows = epiRows(req);

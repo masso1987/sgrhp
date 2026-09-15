@@ -1549,6 +1549,10 @@ async function portfolios() {
       <select id="pfCnv" style="max-width:380px;margin:0">
         ${cnvs.map(c => `<option value="${c.id}" ${c.id === pf.conventionId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
       <button class="btn ghost sm" onclick="pfCnvSave('${pf.id}')">Rattacher</button></div>
+    <div style="margin:6px 0;display:flex;gap:8px;align-items:center">
+      <label class="chk" style="margin:0"><input type="checkbox" id="pfEpi" ${pf.epiEnabled?"checked":""} onchange="pfEpiToggle('${pf.id}',this.checked)">
+        <span>Dotation EPI activée pour ce portefeuille</span></label>
+      <span class="note">Seuls les portefeuilles cochés apparaissent dans la dotation EPI (Stock).</span></div>
     <div class="note" style="margin-top:8px">Cochez « Requis » pour les documents du dossier. Cochez « À la création » pour ceux exigés dès la création (CNI toujours verrouillée) ; les autres pourront être fournis après et seront suivis dans le SMQ.</div>
     <table style="width:100%;margin-top:8px"><tr><th style="text-align:left">Document</th><th style="width:80px">Requis</th><th style="width:110px">À la création</th></tr>
       ${types.slice().sort(docSort).map((t, i) => { const rc = (pf.requiredCreation||["V"]).includes(t.code); return `
@@ -1609,6 +1613,7 @@ async function pfCnvSave(id) {
   try { await api(`/portfolios/${id}/convention`, { method: "PUT", body: JSON.stringify({ conventionId: pfCnv.value }) });
     alert(t("Convention rattachée - modification journalisée.")); portfolios(); } catch (e) { alert(e.message); }
 }
+async function pfEpiToggle(id, on){ try{ await api("/portfolios/"+id+"/epi",{method:"PUT",body:JSON.stringify({epiEnabled:on})}); }catch(e){ alert(e.message); } }
 async function pfCreate() {
   try {
     const p = await api("/portfolios", { method: "POST", body: JSON.stringify({ name: npfName.value }) });
@@ -3215,9 +3220,11 @@ async function paramsView() {
     <p style="font-size:12px;color:var(--muted);margin:6px 0">Personnalisez le nom, le logo, les couleurs et la densité de l'interface. L'aperçu est immédiat.</p>
     ${themePresetRow(s.branding.theme)}
     <div class="grid2">
-      <div><label>Nom de l'application</label><input id="bName" value="${(s.branding.appName||'')}"></div>
-      <div><label>Sous-titre</label><input id="bTag" value="${(s.branding.tagline||'')}"></div>
+      <div><label>Nom de l'application <span class="tag gray">plateforme — géré par le super-administrateur</span></label>
+        <input id="bName" value="${esc((BRANDING&&BRANDING.appName)||s.branding.appName||'SGRHP')}" disabled style="background:var(--sidebar-bg);color:var(--muted)"></div>
+      <div><label>Sous-titre</label><input id="bTag" value="${esc(s.branding.tagline||'')}"></div>
     </div>
+    <p class="note" style="font-size:11px;margin:2px 0 6px">Le nom de l'application est commun à tous les tenants et se modifie dans la section Plateforme (super-administrateur). Vous gérez ici la <b>raison sociale (société)</b>, le logo et les couleurs.</p>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
       <b style="font-size:12px;color:var(--muted)">SOCIÉTÉ - EN-TÊTE DU BULLETIN DE PAIE</b>
       <p style="font-size:11px;color:var(--muted);margin:4px 0">Ces informations s'impriment dans l'encadré en haut à gauche du bulletin de paie.</p>
@@ -3306,7 +3313,7 @@ function collectBranding() {
     const on = view.querySelector(`input[data-secon="${i.dataset.seccol}"]`).checked;
     sectionColors[i.dataset.seccol] = on ? i.value : "";
   });
-  const body = { appName: bName.value, tagline: bTag.value, colors, sectionColors, density: bDensity.value, theme: "custom" };
+  const body = { tagline: (document.getElementById('bTag')||{}).value||'', colors, sectionColors, density: bDensity.value, theme: "custom" };
   if (_logoData !== undefined) body.logo = _logoData;
   return body;
 }
@@ -3750,7 +3757,13 @@ let TEN_MODULES = null, TEN_FORMS = null;
 async function tenantsView() {
   if (!TEN_MODULES) [TEN_MODULES, TEN_FORMS] = await Promise.all([api("/tenants/modules"), api("/tenants/legal-forms")]);
   const [list, ov] = await Promise.all([api("/tenants"), api("/tenants/stats/overview")]);
+  let _pb={appName:""}; try{ _pb=await api("/tenants/platform-branding"); }catch(e){}
   view.innerHTML = `<h1>Plateforme - entreprises clientes</h1>
+  <div class="panel" style="max-width:520px"><b style="font-size:12px;color:var(--muted)">NOM DE L'APPLICATION (VISIBLE PAR TOUS LES TENANTS)</b>
+    <div class="note" style="margin:4px 0 8px">Ce nom s'affiche sur l'écran de connexion, la barre supérieure, le lanceur et l'onglet du navigateur de <b>tous</b> les tenants. Seul le super-administrateur peut le modifier.</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><label>Nom de l'application</label><input id="pbName" value="${esc(_pb.appName||'')}" placeholder="SGRHP"></div>
+      <button class="btn p sm" onclick="savePlatformName()">Enregistrer</button></div></div>
   <div class="cards">
     <div class="card"><div class="kpi">${ov.tenants}</div><div class="lbl">Entreprises</div></div>
     <div class="card"><div class="kpi" style="color:var(--green)">${ov.active}</div><div class="lbl">Actives</div></div>
@@ -3773,6 +3786,13 @@ async function tenantsView() {
       <button class="btn ghost sm" onclick="tenantUsers('${t.id}','${t.name.replace(/'/g,"")}')">Utilisateurs</button>
       <button class="btn ghost sm" onclick="tenantToggle('${t.id}','${t.status}')">${t.status==="ACTIVE"?"Suspendre":"Réactiver"}</button></td></tr>`).join("")}
   </table></div>`;
+}
+async function savePlatformName(){
+  const v=(document.getElementById("pbName")||{}).value||"";
+  try{ const r=await api("/tenants/platform-branding",{method:"PUT",body:JSON.stringify({appName:v})});
+    applyBranding({ ...(BRANDING||{}), appName:r.appName });
+    alert("Nom de l'application mis à jour. Il sera visible par tous les tenants."); }
+  catch(e){ alert(e.message); }
 }
 async function tenantForm(id) {
   const t = id ? await api("/tenants/"+id) : {};
@@ -9372,7 +9392,7 @@ function stkUnitName(id){ const u=(window._STK.units||[]).find(x=>x.id===id); re
 
 /* ================= Stock : Dotation EPI ================= */
 async function stockEpiView(){
-  const [pfs, data] = await Promise.all([api("/portfolios").catch(()=>[]), api("/stock/epi/progress").catch(()=>({perPortfolio:[],total:{},employees:[]}))]);
+  const [pfs, epiPfs, data] = await Promise.all([api("/portfolios").catch(()=>[]), api("/stock/epi/portfolios").catch(()=>[]), api("/stock/epi/progress").catch(()=>({perPortfolio:[],total:{},employees:[]}))]);
   const pfName=idv=>{const p=(pfs||[]).find(x=>x.id===idv);return p?p.name:(idv||"-");};
   const sel=window._epiPf||"";
   const emps=(data.employees||[]).filter(e=>!sel||e.portfolioId===sel);
@@ -9380,8 +9400,9 @@ async function stockEpiView(){
   const tot=data.total||{planned:0,issued:0,pct:0};
   view.innerHTML=`<h1>Dotation EPI</h1>
    <div class="note" style="margin-bottom:8px">EPI planifiés par salarié (saisis à la création/modification). « Livrer » décrémente le stock du produit lié.</div>
+   ${(epiPfs||[]).length?'':'<div class="panel" style="border-color:#fdba74;background:#fff7ed;color:#b45309;margin-bottom:8px">Aucun portefeuille n\'a la dotation EPI activée. Activez-la par portefeuille dans <b>Configuration des portefeuilles</b> (case « Dotation EPI activée »).</div>'}
    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-     <div><label>Portefeuille</label><select onchange="window._epiPf=this.value;stockEpiView()" style="max-width:320px"><option value="">Tous</option>${(pfs||[]).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select></div>
+     <div><label>Portefeuille (EPI activés)</label><select onchange="window._epiPf=this.value;stockEpiView()" style="max-width:320px"><option value="">Tous</option>${(epiPfs||[]).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select></div>
      <div class="panel" style="margin:0"><div class="note">Avancement global</div><div>${bar(tot.pct||0)} <span class="note">(${tot.issued||0}/${tot.planned||0})</span></div></div>
    </div>
    ${emps.length?emps.map(e=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center"><b>${esc(e.name)} <span class="note">(${esc(pfName(e.portfolioId))})</span></b><span style="display:inline-flex;gap:8px;align-items:center">${bar(e.pct)} <button class="btn ghost sm" onclick="epiHistory('${e.employeeId}','${esc(e.name.replace(/'/g,"&#39;"))}')">Historique / corriger</button> <button class="btn ghost sm" onclick="epiFiche('${e.employeeId}')">Fiche de dotation</button></span></div>

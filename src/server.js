@@ -76,7 +76,9 @@ app.get("/api/legal", (req, res) => {
 });
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
-  res.json(s.branding);
+  const b = Object.assign({}, s.branding);
+  try { const p = require("./routes/tenants").platformCfg(); if (p && p.appName) b.appName = p.appName; } catch (e) {}
+  res.json(b);
 });
 
 // Public payslip authenticity check (scanned from the QR on the bulletin) — no auth.

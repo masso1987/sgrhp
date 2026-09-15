@@ -242,7 +242,7 @@ router.put("/branding", allow("ADM"), (req, res) => {
     for (const k of ["name", "address", "city", "niu", "employerNo", "dipe", "dg", "dga", "aviRefPrefix"])
       if (b.company[k] !== undefined) s.branding.company[k] = String(b.company[k]).slice(0, 120);
   }
-  if (b.appName !== undefined) s.branding.appName = String(b.appName).slice(0, 40) || "SGRHP";
+  // appName est global (plateforme) et piloté uniquement par le super-administrateur — ignoré ici.
   if (b.tagline !== undefined) s.branding.tagline = String(b.tagline).slice(0, 80);
   if (b.logo !== undefined) {
     if (b.logo && !/^data:image\/(png|jpeg|svg\+xml);base64,/.test(b.logo) && b.logo.length > 0)

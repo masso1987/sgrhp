@@ -51,6 +51,13 @@ router.put("/:id/convention", allow("ADM"), (req, res) => {
 });
 
 // Allocate the salary elements (rubriques) used for employees of this portfolio.
+router.put("/:id/epi", allow("ADM"), (req, res) => {
+  const pf = mine(db.portfolios, req).find(p => p.id === req.params.id);
+  if (!pf) return res.status(404).json({ error: "Portefeuille introuvable" });
+  pf.epiEnabled = !!(req.body && req.body.epiEnabled);
+  save(); audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { epiEnabled: pf.epiEnabled });
+  res.json({ id: pf.id, epiEnabled: pf.epiEnabled });
+});
 router.put("/:id/salary-elements", allow("ADM"), (req, res) => {
   const pf = mine(db.portfolios, req).find(p => p.id === req.params.id);
   if (!pf) return res.status(404).json({ error: "Portefeuille introuvable" });

@@ -83,6 +83,23 @@ function tenants() { if (!db.tenants) db.tenants = []; return db.tenants; }
 function publicView(t) { return t; }
 
 router.get("/modules", allow("SADM"), (req, res) => res.json(MODULES));
+
+// Nom de l'application (plateforme) — global, piloté uniquement par le super-administrateur, visible de tous les tenants.
+function platformCfg() {
+  if (!db.platform) db.platform = {};
+  if (db.platform.appName === undefined) { try { const s = require("./settings").settings(); db.platform.appName = (s.branding && s.branding.appName) || "SGRHP"; } catch (e) { db.platform.appName = "SGRHP"; } }
+  return db.platform;
+}
+router.get("/platform-branding", allow("SADM"), (req, res) => res.json({ appName: platformCfg().appName }));
+router.put("/platform-branding", allow("SADM"), (req, res) => {
+  const p = platformCfg();
+  if (req.body && req.body.appName !== undefined) p.appName = String(req.body.appName).slice(0, 40) || "SGRHP";
+  // Répercute sur la config de marque pour les consommateurs existants.
+  try { const s = require("./settings").settings(); s.branding.appName = p.appName; } catch (e) {}
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Platform", "appName", { appName: p.appName });
+  res.json({ appName: p.appName });
+});
 router.get("/features-catalogue", allow("SADM"), (req, res) => res.json(FEATURE_CATALOGUE));
 router.get("/legal-forms", allow("SADM"), (req, res) => res.json(LEGAL_FORMS));
 
@@ -428,4 +445,4 @@ router.put("/superadmins/:uid/status", allow("SADM"), (req, res) => {
   res.json({ id: u.id, active: u.active });
 });
 
-module.exports = { router, MODULES, LEGAL_FORMS };
+module.exports = { router, MODULES, LEGAL_FORMS, platformCfg };
