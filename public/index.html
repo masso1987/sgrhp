@@ -4247,9 +4247,11 @@ function payPreview(slipId){
 }
 /* ---- Calcul à l'envers (net cible -> montant rubrique) ---- */
 async function revCalcOpen(runId,empId,period){
-  let rubs=await api("/payroll/rubriques").catch(()=>[]);
-  rubs=(rubs||[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),"fr",{numeric:true}));
-  const opts=rubs.map(r=>`<option value="${esc(String(r.code))}" data-l="${esc(r.label||"")}">${esc(String(r.code))} - ${esc(r.label||"")}</option>`).join("")||'<option value="1000" data-l="Salaire de base">1000 - Salaire de base</option>';
+  let rubs=await api("/payroll/employees/"+empId+"/rubriques").catch(()=>[]);
+  if(!rubs||!rubs.length) rubs=await api("/payroll/rubriques").catch(()=>[]);
+  // Regrouper par section, en ordre; n'afficher que les gains + rubriques attribuées.
+  const groups={}; (rubs||[]).forEach(r=>{ (groups[r.sectionLabel||"Rubriques"]=groups[r.sectionLabel||"Rubriques"]||[]).push(r); });
+  const opts=Object.keys(groups).map(g=>`<optgroup label="${esc(g)}">`+groups[g].map(r=>`<option value="${esc(String(r.code))}" data-l="${esc(r.label||"")}">${esc(String(r.code))} - ${esc(r.label||"")}</option>`).join("")+`</optgroup>`).join("")||'<option value="1000" data-l="Salaire de base">1000 - Salaire de base</option>';
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Calcul à l'envers — bulletin à partir du net à payer</b>
     <div class="note" style="margin:4px 0 8px">Saisissez le net à payer souhaité et la rubrique d'ajustement. Le logiciel calcule le montant brut de cette rubrique qui donne exactement ce net.</div>
@@ -4517,7 +4519,8 @@ async function payslipView(id, edit) {
   if (edit) {
     if (PAYSLIP_EDIT_ID !== id || !PAYSLIP_EDIT) {
       PAYSLIP_EDIT = JSON.parse(JSON.stringify(s.result.lines)); PAYSLIP_EDIT_ID = id;
-      try { PAYSLIP_RUBS = await api("/payroll/rubriques"); } catch { PAYSLIP_RUBS = []; }
+      try { PAYSLIP_RUBS = await api("/payroll/employees/" + s.employeeId + "/rubriques"); } catch { PAYSLIP_RUBS = []; }
+      if (!PAYSLIP_RUBS || !PAYSLIP_RUBS.length) { try { PAYSLIP_RUBS = await api("/payroll/rubriques"); } catch { PAYSLIP_RUBS = []; } }
     }
   } else { PAYSLIP_EDIT = null; PAYSLIP_EDIT_ID = null; }
   const t = s.result.totals;
@@ -4537,7 +4540,7 @@ async function payslipView(id, edit) {
     <tbody id="payslipBody"></tbody></table>
     ${edit ? `<div style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <b style="font-size:12px;color:var(--muted)">+ Ajouter :</b>
-      <select id="addRub" style="margin:0;max-width:280px">${PAYSLIP_RUBS.map(r => `<option value="${esc(r.code)}" data-kind="${r.family === "COTISATION" ? "IMPOT" : (r.sens === "RETENUE" ? "RETENUE" : "GAIN")}" data-cnps="${r.cnps ? 1 : 0}" data-impo="${r.impo ? 1 : 0}" data-label="${esc(r.label)}">${esc(r.code)} - ${esc(r.label)}</option>`).join("")}</select>
+      <select id="addRub" style="margin:0;max-width:280px">${(() => { const g={},o=[]; PAYSLIP_RUBS.forEach(r=>{const k=r.sectionLabel||"Rubriques";if(!g[k]){g[k]=[];o.push(k);}g[k].push(r);}); return o.map(k=>`<optgroup label="${esc(k)}">`+g[k].map(r => `<option value="${esc(r.code)}" data-kind="${r.family === "COTISATION" ? "IMPOT" : (r.sens === "RETENUE" ? "RETENUE" : "GAIN")}" data-cnps="${r.cnps ? 1 : 0}" data-impo="${r.impo ? 1 : 0}" data-label="${esc(r.label)}">${esc(r.code)} - ${esc(r.label)}</option>`).join("")+`</optgroup>`).join(""); })()}</select>
       <input id="addAmt" type="number" placeholder="Montant" style="margin:0;max-width:130px">
       <button class="btn p sm" onclick="payslipAddRow()">Ajouter la rubrique</button></div>` : ""}
   </div>
@@ -4742,16 +4745,18 @@ async function rubImportCatalogue() {
 function rubRender(q) {
   q = (q || "").toLowerCase();
   const list = PAY_RUBS.filter(r => !q || (r.code + " " + r.label).toLowerCase().includes(q));
-  rubList.innerHTML = `<table><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Base</th>
-    <th>Taux</th><th>CNPS</th><th>IRPP</th><th></th></tr>
-    ${list.map(r => `<tr>
-      <td>${esc(r.code)}${r.inUse ? ' <span class="tag amber" title="Utilisée dans la paie - verrouillée">Utilisée dans la paie - verrouillée</span>' : ""}</td>
+  const groups = {}; const order = [];
+  list.forEach(r => { const g = r.sectionLabel || "Rubriques"; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(r); });
+  const rowsFor = arr => arr.map(r => `<tr>
+      <td>${esc(r.code)}${r.inUse ? ' <span class="tag amber" title="Utilisée dans la paie - verrouillée">verrouillée</span>' : ""}</td>
       <td><b>${esc(r.label)}</b>${r.system ? ' <span class="tag gray">baseline</span>' : ""}</td>
       <td>${esc(r.family)}</td><td style="font-size:12px">${esc(r.formula)}</td><td>${esc(r.base || "-")}</td>
       <td>${r.taux != null ? r.taux + "%" : "-"}</td>
       <td>${r.cnps ? "" : "-"}</td><td>${r.impo ? "" : "-"}</td>
-      <td><button class="btn ghost sm" onclick='rubModal(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Modifier</button></td></tr>`).join("")}
-    </table>${list.length ? "" : "<small style=\"color:var(--muted)\">Aucune rubrique.</small>"}`;
+      <td><button class="btn ghost sm" onclick='rubModal(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Modifier</button></td></tr>`).join("");
+  rubList.innerHTML = order.map(g => `<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${esc(g)} <span class="tag gray">${groups[g].length}</span></div>
+    <table><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Base</th><th>Taux</th><th>CNPS</th><th>IRPP</th><th></th></tr>${rowsFor(groups[g])}</table></div>`).join("")
+    || '<small style="color:var(--muted)">Aucune rubrique.</small>';
 }
 function rubModal(r) {
   const isEdit = !!r; r = r || { family: "BRUT", formula: "Nombre x Base", sens: "GAIN", cnps: true, impo: true };

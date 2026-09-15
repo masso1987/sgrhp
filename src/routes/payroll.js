@@ -150,7 +150,7 @@ function elementsToInput(emp, period, req, opts) {
   const els = mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
   for (const e of els) {
     switch (e.type) {
-      case "PRIME": gains.push({ code: e.code, label: e.label, amount: Number(e.amount) }); break;
+      case "PRIME": gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: e.cnps !== false, impo: e.impo !== false }); break;
       case "INDEMNITE": nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount) }); break;
       case "ACOMPTE": otherDeductions.push({ code: "7000", label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
       case "PRET": otherDeductions.push({ code: "7010", label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
@@ -196,10 +196,11 @@ function computeFor(emp, period, req, opts) {
   return { input, result };
 }
 // Calcul à l'envers : trouve le montant de la rubrique d'ajustement donnant le net cible.
-function reverseSolve(emp, period, req, targetNet, code, label) {
+function reverseSolve(emp, period, req, targetNet, code, label, cnps, impo) {
+  if (cnps === undefined) cnps = true; if (impo === undefined) impo = true;
   const iterations = [];
   const netFor = (amount) => {
-    const { result } = computeFor(emp, period, req, { extraGain: { code, label, amount } });
+    const { result } = computeFor(emp, period, req, { extraGain: { code, label, amount, cnps, impo } });
     return result.totals.netAPayer;
   };
   const net0 = netFor(0);
@@ -222,6 +223,41 @@ function reverseSolve(emp, period, req, targetNet, code, label) {
   amount = Math.round(amount);
   net = Math.round(netFor(amount));
   return { amount, net, iterations: iterations.slice(-12) };
+}
+
+// Regroupement/ordre des rubriques : par section puis par numéro de code.
+function rubSection(r) {
+  const n = parseInt(String(r.code), 10) || 0;
+  if (r.sens === "PATRONAL") return { key: "patronal", order: 4, label: "Charges patronales" };
+  if (r.family === "BRUT" || r.sens === "GAIN") return { key: "gains", order: 1, label: "Gains" };
+  if (r.family === "COTISATION") return (n >= 5025)
+    ? { key: "impots", order: 3, label: "Impôts & taxes" }
+    : { key: "cotisations", order: 2, label: "Cotisations sociales" };
+  return { key: "retenues", order: 5, label: "Retenues & éléments non soumis" };
+}
+function rubSortKey(r) { const s = rubSection(r); return s.order * 1e7 + (parseInt(String(r.code), 10) || 0); }
+function sortRubriques(list) {
+  return list.map(r => { const s = rubSection(r); return { ...r, section: s.key, sectionLabel: s.label, sectionOrder: s.order }; })
+    .sort((a, b) => rubSortKey(a) - rubSortKey(b));
+}
+// Rubriques attribuées à un salarié : rubriques allouées à son portefeuille + structure + base.
+function employeeRubriques(emp, req) {
+  const rubs = mine(db.payRubriques, req);
+  const byCode = (c) => rubs.find(r => String(r.code) === String(c));
+  const els = mine(db.salaryElements, req);
+  const pf = mine(db.portfolios, req).find(p => p.id === emp.portfolioId);
+  const allowedNames = (pf && Array.isArray(pf.salaryElements) && pf.salaryElements.length) ? new Set(pf.salaryElements) : null;
+  const TAG_RUB = { salary_base: "1000", allowance_transport: "3513", allowance_housing: "3510", allowance_dirt: "2129", bonus_performance: "2127" };
+  const codes = new Set(["1000"]); // salaire de base toujours présent
+  for (const el of els) {
+    if (allowedNames && !allowedNames.has(el.name)) continue;
+    const c = el.rubriqueCode || TAG_RUB[el.tag]; if (c) codes.add(String(c));
+  }
+  // + rubriques déjà valorisées dans la structure du salarié
+  const sal = emp.salary || {};
+  for (const el of els) { if (Number(sal[el.name])) { const c = el.rubriqueCode || TAG_RUB[el.tag]; if (c) codes.add(String(c)); } }
+  const out = [...codes].map(byCode).filter(Boolean);
+  return sortRubriques(out);
 }
 
 /* ============================ CONFIG ============================ */
@@ -248,7 +284,13 @@ function rubriqueInUse(rub, req) {
 const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active"];
 
 router.get("/rubriques", allow("ADM", "CD", "RJ", "GPF"), (req, res) =>
-  res.json(mine(db.payRubriques, req).map(r => ({ ...r, inUse: rubriqueInUse(r, req) }))));
+  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, inUse: rubriqueInUse(r, req) })))));
+// Rubriques attribuées à un salarié (pour le calcul à l'envers et les éléments variables), triées.
+router.get("/employees/:eid/rubriques", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
+  if (!emp) return res.status(404).json({ error: "Employé introuvable" });
+  res.json(employeeRubriques(emp, req).map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel })));
+});
 
 router.post("/rubriques", allow("ADM"), (req, res) => {
   const b = req.body || {};
@@ -505,6 +547,8 @@ router.get("/runs/:id/roster", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res)
   const byEmp = {}; mine(db.payslips, req).filter(s => s.runId === run.id).forEach(s => { byEmp[s.employeeId] = s; });
   const roster = mine(db.employees, req)
     .filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
+    .sort((a, b) => String(a.portfolioId||"").localeCompare(String(b.portfolioId||"")) ||
+      `${a.lastName||""} ${a.firstName||""}`.localeCompare(`${b.lastName||""} ${b.firstName||""}`, "fr", { sensitivity: "base" }))
     .map(e => { const s = byEmp[e.id]; return {
       employeeId: e.id, name: `${e.firstName} ${e.lastName}`, matricule: e.matricule || e.id.slice(-6),
       portfolioId: e.portfolioId, category: (e.contract && e.contract.category) || "",
@@ -561,16 +605,17 @@ router.post("/reverse/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) =
   const code = String(b.code || "2000");
   const rub = mine(db.payRubriques, req).find(r => String(r.code) === code);
   const label = b.label || (rub && rub.label) || "Ajustement (net cible)";
-  const sol = reverseSolve(emp, period, req, targetNet, code, label);
+  const cnps = rub ? !!rub.cnps : true, impo = rub ? !!rub.impo : true;
+  const sol = reverseSolve(emp, period, req, targetNet, code, label, cnps, impo);
   // Détail du bulletin obtenu avec le montant trouvé.
-  const { input, result } = computeFor(emp, period, req, { extraGain: { code, label, amount: sol.amount } });
+  const { input, result } = computeFor(emp, period, req, { extraGain: { code, label, amount: sol.amount, cnps, impo } });
   const out = { employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`.trim(), matricule: emp.matricule || "", period, targetNet, code, label, amount: sol.amount, net: sol.net, iterations: sol.iterations, alreadyReached: !!sol.alreadyReached, input, result, simulation: true };
   // Appliquer : enregistre le montant comme élément variable (PRIME) pour cette période.
   if (b.apply) {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
     // Retire un éventuel ajustement précédent de même code.
     db.payElements = db.payElements.filter(e => !(e.employeeId === emp.id && e.period === period && e.reverseAdj && e.code === code && (e.tenantId || "t1") === (req.user.tenantId || "t1")));
-    const rec = stamp({ id: id("pe"), employeeId: emp.id, period, type: "PRIME", code, label, amount: sol.amount, reverseAdj: true, createdAt: new Date().toISOString() }, req);
+    const rec = stamp({ id: id("pe"), employeeId: emp.id, period, type: "PRIME", code, label, amount: sol.amount, cnps, impo, reverseAdj: true, createdAt: new Date().toISOString() }, req);
     db.payElements.push(rec); save();
     audit(req.user, "REVERSE_CALC", "Employee", emp.id, { period, targetNet, code, amount: sol.amount });
     out.applied = true; out.elementId = rec.id;
