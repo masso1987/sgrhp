@@ -64,6 +64,7 @@ const DEFAULT_CONFIG = {
   // Seniority (^^ANCTAUX): 4% at 2 years, +2%/year, capped.
   seniority: { startYears: 2, startRate: 0.04, perYearRate: 0.02, maxRate: 0.30 },
   leave: { daysPerMonth: 2.5 }, // CONGE1 — congés acquis / mois
+  legal: { transportPerDay: 1300, caissePrincipal: 33000, caisseSecondaire: 26000, logementPct: 0.40 }, // CCN Commerce (Art. 74, 78, 81)
 };
 
 const r0 = (n) => Math.round(n || 0);

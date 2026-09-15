@@ -61,4 +61,31 @@ function scanAndRemind() {
   if (sent) save();
   return sent;
 }
-module.exports = { items, scanAndRemind };
+/* Avancement automatique d'échelon (Art. 72 CCN) : après 3 ans dans le même échelon,
+ * passage à l'échelon supérieur (A→F) — sans validation. La base est recalculée via la grille. */
+const { audit } = require("./audit");
+function advanceEchelons() {
+  const YEARS3 = 3 * 365.25 * 86400000; const now = Date.now(); let changed = 0;
+  for (const e of (db.employees || [])) {
+    const c = e.contract || {}; const m = /^(\d{1,2})([A-F])$/.exec(String(c.category || ""));
+    if (!m) continue;
+    const cat = m[1], ech = m[2];
+    if (ech === "F") continue;                         // déjà au dernier échelon
+    if (!c.echelonSince) { c.echelonSince = c.startDate || e.hireDate || new Date(now).toISOString().slice(0, 10); }
+    const since = new Date(c.echelonSince).getTime();
+    if (isNaN(since) || (now - since) < YEARS3) continue;
+    const nextEch = String.fromCharCode(ech.charCodeAt(0) + 1);
+    const nextCat = cat + nextEch;
+    // N'avancer que si l'échelon supérieur existe dans la grille de la convention rattachée.
+    const conv = (db.conventions || []).find(x => x.id === c.conventionId) ||
+      (db.conventions || []).find(x => (x.grid || []).some(g => g.category === c.category));
+    const hasNext = conv && (conv.grid || []).some(g => g.category === nextCat);
+    if (!hasNext) continue;
+    c.category = nextCat; c.echelonSince = new Date(now).toISOString().slice(0, 10);
+    try { audit({ id: "system", fullName: "Système", role: "ADM", tenantId: e.tenantId || "t1" }, "ECHELON_ADVANCE", "Employee", e.id, { from: cat + ech, to: nextCat }); } catch (x) {}
+    changed++;
+  }
+  if (changed) save();
+  return changed;
+}
+module.exports = { items, scanAndRemind, advanceEchelons };

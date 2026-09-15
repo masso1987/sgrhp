@@ -9,7 +9,7 @@ const PDFDocument = require("pdfkit");
 const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
-const { computePayslip } = require("../payroll/engine");
+const { computePayslip, seniorityRate } = require("../payroll/engine");
 const crypto = require("crypto");
 let _multer; try { _multer = require("multer"); } catch (e) { _multer = null; }
 const tsUpload = _multer ? _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
@@ -152,7 +152,7 @@ function elementsToInput(emp, period, req, opts) {
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
       case "AVANTAGE": avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: Number(e.amount), cnps: !!e.cnps, impo: e.impo !== false }); break;
-      case "TREIZE": gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary) }); break;
+      case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)) }); break; }
       case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount) }); break;
       default: break;
     }

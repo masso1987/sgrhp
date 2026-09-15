@@ -4622,6 +4622,14 @@ async function payconfigView() {
         </select></div>
       <span class="note">Le design choisi s'applique à tous les bulletins générés (PDF individuel et lot).</span>
     </div></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">VALEURS CONVENTIONNELLES (CCN Commerce)</b>
+    <div class="grid3" style="margin-top:8px">
+      <div><label>Transport / jour effectif (Art.74)</label>${num("legal.transportPerDay", (cfg.legal&&cfg.legal.transportPerDay)!=null?cfg.legal.transportPerDay:1300)}</div>
+      <div><label>Prime de caisse — principal (Art.78)</label>${num("legal.caissePrincipal", (cfg.legal&&cfg.legal.caissePrincipal)!=null?cfg.legal.caissePrincipal:33000)}</div>
+      <div><label>Prime de caisse — secondaire</label>${num("legal.caisseSecondaire", (cfg.legal&&cfg.legal.caisseSecondaire)!=null?cfg.legal.caisseSecondaire:26000)}</div>
+      <div><label>Indemnité logement (fraction du salaire cat., Art.81)</label>${num("legal.logementPct", (cfg.legal&&cfg.legal.logementPct)!=null?cfg.legal.logementPct:0.40)}</div>
+    </div>
+    <div class="note" style="margin-top:6px">Le 13ᵉ mois est calculé sur le salaire catégoriel échelonné majoré de la prime d'ancienneté (Art.91).</div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">CAISSE CNPS (retraite / prestations familiales / accident du travail)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>Plafond mensuel</label>${num("cnps.ceiling", cfg.cnps.ceiling)}</div>
