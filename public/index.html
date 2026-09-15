@@ -125,10 +125,9 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 <body>
 
 <div id="login">
-  <div style="text-align:center"><img data-brand-logo style="max-height:46px;display:none;margin-bottom:6px"></div><h1 data-brand-name style="text-align:center">SGRHP</h1>
-  <p data-brand-tag style="text-align:center;color:var(--muted);margin-bottom:16px">Cible RH Emploi S.A.</p>
-  <label>Email</label><input id="lEmail" value="gpf@cible-rh.ci" onkeydown="if(event.key==='Enter')doLogin()">
-  <label>Mot de passe</label><input id="lPass" type="password" value="demo123" onkeydown="if(event.key==='Enter')doLogin()">
+  <div style="text-align:center"><img data-brand-logo style="max-height:46px;display:none;margin-bottom:6px"></div><h1 data-brand-name style="text-align:center;margin-bottom:16px">SGRHP</h1>
+  <label>Email</label><input id="lEmail" value="" placeholder="votre@email.com" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+  <label>Mot de passe</label><input id="lPass" type="password" value="" placeholder="Mot de passe" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
   <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
     <input id="lTotp" inputmode="numeric" maxlength="6" placeholder="123456" onkeydown="if(event.key==='Enter')doLogin()"></div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px;font-size:13px">
@@ -719,7 +718,7 @@ function applyBranding(b) {
     r.setProperty("--primary-light", shade(th["--primary"], 18));
   }
   document.querySelectorAll("[data-brand-name]").forEach(e =>e.textContent = b.appName || "SGRHP");
-  document.querySelectorAll("[data-brand-tag]").forEach(e =>e.textContent = b.tagline || "");
+  document.querySelectorAll("[data-brand-tag]").forEach(e =>e.textContent = (window.ME && ME.tenantName) ? ME.tenantName : (b.tagline || ""));
   document.querySelectorAll("[data-brand-logo]").forEach(e => {
     if (b.logo) { e.src = b.logo; e.style.display = "inline-block"; } else { e.style.display = "none"; } });
   try { const fav = document.getElementById("favicon"); if (fav && b.logo) fav.href = b.logo; } catch (e) {}
@@ -1069,6 +1068,8 @@ async function boot() {
   } catch { armIdle(30); }
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} - ${ME.role}`;
+  // Le sous-titre de la barre reflète le contexte connecté : société du tenant, ou « Plateforme » pour le super-admin.
+  document.querySelectorAll(".topbar [data-brand-tag]").forEach(e => { e.textContent = ME.tenantName || ""; });
   buildNav();
   renderFooter();
   launcherPlaceholder();
@@ -1086,7 +1087,7 @@ function renderFooter(){
 }
 function renderLoginFooter(){
   const y=new Date().getFullYear();
-  const co=(window.BRANDING&&(BRANDING.tagline||BRANDING.appName))||"Cible RH Emploi S.A.";
+  const co=(window.BRANDING&&BRANDING.appName)||"SGRHP";
   const el=document.getElementById("loginFooter");
   if(el) el.textContent=`© ${y} ${co}. Tous droits réservés.`;
 }
