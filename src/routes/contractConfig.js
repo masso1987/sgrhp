@@ -158,7 +158,7 @@ const CMR_CONVENTIONS = [
  * (Commerce 6D=173 573, 12A~442 225 issus des fiches réelles) et des fourchettes sectorielles
  * publiées. Valeurs INDICATIVES et modifiables — à confirmer avec l'annexe officielle. */
 const COMMERCE_BASE_A = { 1: 66480, 2: 78980, 3: 93830, 4: 111470, 5: 132430, 6: 157080, 7: 186610, 8: 221690, 9: 263370, 10: 312880, 11: 371700, 12: 441580 };
-const ECH_FACTOR = { A: 1.0, B: 1.035, C: 1.07, D: 1.105, E: 1.14 };
+const ECH_FACTOR = { A: 1.0, B: 1.035, C: 1.07, D: 1.105, E: 1.14, F: 1.175 };
 function sectorMultiplier(name) {
   const n = String(name || "").toLowerCase();
   if (n.includes("banque") || n.includes("financ")) return 1.6;
@@ -174,10 +174,36 @@ function sectorMultiplier(name) {
   if (n.includes("gardiennage") || n.includes("sécurité") || n.includes("securite")) return 0.85;
   return 1.0; // Commerce et autres
 }
+/* Grille officielle CCN Commerce 2024 (Secteur Tertiaire II), effet 1er janvier 2024.
+ * Catégories 1..12 x échelons A..F. Codes de catégorie en chiffres (ex. 5A, 10F). */
+const COMMERCE_2024 = {
+  1:  [60473, 62732, 64987, 67243, 69498, 71754],
+  2:  [71754, 76362, 81016, 85673, 90280, 94935],
+  3:  [93256, 101414, 109574, 117732, 125845, 133974],
+  4:  [108600, 116550, 124500, 132451, 141180, 148350],
+  5:  [124652, 131878, 139104, 146368, 153593, 160820],
+  6:  [150355, 158082, 165846, 173573, 181373, 189063],
+  7:  [156222, 168616, 180936, 193293, 205649, 218005],
+  8:  [218005, 232548, 247092, 261598, 276143, 290723],
+  9:  [245736, 267234, 288732, 310229, 331728, 353225],
+  10: [290270, 305783, 320927, 336107, 351253, 366432],
+  11: [366484, 381577, 396722, 412010, 427035, 442225],
+  12: [442225, 457370, 472550, 487728, 502873, 518051],
+};
+const COMMERCE_PCT = { 1:30, 2:30, 3:30, 4:11, 5:11, 6:7.5, 7:7.5, 8:7.5, 9:4, 10:4, 11:4, 12:4 };
+const ECHELONS = ["A", "B", "C", "D", "E", "F"];
+function commerceGrid2024() {
+  const rows = [];
+  for (let c = 1; c <= 12; c++) ECHELONS.forEach((e, i) =>
+    rows.push({ category: c + e, label: "Catégorie " + c + " échelon " + e, baseSalary: COMMERCE_2024[c][i], pct: COMMERCE_PCT[c] }));
+  return rows;
+}
+const isCommerce = (name) => /commerce/i.test(String(name || ""));
 function genGridForName(name) {
+  if (isCommerce(name)) return commerceGrid2024();
   const mult = sectorMultiplier(name); const rows = [];
-  for (let c = 1; c <= 12; c++) for (const e of ["A", "B", "C", "D", "E"])
-    rows.push({ category: c + e, label: "Catégorie " + c + " échelon " + e, baseSalary: Math.round(COMMERCE_BASE_A[c] * ECH_FACTOR[e] * mult / 10) * 10 });
+  for (let c = 1; c <= 12; c++) for (const e of ECHELONS)
+    rows.push({ category: c + e, label: "Catégorie " + c + " échelon " + e, baseSalary: Math.round(COMMERCE_2024[c][0] * ECH_FACTOR[e] * mult / 10) * 10 });
   return rows;
 }
 const isDefaultGrid = (grid) => Array.isArray(grid) && grid.length > 0 && grid.every(g => /^[A-E][1-3]$/.test(String(g.category || "")));
@@ -185,7 +211,7 @@ const isDefaultGrid = (grid) => Array.isArray(grid) && grid.length > 0 && grid.e
 router.post("/conventions/:id/prefill-grid", allow("ADM"), (req, res) => {
   const cnv = mine(db.conventions, req).find(c => c.id === req.params.id);
   if (!cnv) return res.status(404).json({ error: "Not found" });
-  cnv.grid = genGridForName(cnv.name); cnv.gridSource = "indicatif"; save();
+  cnv.grid = genGridForName(cnv.name); cnv.gridSource = isCommerce(cnv.name) ? "officiel 2024" : "indicatif"; save();
   audit(req.user, "CONFIG_CHANGED", "Convention", cnv.id, { prefillGrid: cnv.name });
   res.json(cnv);
 });
@@ -193,7 +219,7 @@ router.post("/conventions/prefill-all", allow("ADM"), (req, res) => {
   const force = !!(req.body || {}).force; let filled = 0;
   for (const c of mine(db.conventions, req)) {
     if (force || !Array.isArray(c.grid) || !c.grid.length || isDefaultGrid(c.grid)) {
-      c.grid = genGridForName(c.name); c.gridSource = "indicatif"; filled++;
+      c.grid = genGridForName(c.name); c.gridSource = isCommerce(c.name) ? "officiel 2024" : "indicatif"; filled++;
     }
   }
   if (filled) save();

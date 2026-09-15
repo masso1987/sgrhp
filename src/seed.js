@@ -71,10 +71,21 @@ function seedTenantData(tid) {
     { category: "E1", baseSalary: 460000 }, { category: "E2", baseSalary: 560000 }];
 
   if (!has("conventions")) {
+    // Grille officielle CCN Commerce 2024 (catégories 1..12 x échelons A..F ; codes en chiffres : 5A, 10F).
+    const COMMERCE_2024 = { 1:[60473,62732,64987,67243,69498,71754], 2:[71754,76362,81016,85673,90280,94935],
+      3:[93256,101414,109574,117732,125845,133974], 4:[108600,116550,124500,132451,141180,148350],
+      5:[124652,131878,139104,146368,153593,160820], 6:[150355,158082,165846,173573,181373,189063],
+      7:[156222,168616,180936,193293,205649,218005], 8:[218005,232548,247092,261598,276143,290723],
+      9:[245736,267234,288732,310229,331728,353225], 10:[290270,305783,320927,336107,351253,366432],
+      11:[366484,381577,396722,412010,427035,442225], 12:[442225,457370,472550,487728,502873,518051] };
+    const ECH = ["A","B","C","D","E","F"], PCT = {1:30,2:30,3:30,4:11,5:11,6:7.5,7:7.5,8:7.5,9:4,10:4,11:4,12:4};
+    const commerceGrid = () => { const r = []; for (let c=1;c<=12;c++) ECH.forEach((e,i)=>r.push({ category: c+e, label: "Catégorie "+c+" échelon "+e, baseSalary: COMMERCE_2024[c][i], pct: PCT[c] })); return r; };
     const names = (db.referentials.find(r => (r.tenantId||"t1")===tid && r.key === "collectiveAgreements")?.values)
-      || ["Convention collective nationale du Commerce"];
-    for (const name of names)
-      db.conventions.push({ id: id("cnv"), tenantId: tid, name, grid: defaultGrid.map(g => ({ ...g })) });
+      || ["Convention Collective Nationale du Commerce"];
+    for (const name of names) {
+      const isCom = /commerce/i.test(name);
+      db.conventions.push({ id: id("cnv"), tenantId: tid, name, grid: isCom ? commerceGrid() : defaultGrid.map(g => ({ ...g })), gridSource: isCom ? "officiel 2024" : undefined });
+    }
   }
   if (!has("contractTypes")) {
     db.contractTypes.push(
@@ -156,10 +167,21 @@ function seedConventions() {
     { category: "C1", baseSalary: 140000 }, { category: "C2", baseSalary: 170000 }, { category: "C3", baseSalary: 200000 },
     { category: "D1", baseSalary: 250000 }, { category: "D2", baseSalary: 310000 }, { category: "D3", baseSalary: 380000 },
     { category: "E1", baseSalary: 460000 }, { category: "E2", baseSalary: 560000 }];
+  // Grille officielle CCN Commerce 2024 (catégories 1..12 x échelons A..F), codes en chiffres (5A, 10F).
+  const COMMERCE_2024 = { 1:[60473,62732,64987,67243,69498,71754], 2:[71754,76362,81016,85673,90280,94935],
+    3:[93256,101414,109574,117732,125845,133974], 4:[108600,116550,124500,132451,141180,148350],
+    5:[124652,131878,139104,146368,153593,160820], 6:[150355,158082,165846,173573,181373,189063],
+    7:[156222,168616,180936,193293,205649,218005], 8:[218005,232548,247092,261598,276143,290723],
+    9:[245736,267234,288732,310229,331728,353225], 10:[290270,305783,320927,336107,351253,366432],
+    11:[366484,381577,396722,412010,427035,442225], 12:[442225,457370,472550,487728,502873,518051] };
+  const ECH = ["A","B","C","D","E","F"], PCT = {1:30,2:30,3:30,4:11,5:11,6:7.5,7:7.5,8:7.5,9:4,10:4,11:4,12:4};
+  const commerceGrid = () => { const r = []; for (let c=1;c<=12;c++) ECH.forEach((e,i)=>r.push({ category: c+e, label: "Catégorie "+c+" échelon "+e, baseSalary: COMMERCE_2024[c][i], pct: PCT[c] })); return r; };
   const names = (db.referentials.find(r => r.key === "collectiveAgreements")?.values) ||
-    ["Convention collective nationale du Commerce"];
-  for (const name of names)
-    db.conventions.push({ id: id("cnv"), name, grid: defaultGrid.map(g => ({ ...g })) });
+    ["Convention Collective Nationale du Commerce"];
+  for (const name of names) {
+    const isCom = /commerce/i.test(name);
+    db.conventions.push({ id: id("cnv"), name, grid: isCom ? commerceGrid() : defaultGrid.map(g => ({ ...g })), gridSource: isCom ? "officiel 2024" : undefined });
+  }
   for (const pf of db.portfolios) if (!pf.conventionId) pf.conventionId = db.conventions[0].id;
 }
 function seedContractConfig() {
