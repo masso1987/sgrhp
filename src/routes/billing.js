@@ -58,7 +58,12 @@ function withCompute(sheet, req) {
 }
 
 /* ============================ COMPONENTS ============================ */
-router.get("/components", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => res.json(mine(db.billingComponents, req)));
+const _STAGE_ORDER = { PRIME: 1, HORS_CHARGE: 2, PRESTATION: 3, RETENUE: 4 };
+router.get("/components", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => res.json(
+  mine(db.billingComponents, req).slice().sort((a, b) =>
+    (_STAGE_ORDER[a.stage] || 9) - (_STAGE_ORDER[b.stage] || 9) ||
+    ((a.order || 99) - (b.order || 99)) ||
+    String(a.code || "").localeCompare(String(b.code || ""), "fr", { numeric: true }))));
 router.post("/components", allow("ADM"), (req, res) => {
   const b = req.body || {};
   if (!b.code || !b.label) return res.status(400).json({ error: "Code et libellé obligatoires" });

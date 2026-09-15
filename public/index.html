@@ -2644,25 +2644,51 @@ function expiryYMD(d){
   return past ? '<span style="color:#dc2626;font-weight:600">Expiré depuis '+txt+'</span>'
     : '<span style="color:'+(d<=30?'#dc2626':(d<=90?'#f97316':'#16a34a'))+';font-weight:600">'+txt+'</span>';
 }
+let EXP_CACHE=[];
 async function expiringView(){
-  const list=await api("/hr/expiring").catch(()=>[]);
-  const mode=window._EXPMODE||"portfolio";
-  const rowsOf=(items)=>items.map(x=>`<tr${x.daysLeft<0?' style="background:rgba(220,38,38,.06)"':''}><td>${esc(x.employeeName)}</td><td>${esc(x.label)}${x.fileName?' <span class="note">('+esc(x.fileName)+')</span>':''}</td><td>${esc((x.expiryDate||'').slice(0,10))}</td><td>${expiryYMD(x.daysLeft)}</td></tr>`).join("");
-  // Regroupement
+  EXP_CACHE=await api("/hr/expiring").catch(()=>[]);
+  window._EXPMODE=window._EXPMODE||"portfolio";
+  window._EXPST=window._EXPST||"all";
+  renderExpiring();
+}
+function renderExpiring(){
+  const list0=EXP_CACHE||[]; const mode=window._EXPMODE||"portfolio"; const st=window._EXPST||"all";
+  const q=((document.getElementById("expSearch")||{}).value||"").toLowerCase();
+  const total=list0.length, exp=list0.filter(i=>i.daysLeft<0).length, soon=list0.filter(i=>i.daysLeft>=0&&i.daysLeft<=30).length, soon90=list0.filter(i=>i.daysLeft>=0&&i.daysLeft<=90).length;
+  let list=list0.filter(x=>{
+    if(st==="expired"&&!(x.daysLeft<0))return false;
+    if(st==="30"&&!(x.daysLeft>=0&&x.daysLeft<=30))return false;
+    if(st==="90"&&!(x.daysLeft>=0&&x.daysLeft<=90))return false;
+    if(q&&!(`${x.employeeName||""} ${x.label||""} ${x.fileName||""} ${x.portfolioName||""}`.toLowerCase().includes(q)))return false;
+    return true;
+  });
+  const rowsOf=(items)=>items.map(x=>{ const col=x.daysLeft<0?'#dc2626':(x.daysLeft<=30?'#f97316':'#6b7280');
+    return `<tr${x.daysLeft<0?' style="background:rgba(220,38,38,.06)"':''}><td>${esc(x.employeeName||"")}</td><td>${esc(x.label||"")}${x.fileName?' <span class="note">('+esc(x.fileName)+')</span>':''}</td><td>${esc((x.expiryDate||'').slice(0,10))}</td><td style="color:${col};font-weight:600;white-space:nowrap">${expiryYMD(x.daysLeft)}</td></tr>`;}).join("");
   const groups={}; const keyer = mode==="type" ? (x=>x.typeLabel||x.label) : (x=>x.portfolioName||"(sans portefeuille)");
   list.forEach(x=>{ const k=keyer(x); (groups[k]=groups[k]||[]).push(x); });
   const gkeys=Object.keys(groups).sort((a,b)=>a.localeCompare(b,"fr"));
-  const section=(title,items)=>`<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(title)}</b><span class="note">${items.length} échéance(s) · ${items.filter(i=>i.daysLeft<0).length} expirée(s)</span></div>
+  const section=(title,items)=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(title)}</b><span class="note">${items.length} échéance(s) · ${items.filter(i=>i.daysLeft<0).length} expirée(s)</span></div>
     <div style="overflow:auto;margin-top:6px"><table style="width:100%"><tr><th>Salarié</th><th>Document / échéance</th><th>Date</th><th>Reste</th></tr>${rowsOf(items.slice().sort((a,b)=>a.daysLeft-b.daysLeft))}</table></div></div>`;
+  const chip=(k,l,c)=>`<button class="btn ${st===k?"p":"ghost"} sm" onclick="window._EXPST='${k}';renderExpiring()">${l}${c!=null?` (${c})`:""}</button>`;
   view.innerHTML=`<h1>Alertes d'expiration</h1>
-   <div class="note" style="margin-bottom:8px">Documents, validité CNI, contrats (CDD) et habilitations arrivant à échéance. Rappels automatiques par email (GPF + salarié) à partir de 90 jours, puis environ chaque mois. Le temps restant est indiqué en années / mois / jours.</div>
-   <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-     <span class="note">Regrouper par :</span>
-     <button class="btn ${mode==="portfolio"?"p":"ghost"} sm" onclick="window._EXPMODE='portfolio';expiringView()">Portefeuille</button>
-     <button class="btn ${mode==="type"?"p":"ghost"} sm" onclick="window._EXPMODE='type';expiringView()">Type de document</button>
-     ${ME.role!=="GPF"?`<span style="flex:1"></span><button class="btn p sm" onclick="expiringRemind()">Envoyer les rappels maintenant</button>`:''}
+   <div class="note" style="margin-bottom:8px">Documents, validité CNI, contrats (CDD) et habilitations arrivant à échéance. Rappels automatiques par email à partir de 90 jours. Temps restant en années / mois / jours.</div>
+   <div class="cards" style="margin-bottom:10px">
+     <div class="card"><div class="kpi">${total}</div><div class="lbl">Échéances suivies</div></div>
+     <div class="card"><div class="kpi" style="color:#dc2626">${exp}</div><div class="lbl">Expirées</div></div>
+     <div class="card"><div class="kpi" style="color:#f97316">${soon}</div><div class="lbl">≤ 30 jours</div></div>
+     <div class="card"><div class="kpi" style="color:#6b7280">${soon90}</div><div class="lbl">≤ 90 jours</div></div>
    </div>
-   ${gkeys.length?gkeys.map(k=>section(k,groups[k])).join(""):'<div class="panel note">Aucune échéance dans la période suivie.</div>'}`;
+   <div class="panel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;margin-bottom:10px">
+     <input id="expSearch" placeholder="Salarié, document, portefeuille…" style="margin:0;max-width:240px" value="${esc(q)}" oninput="renderExpiring()">
+     ${chip("all","Toutes",total)}${chip("expired","Expirées",exp)}${chip("30","≤ 30 j",soon)}${chip("90","≤ 90 j",soon90)}
+     <span style="width:1px;height:22px;background:var(--border)"></span>
+     <span class="note">Grouper :</span>
+     <button class="btn ${mode==="portfolio"?"p":"ghost"} sm" onclick="window._EXPMODE='portfolio';renderExpiring()">Portefeuille</button>
+     <button class="btn ${mode==="type"?"p":"ghost"} sm" onclick="window._EXPMODE='type';renderExpiring()">Type</button>
+     ${ME.role!=="GPF"?`<span style="flex:1"></span><button class="btn p sm" onclick="expiringRemind()">Envoyer les rappels</button>`:''}
+   </div>
+   ${gkeys.length?gkeys.map(k=>section(k,groups[k])).join(""):'<div class="panel note">Aucune échéance ne correspond au filtre.</div>'}`;
+  const se=document.getElementById("expSearch"); if(se){ se.focus(); try{ se.setSelectionRange(se.value.length,se.value.length); }catch(e){} }
 }
 async function expiringRemind(){ try{ const r=await api("/hr/expiring/remind",{method:"POST"}); alert(r.sent+" rappel(s) envoyé(s)."+(r.sent===0?" (aucune échéance à notifier, ou email SMTP non configuré)":"")); }catch(e){ alert(e.message); } }
 
