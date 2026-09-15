@@ -5055,6 +5055,9 @@ async function paySaveConfig() {
 /* ================= Module Facturation ================= */
 let BILL_SHEETS = [], BILL_CTR = [];
 /* ---- Tableau de bord Facturation ---- */
+function caReport(fmt){ const from=(document.getElementById("caFrom")||{}).value, to=(document.getElementById("caTo")||{}).value;
+  if(!from||!to){ alert("Choisissez la plage."); return; }
+  payDownload(`/billing/reports/ca?from=${from}&to=${to}&format=${fmt}`, `Rapport_facturation_${from}_${to}.${fmt==="xlsx"?"xlsx":fmt}`); }
 async function billHome(){
   const d=await api("/billing/dashboard").catch(()=>null);
   if(!d){ view.innerHTML='<h1>Facturation</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
@@ -5063,7 +5066,16 @@ async function billHome(){
   const card=(l,v,sub,dest)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:160px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
     <div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:21px;font-weight:700;margin-top:4px">${v}</div>${sub?`<div class="note" style="font-size:11px;margin-top:2px">${sub}</div>`:''}</div>`;
   const stat=(l)=>({validated:'<span class="tag green">Validée</span>',draft:'<span class="tag amber">Brouillon</span>'}[l]||l);
+  const nowM=new Date().toISOString().slice(0,7); const janM=new Date().getFullYear()+"-01";
   view.innerHTML=`<h1>Tableau de bord - Facturation</h1>
+    <div class="panel" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:10px 0">
+      <b style="font-size:12px;color:var(--muted);align-self:center;margin-right:4px">RAPPORT CA (PLAGE)</b>
+      <div><label>De</label><input id="caFrom" type="month" value="${janM}" style="margin:0"></div>
+      <div><label>À</label><input id="caTo" type="month" value="${nowM}" style="margin:0"></div>
+      <button class="btn ghost sm" onclick="caReport('pdf')">PDF</button>
+      <button class="btn ghost sm" onclick="caReport('xlsx')">Excel</button>
+      <button class="btn ghost sm" onclick="caReport('csv')">CSV</button>
+    </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">
       ${card("Chiffre d'affaires (TTC)",money(k.caTTC),k.validees+" facture(s) validée(s)","invoices")}
       ${card("Chiffre d'affaires (HT)",money(k.caHT),"")}

@@ -1051,5 +1051,61 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   _paintFooters(doc); audit(req.user, "EXPORTED", "BillingInvoice", inv.id, { doc: "invoice", format: "pdf" }); doc.end();
 });
 
+/* ==================== RAPPORT DE FACTURATION (CA sur période) ==================== */
+router.get("/reports/ca", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const q = req.query || {};
+  const from = q.from || q.to || new Date().toISOString().slice(0,7);
+  const to = q.to || q.from || from;
+  const lo = from < to ? from : to, hi = from < to ? to : from;
+  const byId = {}; mine(db.billingContracts, req).forEach(c => byId[c.id] = c);
+  let sheets = mine(db.billingSheets, req).filter(s => { const p = String(s.period||"").slice(0,7); return p >= lo && p <= hi; });
+  if (q.clientId) sheets = sheets.filter(s => s.contractId === q.clientId);
+  // Agrégation par client
+  const agg = {};
+  for (const s of sheets) { const t = withCompute(s, req).computed.totals; const c = byId[s.contractId] || {};
+    const key = c.clientName || s.contractId;
+    const a = agg[key] || (agg[key] = { client: key, annexes: 0, HT: 0, TVA: 0, TTC: 0 });
+    a.annexes += 1; a.HT += t.HT||0; a.TVA += t.TVA||0; a.TTC += t.TTC||0; }
+  const rows = Object.values(agg).map(a => ({ client: a.client, annexes: a.annexes, HT: Math.round(a.HT), TVA: Math.round(a.TVA), TTC: Math.round(a.TTC) }))
+    .sort((a,b)=> b.TTC - a.TTC);
+  const tot = rows.reduce((o,r)=>{o.HT+=r.HT;o.TVA+=r.TVA;o.TTC+=r.TTC;o.annexes+=r.annexes;return o;},{HT:0,TVA:0,TTC:0,annexes:0});
+  const columns = [ {key:"client",label:"Client",w:180},{key:"annexes",label:"Annexes",w:60},{key:"HT",label:"CA HT",money:1,w:90},{key:"TVA",label:"TVA",money:1,w:80},{key:"TTC",label:"CA TTC",money:1,w:100} ];
+  const format = String(q.format||"json").toLowerCase();
+  const name = `Rapport_facturation_${lo}_${hi}`;
+  if (format === "csv") {
+    const head = columns.map(c=>'"'+c.label+'"').join(";");
+    const body = rows.map(r=>columns.map(c=>c.money?Math.round(r[c.key]||0):'"'+String(r[c.key]==null?"":r[c.key]).replace(/"/g,'""')+'"').join(";")).join("\n");
+    const totLine = `"TOTAL (${tot.annexes})";${tot.annexes};${tot.HT};${tot.TVA};${tot.TTC}`;
+    res.setHeader("Content-Type","text/csv; charset=utf-8"); res.setHeader("Content-Disposition",`attachment; filename="${name}.csv"`);
+    return res.send("\ufeff"+head+"\n"+body+"\n"+totLine);
+  }
+  if (format === "xlsx") {
+    let XLSX; try{ XLSX=require("xlsx"); }catch(e){ return res.status(500).json({error:"Module Excel indisponible"}); }
+    const aoa=[columns.map(c=>c.label), ...rows.map(r=>columns.map(c=>r[c.key])), ["TOTAL",tot.annexes,tot.HT,tot.TVA,tot.TTC]];
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "CA");
+    res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); res.setHeader("Content-Disposition",`attachment; filename="${name}.xlsx"`);
+    return res.send(XLSX.write(wb,{type:"buffer",bookType:"xlsx"}));
+  }
+  if (format === "pdf") {
+    const doc = new PDFDocument({ margin: 28, size: "A4" }); const F=_annexeFonts(doc);
+    res.setHeader("Content-Type","application/pdf"); res.setHeader("Content-Disposition",`attachment; filename="${name}.pdf"`);
+    doc.pipe(res); const x0=28, usable=doc.page.width-56;
+    doc.font(F.bold).fontSize(14).text(`Rapport de facturation — ${lo} à ${hi}`, x0, 28);
+    doc.font(F.reg).fontSize(9).fillColor("#555").text(`${rows.length} client(s) · ${tot.annexes} annexe(s)`, x0, 48); doc.fillColor("#000");
+    let y=68; const tw=columns.reduce((a,c)=>a+c.w,0), sc=usable/tw; columns.forEach(c=>c._w=c.w*sc);
+    const xs=[]; { let x=x0; columns.forEach(c=>{xs.push(x);x+=c._w;}); }
+    const money=(v)=>_NF(v)+" FCFA";
+    doc.rect(x0,y,usable,16).fillAndStroke("#E5E7EB","#9ca3af"); doc.fillColor("#000").font(F.bold).fontSize(8);
+    columns.forEach((c,i)=>doc.text(c.label,xs[i]+3,y+4,{width:c._w-6,align:c.money?"right":"left",lineBreak:false})); y+=16;
+    doc.font(F.reg).fontSize(8);
+    for (const r of rows){ if(y>780){doc.addPage();y=30;} columns.forEach((c,i)=>doc.text(c.money?money(r[c.key]):String(r[c.key]==null?"":r[c.key]),xs[i]+3,y+3,{width:c._w-6,align:c.money?"right":"left",lineBreak:false}));
+      doc.strokeColor("#e5e7eb").lineWidth(.3).moveTo(x0,y+11).lineTo(x0+usable,y+11).stroke(); y+=12; }
+    doc.rect(x0,y,usable,15).fillAndStroke("#E5E7EB","#9ca3af"); doc.fillColor("#000").font(F.bold).fontSize(8);
+    doc.text(`TOTAL (${tot.annexes} annexes)`,xs[0]+3,y+4,{width:xs[2]-xs[0]-6}); doc.text(money(tot.HT),xs[2]+3,y+4,{width:columns[2]._w-6,align:"right"}); doc.text(money(tot.TVA),xs[3]+3,y+4,{width:columns[3]._w-6,align:"right"}); doc.text(money(tot.TTC),xs[4]+3,y+4,{width:columns[4]._w-6,align:"right"});
+    _paintFooters(doc); doc.end(); return;
+  }
+  res.json({ from: lo, to: hi, rows, totals: tot });
+});
+
 module.exports = router;
 module.exports.enLettres = enLettres;
