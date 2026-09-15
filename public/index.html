@@ -153,7 +153,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 </div>
 
 <div id="app" class="hidden">
-<div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">Menu</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>MBOKA Mon RH</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
+<div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">Menu</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>MBOKA Mon RH</span><span class="b" data-brand-tag></span></div>
   <button class="apps-btn" title="Applications" onclick="showLauncher()">Apps</button>
   <div class="modbar" id="modbar"></div>
   <div style="font-size:13px;display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
@@ -730,7 +730,8 @@ function applyBranding(b) {
     r.setProperty("--primary-light", shade(th["--primary"], 18));
   }
   document.querySelectorAll("[data-brand-name]").forEach(e =>e.textContent = b.appName || "MBOKA Mon RH");
-  document.querySelectorAll("[data-brand-tag]").forEach(e =>e.textContent = (window.ME && ME.tenantName) ? ME.tenantName : (b.tagline || ""));
+  const _brandTag = window.ME ? (ME.role === "SADM" ? "Plateforme" : (ME.tenantName || "")) : (b.tagline || "");
+  document.querySelectorAll("[data-brand-tag]").forEach(e => e.textContent = _brandTag);
   const _appLogo = appLogoSrc(b), _ctxLogo = contextLogoSrc(b);
   document.querySelectorAll("[data-app-logo]").forEach(e => { e.src = _appLogo; e.style.display = "inline-block"; });
   document.querySelectorAll("[data-brand-logo]").forEach(e => { e.src = _ctxLogo; e.style.display = "inline-block"; });
@@ -1082,7 +1083,7 @@ async function boot() {
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} - ${ME.role}`;
   // Le sous-titre de la barre reflète le contexte connecté : société du tenant, ou « Plateforme » pour le super-admin.
-  document.querySelectorAll(".topbar [data-brand-tag]").forEach(e => { e.textContent = ME.tenantName || ""; });
+  document.querySelectorAll(".topbar [data-brand-tag]").forEach(e => { e.textContent = (ME.role === "SADM") ? "Plateforme" : (ME.tenantName || ""); });
   buildNav();
   renderFooter();
   launcherPlaceholder();
