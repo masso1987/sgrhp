@@ -153,7 +153,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
     numberFormat: b.numberFormat || "CLIENT/AAAA/MM/####", invoiceStyle: b.invoiceStyle || "lines",
     lineFields: Array.isArray(b.lineFields) ? b.lineFields : [],
     isEnabled: !!b.isEnabled, isRate: b.isRate != null ? Number(b.isRate) : 0.022, invoiceSeqPrefix: b.invoiceSeqPrefix || "029",
-    journalId: b.journalId || "", defaultAccount: b.defaultAccount || "701100", conditionsPaiement: b.conditionsPaiement || "Immédiat", vendeur: b.vendeur || "",
+    journalId: b.journalId || "", defaultAccount: b.defaultAccount || "701100", conditionsPaiement: b.conditionsPaiement || "Immédiat", vendeur: b.vendeur || "", paymentTermDays: b.paymentTermDays != null ? Number(b.paymentTermDays) : 30,
     prorate: b.prorate || "base", anciennete: b.anciennete !== false, tvaExonere: !!b.tvaExonere,
     rates: Object.assign({}, DEFAULT_RATES, b.rates || {}),
     components: Array.isArray(b.components) ? b.components : [],
@@ -165,7 +165,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
 router.put("/contracts/:id", allow("ADM"), (req, res) => {
   const c = contractOf(req, req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix", "journalId", "defaultAccount", "conditionsPaiement", "vendeur", "lineFields"])
+  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix", "journalId", "defaultAccount", "conditionsPaiement", "vendeur", "lineFields", "paymentTermDays"])
     if (b[k] !== undefined) c[k] = b[k];
   if (b.rates) c.rates = Object.assign({}, DEFAULT_RATES, c.rates || {}, b.rates);
   save(); audit(req.user, "UPDATED", "BillingContract", c.id, {}); res.json(c);
@@ -851,6 +851,24 @@ router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
 });
 router.get("/invoices", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   res.json(mine(db.billingInvoices, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(withInvTotals)));
+// Factures échues (date d'échéance atteinte, non comptabilisées ou en attente de paiement) — alertes comptable + GPF.
+router.get("/invoices/due", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const byId = {}; mine(db.billingContracts, req).forEach(c => byId[c.id] = c);
+  const list = mine(db.billingInvoices, req)
+    .filter(i => i.status === "validated" && i.paid !== true)
+    .map(i => {
+      const due = i.dueDate || _computeDueDate(i, byId[i.contractId] || {});
+      const t = invTotals(i);
+      const daysLeft = Math.ceil((new Date(due) - new Date(today)) / 86400e3);
+      return { id: i.id, number: i.number, client: i.client, date: i.date, dueDate: due, daysLeft,
+        TTC: t.TTC, totalDu: t.totalDu, accounting: i.accounting || "pending_receipt", receiptConfirmed: !!i.receiptConfirmed,
+        overdue: daysLeft < 0, dueSoon: daysLeft >= 0 && daysLeft <= 7 };
+    })
+    .filter(i => i.overdue || i.dueSoon || !i.receiptConfirmed)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  res.json(list);
+});
 router.get("/invoices/:id", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   const contract = contractOf(req, inv.contractId) || {};
@@ -881,6 +899,18 @@ router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
   if (Array.isArray(req.body.lines)) inv.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
   save(); audit(req.user, "UPDATED", "BillingInvoice", inv.id, {}); res.json(withInvTotals(inv));
 });
+// Échéance : nombre de jours du contrat (ou parsé depuis conditionsPaiement), ajouté à la date de facture.
+function _termDays(contract) {
+  if (contract && contract.paymentTermDays != null && contract.paymentTermDays !== "") return Number(contract.paymentTermDays) || 0;
+  const m = String((contract && contract.conditionsPaiement) || "").match(/(\d{1,3})/);
+  return m ? Number(m[1]) : 0;
+}
+function _computeDueDate(inv, contract) {
+  if (inv.dueDate) return inv.dueDate;
+  const base = inv.date || new Date().toISOString().slice(0, 10);
+  const d = new Date(base); const days = _termDays(contract); d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 const invSnap = (inv) => { const t = invTotals(inv); return { number: inv.number, HT: t.HT, TVA: t.TVA, TTC: t.TTC, totalDu: t.totalDu }; };
 router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
@@ -903,8 +933,32 @@ router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
     qualityEvent(req, { objectType: "Facture", objectId: inv.id, ref: inv.number, action: "modif_apres_validation", motif: inv._reopen.motif, before, after, changed });
     delete inv._reopen;
   }
-  save(); audit(req.user, "VALIDATED", "BillingInvoice", inv.id, { status: inv.status });
-  try { require("./accounting").generateInvoiceEntry(req, inv.id); } catch (e) {}
+  // La facture validée n'entre PAS en comptabilité tant que le comptable n'a pas confirmé
+  // la réception de la copie (physique/numérique) par le client (Art. process interne).
+  const _ctr = contractOf(req, inv.contractId) || {};
+  inv.dueDate = _computeDueDate(inv, _ctr);
+  inv.accounting = "pending_receipt"; // en attente de confirmation de réception
+  inv.receiptConfirmed = false;
+  save(); audit(req.user, "VALIDATED", "BillingInvoice", inv.id, { status: inv.status, dueDate: inv.dueDate });
+  res.json(withInvTotals(inv));
+});
+
+// Confirmation de réception de la facture par le client -> entrée en comptabilité.
+router.post("/invoices/:id/confirm-receipt", allow("ADM", "CD", "RJ"), (req, res) => {
+  const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
+  if (inv.status !== "validated") return res.status(409).json({ error: "La facture doit d'abord être validée." });
+  if (inv.accounting === "posted") return res.status(409).json({ error: "Facture déjà comptabilisée." });
+  const b = req.body || {};
+  inv.receiptConfirmed = true;
+  inv.receiptMode = b.mode || "physique"; // physique | numerique
+  inv.receiptConfirmedAt = new Date().toISOString();
+  inv.receiptConfirmedBy = req.user.fullName || req.user.email || "";
+  inv.receiptRef = b.ref || "";
+  let posted = false;
+  try { const e = require("./accounting").generateInvoiceEntry(req, inv.id); posted = !!e; } catch (e) {}
+  inv.accounting = posted ? "posted" : "pending_receipt";
+  save();
+  audit(req.user, "RECEIPT_CONFIRMED", "BillingInvoice", inv.id, { mode: inv.receiptMode, posted });
   res.json(withInvTotals(inv));
 });
 router.delete("/invoices/:id", allow("ADM","CD","RJ"), (req, res) => {

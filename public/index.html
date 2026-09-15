@@ -5870,8 +5870,24 @@ async function invoicesView() {
       <div><label>Période</label><input id="niPeriod" type="month" value="${new Date().toISOString().slice(0, 7)}" style="margin:0"></div>
       <button class="btn p sm" onclick="invoiceCreate()">+ Créer</button></div>
     <div class="err hidden" id="niErr" style="margin-top:6px"></div></div>
+  <div id="invDueAlerts"></div>
   <div class="panel"><b>Factures émises</b><div id="invList" style="margin-top:8px">${invoiceRows(invs)}</div></div>`;
-  invLoadAnnexes();
+  invLoadAnnexes(); invLoadDue();
+}
+async function invLoadDue(){
+  const box=document.getElementById("invDueAlerts"); if(!box) return;
+  const due=await api("/billing/invoices/due").catch(()=>[]);
+  if(!due||!due.length){ box.innerHTML=""; return; }
+  const rows=due.map(d=>{ const col=d.overdue?'#dc2626':(d.dueSoon?'#f97316':'#6b7280');
+    const etat=d.accounting==="posted"?"Comptabilisée":(d.receiptConfirmed?"Reçue":"Réception à confirmer");
+    return `<div style="display:flex;gap:10px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--border)">
+      <span class="tag" style="background:${col};color:#fff">${d.overdue?("Échue +"+(-d.daysLeft)+"j"):(d.dueSoon?("J-"+d.daysLeft):"À échoir")}</span>
+      <b style="min-width:150px">${esc(d.number||"")}</b><span style="flex:1">${esc(d.client||"")}</span>
+      <span class="note">éch. ${esc(d.dueDate)}</span><span style="min-width:110px;text-align:right">${fCFA(d.totalDu||d.TTC)}</span>
+      <span class="tag ${d.accounting==="posted"?"blue":"amber"}">${etat}</span>
+      <button class="btn ghost sm" onclick="invoiceOpen('${d.id}')">Ouvrir</button></div>`; }).join("");
+  box.innerHTML=`<div class="panel" style="border-color:#fdba74;background:#fff7ed"><b style="color:#b45309">⚠ Factures à échéance / échues (${due.length}) — comptable & GPF</b>
+    <div style="margin-top:6px">${rows}</div></div>`;
 }
 async function invLoadAnnexes() {
   const cid = (document.getElementById("niClient") || {}).value;
@@ -5910,11 +5926,15 @@ async function invoiceOpen(id) {
   view.innerHTML = `<button class="btn ghost sm" onclick="invoicesView()">← Factures</button>
   <h1 style="margin-top:10px">Facture ${esc(INV_EDIT.number || "")} <span style="font-size:13px;color:var(--muted)">· ${esc(INV_EDIT.client || "")}</span>
     ${INV_EDIT.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>'}
+    ${INV_EDIT.status === "validated" ? (INV_EDIT.accounting === "posted" ? '<span class="tag blue">Comptabilisée</span>' : '<span class="tag amber">En attente réception client</span>') : ""}
     <span style="float:right;display:flex;gap:6px">
       <button class="btn ghost sm" onclick="invoiceCompareRun()">Comparer à l'annexe</button>
       <button class="btn ghost sm" onclick="payDownload('/billing/invoices/${id}/pdf','Facture_${esc(INV_EDIT.number || id)}.pdf')">PDF</button>
       ${INV_EDIT.status !== "validated" ? `<button class="btn p sm" onclick="invoiceSave()">Enregistrer</button>` : ""}
-      ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}</span></h1>
+      ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
+      ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" && ["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn p sm" onclick="invoiceConfirmReceipt()">Confirmer réception client</button>` : ""}</span></h1>
+    ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" ? `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;color:#b45309;margin-bottom:8px">Facture validée mais <b>non comptabilisée</b>. Elle n'entrera en comptabilité qu'après confirmation que le client a reçu la copie (physique ou numérique). Échéance : <b>${esc(INV_EDIT.dueDate||"—")}</b>.</div>` : ""}
+    ${INV_EDIT.receiptConfirmed ? `<div class="note" style="color:var(--muted);margin-bottom:8px">Réception confirmée (${esc(INV_EDIT.receiptMode||"")}) le ${esc((INV_EDIT.receiptConfirmedAt||"").slice(0,10))} par ${esc(INV_EDIT.receiptConfirmedBy||"")}.</div>` : ""}
   <div class="panel"><b style="font-size:12px;color:var(--muted)">EN-TÊTE</b>
     <div class="grid3" style="margin-top:6px">
       <div><label>Objet</label><input id="ivObjet" value="${esc(INV_EDIT.objet || "")}"></div>
@@ -5956,6 +5976,13 @@ async function invoiceValidate() {
     body = { motif: motif.trim() };
   }
   try { await api("/billing/invoices/" + INV_EDIT.id + "/validate", { method: "POST", body: JSON.stringify(body) }); INV_EDIT = await api("/billing/invoices/" + INV_EDIT.id); invoiceOpen(INV_EDIT.id); }
+  catch (e) { alert(e.message); }
+}
+async function invoiceConfirmReceipt() {
+  const mode = confirm("Le client a-t-il reçu une COPIE PHYSIQUE ?\n\nOK = physique · Annuler = numérique") ? "physique" : "numerique";
+  const ref = prompt("Référence de la preuve de réception (bordereau, email, accusé) — optionnel :") || "";
+  try { await api("/billing/invoices/" + INV_EDIT.id + "/confirm-receipt", { method: "POST", body: JSON.stringify({ mode, ref }) });
+    alert("Réception confirmée. La facture est maintenant comptabilisée."); INV_EDIT = await api("/billing/invoices/" + INV_EDIT.id); invoiceOpen(INV_EDIT.id); }
   catch (e) { alert(e.message); }
 }
 async function invoiceCompareRun() {
