@@ -24,6 +24,28 @@ const MODULES = [
   { key: "quality", label: "Qualité (SMQ)", core: false },
 ];
 
+/* Fonctionnalités (sous-écrans) désactivables par tenant par le super-administrateur.
+ * Les clés correspondent aux clés de navigation (NAV.k) du front. */
+const FEATURE_CATALOGUE = [
+  { key: "employees", label: "Dossiers du personnel", module: "hr" },
+  { key: "portfolios", label: "Portefeuilles clients", module: "hr" },
+  { key: "conventions", label: "Conventions collectives", module: "hr" },
+  { key: "documents", label: "Documents générés", module: "hr" },
+  { key: "alerts", label: "Alertes d'expiration", module: "hr" },
+  { key: "reports", label: "Rapports RH", module: "hr" },
+  { key: "careers", label: "Carrière & performance", module: "careers" },
+  { key: "payroll", label: "Bulletins & traitements (Paie)", module: "payroll" },
+  { key: "payconfig", label: "Paramètres paie", module: "payroll" },
+  { key: "payfiche", label: "Fiche individuelle", module: "payroll" },
+  { key: "payetats", label: "Livre & états de paie", module: "payroll" },
+  { key: "ga", label: "Gestion Avancée (G.A.)", module: "payroll" },
+  { key: "billing", label: "Annexes de facturation", module: "invoicing" },
+  { key: "invoices", label: "Factures", module: "invoicing" },
+  { key: "billingcfg", label: "Config facturation", module: "invoicing" },
+  { key: "stockproducts", label: "Stock — produits", module: "stock" },
+  { key: "smq", label: "Qualité — SMQ", module: "quality" },
+];
+
 /* Subscription / licensing (platform monetisation). Prices are in XAF (FCFA) and
  * fully editable in-app by the SADM; these are only initial placeholders. */
 const PAYMENT_METHODS = ["MTN Mobile Money", "Orange Money", "Virement bancaire", "Espèces / chèque"];
@@ -61,6 +83,7 @@ function tenants() { if (!db.tenants) db.tenants = []; return db.tenants; }
 function publicView(t) { return t; }
 
 router.get("/modules", allow("SADM"), (req, res) => res.json(MODULES));
+router.get("/features-catalogue", allow("SADM"), (req, res) => res.json(FEATURE_CATALOGUE));
 router.get("/legal-forms", allow("SADM"), (req, res) => res.json(LEGAL_FORMS));
 
 router.get("/", allow("SADM"), (req, res) => {
@@ -148,6 +171,17 @@ router.put("/:id/modules", allow("SADM"), (req, res) => {
   save();
   audit(req.user, "CONFIG_CHANGED", "Tenant", t.id, { modules: t.modules });
   res.json({ id: t.id, modules: t.modules });
+});
+
+// Activer / désactiver des fonctionnalités pour un tenant (SADM).
+router.put("/:id/features", allow("SADM"), (req, res) => {
+  const t = tenants().find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Tenant introuvable" });
+  const valid = new Set(FEATURE_CATALOGUE.map(f => f.key));
+  t.disabledFeatures = [...new Set((req.body?.disabledFeatures || []).filter(k => valid.has(k)))];
+  save();
+  audit(req.user, "CONFIG_CHANGED", "Tenant", t.id, { disabledFeatures: t.disabledFeatures });
+  res.json({ id: t.id, disabledFeatures: t.disabledFeatures });
 });
 
 router.put("/:id/status", allow("SADM"), (req, res) => {

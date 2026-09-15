@@ -1089,7 +1089,7 @@ function renderLoginFooter(){
 function buildNav() {
   const _adm = ME.role === "ADM" || ME.role === "SADM";
   const _smqFull = _adm || ME.role === "RQ" || !!ME.smqManager;   // accès complet Qualité
-  NAV_VISIBLE = NAV.filter(n =>n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)));
+  NAV_VISIBLE = NAV.filter(n =>n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k)));
   NAV_PRESENT = NAV_GROUPS.filter(G =>NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
   const mb = document.getElementById("modbar");
   if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
@@ -3672,6 +3672,8 @@ async function tenantForm(id) {
   const t = id ? await api("/tenants/"+id) : {};
   const modsOn = t.modules || TEN_MODULES.filter(m=>m.core).map(m=>m.key);
   window._tenLogo = undefined;
+  if (!window._FEAT_CAT) { try { window._FEAT_CAT = await api("/tenants/features-catalogue"); } catch(e){ window._FEAT_CAT = []; } }
+  const disabled = new Set(t.disabledFeatures || []);
   view.innerHTML = `<button class="btn ghost sm" onclick="tenantsView()">← Retour</button>
   <h1 style="margin-top:10px">${id?"Modifier l'entreprise":"Nouvelle entreprise cliente"}</h1>
   <div class="panel" style="max-width:900px">
@@ -3713,6 +3715,11 @@ async function tenantForm(id) {
       ${TEN_MODULES.map(m=>`<label class="chk"><input type="checkbox" data-mod="${m.key}" ${modsOn.includes(m.key)?"checked":""} ${m.core?"disabled checked":""}>
         <span>${esc(m.label)}${m.core?' <span class="tag gray">de base</span>':''}</span></label>`).join("")}
     </div>
+    ${id ? `<b style="font-size:12px;color:var(--muted)">FONCTIONNALITÉS ACTIVÉES <span class="tag gray">décochez pour masquer chez ce client</span></b>
+    <div class="grid3" style="margin-top:6px">
+      ${(window._FEAT_CAT||[]).map(fe=>`<label class="chk"><input type="checkbox" data-feat="${fe.key}" ${disabled.has(fe.key)?"":"checked"}>
+        <span>${esc(fe.label)} <span class="tag gray">${esc(fe.module)}</span></span></label>`).join("")}
+    </div>` : ""}
     ${id ? "" : `<b style="font-size:12px;color:var(--muted)">COMPTE ADMINISTRATEUR INITIAL (facultatif)</b>
     <div class="grid2" style="margin-top:6px">
       <div><label>Email de l'administrateur</label><input id="tAdmEmail" placeholder="admin@entreprise.cm"></div>
@@ -3816,8 +3823,11 @@ async function tenantSave(id){
   if(window._tenLogo!==undefined)body.logo=window._tenLogo;
   if(!id){ const ae=document.getElementById("tAdmEmail"), an=document.getElementById("tAdmName");
     if(ae&&ae.value){ body.adminEmail=ae.value; body.adminName=an.value; } }
+  const _featBoxes=[...view.querySelectorAll("input[data-feat]")];
+  const disabledFeatures=_featBoxes.filter(c=>!c.checked).map(c=>c.dataset.feat);
   try{ if(id){await api("/tenants/"+id,{method:"PUT",body:JSON.stringify(body)});
-      await api("/tenants/"+id+"/modules",{method:"PUT",body:JSON.stringify({modules:body.modules})});}
+      await api("/tenants/"+id+"/modules",{method:"PUT",body:JSON.stringify({modules:body.modules})});
+      if(_featBoxes.length) await api("/tenants/"+id+"/features",{method:"PUT",body:JSON.stringify({disabledFeatures})});}
     else { const r=await api("/tenants",{method:"POST",body:JSON.stringify(body)});
       if(r.admin&&r.admin.tempPassword) alert(t("Entreprise créée. Administrateur :")+` ${esc(r.admin.email)} - ${t("mot de passe temporaire")} : ${r.admin.tempPassword}`);
       else alert(t("Entreprise enregistrée.")); tenantsView(); return; }
