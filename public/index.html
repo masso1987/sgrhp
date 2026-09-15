@@ -2624,29 +2624,66 @@ async function expiringView(){
 }
 async function expiringRemind(){ try{ const r=await api("/hr/expiring/remind",{method:"POST"}); alert(r.sent+" rappel(s) envoyé(s)."+(r.sent===0?" (aucune échéance à notifier, ou email SMTP non configuré)":"")); }catch(e){ alert(e.message); } }
 
+const CNV_ECH = ["A","B","C","D","E","F"];
 async function conventionsView(){
   const cnvs=await api("/config/conventions").catch(()=>[]);
   window._CNV_LIST=cnvs;
+  if(!window._CNV_SEL || !cnvs.some(c=>c.id===window._CNV_SEL)) window._CNV_SEL = cnvs[0] ? cnvs[0].id : null;
   view.innerHTML=`<h1>Conventions collectives</h1>
-   <div class="note" style="margin-bottom:8px">Grilles salariales par convention (catégorie -> salaire de base). Modifiable et supprimable ; ajustez les valeurs d'après le PDF officiel.</div>
+   <div class="note" style="margin-bottom:8px">Grille salariale par convention (catégorie × échelon → salaire de base). Sélectionnez une convention à gauche pour éditer sa grille.</div>
    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
      <button class="btn p sm" onclick="cnvCreate()">+ Nouvelle convention</button>
      <button class="btn ghost sm" onclick="cnvSeedCmr()">Importer les conventions du Cameroun</button>
      <button class="btn ghost sm" onclick="cnvPrefillAll()">Pré-remplir toutes les grilles (indicatif)</button></div>
-   ${cnvs.length?cnvs.map(cnvCard).join(""):'<div class="panel note">Aucune convention. Créez-en une ou importez la liste du Cameroun.</div>'}`;
+   ${cnvs.length?`<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+     <div class="panel" style="flex:0 0 260px;max-width:100%"><b style="font-size:12px;color:var(--muted)">CONVENTIONS (${cnvs.length})</b>
+       <div style="margin-top:6px;max-height:60vh;overflow:auto">${cnvs.map(cnvListItem).join("")}</div></div>
+     <div class="panel" style="flex:1;min-width:320px" id="cnvGridBox"></div>
+   </div>`:'<div class="panel note">Aucune convention. Créez-en une ou importez la liste du Cameroun.</div>'}`;
+  if(cnvs.length) cnvRenderGrid();
 }
-function cnvCard(c){ const grid=c.grid||[];
-  return `<div class="panel" style="margin-bottom:12px">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+function cnvListItem(c){ const sel=c.id===window._CNV_SEL;
+  const badge=c.gridSource==='officiel 2024'?'<span class="tag green" style="font-size:10px">off. 2024</span>':(c.gridSource==='indicatif'?'<span class="tag amber" style="font-size:10px">indic.</span>':'');
+  return `<div onclick="window._CNV_SEL='${c.id}';cnvRenderGrid()" style="padding:8px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid ${sel?'var(--primary)':'var(--border)'};background:${sel?'var(--nav-active-bg)':'transparent'}">
+    <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
+    <div style="font-size:11px;color:var(--muted)">${(c.grid||[]).length} lignes ${badge}</div></div>`;
+}
+function cnvRenderGrid(){
+  const c=(window._CNV_LIST||[]).find(x=>x.id===window._CNV_SEL); const box=document.getElementById("cnvGridBox"); if(!c||!box) return;
+  const grid=c.grid||[];
+  const isMatrix = grid.length>0 && grid.every(g=>/^\d{1,2}[A-F]$/.test(String(g.category||"")));
+  const head=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
       <b style="font-size:15px">${esc(c.name)}</b>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" onclick="cnvPrefill('${c.id}')">Pré-remplir la grille</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="cnvPrefill('${c.id}')">Pré-remplir</button>
         <button class="btn ghost sm" onclick="cnvRename('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Renommer</button>
         <button class="btn ghost sm" style="color:var(--red)" onclick="cnvDelete('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Supprimer</button></div></div>
-    ${c.gridSource==='officiel 2024'?'<div class="note" style="margin-top:4px;color:#16a34a">Grille officielle 2024 (effet 1er janvier 2024).</div>':(c.gridSource==='indicatif'?'<div class="note" style="margin-top:4px;color:var(--amber)">Barème indicatif (reconstitué) - à confirmer avec l\'annexe officielle.</div>':'')}
-    <div style="overflow:auto"><table style="margin-top:8px" id="cnvgrid_${c.id}"><tr><th>Catégorie</th><th>Libellé</th><th class="r">Salaire de base (XAF)</th><th></th></tr>
+    ${c.gridSource==='officiel 2024'?'<div class="note" style="margin-top:4px;color:#16a34a">Grille officielle 2024 (effet 1er janvier 2024).</div>':(c.gridSource==='indicatif'?'<div class="note" style="margin-top:4px;color:var(--amber)">Barème indicatif (reconstitué) — à confirmer avec l\'annexe officielle.</div>':'')}`;
+  if(isMatrix){
+    const byCat={}; grid.forEach(g=>{ const m=String(g.category).match(/^(\d{1,2})([A-F])$/); if(m){ (byCat[m[1]]=byCat[m[1]]||{})[m[2]]=g.baseSalary; } });
+    const cats=Object.keys(byCat).map(Number).sort((a,b)=>a-b);
+    box.innerHTML=head+`<div style="overflow:auto"><table style="margin-top:8px" id="cnvmx_${c.id}"><tr><th>Cat.</th>${CNV_ECH.map(e=>`<th class="r">${e}</th>`).join("")}</tr>
+      ${cats.map(cat=>`<tr data-cat="${cat}"><td><b>${cat}</b></td>${CNV_ECH.map(e=>`<td><input class="cnvmxcell" data-cat="${cat}" data-ech="${e}" type="number" value="${byCat[cat][e]!=null?byCat[cat][e]:''}" style="width:96px;text-align:right;padding:3px;margin:0"></td>`).join("")}</tr>`).join("")}
+    </table></div>
+    <div style="margin-top:8px;display:flex;gap:6px"><button class="btn p sm" onclick="cnvSaveMatrix('${c.id}')">Enregistrer la grille</button>
+      <button class="btn ghost sm" onclick="cnvFlipFlat('${c.id}')">Vue liste détaillée</button></div>`;
+  } else {
+    box.innerHTML=head+`<div style="overflow:auto"><table style="margin-top:8px" id="cnvgrid_${c.id}"><tr><th>Catégorie</th><th>Libellé</th><th class="r">Salaire de base (XAF)</th><th></th></tr>
       ${grid.map(g=>cnvRow(g)).join("")}</table></div>
     <div style="margin-top:6px;display:flex;gap:6px"><button class="btn ghost sm" onclick="cnvAddRow('${c.id}')">+ Ligne</button>
-      <button class="btn p sm" onclick="cnvSaveGrid('${c.id}')">Enregistrer la grille</button></div></div>`;
+      <button class="btn p sm" onclick="cnvSaveGrid('${c.id}')">Enregistrer la grille</button></div>`;
+  }
+}
+function cnvFlipFlat(cid){ const c=(window._CNV_LIST||[]).find(x=>x.id===cid); if(c){ c.gridSource='__flat__'; } // force flat once
+  const box=document.getElementById("cnvGridBox"); const grid=c.grid||[];
+  box.querySelector("table").outerHTML=`<table id="cnvgrid_${cid}"><tr><th>Catégorie</th><th>Libellé</th><th class="r">Salaire de base (XAF)</th><th></th></tr>${grid.map(g=>cnvRow(g)).join("")}</table>`;
+}
+async function cnvSaveMatrix(cid){
+  const c=(window._CNV_LIST||[]).find(x=>x.id===cid);
+  const cells=[...document.querySelectorAll('#cnvmx_'+cid+' .cnvmxcell')];
+  const prev={}; (c.grid||[]).forEach(g=>prev[g.category]=g);
+  const rows=[]; cells.forEach(inp=>{ const cat=inp.dataset.cat, ech=inp.dataset.ech, v=Number(inp.value); if(v>0){ const code=cat+ech; const p=prev[code]||{}; rows.push({category:code, label:p.label||("Catégorie "+cat+" échelon "+ech), baseSalary:v, pct:p.pct}); } });
+  try{ await api('/config/conventions/'+cid+'/grid',{method:'PUT',body:JSON.stringify({grid:rows})}); alert('Grille enregistrée.'); conventionsView(); }catch(e){ alert(e.message); }
 }
 function cnvRow(g){ return `<tr class="cnvrow"><td><input class="cnvCat" value="${esc((g&&g.category)||'')}" style="width:90px"></td><td><input class="cnvLbl" value="${esc((g&&g.label)||'')}"></td><td><input class="cnvBase" type="number" value="${g&&g.baseSalary!=null?g.baseSalary:0}" style="width:130px"></td><td><button class="btn ghost sm" onclick="this.closest('.cnvrow').remove()">Retirer</button></td></tr>`; }
 function cnvAddRow(cid){ document.getElementById('cnvgrid_'+cid).insertAdjacentHTML('beforeend', cnvRow(null)); }
