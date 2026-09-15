@@ -101,16 +101,21 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 /* ---- Odoo-style app launcher ---- */
 .apps-btn{background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer;padding:0 8px;line-height:1;opacity:.9}
 .apps-btn:hover{opacity:1}
-.launcher{position:fixed;inset:0;z-index:60;background:#eef1f8;overflow:auto;display:flex;flex-direction:column}
+.launcher{position:fixed;inset:0;z-index:60;background:var(--bg,#eef1f8);overflow:auto;display:flex;flex-direction:column}
 .launcher.hidden{display:none}
-.launcher-top{display:flex;align-items:center;justify-content:space-between;padding:14px 22px}
-.launcher-top .l-title{font-size:18px;font-weight:700;color:#2b2f45}
+.launcher-hero{background:linear-gradient(135deg,var(--nav-active-bg,#eef2ff),transparent);border-bottom:1px solid var(--border,#e6e8f2)}
+.launcher-top{display:flex;align-items:center;justify-content:space-between;padding:16px 40px 6px}
+.launcher-top .l-title{font-size:22px;font-weight:800;color:var(--text,#2b2f45);letter-spacing:-.5px}
+.launcher-top .l-sub{font-size:12.5px;color:var(--muted,#6b7280);margin-top:1px}
+.launcher .l-hello{padding:2px 40px;font-size:15px;color:var(--text,#2b2f45);font-weight:600}
+.launcher .l-lead{padding:2px 40px 12px;font-size:13px;color:var(--muted,#6b7280)}
 .launcher-close{background:#fff;border:1px solid #d5d8e6;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:14px}
-.launcher-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:10px 40px 50px;max-width:1100px;margin:0 auto;width:100%}
-.app-tile{background:#fff;border:1px solid #e6e8f2;border-radius:14px;padding:20px 10px 14px;display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;transition:transform .12s,box-shadow .12s;text-align:center}
+.launcher-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;padding:20px 40px 50px;max-width:1200px;margin:0 auto;width:100%}
+.app-tile{background:var(--panel,#fff);border:1px solid var(--border,#e6e8f2);border-radius:14px;padding:20px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:transform .12s,box-shadow .12s;text-align:center}
 .app-tile:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(40,50,90,.14)}
 .app-ico{width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12)}
-.app-lbl{font-size:13px;color:#2b2f45;font-weight:500}
+.app-lbl{font-size:14px;color:var(--text,#2b2f45);font-weight:600}
+.app-desc{font-size:11.5px;color:var(--muted,#6b7280);line-height:1.35}
 @media(max-width:640px){.launcher-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));padding:10px 16px 40px;gap:8px}.app-ico{width:52px;height:52px;font-size:26px}}
 .appfoot{padding:10px 16px;text-align:center;font-size:12px;color:var(--muted);border-top:1px solid var(--border);background:var(--sidebar-bg)}
 .appfoot a{color:var(--muted);text-decoration:none}
@@ -1129,13 +1134,36 @@ const GROUP_META = {
   admin:{c:"#64748b",svg:_SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>')},
   plateforme:{c:"#0f172a",svg:_SVG('<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10.5 21v-3h3v3"/>')}
 };
+const GROUP_DESC = {
+  discussion: "Messagerie interne entre collaborateurs",
+  principal: "Tableau de bord, dossiers du personnel & documents",
+  rh: "Administration RH, carrière & performance",
+  paie: "Bulletins, traitements & états de paie",
+  facturation: "Annexes, factures & suivi client",
+  comptabilite: "Écritures, états OHADA & clôture",
+  stock: "Produits, mouvements & achats/ventes",
+  qualite: "SMQ, conformité & audits ISO 9001",
+  rapports: "Journaux d'audit & rapports transverses",
+  admin: "Paramètres, utilisateurs & circuits de validation",
+  plateforme: "Gestion des entreprises clientes (SaaS)",
+};
 function showLauncher(){
   const el=document.getElementById("launcher"); if(!el) return;
-  const tiles=(NAV_PRESENT||[]).map(G=>{ const m=GROUP_META[G.g]||{svg:"",c:"#6366f1"};
-    return `<div class="app-tile" onclick="enterModule('${G.g}')"><div class="app-ico" style="background:${m.c}">${m.svg}</div><div class="app-lbl">${esc(G.label)}</div></div>`;
+  const tiles=(NAV_PRESENT||[]).map(G=>{ const m=GROUP_META[G.g]||{svg:"",c:"#6366f1"}; const d=GROUP_DESC[G.g]||"";
+    return `<div class="app-tile" onclick="enterModule('${G.g}')"><div class="app-ico" style="background:${m.c}">${m.svg}</div>
+      <div class="app-lbl">${esc(G.label)}</div>${d?`<div class="app-desc">${esc(d)}</div>`:""}</div>`;
   }).join("");
   const closeBtn = window.CURRENT_VIEW ? `<button class="launcher-close" onclick="hideLauncher()">Fermer</button>` : "";
-  el.innerHTML=`<div class="launcher-top"><div class="l-title">Applications</div>${closeBtn}</div>
+  const brand=(BRANDING&&BRANDING.appName)||"SGRHP", tag=(BRANDING&&BRANDING.tagline)||"";
+  const logo=(BRANDING&&BRANDING.logo)?`<img src="${BRANDING.logo}" style="height:34px;border-radius:8px">`:"";
+  const hello = (window.ME&&ME.fullName)?`<div class="l-hello">Bonjour ${esc(ME.fullName.split(" ")[0]||"")} 👋</div>`:"";
+  el.innerHTML=`<div class="launcher-hero">
+      <div class="launcher-top">
+        <div style="display:flex;align-items:center;gap:12px">${logo}<div><div class="l-title" data-brand-name>${esc(brand)}</div>${tag?`<div class="l-sub" data-brand-tag>${esc(tag)}</div>`:""}</div></div>
+        ${closeBtn}</div>
+      ${hello}
+      <div class="l-lead">Choisissez un module pour commencer</div>
+    </div>
     <div class="launcher-grid">${tiles||'<div class="note">Aucun module disponible.</div>'}</div>`;
   el.classList.remove("hidden");
 }
