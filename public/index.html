@@ -932,7 +932,6 @@ const NAV = [
   { k: "queue", label: "File de validation", sec: "Données & validation", roles: ["CD","RJ"], grp: "principal" },
 
   { k: "fiches", label: "Fiches de poste", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
-  { k: "grid", label: "Grille salariale", roles: ["GPF","CD","ADM"], grp: "rh" },
   { k: "career", label: "Career & Perf.", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
   { k: "ficheprix", label: "Fiche de Prix", sec: "Simulation", roles: ["ADM","CD","RJ","GPF"], grp: "rh" },
   { k: "expiring", label: "Alertes d’expiration", sec: "Suivi", roles: ["ADM","CD","RJ","GPF"], grp: "rh" },
@@ -1200,7 +1199,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, grid: gridView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -1949,31 +1948,46 @@ async function wfReject(id) {
 }
 
 let GEN_CACHE = [];
+const GEN_TYPE_LABELS = { EMPLOYEE_FILE:"Dossier employé", AVI:"AVI (banque)", CONTRACT_END:"Fin de contrat", AMENDMENT:"Avenant", LEAVE:"Congé / permission", TEMPLATE:"Modèle", DECISION:"Décision", SOLDE:"Solde de tout compte" };
+function genTypeLabel(t){ return GEN_TYPE_LABELS[t] || (t||"Document"); }
 async function generatedView() {
   GEN_CACHE = await api("/documents/generated");
+  if (!PFS || !PFS.length) { try { PFS = await api("/portfolios"); } catch {} }
+  const types = [...new Set(GEN_CACHE.map(d=>d.type).filter(Boolean))].sort();
+  const pfIds = [...new Set(GEN_CACHE.map(d=>d.portfolioId).filter(Boolean))];
   view.innerHTML = `<h1>Documents générés</h1>
-  <div class="note">Tous les documents dont le circuit de validation est terminé, classés par employé.
-  Accessible à tous les comptes. Chaque impression ou téléchargement est journalisé (qui, quand, quel document).</div>
-  <input id="genSearch" placeholder="Rechercher par employé ou par document…" style="max-width:420px"
-    oninput="renderGen(this.value)">
+  <div class="note" style="margin-bottom:8px">Tous les documents dont le circuit de validation est terminé. Chaque impression ou téléchargement est journalisé.</div>
+  <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px">
+    <input id="genSearch" placeholder="Employé ou document…" style="margin:0;max-width:240px" oninput="renderGen()">
+    <select id="genType" style="margin:0" onchange="renderGen()"><option value="">Tous les types</option>${types.map(t=>`<option value="${esc(t)}">${esc(genTypeLabel(t))}</option>`).join("")}</select>
+    <select id="genPf" style="margin:0" onchange="renderGen()"><option value="">Tous portefeuilles</option>${pfIds.map(p=>`<option value="${esc(p)}">${esc(pfName(p))}</option>`).join("")}</select>
+    <span id="genCount" style="color:var(--muted);font-size:12px"></span>
+  </div>
   <div id="genList"></div>`;
-  renderGen("");
+  renderGen();
 }
-function renderGen(q) {
-  q = (q || "").toLowerCase();
+function renderGen() {
+  const q = ((document.getElementById("genSearch")||{}).value||"").toLowerCase();
+  const ty = (document.getElementById("genType")||{}).value||"";
+  const pf = (document.getElementById("genPf")||{}).value||"";
   const list = GEN_CACHE.filter(d =>
-    !q || (d.title || "").toLowerCase().includes(q) || (d.employeeName || "").toLowerCase().includes(q));
-  if (!list.length) { genList.innerHTML = `<div class="panel">Aucun document généré pour le moment.</div>`; return; }
-  const groups = {};
-  list.forEach(d => { const k = d.employeeName || "- Non rattaché -"; (groups[k] = groups[k] || []).push(d); });
-  genList.innerHTML = Object.keys(groups).sort().map(name => `
-    <div class="panel"><b style="font-size:12px;color:var(--muted)">${esc(name)}</b>
-    ${groups[name].map(d => `
-      <div class="doc-row"><div><b>${esc(d.title)}</b><br>
-        <small style="color:var(--muted)">Généré le ${(d.generatedAt||"").replace("T"," ").slice(0,16)}</small></div>
-      <div><button class="btn p sm" onclick="openGen('${d.id}',0)">Télécharger</button>
-      <button class="btn ghost sm" onclick="openGen('${d.id}',1)">Imprimer</button></div></div>`).join("")}
-    </div>`).join("");
+    (!q || (d.title||"").toLowerCase().includes(q) || (d.employeeName||"").toLowerCase().includes(q)) &&
+    (!ty || d.type===ty) && (!pf || d.portfolioId===pf))
+    .sort((a,b)=>String(b.generatedAt||"").localeCompare(String(a.generatedAt||"")));
+  const cnt=document.getElementById("genCount"); if(cnt) cnt.textContent=`${list.length} document(s)`;
+  if (!list.length) { genList.innerHTML = `<div class="panel">Aucun document ne correspond.</div>`; return; }
+  registerPager("gen", renderGen);
+  const rows = pageSlice("gen", list);
+  genList.innerHTML = `<div class="panel" style="padding-top:6px"><table style="margin-top:6px"><tr><th>Type</th><th>Document</th><th>Employé</th><th>Portefeuille</th><th>Généré le</th><th></th></tr>
+    ${rows.map(d=>`<tr>
+      <td><span class="tag gray">${esc(genTypeLabel(d.type))}</span></td>
+      <td><b>${esc(d.title)}</b></td>
+      <td>${esc(d.employeeName||"—")}</td>
+      <td>${esc(d.portfolioId?pfName(d.portfolioId):"—")}</td>
+      <td>${(d.generatedAt||"").replace("T"," ").slice(0,16)}</td>
+      <td style="white-space:nowrap"><button class="btn p sm" onclick="openGen('${d.id}',0)">Télécharger</button>
+        <button class="btn ghost sm" onclick="openGen('${d.id}',1)">Imprimer</button></td></tr>`).join("")}
+    </table>${pagerHTML("gen", list.length)}</div>`;
 }
 async function openGen(id, print) {
   const r = await fetch(`/api/documents/${id}/download?print=${print}`, { headers: { Authorization: "Bearer " + TOKEN } });
