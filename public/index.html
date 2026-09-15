@@ -1177,6 +1177,32 @@ function go(k) {
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
 /* ---------- Employees ---------- */
+/* ===== Reusable paginator (client-side): PAGERS['key'] with go/size + pagerHTML ===== */
+const PAGERS = {};
+function registerPager(key, render, pageSize) {
+  if (!PAGERS[key]) PAGERS[key] = { page: 1, pageSize: pageSize || 25 };
+  PAGERS[key].render = render;
+  PAGERS[key].go = function (p) { const pg = PAGERS[key]; pg.page = Math.max(1, p); pg.render(); };
+  PAGERS[key].size = function (n) { const pg = PAGERS[key]; pg.pageSize = n; pg.page = 1; pg.render(); };
+  return PAGERS[key];
+}
+function pageSlice(key, arr) {
+  const pg = PAGERS[key]; const pages = Math.max(1, Math.ceil(arr.length / pg.pageSize));
+  if (pg.page > pages) pg.page = pages;
+  const start = (pg.page - 1) * pg.pageSize;
+  return arr.slice(start, start + pg.pageSize);
+}
+function pagerHTML(key, total) {
+  const pg = PAGERS[key]; const pages = Math.max(1, Math.ceil(total / pg.pageSize)); const page = Math.min(pg.page, pages);
+  const b = (p, l, dis) => `<button class="btn ghost sm" ${dis ? "disabled" : ""} onclick="PAGERS['${key}'].go(${p})" style="min-width:30px;padding:3px 8px">${l}</button>`;
+  return `<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px">
+    <span class="note" style="margin:0">${total} élément(s) · page ${page}/${pages}</span>
+    <span style="display:flex;gap:6px;align-items:center">
+      <label class="note" style="margin:0">Par page</label>
+      <select style="margin:0;width:auto;padding:3px 6px" onchange="PAGERS['${key}'].size(+this.value)">${[25,50,100,200].map(n=>`<option ${n===pg.pageSize?"selected":""}>${n}</option>`).join("")}</select>
+      ${b(1,"«",page<=1)}${b(page-1,"‹",page<=1)}${b(page+1,"›",page>=pages)}${b(pages,"»",page>=pages)}
+    </span></div>`;
+}
 let EMP_LIST = [];
 async function employees() {
   EMP_LIST = await api("/employees");
@@ -1207,19 +1233,21 @@ function empRender() {
     if (st && (e.status || "DRAFT") !== st) return false;
     if (q && !`${e.firstName} ${e.lastName} ${e.matricule || ""} ${e.cniNumber || ""}`.toLowerCase().includes(q)) return false;
     return true;
-  });
+  }).sort((a, b) => (pfName(a.portfolioId)||"").localeCompare(pfName(b.portfolioId)||"") ||
+      `${a.lastName||""} ${a.firstName||""}`.localeCompare(`${b.lastName||""} ${b.firstName||""}`, "fr", { sensitivity: "base" }));
   empCount.textContent = `${list.length} employé(s)`;
-  const groups = {}; list.forEach(e => { (groups[e.portfolioId] = groups[e.portfolioId] || []).push(e); });
-  empList.innerHTML = Object.keys(groups).length ? Object.keys(groups).sort((a, b) =>pfName(a).localeCompare(pfName(b))).map(pfid => `
-    <div class="panel"><b style="font-size:12px;color:var(--muted)">${esc(pfName(pfid))} - ${groups[pfid].length}</b>
-    <table style="margin-top:6px"><tr><th>Nom</th><th>Matricule</th><th>Contrat</th><th>Catégorie</th><th>Embauché</th><th>Statut</th><th>Pièces</th><th></th></tr>
-    ${groups[pfid].map(e => { const done = e.checklist.filter(c =>c.uploaded).length, tot = e.checklist.length;
+  registerPager("emp", empRender);
+  const rows = pageSlice("emp", list);
+  empList.innerHTML = list.length ? `<div class="panel" style="padding-top:6px">
+    <table style="margin-top:6px"><tr><th>Nom</th><th>Matricule</th><th>Portefeuille</th><th>Contrat</th><th>Catégorie</th><th>Embauché</th><th>Statut</th><th>Pièces</th><th></th></tr>
+    ${rows.map(e => { const done = e.checklist.filter(c =>c.uploaded).length, tot = e.checklist.length;
       return `<tr><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b></td><td>${esc(e.matricule || "-")}</td>
+      <td>${esc(pfName(e.portfolioId))}</td>
       <td>${esc((e.contract && e.contract.type) || "-")}</td><td>${esc((e.contract && e.contract.category) || "-")}</td>
       <td>${e.hireDate || "-"}</td><td>${ST_TAG(e.status || "DRAFT")}</td>
       <td><span class="tag ${done === tot ? "green" : "amber"}">${done}/${tot}</span></td>
       <td><button class="btn ghost sm" onclick="empDetail('${e.id}')">Ouvrir</button></td></tr>`; }).join("")}
-    </table></div>`).join("") : `<div class="panel">Aucun employé ne correspond aux filtres.</div>`;
+    </table>${pagerHTML("emp", list.length)}</div>` : `<div class="panel">Aucun employé ne correspond aux filtres.</div>`;
 }
 let PFS = [];
 const pfName = id => (PFS.find(p =>p.id === id) || {}).name || id;
@@ -4169,15 +4197,15 @@ function payRenderRoster() {
   const q = ((document.getElementById("rosterSearch") || {}).value || "").toLowerCase();
   const pf0 = window._PAYPF || "";
   const list = PAY_ROSTER.filter(r => (!pf0 || r.portfolioId === pf0) && (!q || `${r.name} ${r.matricule}`.toLowerCase().includes(q)));
-  const groups = {}; list.forEach(r => { (groups[r.portfolioId] = groups[r.portfolioId] || []).push(r); });
-  document.getElementById("rosterList").innerHTML = list.length ? Object.keys(groups).sort((a, b) =>pfName(a).localeCompare(pfName(b))).map(pf => `
-    <div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">${esc(pfName(pf))} - ${groups[pf].length}</b>
-    <table style="margin-top:4px"><tr><th>Matricule</th><th>Salarié</th><th>Catégorie</th><th>Statut</th><th style="text-align:right">Net</th><th></th></tr>
-    ${groups[pf].map(r => `<tr>
-      <td>${esc(r.matricule)}</td><td><b>${esc(r.name)}</b>${r.contractEnd?(() => { const d=Math.ceil((new Date(r.contractEnd)-Date.now())/86400000); const past=d<0; const col=past?'#dc2626':(d<=31?'#f97316':'#6b7280'); return ` <span class="tag" style="background:${col};color:#fff" title="Fin de contrat">Fin ${esc(r.contractEnd)}</span>`; })():""}</td><td>${esc(r.category || "-")}</td>
+  registerPager("roster", payRenderRoster);
+  const rows = pageSlice("roster", list);
+  document.getElementById("rosterList").innerHTML = list.length ? `
+    <table style="margin-top:4px"><tr><th>Matricule</th><th>Salarié</th><th>Portefeuille</th><th>Catégorie</th><th>Statut</th><th style="text-align:right">Net</th><th></th></tr>
+    ${rows.map(r => `<tr>
+      <td>${esc(r.matricule)}</td><td><b>${esc(r.name)}</b>${r.contractEnd?(() => { const d=Math.ceil((new Date(r.contractEnd)-Date.now())/86400000); const past=d<0; const col=past?'#dc2626':(d<=31?'#f97316':'#6b7280'); return ` <span class="tag" style="background:${col};color:#fff" title="Fin de contrat">Fin ${esc(r.contractEnd)}</span>`; })():""}</td><td>${esc(pfName(r.portfolioId))}</td><td>${esc(r.category || "-")}</td>
       <td>${rosterStatusTag(r)}</td><td style="text-align:right">${r.net != null ? "<b>" + fCFA(r.net) + "</b>" : "-"}</td>
       <td><button class="btn ${r.status === "PENDING" ? "p" : "ghost"} sm" onclick="bulletinView('${PAY_RUN.id}','${r.employeeId}')">Bulletin</button></td></tr>`).join("")}
-    </table></div>`).join("") : `<div style="color:var(--muted);margin-top:8px">Aucun salarié.</div>`;
+    </table>${pagerHTML("roster", list.length)}` : `<div style="color:var(--muted);margin-top:8px">Aucun salarié.</div>`;
 }
 
 /* ---- Import d'un pointage (timesheet) ---- */

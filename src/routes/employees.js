@@ -34,7 +34,16 @@ const scoped = (req) => {
 };
 
 router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
-  res.json(scoped(req).map(e => ({ ...e, checklist: checklist(e) })));
+  let list = scoped(req);
+  const q = String(req.query.q || "").toLowerCase().trim();
+  if (q) list = list.filter(e => `${e.firstName || ""} ${e.lastName || ""} ${e.matricule || ""} ${e.cniNumber || ""} ${(e.contract && e.contract.category) || ""}`.toLowerCase().includes(q));
+  if (req.query.portfolioId) list = list.filter(e => e.portfolioId === req.query.portfolioId);
+  if (req.query.status) list = list.filter(e => (e.status || "DRAFT") === req.query.status);
+  list = list.slice().sort((a, b) => `${a.lastName || ""} ${a.firstName || ""}`.localeCompare(`${b.lastName || ""} ${b.firstName || ""}`, "fr", { sensitivity: "base" }));
+  const mapped = list.map(e => ({ ...e, checklist: checklist(e) }));
+  const { paginate } = require("../paginate");
+  const paged = paginate(mapped, req.query);
+  res.json(paged || mapped);
 });
 
 router.get("/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
