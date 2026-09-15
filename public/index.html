@@ -2,19 +2,19 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SGRHP - Gestion RH, Paie et Entreprise | Cible RH Emploi S.A.</title>
+<title>MBOKA Mon RH - Gestion RH, Paie et Entreprise</title>
 <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23065f46%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2718%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Arial,sans-serif%27%3ES%3C/text%3E%3C/svg%3E">
 <meta name="description" content="SGRHP, la plateforme de gestion des ressources humaines, paie, facturation, comptabilite OHADA, stock et qualite ISO 9001 de Cible RH Emploi S.A. (Cameroun).">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://sgrhp.ciblerh-emploi.com/">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="SGRHP">
-<meta property="og:title" content="SGRHP - Gestion RH, Paie et Entreprise">
+<meta property="og:site_name" content="MBOKA Mon RH">
+<meta property="og:title" content="MBOKA Mon RH - Gestion RH, Paie et Entreprise">
 <meta property="og:description" content="Plateforme SaaS de gestion RH, paie, facturation, comptabilite, stock et qualite par Cible RH Emploi S.A.">
 <meta property="og:url" content="https://sgrhp.ciblerh-emploi.com/">
 <meta property="og:locale" content="fr_FR">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="SGRHP - Gestion RH, Paie et Entreprise">
+<meta name="twitter:title" content="MBOKA Mon RH - Gestion RH, Paie et Entreprise">
 <meta name="twitter:description" content="Plateforme SaaS de gestion RH, paie, facturation, comptabilite, stock et qualite.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -125,7 +125,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 <body>
 
 <div id="login">
-  <div style="text-align:center"><img data-app-logo style="max-height:64px;margin-bottom:8px"></div><h1 data-brand-name style="text-align:center;margin-bottom:16px">SGRHP</h1>
+  <div style="text-align:center"><img data-app-logo style="max-height:64px;margin-bottom:8px"></div><h1 data-brand-name style="text-align:center;margin-bottom:16px">MBOKA Mon RH</h1>
   <label>Email</label><input id="lEmail" value="" placeholder="votre@email.com" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
   <label>Mot de passe</label><input id="lPass" type="password" value="" placeholder="Mot de passe" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
   <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
@@ -153,7 +153,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 </div>
 
 <div id="app" class="hidden">
-<div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">Menu</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>SGRHP</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
+<div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">Menu</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>MBOKA Mon RH</span><span class="b" data-brand-tag>Cible RH Emploi S.A.</span></div>
   <button class="apps-btn" title="Applications" onclick="showLauncher()">Apps</button>
   <div class="modbar" id="modbar"></div>
   <div style="font-size:13px;display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
@@ -702,7 +702,7 @@ const THEMES = {
   dark:   {"--primary":"#1d4ed8","--accent":"#3b82f6","--bg":"#f1f5f9","--border":"#e2e8f0","--text":"#1f2937","--topbar-bg":"#0f172a","--sidebar-bg":"#0f172a","--sidebar-border":"#1e293b","--nav-color":"#94a3b8","--nav-active-color":"#ffffff","--nav-active-bg":"#1e293b","--nav-active-border":"#3b82f6"}
 };
 const THEME_META = { emerald:["Emerald","#065f46","#10b981","#ffffff"], navy:["Navy & Amber","#1e3a5f","#e8833a","#ffffff"], indigo:["Indigo SaaS","#4338ca","#6366f1","#ffffff"], dark:["Dark sidebar","#0f172a","#3b82f6","#0f172a"] };
-function appInitials(name){ const parts=String(name||"SGRHP").trim().split(/\s+/).filter(Boolean); let ini = parts.length>=2 ? (parts[0][0]+parts[1][0]) : (parts[0]||"SG").slice(0,2); return ini.toUpperCase().slice(0,3); }
+function appInitials(name){ const parts=String(name||"MBOKA Mon RH").trim().split(/\s+/).filter(Boolean); let ini = parts.length>=2 ? (parts[0][0]+parts[1][0]) : (parts[0]||"SG").slice(0,2); return ini.toUpperCase().slice(0,3); }
 function appMonogram(name){
   const cs=getComputedStyle(document.documentElement);
   const p=(cs.getPropertyValue('--primary')||'').trim()||'#065f46';
@@ -711,7 +711,7 @@ function appMonogram(name){
   const svg="<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='"+p+"'/><stop offset='1' stop-color='"+a+"'/></linearGradient></defs><rect width='96' height='96' rx='22' fill='url(#g)'/><text x='48' y='52' font-family='Inter,Segoe UI,Arial,sans-serif' font-size='"+(ini.length>2?30:38)+"' font-weight='700' fill='#ffffff' text-anchor='middle' dominant-baseline='middle'>"+ini+"</text></svg>";
   return "data:image/svg+xml,"+encodeURIComponent(svg);
 }
-function appLogoSrc(b){ b=b||BRANDING||{}; return b.appLogo || appMonogram(b.appName||"SGRHP"); }
+function appLogoSrc(b){ b=b||BRANDING||{}; return b.appLogo || appMonogram(b.appName||"MBOKA Mon RH"); }
 // Logo affiché DANS l'app (barre, lanceur) : logo société pour un tenant, logo appli pour le super-admin ou à défaut.
 function contextLogoSrc(b){ b=b||BRANDING||{}; return (window.ME && ME.role!=="SADM" && b.logo) ? b.logo : appLogoSrc(b); }
 function applyBranding(b) {
@@ -729,7 +729,7 @@ function applyBranding(b) {
     const th = THEMES[key] || THEMES.emerald; for (const k in th) r.setProperty(k, th[k]);
     r.setProperty("--primary-light", shade(th["--primary"], 18));
   }
-  document.querySelectorAll("[data-brand-name]").forEach(e =>e.textContent = b.appName || "SGRHP");
+  document.querySelectorAll("[data-brand-name]").forEach(e =>e.textContent = b.appName || "MBOKA Mon RH");
   document.querySelectorAll("[data-brand-tag]").forEach(e =>e.textContent = (window.ME && ME.tenantName) ? ME.tenantName : (b.tagline || ""));
   const _appLogo = appLogoSrc(b), _ctxLogo = contextLogoSrc(b);
   document.querySelectorAll("[data-app-logo]").forEach(e => { e.src = _appLogo; e.style.display = "inline-block"; });
@@ -1094,13 +1094,13 @@ async function boot() {
 }
 function renderFooter(){
   const y=new Date().getFullYear();
-  const co=(window.ME&&ME.tenantName)||(window.BRANDING&&(BRANDING.tagline||BRANDING.appName))||"SGRHP";
+  const co=(window.ME&&ME.tenantName)||(window.BRANDING&&(BRANDING.tagline||BRANDING.appName))||"MBOKA Mon RH";
   const el=document.getElementById("appFooter");
   if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés. · <a href="#" onclick="openLegal('tos');return false">Conditions</a> · <a href="#" onclick="openLegal('privacy');return false">Confidentialité</a>`;
 }
 function renderLoginFooter(){
   const y=new Date().getFullYear();
-  const co=(window.BRANDING&&BRANDING.appName)||"SGRHP";
+  const co=(window.BRANDING&&BRANDING.appName)||"MBOKA Mon RH";
   const el=document.getElementById("loginFooter");
   if(el) el.textContent=`© ${y} ${co}. Tous droits réservés.`;
 }
@@ -1167,7 +1167,7 @@ function showLauncher(){
       <div class="app-lbl">${esc(G.label)}</div>${d?`<div class="app-desc">${esc(d)}</div>`:""}</div>`;
   }).join("");
   const closeBtn = window.CURRENT_VIEW ? `<button class="launcher-close" onclick="hideLauncher()">Fermer</button>` : "";
-  const brand=(BRANDING&&BRANDING.appName)||"SGRHP", tag=(BRANDING&&BRANDING.tagline)||"";
+  const brand=(BRANDING&&BRANDING.appName)||"MBOKA Mon RH", tag=(BRANDING&&BRANDING.tagline)||"";
   const logo=`<img src="${contextLogoSrc(BRANDING)}" style="height:34px;border-radius:8px">`;
   const hello = (window.ME&&ME.fullName)?`<div class="l-hello">Bonjour ${esc(ME.fullName.split(" ")[0]||"")} 👋</div>`:"";
   el.innerHTML=`<div class="launcher-hero">
@@ -3235,7 +3235,7 @@ async function paramsView() {
     ${themePresetRow(s.branding.theme)}
     <div class="grid2">
       <div><label>Nom de l'application <span class="tag gray">plateforme — géré par le super-administrateur</span></label>
-        <input id="bName" value="${esc((BRANDING&&BRANDING.appName)||s.branding.appName||'SGRHP')}" disabled style="background:var(--sidebar-bg);color:var(--muted)"></div>
+        <input id="bName" value="${esc((BRANDING&&BRANDING.appName)||s.branding.appName||'MBOKA Mon RH')}" disabled style="background:var(--sidebar-bg);color:var(--muted)"></div>
       <div><label>Sous-titre</label><input id="bTag" value="${esc(s.branding.tagline||'')}"></div>
     </div>
     <p class="note" style="font-size:11px;margin:2px 0 6px">Le nom de l'application est commun à tous les tenants et se modifie dans la section Plateforme (super-administrateur). Vous gérez ici la <b>raison sociale (société)</b>, le logo et les couleurs.</p>
@@ -3349,7 +3349,7 @@ async function saveBranding() {
 async function resetBranding() {
   if (!confirm(t("Réinitialiser l'apparence par défaut ?"))) return;
   try { const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify({
-      appName: "SGRHP", tagline: "Cible RH Emploi S.A.", logo: "", density: "comfortable",
+      appName: "MBOKA Mon RH", tagline: "", logo: "", density: "comfortable",
       colors: { primary: "#1e3a5f", accent: "#e8833a", bg: "#f4f6f9", sidebar: "#ffffff", text: "#1f2937" },
       sectionColors: { dash:"",employees:"",queue:"",career:"",reports:"",grid:"",fiches:"",dataio:"",params:"",settings:"" } }) });
     applyBranding(b); paramsView(); } catch (e) { alert(e.message); }
@@ -3785,7 +3785,7 @@ async function tenantsView() {
           <input type="file" accept="image/*" onchange="pbPickLogo(this)" style="margin:0;max-width:150px">
           ${_pb.appLogo?'<button class="btn ghost sm" onclick="pbClearLogo()">Retirer</button>':''}</div>
       </div>
-      <div style="flex:1;min-width:200px"><label>Nom de l'application</label><input id="pbName" value="${esc(_pb.appName||'')}" placeholder="SGRHP"></div>
+      <div style="flex:1;min-width:200px"><label>Nom de l'application</label><input id="pbName" value="${esc(_pb.appName||'')}" placeholder="MBOKA Mon RH"></div>
       <button class="btn p sm" onclick="savePlatformName()">Enregistrer</button></div></div>
   <div class="cards">
     <div class="card"><div class="kpi">${ov.tenants}</div><div class="lbl">Entreprises</div></div>

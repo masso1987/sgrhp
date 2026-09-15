@@ -85,9 +85,17 @@ function publicView(t) { return t; }
 router.get("/modules", allow("SADM"), (req, res) => res.json(MODULES));
 
 // Nom de l'application (plateforme) — global, piloté uniquement par le super-administrateur, visible de tous les tenants.
+const APP_NAME_DEFAULT = "MBOKA Mon RH";
 function platformCfg() {
   if (!db.platform) db.platform = {};
-  if (db.platform.appName === undefined) { try { const s = require("./settings").settings(); db.platform.appName = (s.branding && s.branding.appName) || "SGRHP"; } catch (e) { db.platform.appName = "SGRHP"; } }
+  if (db.platform.appName === undefined) db.platform.appName = APP_NAME_DEFAULT;
+  // Migration unique : remplace l'ancien nom par défaut « SGRHP » par le nouveau, sans écraser un nom choisi ensuite.
+  if (!db.platform._appNameMigrated) {
+    if (!db.platform.appName || db.platform.appName === "SGRHP") db.platform.appName = APP_NAME_DEFAULT;
+    db.platform._appNameMigrated = true;
+    try { const s = require("./settings").settings(); if (!s.branding.appName || s.branding.appName === "SGRHP") s.branding.appName = APP_NAME_DEFAULT; } catch (e) {}
+    try { save(); } catch (e) {}
+  }
   if (db.platform.appLogo === undefined) db.platform.appLogo = "";
   return db.platform;
 }

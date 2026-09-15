@@ -67,7 +67,7 @@ const DEFAULTS = {
   },
   branding: {
     theme: "emerald",
-    appName: "SGRHP",
+    appName: "MBOKA Mon RH",
     tagline: "Cible RH Emploi S.A.",
     company: { name: "", address: "", city: "", niu: "", employerNo: "", dipe: "", dg: "", dga: "", aviRefPrefix: "" },
     logo: "",                       // small data-URL, optional
