@@ -365,13 +365,13 @@ function _drawFooter(doc, pageNo, pageCount) {
   doc.save(); doc.lineWidth(0.5).strokeColor("#cfcfcf").moveTo(40, y).lineTo(pw - 40, y).stroke();
   doc.font("Helvetica").fontSize(7.5).fillColor("#555");
   let fy = y + 5;
-  if (line1) { doc.text(line1, 40, fy, { width: pw - 80, align: "center" }); fy += 11; }
-  if (line2) { doc.text(line2, 40, fy, { width: pw - 80, align: "center" }); fy += 11; }
-  if (lh.legal) { doc.font("Helvetica-Oblique").fontSize(7).text(_fixEnc(lh.legal), 40, fy, { width: pw - 80, align: "center" }); }
-  if (lh.showPage !== false && pageCount) doc.font("Helvetica").fontSize(7.5).fillColor("#777").text("Page " + pageNo + " / " + pageCount, 40, ph - 16, { width: pw - 80, align: "center" });
+  if (line1) { doc.text(line1, 40, fy, { width: pw - 80, align: "center", lineBreak: false }); fy += 11; }
+  if (line2) { doc.text(line2, 40, fy, { width: pw - 80, align: "center", lineBreak: false }); fy += 11; }
+  if (lh.legal) { doc.font("Helvetica-Oblique").fontSize(7).text(_fixEnc(lh.legal), 40, fy, { width: pw - 80, align: "center", lineBreak: false }); }
+  if (lh.showPage !== false && pageCount) doc.font("Helvetica").fontSize(7.5).fillColor("#777").text("Page " + pageNo + " / " + pageCount, 40, ph - 16, { width: pw - 80, align: "center", lineBreak: false });
   doc.fillColor("#000"); doc.restore();
 }
-function _paintFooters(doc) { try { const r = doc.bufferedPageRange(); for (let i = 0; i < r.count; i++) { doc.switchToPage(r.start + i); _drawFooter(doc, i + 1, r.count); } } catch (e) {} }
+function _paintFooters(doc) { try { const r = doc.bufferedPageRange(); for (let i = 0; i < r.count; i++) { doc.switchToPage(r.start + i); doc.page.margins.bottom = 0; _drawFooter(doc, i + 1, r.count); } } catch (e) {} }
 function _proformaLines(s, computed, contract) {
   const L = computed.lines; const sum = (k) => L.reduce((a, l) => a + (l.raw[k] || 0), 0);
   const out = [["SALAIRES BRUTS", Math.round(sum("brut"))], ["PROVISION CONGÉS", Math.round(sum("conges"))]];
@@ -422,32 +422,133 @@ function _drawHeader(doc, co, client, title) {
   return top;
 }
 
+const MONTHS_FR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+function _periodFR(period) { const [y, m] = String(period).split("-"); const mi = (parseInt(m, 10) || 1) - 1; return { month: MONTHS_FR[mi] || "", year: y, first: `01/${String(mi+1).padStart(2,"0")}/${y}`, last: `${new Date(y, mi+1, 0).getDate()}/${String(mi+1).padStart(2,"0")}/${y}` }; }
+function _annexeFonts(doc) {
+  const p = require("path"), fs = require("fs");
+  const base = p.join(__dirname, "..", "assets", "fonts");
+  let reg = "Helvetica", bold = "Helvetica-Bold";
+  try { if (fs.existsSync(p.join(base, "DejaVuSans.ttf"))) { doc.registerFont("DV", p.join(base, "DejaVuSans.ttf")); reg = "DV"; } } catch (e) {}
+  try { if (fs.existsSync(p.join(base, "DejaVuSans-Bold.ttf"))) { doc.registerFont("DV-Bold", p.join(base, "DejaVuSans-Bold.ttf")); bold = "DV-Bold"; } } catch (e) {}
+  return { reg, bold };
+}
+
 router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
-  const D = withCompute(s, req); const co = _company();
-  const doc = new PDFDocument({ margin: 20, size: "A4", layout: "landscape" });
+  const D = withCompute(s, req); const client = D.contract.clientName || "CLIENT";
+  const per = _periodFR(s.period);
+  // Regroupement par poste : si demandé (?group=poste) ou configuré sur le contrat, sinon liste à plat triée par nom.
+  const groupByPoste = String(req.query.group || (D.contract.annexeGroupBy || "")).toLowerCase() === "poste";
+
+  const doc = new PDFDocument({ margin: 20, size: "A4", layout: "landscape", bufferPages: true });
+  const F = _annexeFonts(doc);
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="Annexe_${(D.contract.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
+  const fname = `Annexe Mensuelle - ${client} ${per.month} ${per.year}.pdf`.replace(/[\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
+  res.setHeader("Content-Disposition", `attachment; filename="${fname}"; filename*=UTF-8''${encodeURIComponent(fname)}`);
   doc.pipe(res);
-  _drawHeader(doc, co, D.contract.clientBlock, `ANNEXE — ${D.contract.clientName} · ${s.period}`);
-  const cols = [["N°", 26], ["Salarié", 150], ["Poste", 110], ["Base", 70], ["Brut", 72], ["Congés", 62], ["Charges", 66], ["Frais gest.", 66], ["HT", 76], ["TVA", 66], ["TTC", 80]];
-  const x0 = 20; let x = x0; const xs = cols.map(c => { const cx = x; x += c[1]; return cx; }); const W = x - x0;
-  let y = 118; const T = (cx, yy, v, w, al, b, sz) => doc.font(b ? "Helvetica-Bold" : "Helvetica").fontSize(sz || 7.5).text(v == null ? "" : String(v), cx + 2, yy, { width: w - 4, align: al || "left", lineBreak: false });
-  doc.rect(x0, y, W, 15).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
-  cols.forEach((c, i) => T(xs[i], y + 3.5, c[0], c[1], i < 3 ? "left" : "right", true, 7)); y += 15;
-  let n = 0;
-  for (const poste of Object.keys(D.computed.groups).sort()) {
-    doc.rect(x0, y, W, 12).fill("#ecfdf5"); doc.fillColor("#000"); T(xs[1], y + 2.5, poste, 300, "left", true, 7.5); y += 12;
-    for (const l of D.computed.groups[poste]) {
-      n++; const vals = [n, l.name, l.poste, l.basePorata, l.brut, l.conges, l.charges, l.fraisGestion, l.HT, l.TVA, l.TTC];
-      vals.forEach((v, i) => T(xs[i], y + 2, i >= 3 ? _NF(v) : v, cols[i][1], i < 3 ? "left" : "right", false, 7));
-      doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 11).lineTo(x0 + W, y + 11).stroke(); y += 11.5;
-      if (y > 560) { doc.addPage({ margin: 20, size: "A4", layout: "landscape" }); y = 40; }
+
+  const pw = doc.page.width, x0 = 20, right = pw - 20, usable = right - x0;
+  // ---- En-tête (style Odoo) ----
+  const co = _company(); const logo = (((db.settings || {}).branding || {}).logo) || "";
+  let hy = 22;
+  if (logo) { const lb = _dataBuf(logo); if (lb) { try { doc.image(lb, x0, 18, { height: 30 }); } catch (e) {} } }
+  doc.font(F.bold).fontSize(9).fillColor("#111").text(_fixEnc(co.name || "CIBLE RH EMPLOI"), right - 300, 20, { width: 300, align: "right" });
+  doc.font(F.reg).fontSize(8).fillColor("#555");
+  if (co.city) doc.text(_fixEnc(co.city), right - 300, 33, { width: 300, align: "right" });
+  if (co.niu) doc.text("NIU : " + co.niu, right - 300, 44, { width: 300, align: "right" });
+  hy = 60;
+  doc.font(F.bold).fontSize(14).fillColor("#111").text(`Annexe Mensuelle – ${_fixEnc(client)}`, x0, hy); hy += 20;
+  doc.font(F.reg).fontSize(9).fillColor("#333");
+  doc.text(`Client : ${_fixEnc((D.contract.clientBlock && D.contract.clientBlock.name) || client)}`, x0, hy); hy += 12;
+  doc.text(`Période : ${per.first} – ${per.last}`, x0, hy); hy += 12;
+  doc.text(`Établi par : ${_fixEnc(req.user.fullName || req.user.email || "")}`, x0, hy); hy += 16;
+
+  // ---- Colonnes ----
+  const cols = [
+    { k: "n", h: "N°", w: 24, align: "left", money: false },
+    { k: "name", h: "SALARIÉ", w: 138, align: "left", money: false },
+    { k: "poste", h: "POSTE", w: 104, align: "left", money: false },
+    { k: "base", h: "SALAIRE DE BASE", w: 66, align: "right", money: true },
+    { k: "brut", h: "SALAIRE BRUT", w: 66, align: "right", money: true },
+    { k: "conges", h: "PROVISION CONGÉS", w: 64, align: "right", money: true },
+    { k: "charges", h: "CHARGES PATRONALES", w: 66, align: "right", money: true },
+    { k: "frais", h: "FRAIS DE GESTION", w: 60, align: "right", money: true },
+    { k: "ht", h: "MONTANT HT", w: 72, align: "right", money: true },
+    { k: "tva", h: "TVA", w: 54, align: "right", money: true },
+    { k: "ttc", h: "MONTANT TTC", w: 78, align: "right", money: true },
+  ];
+  const totalW = cols.reduce((a, c) => a + c.w, 0);
+  // ajuster à la largeur utile
+  const scale = usable / totalW; cols.forEach(c => c.w = c.w * scale);
+  const xAt = []; { let x = x0; for (const c of cols) { xAt.push(x); x += c.w; } }
+  const PAD = 3, FS = 8, HFS = 8, LINE = 10, bottom = doc.page.height - 40;
+
+  const money = (v) => _NF(v) + " FCFA";
+  const cellText = (c, row) => {
+    if (c.k === "n") return String(row._n);
+    if (c.k === "name") return _fixEnc(row.name || "");
+    if (c.k === "poste") return _fixEnc(row.poste || "");
+    const map = { base: row.basePorata, brut: row.brut, conges: row.conges, charges: row.charges, frais: row.fraisGestion, ht: row.HT, tva: row.TVA, ttc: row.TTC };
+    return money(map[c.k]);
+  };
+  const measure = (c, txt) => { doc.font(F.reg).fontSize(FS); return doc.heightOfString(txt, { width: c.w - 2 * PAD, align: c.align }); };
+
+  let y = hy;
+  const drawHeaderRow = () => {
+    doc.font(F.bold).fontSize(HFS);
+    let hh = 0; cols.forEach(c => { hh = Math.max(hh, doc.heightOfString(c.h, { width: c.w - 2 * PAD, align: c.align })); });
+    hh = Math.max(hh, LINE) + 6;
+    doc.rect(x0, y, usable, hh).fillAndStroke("#E5E7EB", "#9ca3af");
+    doc.fillColor("#111").font(F.bold).fontSize(HFS);
+    cols.forEach((c, i) => { const th = doc.heightOfString(c.h, { width: c.w - 2 * PAD, align: c.align }); doc.text(c.h, xAt[i] + PAD, y + (hh - th) / 2, { width: c.w - 2 * PAD, align: c.align }); });
+    y += hh;
+  };
+  const pageBreak = (need) => { if (y + need > bottom) { doc.addPage({ margin: 20, size: "A4", layout: "landscape" }); y = 30; drawHeaderRow(); } };
+
+  drawHeaderRow();
+
+  let n = 0, zebra = 0;
+  const drawRow = (row) => {
+    row._n = ++n;
+    // hauteur dynamique = plus haute cellule enveloppée
+    let rh = LINE; cols.forEach(c => { rh = Math.max(rh, measure(c, cellText(c, row))); });
+    rh += 6;
+    pageBreak(rh);
+    if (zebra % 2 === 1) { doc.rect(x0, y, usable, rh).fill("#f8fafc"); }
+    zebra++;
+    doc.strokeColor("#e5e7eb").lineWidth(0.3).rect(x0, y, usable, rh).stroke();
+    cols.forEach((c, i) => {
+      const txt = cellText(c, row); doc.font(F.reg).fontSize(FS).fillColor("#111");
+      const th = doc.heightOfString(txt, { width: c.w - 2 * PAD, align: c.align });
+      doc.text(txt, xAt[i] + PAD, y + (rh - th) / 2, { width: c.w - 2 * PAD, align: c.align });
+    });
+    y += rh;
+  };
+
+  const t = D.computed.totals;
+  if (groupByPoste) {
+    for (const poste of Object.keys(D.computed.groups).sort()) {
+      pageBreak(16);
+      doc.rect(x0, y, usable, 14).fill("#eef2ff"); doc.fillColor("#3730a3").font(F.bold).fontSize(8).text(_fixEnc(poste || "—"), xAt[1] + PAD, y + 3, { width: usable - 20 }); y += 14;
+      for (const l of D.computed.groups[poste]) drawRow(l);
     }
+  } else {
+    const flat = [];
+    for (const poste of Object.keys(D.computed.groups)) for (const l of D.computed.groups[poste]) flat.push(l);
+    flat.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "fr", { sensitivity: "base" }));
+    for (const l of flat) drawRow(l);
   }
-  const t = D.computed.totals; y += 2; doc.lineWidth(0.7).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 3;
-  T(xs[1], y, `TOTAL GÉNÉRAL (${t.count})`, 300, "left", true); [["HT", 8], ["TVA", 9], ["TTC", 10]].forEach(([k, i]) => T(xs[i], y, _NF(t[k]), cols[i][1], "right", true));
-  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe", format: "pdf" }); doc.end();
+
+  // ---- Total général ----
+  pageBreak(20);
+  doc.rect(x0, y, usable, 16).fillAndStroke("#E5E7EB", "#9ca3af"); doc.fillColor("#111").font(F.bold).fontSize(8.5);
+  doc.text(`TOTAL GÉNÉRAL (${t.count})`, xAt[1] + PAD, y + 4, { width: xAt[8] - xAt[1] - PAD });
+  const totMap = { ht: t.HT, tva: t.TVA, ttc: t.TTC };
+  cols.forEach((c, i) => { if (totMap[c.k] != null) { const txt = money(totMap[c.k]); doc.text(txt, xAt[i] + PAD, y + 4, { width: c.w - 2 * PAD, align: "right" }); } });
+  y += 16;
+
+  _paintFooters(doc);
+  audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe", format: "pdf", style: "odoo" }); doc.end();
 });
 
 router.get("/sheets/:id/annexe/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
@@ -459,7 +560,8 @@ router.get("/sheets/:id/annexe/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (r
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Annexe");
   audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "annexe", format: "xlsx" });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  res.setHeader("Content-Disposition", `attachment; filename="Annexe_${s.period}.xlsx"`); res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+  const _per = _periodFR(s.period); const _xn = `Annexe Mensuelle - ${(D.contract.clientName||"CLIENT")} ${_per.month} ${_per.year}.xlsx`.replace(/[\\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
+  res.setHeader("Content-Disposition", `attachment; filename="${_xn}"; filename*=UTF-8''${encodeURIComponent(_xn)}`); res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
 router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {

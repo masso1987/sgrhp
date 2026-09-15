@@ -4005,6 +4005,10 @@ async function saveTemplates() {
 /* ================================================================= */
 const fCFA = n => (Math.round(n || 0)).toLocaleString("fr-FR");
 function canRunPay() { return ME.role === "ADM" || (ME.permissions || []).includes("payroll.run"); }
+const MONTHS_FR_UI=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+function annexeFileName(client, period, ext){ const [y,m]=String(period).split("-"); return `Annexe Mensuelle - ${client} ${MONTHS_FR_UI[(+m||1)-1]||""} ${y}.${ext}`; }
+function dlAnnexe(id, client, period, kind){ const grp=(document.getElementById("annexeGrp")||{}).checked; const q=grp?"?group=poste":"";
+  payDownload(`/billing/sheets/${id}/annexe/${kind}${q}`, annexeFileName(client, period, kind==="pdf"?"pdf":"xlsx")); }
 function payDownload(url, filename) {
   fetch("/api" + url, { headers: { Authorization: "Bearer " + TOKEN } }).then(r =>r.blob()).then(b => {
     const u = URL.createObjectURL(b), a = document.createElement("a"); a.href = u; a.download = filename; a.click();
