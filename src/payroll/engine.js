@@ -44,7 +44,7 @@ const DEFAULT_CONFIG = {
   },
 
   // Transport allowance exemption cap (excess is added to NETIMPO). Editable.
-  transportExemptionCap: 0,
+  transportExemptionCap: 14500, // Exonération IRPP de la prime de transport (F/mois). La prime de transport est déjà hors assiette CNPS ; seule la fraction au-delà de ce plafond est imposable à l'IRPP.
 
   // RAV — Redevance audiovisuelle (^^CRTV), monthly amount by bracket on SALBASE
   rav: [

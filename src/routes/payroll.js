@@ -75,6 +75,11 @@ function periodDiff(from, to) { // whole months between "YYYY-MM" strings
 function configOf(req) {
   let c = mine(db.payrollConfig, req)[0];
   if (!c) { c = stamp({ id: id("pcfg"), ...require("../payroll/engine").DEFAULT_CONFIG }, req); db.payrollConfig.push(c); save(); }
+  // Migration unique : applique l'exonération IRPP transport par défaut aux configs anciennes (cap 0/undefined), sans écraser une valeur choisie ensuite.
+  if (!c._transportExoMigrated && (c.transportExemptionCap === 0 || c.transportExemptionCap === undefined || c.transportExemptionCap === null)) {
+    c.transportExemptionCap = require("../payroll/engine").DEFAULT_CONFIG.transportExemptionCap;
+    c._transportExoMigrated = true; save();
+  }
   return c;
 }
 function baseSalaryOf(emp, req) {
