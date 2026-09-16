@@ -74,10 +74,13 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
+const BUILD_VERSION = "2026-09-16 · PAIE-SAGE-1 (prime ancienneté échelon A + exonération transport IRPP)";
+app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
   const b = Object.assign({}, s.branding);
   try { const p = require("./routes/tenants").platformCfg(); if (p) { if (p.appName) b.appName = p.appName; b.appLogo = p.appLogo || ""; } } catch (e) {}
+  b.build = BUILD_VERSION;
   res.json(b);
 });
 

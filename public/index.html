@@ -1097,14 +1097,16 @@ function renderFooter(){
   const y=new Date().getFullYear();
   const _app=(window.BRANDING&&BRANDING.appName)||"MBOKA Mon RH";
   const co = window.ME ? (ME.role==="SADM" ? _app : (ME.tenantName || _app)) : _app;
+  const _build=(window.BRANDING&&BRANDING.build)||"";
   const el=document.getElementById("appFooter");
-  if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés. · <a href="#" onclick="openLegal('tos');return false">Conditions</a> · <a href="#" onclick="openLegal('privacy');return false">Confidentialité</a>`;
+  if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés. · <a href="#" onclick="openLegal('tos');return false">Conditions</a> · <a href="#" onclick="openLegal('privacy');return false">Confidentialité</a>`+(_build?` · <span style="color:var(--muted)">build ${esc(_build)}</span>`:"");
 }
 function renderLoginFooter(){
   const y=new Date().getFullYear();
   const co=(window.BRANDING&&BRANDING.appName)||"MBOKA Mon RH";
+  const build=(window.BRANDING&&BRANDING.build)||"";
   const el=document.getElementById("loginFooter");
-  if(el) el.textContent=`© ${y} ${co}. Tous droits réservés.`;
+  if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés.`+(build?`<br><span style="color:#9ca3af">build ${esc(build)}</span>`:"");
 }
 function buildNav() {
   const _adm = ME.role === "ADM" || ME.role === "SADM";
