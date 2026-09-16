@@ -62,7 +62,7 @@ const DEFAULT_CONFIG = {
 
   overtime: { tier1Rate: 0.20, tier2Rate: 0.30, tier3Rate: 0.40, nightRate: 0.50 },
   // Seniority (^^ANCTAUX): 4% at 2 years, +2%/year, capped.
-  seniority: { startYears: 2, startRate: 0.04, perYearRate: 0.02, maxRate: 0.30 },
+  seniority: { startYears: 2, startRate: 0.04, perYearRate: 0.02, maxRate: 1.0 }, // Code du travail : 4% à 2 ans, +2%/an, sans plafond conventionnel
   leave: {
     daysPerMonth: 2.5, // CONGE1 — provision comptable (jours calendaires) / mois
     ouvrablePerMonth: 2, baseAnnual: 24, // Art. 63.1 : 2 jours ouvrables / mois = 24 / an
@@ -146,7 +146,9 @@ function computePayslip(input, configOverride) {
   const r3 = (x) => Math.round(x * 1000) / 1000;
   add({ code: "1000", label: "Salaire de base", kind: "GAIN", nombre: workedDays, base: Math.round(dailyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
   const senR = seniorityRate(seniorityYears, cfg);
-  if (senR > 0) add({ code: "1040", label: "Prime d'ancienneté", kind: "GAIN", base: baseSalary, rate: senR, gain: r0(baseSalary * senR), cnps: true, impo: true });
+  // Prime d'ancienneté = taux × salaire minimum de la catégorie (1er échelon / échelon A), et non le salaire de l'échelon courant (Arrêté n°019 MTPS 1993).
+  const _anBase = (input.ancienneteBase != null && Number(input.ancienneteBase) > 0) ? Number(input.ancienneteBase) : baseSalary;
+  if (senR > 0) add({ code: "1040", label: "Prime d'ancienneté", kind: "GAIN", base: _anBase, rate: senR, gain: r0(_anBase * senR), cnps: true, impo: true });
   const ot = overtime || {};
   const otL = (h, rate, code, label) => { if (h) add({ code, label, kind: "GAIN", nombre: h, base: r0(hourlyRate), rate: 1 + rate, gain: r0(h * hourlyRate * (1 + rate)), hours: h, cnps: true, impo: true }); };
   otL(ot.tier1, cfg.overtime.tier1Rate, "1081", "Heures supp. (+20%)");

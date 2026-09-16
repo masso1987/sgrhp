@@ -98,6 +98,19 @@ function baseSalaryOf(emp, req) {
   }
   return 0;
 }
+// Salaire MINIMUM de la catégorie (1er échelon / échelon A) — base légale de la prime d'ancienneté.
+function categorielBaseA(emp, req) {
+  const c = emp.contract || {}; const cat = String(c.category || "");
+  const m = cat.match(/^(\d{1,2})([A-F])$/);
+  if (!m) return 0; // catégorie non conventionnelle : l'appelant retombera sur le salaire de base
+  const codeA = m[1] + "A";
+  const convs = mine(db.conventions, req);
+  const byId = c.conventionId ? convs.find(x => x.id === c.conventionId) : null;
+  const rowIn = (cnv) => (cnv && Array.isArray(cnv.grid) ? cnv.grid : []).find(g => g.category === codeA && Number(g.baseSalary) > 0);
+  let row = rowIn(byId);
+  if (!row) for (const cnv of convs) { row = rowIn(cnv); if (row) break; }
+  return row ? Number(row.baseSalary) : 0;
+}
 function seniorityYears(emp, period) {
   const hire = emp.hireDate || (emp.contract && emp.contract.startDate);
   if (!hire) return 0;
@@ -181,8 +194,10 @@ function elementsToInput(emp, period, req, opts) {
     const g = opts.extraGain;
     gains.push({ code: g.code || "2000", label: g.label || "Ajustement", amount: Number(g.amount), cnps: g.cnps !== false, impo: g.impo !== false });
   }
+  const _anBase = categorielBaseA(emp, req);
   return {
     baseSalary: struct.baseSalary,
+    ancienneteBase: _anBase > 0 ? _anBase : struct.baseSalary, // prime d'ancienneté sur le salaire minimum de la catégorie (échelon A)
     workedDays, standardDays: cfg.standardMonthlyDays || 30,
     seniorityYears: seniorityYears(emp, period),
     overtime, gains, nonTaxable, avantages, transport: struct.transport, otherDeductions,
