@@ -140,12 +140,18 @@ function categorielBaseA(emp, req) {
   if (!row) for (const cnv of convs) { row = rowIn(cnv); if (row) break; }
   return row ? Number(row.baseSalary) : 0;
 }
-function seniorityYears(emp, period) {
+// Ancienneté en mois au titre d'une période de paie : le mois payé compte (comme Sage). Ex. embauche 09/2006, paie 07/2026 -> 239 mois = 19 ans 11 mois.
+function seniorityMonths(emp, period) {
   const hire = emp.hireDate || (emp.contract && emp.contract.startDate);
   if (!hire) return 0;
-  const end = period ? new Date(period + "-01") : new Date();
-  const y = (end - new Date(hire)) / (365.25 * 24 * 3600 * 1000);
-  return Math.max(0, Math.floor(y));
+  const h = new Date(hire);
+  const [y, mo] = String(period || new Date().toISOString().slice(0, 7)).split("-").map(Number);
+  const m = (y - h.getFullYear()) * 12 + ((mo - 1) - h.getMonth()) + 1;
+  return Math.max(0, m);
+}
+function seniorityLabel(emp, period) { const m = seniorityMonths(emp, period); return `${Math.floor(m / 12)} an(s) ${m % 12} mois`; }
+function seniorityYears(emp, period) {
+  return Math.floor(seniorityMonths(emp, period) / 12);
 }
 // Ancienneté en années décimales (pour le solde de tout compte : les fractions comptent).
 function seniorityYearsFrac(emp, endDate) {
@@ -783,9 +789,7 @@ function drawPayslip(doc, s, emp, tenant) {
   const MS = { Single: "Célibataire", Married: "Marié(e)", Divorced: "Divorcé(e)", Widowed: "Veuf(ve)" };
   const fdate = (d) => { if (!d) return ""; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : d; };
   const shortConv = (n) => { if (!n) return ""; const stop = new Set(["convention","conventions","collective","collectives","nationale","interprofessionnelle","de","du","des","la","le","les","l","d"]); const w = String(n).replace(/[''\u2019]/g, " ").split(/\s+/).filter(Boolean); while (w.length && stop.has(w[0].toLowerCase())) w.shift(); const o = w.join(" ") || String(n); return o.charAt(0).toUpperCase() + o.slice(1); };
-  const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if (!h) return "";
-    const d = new Date(s.period + "-01"); let m = (d.getFullYear()-h.getFullYear())*12 + (d.getMonth()-h.getMonth());
-    if (m < 0) m = 0; return `${Math.floor(m/12)} an(s) et ${m%12} mois`; })();
+  const yrs = emp.hireDate ? seniorityLabel(emp, s.period).replace(" an(s) ", " an(s) et ") : "";
   const cum = (db.payCumuls || []).find(c => (c.tenantId||"t1")===(s.tenantId||"t1") && c.employeeId===s.employeeId && c.year===s.period.slice(0,4));
   const [yy, mm] = s.period.split("-"); const last = new Date(Number(yy), Number(mm), 0).getDate();
   const dS = `01/${mm}/${yy.slice(2)}`, dE = `${String(last).padStart(2,"0")}/${mm}/${yy.slice(2)}`;
@@ -938,7 +942,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const MS = { Single: "Célibataire", Married: "Marié(e)", Divorced: "Divorcé(e)", Widowed: "Veuf(ve)" };
   const fdate = (d) => { if (!d) return ""; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : d; };
   const shortConv = (n) => { if (!n) return ""; const stop = new Set(["convention","conventions","collective","collectives","nationale","interprofessionnelle","de","du","des","la","le","les","l","d"]); const w = String(n).replace(/[''’]/g, " ").split(/\s+/).filter(Boolean); while (w.length && stop.has(w[0].toLowerCase())) w.shift(); const o = w.join(" ") || String(n); return o.charAt(0).toUpperCase() + o.slice(1); };
-  const yrs = (() => { const h = emp.hireDate ? new Date(emp.hireDate) : null; if (!h) return ""; const d = new Date(s.period + "-01"); let m = (d.getFullYear()-h.getFullYear())*12 + (d.getMonth()-h.getMonth()); if (m < 0) m = 0; return `${Math.floor(m/12)} an(s) ${m%12} mois`; })();
+  const yrs = emp.hireDate ? seniorityLabel(emp, s.period) : "";
   const _pf = (db.portfolios || []).find(p => p.id === emp.portfolioId);
   const _conv = _pf ? (db.conventions || []).find(c => c.id === _pf.conventionId) : null;
   const convName = C.convention || emp.convention || (_conv && _conv.name) || "";
@@ -1005,14 +1009,47 @@ function drawPayslipModern(doc, s, emp, tenant) {
     gains.map(l => [l.code||"", (l.label||""), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", F(l.gain), ""]),
     ["","TOTAL BRUT","","",F(t.brutTotal),""]);
 
-  /* Cotisations : N° | Cotisation | Base | [Part salariale: Taux | Montant] | [Part patronale: Taux | Montant] (comme Sage) */
-  const ccols = [{x:L,w:24,a:"left"},{x:L+24,w:132,a:"left"},{x:L+156,w:72,a:"right"},{x:L+228,w:40,a:"right"},{x:L+268,w:88,a:"right"},{x:L+356,w:40,a:"right"},{x:L+396,w:W-396,a:"right"}];
-  const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
-  const rate = (v) => ((Number(v)||0)*100).toFixed(2);   // taux : 0 -> "0.00"
-  const amt = (v) => (Number(v)||0) ? F(v) : "0";        // montant : 0 -> "0"
-  drawTable("Cotisations & retenues", ccols, ["N°","Cotisation","Base","Taux","Part salariale","Taux","Part patronale"],
-    cot.map(l => [l.code||"", (l.label||""), l.base?F2(l.base):"0", rate(l.rate), amt(l.retenue), rate(l.employerRate), amt(l.employer)]),
-    ["","TOTAL COTISATIONS","","",F((t.cnpsSalarie||0)+(t.totalImpots||0)),"",F((t.cnpsPatronal||0)+(t.cfcPatronal||0))]);
+  /* Cotisations & retenues — en-tête groupé (Part salariale / Part patronale), façon Sage */
+  {
+    const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
+    const rate = (v) => ((Number(v)||0)*100).toFixed(2);   // taux : 0 -> "0.00"
+    const amt = (v) => (Number(v)||0) ? F(v) : "0";        // montant : 0 -> "0"
+    // Colonnes [x, w] : N°, Cotisation, Base, [Taux|Montant]sal, [Taux|Montant]pat (les deux groupes serrés)
+    const cN=[L,22], cC=[L+22,140], cB=[L+162,76], cTS=[L+246,40], cMS=[L+286,80], cTP=[L+408,40], cMP=[L+448,W-448];
+    txt(L + 2, y, "Cotisations & retenues", { b:1, s:8.5, c:TXT }); y += 13;
+    const rowH=13.5, h1=13, h2=13, top=y, bh = h1+h2 + cot.length*rowH + rowH;
+    // Fond d'en-tête (2 lignes)
+    doc.save(); doc.roundedRect(L, y, W, h1+h2, 3).fill(NAVY); doc.restore();
+    const midY = y + (h1+h2)/2 - 4;
+    txt(cN[0]+6, midY, "N°", {b:1,s:6.5,c:"#ffffff",w:cN[1]-6,a:"left"});
+    txt(cC[0]+6, midY, "Cotisation", {b:1,s:6.5,c:"#ffffff",w:cC[1]-6,a:"left"});
+    txt(cB[0], midY, "Base", {b:1,s:6.5,c:"#ffffff",w:cB[1]-6,a:"right"});
+    txt(cTS[0], y+2, "Part salariale", {b:1,s:6.5,c:"#ffffff",w:(cMS[0]+cMS[1])-cTS[0],a:"center"});
+    txt(cTP[0], y+2, "Part patronale", {b:1,s:6.5,c:"#ffffff",w:(cMP[0]+cMP[1])-cTP[0],a:"center"});
+    const r2 = y + h1 + 2;
+    txt(cTS[0], r2, "Taux", {b:1,s:6.5,c:"#ffffff",w:cTS[1]-6,a:"right"});
+    txt(cMS[0], r2, "Montant", {b:1,s:6.5,c:"#ffffff",w:cMS[1]-6,a:"right"});
+    txt(cTP[0], r2, "Taux", {b:1,s:6.5,c:"#ffffff",w:cTP[1]-6,a:"right"});
+    txt(cMP[0], r2, "Montant", {b:1,s:6.5,c:"#ffffff",w:cMP[1]-6,a:"right"});
+    y += h1 + h2;
+    cot.forEach((l, ri) => {
+      if (ri % 2) { doc.save(); doc.rect(L, y, W, rowH).fill(STRIPE); doc.restore(); }
+      txt(cN[0]+6, y+3, l.code||"", {s:7.5,w:cN[1]-6,a:"left"});
+      txt(cC[0]+6, y+3, l.label||"", {s:7.5,w:cC[1]-6,a:"left"});
+      txt(cB[0], y+3, l.base?F2(l.base):"0", {s:7.5,w:cB[1]-6,a:"right"});
+      txt(cTS[0], y+3, rate(l.rate), {s:7.5,w:cTS[1]-6,a:"right"});
+      txt(cMS[0], y+3, amt(l.retenue), {s:7.5,w:cMS[1]-6,a:"right"});
+      txt(cTP[0], y+3, rate(l.employerRate), {s:7.5,w:cTP[1]-6,a:"right"});
+      txt(cMP[0], y+3, amt(l.employer), {s:7.5,w:cMP[1]-6,a:"right"});
+      y += rowH;
+    });
+    doc.save(); doc.rect(L, y, W, rowH).fill("#e9eef5"); doc.restore();
+    txt(cC[0]+6, y+3, "TOTAL COTISATIONS", {b:1,s:8,w:210,a:"left"});
+    txt(cMS[0], y+3, F((t.cnpsSalarie||0)+(t.totalImpots||0)), {b:1,s:8,w:cMS[1]-6,a:"right"});
+    txt(cMP[0], y+3, F((t.cnpsPatronal||0)+(t.cfcPatronal||0)), {b:1,s:8,w:cMP[1]-6,a:"right"});
+    y += rowH;
+    doc.save(); doc.roundedRect(L, top, W, bh, 3).stroke(LINE); doc.restore(); y += 8;
+  }
 
   if (y > 648) { doc.addPage(); y = 28; }
 
