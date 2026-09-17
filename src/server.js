@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-16 · PAIE-SAGE-1 (prime ancienneté échelon A + exonération transport IRPP)";
+const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-2 (prime échelon A + exo transport IRPP + réouverture de période)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

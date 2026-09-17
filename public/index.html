@@ -4369,6 +4369,7 @@ async function payRunView(id) {
   <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
     ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">Clôturer la période</button>` : ""}
+    ${run.status === "CLOSED" && ME.role === "ADM" ? `<button class="btn" style="background:var(--amber,#f59e0b);color:#fff" onclick="payReopen('${run.id}')">Rouvrir la période</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">Ordre de virement</button>` : ""}
     ${open && canRunPay() ? `<button class="btn ghost" onclick="tsImportOpen('${run.id}','${run.period}')">Importer pointage</button>` : ""}
     ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
@@ -4737,6 +4738,11 @@ async function payBulkPdf(id){
 async function payCompute(id) {
   if (!confirm("Calculer/recalculer tous les bulletins de cette paie ?")) return;
   try { const r = await api(`/payroll/runs/${id}/compute`, { method: "POST" }); alert(`Paie calculée : ${r.computed} bulletin(s).`); payRunView(id); }
+  catch (e) { alert(e.message); }
+}
+async function payReopen(id) {
+  if (!confirm("Rouvrir cette période clôturée ?\n\nLes bulletins seront déverrouillés et les cumuls annuels de la période annulés, pour permettre un recalcul. Vous devrez ensuite recalculer puis re-clôturer.")) return;
+  try { await api("/payroll/runs/" + id + "/reopen", { method: "POST" }); alert("Période rouverte. Cliquez « Éditer la paie » / « Calculer » pour recalculer, puis re-clôturez."); payRunView(id); }
   catch (e) { alert(e.message); }
 }
 async function payClose(id) {

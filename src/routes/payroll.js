@@ -670,6 +670,30 @@ router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res)
   res.json({ run });
 });
 
+/* Rouvrir une période clôturée (ADM) : annule les cumuls de la période, déverrouille les
+ * bulletins pour permettre un recalcul (ex. correction de barème), puis re-clôture ensuite. */
+router.post("/runs/:id/reopen", allow("ADM"), (req, res) => {
+  if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  if (run.status !== "CLOSED") return res.status(409).json({ error: "La période n'est pas clôturée" });
+  const year = run.period.slice(0, 4);
+  for (const s of mine(db.payslips, req).filter(x => x.runId === run.id)) {
+    const cum = db.payCumuls.find(c => (c.tenantId || "t1") === (run.tenantId || "t1") && c.employeeId === s.employeeId && c.year === year);
+    if (cum && Array.isArray(cum.periods) && cum.periods.includes(run.period)) {
+      cum.brut -= s.result.totals.brutTotal; cum.net -= s.result.totals.netAPayer;
+      cum.irpp -= s.result.totals.irpp; cum.cnps -= s.result.totals.cnpsSalarie;
+      cum.periods = cum.periods.filter(p => p !== run.period);
+    }
+    s.status = "CALCULATED";
+  }
+  run.status = "CALCULATED"; delete run.closedAt;
+  if (run.acctEntryId) delete run.acctEntryId; // l'écriture comptable sera régénérée à la re-clôture
+  save();
+  audit(req.user, "REOPENED", "PayRun", run.id, { period: run.period });
+  res.json({ run });
+});
+
 /* ========================== PAYSLIPS ========================== */
 function summary(s) {
   const t = s.result.totals;
