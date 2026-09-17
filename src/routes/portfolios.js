@@ -8,15 +8,46 @@ const CNI = "V";
 router.get("/", allow("GPF", "CD", "RJ", "ADM", "UI"), (req, res) => res.json(mine(db.portfolios, req)));
 router.get("/doc-types", allow("GPF", "CD", "RJ", "ADM", "UI"), (req, res) => res.json(db.docTypes));
 
+const _norm = (s) => String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
 router.post("/", allow("ADM"), (req, res) => {
-  if (!req.body.name) return res.status(400).json({ error: "Name required" });
+  const name = String(req.body.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Nom du portefeuille requis." });
+  // Anti-doublon : un portefeuille de même nom (à la casse/espaces près) ne peut être recréé.
+  if (mine(db.portfolios, req).some(p => _norm(p.name) === _norm(name)))
+    return res.status(409).json({ error: `Un portefeuille nommé « ${name} » existe déjà.` });
   // CNI is mandatory in every new portfolio (§2.3.3)
   const required = [...new Set([CNI, ...(req.body.required || [])])];
   const requiredCreation = [...new Set([CNI, ...((req.body.requiredCreation || []).filter(c => required.includes(c)))])];
-  const pf = stamp({ id: id("pf"), name: req.body.name, required, requiredCreation }, req);
+  const pf = stamp({ id: id("pf"), name, required, requiredCreation }, req);
   db.portfolios.push(pf); save();
   audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { created: pf.name, required });
   res.status(201).json(pf);
+});
+
+// Renommer un portefeuille (anti-doublon)
+router.put("/:id", allow("ADM"), (req, res) => {
+  const pf = mine(db.portfolios, req).find(p => p.id === req.params.id);
+  if (!pf) return res.status(404).json({ error: "Portefeuille introuvable" });
+  const name = String(req.body.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Nom du portefeuille requis." });
+  if (mine(db.portfolios, req).some(p => p.id !== pf.id && _norm(p.name) === _norm(name)))
+    return res.status(409).json({ error: `Un portefeuille nommé « ${name} » existe déjà.` });
+  const before = pf.name; pf.name = name; save();
+  audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { renamedFrom: before, renamedTo: name });
+  res.json(pf);
+});
+
+// Supprimer un portefeuille — bloqué s'il est encore rattaché à des salariés ou à des utilisateurs GPF.
+router.delete("/:id", allow("ADM"), (req, res) => {
+  const pf = mine(db.portfolios, req).find(p => p.id === req.params.id);
+  if (!pf) return res.status(404).json({ error: "Portefeuille introuvable" });
+  const empCount = mine(db.employees, req).filter(e => e.portfolioId === pf.id).length;
+  if (empCount) return res.status(409).json({ error: `Suppression impossible : ${empCount} salarié(s) rattaché(s) à « ${pf.name} ». Réaffectez-les d'abord.` });
+  const usrCount = mine(db.users, req).filter(u => (u.portfolioIds || []).includes(pf.id)).length;
+  if (usrCount) return res.status(409).json({ error: `Suppression impossible : ${usrCount} utilisateur(s) GPF rattaché(s) à « ${pf.name} ». Détachez-les d'abord (écran Utilisateurs).` });
+  db.portfolios = db.portfolios.filter(p => p.id !== pf.id); save();
+  audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { deleted: pf.name });
+  res.json({ ok: true });
 });
 
 // Update required documents — CNI cannot be removed; change traced (§2.3.3)

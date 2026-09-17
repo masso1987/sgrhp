@@ -66,6 +66,13 @@ function recomputePayslip(s) {
   t.coutTotalEmployeur = t.brutTotal + t.chargesPatronales;
 }
 const fmtPeriod = (p) => p; // "YYYY-MM"
+// N° CNPS + clé (dernier chiffre) — ex. « 3511115179 2 » (comme Sage).
+function cnpsFull(emp) {
+  const n = emp && emp.cnpsNumber != null ? String(emp.cnpsNumber).trim() : "";
+  if (!n) return "";
+  const k = emp && emp.cnpsKey != null && String(emp.cnpsKey).trim() !== "" ? String(emp.cnpsKey).trim() : "";
+  return k ? `${n} ${k}` : n;
+}
 
 function periodDiff(from, to) { // whole months between "YYYY-MM" strings
   if (!from || !to) return -1;
@@ -835,8 +842,8 @@ function drawPayslip(doc, s, emp, tenant) {
   // left info block
   let iy = 168; const li = (l, v, l2, v2) => {
     T(26, iy, l, { b: 1 }); T(120, iy, v); if (l2) { T(300, iy, l2, { b: 1 }); T(380, iy, v2); } iy += 12; };
-  li("Conv. coll.", shortConv(convName), "Emploi", C.position || emp.position || "");
-  li("N° CNPS", emp.cnpsNumber || "", "Sit Fam", MS[emp.maritalStatus] || emp.maritalStatus || "");
+  li("Conv. coll.", convName || "", "Emploi", C.position || emp.position || "");
+  li("N° CNPS", cnpsFull(emp), "Sit Fam", MS[emp.maritalStatus] || emp.maritalStatus || "");
   li("Date Embauche", fdate(emp.hireDate), "Nbre Enfants", emp.children != null ? emp.children : "");
   li("Ancienneté", yrs, "Qualification", emp.qualification || "");
   li("N° DIPE", emp.dipe || CO.dipe || tenant.dipe || "", "Département", emp.department || "");
@@ -987,14 +994,18 @@ function drawPayslipModern(doc, s, emp, tenant) {
   doc.save(); doc.moveTo(L + 12, y + 26).lineTo(RgT - 12, y + 26).strokeColor(LINE).stroke(); doc.restore();
   const colL = L + 12, colM = L + 190, colR = L + 372;
   const pairs = [
-    ["Conv. coll.", shortConv(convName)], ["Emploi", C.position || emp.position || ""], ["Catégorie", C.category || ""],
-    ["N° CNPS", emp.cnpsNumber || ""], ["Sit. Fam.", MS[emp.maritalStatus] || emp.maritalStatus || ""], ["Nbre Enfants", emp.children != null ? String(emp.children) : ""],
+    ["Conv. coll.", convName || ""], ["Emploi", C.position || emp.position || ""], ["Catégorie", C.category || ""],
+    ["N° CNPS", cnpsFull(emp)], ["Sit. Fam.", MS[emp.maritalStatus] || emp.maritalStatus || ""], ["Nbre Enfants", emp.children != null ? String(emp.children) : ""],
     ["Date Embauche", fdate(emp.hireDate)], ["Ancienneté", yrs], ["Qualification", emp.qualification || ""],
     ["N° DIPE", emp.dipe || CO.dipe || tenant.dipe || ""], ["Département", emp.department || ""], ["Jour / Mois", F2(workedDays)],
   ];
   const cx = [colL, colM, colR]; let gy = y + 32;
+  // Valeur ajustée pour tenir sur UNE seule ligne (rétrécit la police au besoin, ex. nom complet de convention).
+  const fitTxt = (x, yy, str, w) => { let vs = 7.5; const v = String(str == null ? "" : str);
+    doc.font("Helvetica").fontSize(vs); while (vs > 5 && doc.widthOfString(v) > w - 2) { vs -= 0.5; doc.fontSize(vs); }
+    txt(x, yy, v, { s: vs, c: TXT, w }); };
   pairs.forEach((p, i) => { const c = cx[i % 3]; if (i % 3 === 0 && i) gy += 15;
-    txt(c, gy, p[0], { b: 1, s: 6.5, c: MUT, w: 60 }); txt(c + 58, gy, p[1], { s: 7.5, c: TXT, w: 116 }); });
+    txt(c, gy, p[0], { b: 1, s: 6.5, c: MUT, w: 60 }); fitTxt(c + 58, gy, p[1], 116); });
   y += empH + 8;
 
   /* generic table */
@@ -1025,7 +1036,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
     const rate = (v) => ((Number(v)||0)*100).toFixed(2);   // taux : 0 -> "0.00"
     const amt = (v) => (Number(v)||0) ? F(v) : "0";        // montant : 0 -> "0"
     // Colonnes [x, w] : N°, Cotisation, Base, [Taux|Montant]sal, [Taux|Montant]pat (les deux groupes serrés)
-    const cN=[L,22], cC=[L+22,140], cB=[L+162,76], cTS=[L+246,40], cMS=[L+286,80], cTP=[L+408,40], cMP=[L+448,W-448];
+    const cN=[L,32], cC=[L+32,130], cB=[L+162,76], cTS=[L+246,40], cMS=[L+286,80], cTP=[L+408,40], cMP=[L+448,W-448];
     txt(L + 2, y, "Cotisations & retenues", { b:1, s:8.5, c:TXT }); y += 13;
     const rowH=13.5, h1=13, h2=13, top=y, bh = h1+h2 + cot.length*rowH + rowH;
     // Fond d'en-tête (2 lignes)

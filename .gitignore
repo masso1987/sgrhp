@@ -3,3 +3,4 @@ data/
 uploads/
 *.log
 .env
+package-lock.json

@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-9 (prime de salissure hors assiette CNPS, imposable IRPP)";
+const BUILD_VERSION = "2026-09-17 · UI-10 (bulletin: N° cotisations élargi, clé CNPS, convention complète; portefeuilles édit/suppr/anti-doublon; modes VIREMENT/ESPECES)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

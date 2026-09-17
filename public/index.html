@@ -1341,7 +1341,7 @@ async function empForm(edit) {
     <div class="grid3">
       <div><label>Téléphone</label><input id="fPhone"></div>
       <div><label>Email (envoi du bulletin)</label><input id="fEmail" type="email" placeholder="salarie@exemple.com"></div>
-      <div><label>Mode de paiement</label><select id="fPay"><option>TRANSFER</option><option>CHEQUE</option><option>CASH</option><option>ORANGE_MONEY</option><option>MOMO</option></select></div></div>
+      <div><label>Mode de paiement</label><select id="fPay"><option>VIREMENT</option><option>ESPECES</option><option>CHEQUE</option><option>ORANGE MONEY</option><option>MOMO</option></select></div></div>
     <label>Personne à contacter en cas d'urgence</label>
     <div class="grid2"><input id="fEmgName" placeholder="Nom"><input id="fEmgTel" placeholder="Téléphone"></div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
@@ -1394,7 +1394,7 @@ async function empForm(edit) {
     fQual.value = edit.qualification || ""; fDept.value = edit.department || ""; fChild.value = edit.children != null ? edit.children : "";
     const _b=edit.bank||{}; _sv("fBank", edit.bankName||_b.name||""); _sv("fRibBank", _b.code||edit.bankCode||""); _sv("fRibGui", _b.branch||edit.bankBranch||""); _sv("fRibCpt", _b.account||edit.bankAccount||""); _sv("fRibCle", _b.key||edit.bankKey||""); _sv("fRibLib", _b.label||"");
     const c = edit.contract || {};
-    if (c.type) fCt.value = c.type; if (c.paymentMethod) fPay.value = c.paymentMethod;
+    if (c.type) fCt.value = c.type; if (c.paymentMethod) { const _pm={TRANSFER:"VIREMENT",CASH:"ESPECES",ORANGE_MONEY:"ORANGE MONEY"}; fPay.value = _pm[c.paymentMethod] || c.paymentMethod; }
     if (c.conventionId && document.getElementById("fCnv")) { fCnv.value = c.conventionId; syncCnv(); } if (c.category) fCat.value = c.category; 
     const ft = (window._CTYPES.find(t =>t.name === fCt.value) || {}).fixedTerm;
     fEndWrap.classList.toggle("hidden", !ft); if (c.endDate) fEnd.value = c.endDate;
@@ -1561,8 +1561,11 @@ async function portfolios() {
       <div class="err hidden" id="npfErr"></div></div>
     <div class="note">CNI is mandatory for <b>all</b>portfolios and cannot be unchecked. Every change is traced in the audit log.</div>
     <div class="panel">
-    <select style="max-width:280px" onchange="window._pfSel=this.value;portfolios()">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select style="max-width:280px;margin:0" onchange="window._pfSel=this.value;portfolios()">
       ${pfs.map(p => `<option value="${p.id}" ${p.id === pf.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+      <button class="btn ghost sm" onclick="pfRename('${pf.id}')">Renommer</button>
+      <button class="btn ghost sm" style="color:var(--red)" onclick="pfDelete('${pf.id}')">Supprimer</button></div>
     <div style="margin:10px 0;display:flex;gap:8px;align-items:center">
       <label style="margin:0">Convention collective rattachée</label>
       <select id="pfCnv" style="max-width:380px;margin:0">
@@ -1631,6 +1634,20 @@ async function rubDelete(id) {
 async function pfCnvSave(id) {
   try { await api(`/portfolios/${id}/convention`, { method: "PUT", body: JSON.stringify({ conventionId: pfCnv.value }) });
     alert(t("Convention rattachée - modification journalisée.")); portfolios(); } catch (e) { alert(e.message); }
+}
+async function pfRename(id) {
+  const pf = (PFS || []).find(p => p.id === id); if (!pf) return;
+  const name = prompt("Nouveau nom du portefeuille :", pf.name);
+  if (name == null) return;
+  const nm = name.trim(); if (!nm || nm === pf.name) return;
+  try { await api(`/portfolios/${id}`, { method: "PUT", body: JSON.stringify({ name: nm }) }); window._pfSel = id; portfolios(); }
+  catch (e) { alert(e.message); }
+}
+async function pfDelete(id) {
+  const pf = (PFS || []).find(p => p.id === id); if (!pf) return;
+  if (!confirm(`Supprimer le portefeuille « ${pf.name} » ?\nCette action est définitive et n'est possible que s'il n'est rattaché à aucun salarié ni utilisateur.`)) return;
+  try { await api(`/portfolios/${id}`, { method: "DELETE" }); window._pfSel = null; portfolios(); }
+  catch (e) { alert(e.message); }
 }
 async function pfEpiToggle(id, on){ try{ await api("/portfolios/"+id+"/epi",{method:"PUT",body:JSON.stringify({epiEnabled:on})}); }catch(e){ alert(e.message); } }
 async function pfCreate() {
