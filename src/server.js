@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-3 (prime moteur autoritaire + déplafonnement 30% migré + diag)";
+const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-4 (taux ancienneté 2%/an corrigé + échelon auto désactivé)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

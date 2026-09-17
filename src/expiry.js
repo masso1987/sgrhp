@@ -65,6 +65,10 @@ function scanAndRemind() {
  * passage à l'échelon supérieur (A→F) — sans validation. La base est recalculée via la grille. */
 const { audit } = require("./audit");
 function advanceEchelons() {
+  // Désactivé par défaut : l'échelon reste celui saisi par les RH (comme dans Sage).
+  // Réactivable via settings.autoEchelon = true (avancement conventionnel tous les 3 ans, Art. 72).
+  let _auto = false; try { _auto = require("./routes/settings").settings().autoEchelon === true; } catch (e) {}
+  if (!_auto) return 0;
   const YEARS3 = 3 * 365.25 * 86400000; const now = Date.now(); let changed = 0;
   for (const e of (db.employees || [])) {
     const c = e.contract || {}; const m = /^(\d{1,2})([A-F])$/.exec(String(c.category || ""));

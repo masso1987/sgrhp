@@ -80,10 +80,16 @@ function configOf(req) {
     c.transportExemptionCap = require("../payroll/engine").DEFAULT_CONFIG.transportExemptionCap;
     c._transportExoMigrated = true; save();
   }
-  // Migration : supprime l'ancien plafond de 30% sur la prime d'ancienneté (Code du travail : 2%/an sans plafond).
-  if (!c._seniorityCapMigrated && c.seniority && Number(c.seniority.maxRate) <= 0.30) {
-    c.seniority.maxRate = require("../payroll/engine").DEFAULT_CONFIG.seniority.maxRate;
-    c._seniorityCapMigrated = true; save();
+  // Migration : rétablit les valeurs LÉGALES de la prime d'ancienneté (4% à 2 ans, +2%/an, sans plafond).
+  // Corrige les configs anciennes dont le taux/an était erroné (ex. 1%) ou plafonnées à 30%.
+  if (!c._seniorityLegalMigrated) {
+    const dflt = require("../payroll/engine").DEFAULT_CONFIG.seniority;
+    if (!c.seniority) c.seniority = {};
+    if (Number(c.seniority.perYearRate) !== 0.02) c.seniority.perYearRate = dflt.perYearRate; // 0.02
+    if (Number(c.seniority.startRate) !== 0.04) c.seniority.startRate = dflt.startRate;        // 0.04
+    if (Number(c.seniority.startYears) !== 2) c.seniority.startYears = dflt.startYears;        // 2
+    if (Number(c.seniority.maxRate) <= 0.30) c.seniority.maxRate = dflt.maxRate;               // déplafonné
+    c._seniorityLegalMigrated = true; save();
   }
   return c;
 }
