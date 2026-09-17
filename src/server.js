@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-17 · UI-10 (bulletin: N° cotisations élargi, clé CNPS, convention complète; portefeuilles édit/suppr/anti-doublon; modes VIREMENT/ESPECES)";
+const BUILD_VERSION = "2026-09-17 · FACT-11 (factures: modèles dupliquer, dupliquer/supprimer facture avec garde compta, jours d échéance 30/45/60/100/120+perso, échéance depuis réception)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

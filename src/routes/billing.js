@@ -829,6 +829,13 @@ router.delete("/invoice-models/:id", allow("ADM"), (req, res) => {
   const m = imOf(req, req.params.id); if (!m) return res.status(404).json({ error: "Modèle introuvable" });
   db.billingInvoiceModels.splice(db.billingInvoiceModels.indexOf(m), 1); save(); res.json({ ok: true });
 });
+router.post("/invoice-models/:id/duplicate", allow("ADM"), (req, res) => {
+  const m = imOf(req, req.params.id); if (!m) return res.status(404).json({ error: "Modèle introuvable" });
+  const copy = stamp({ id: id("bimod"), name: `${m.name} (copie)`, contractId: m.contractId || null,
+    lines: (m.lines || []).map(l => Object.assign({}, l, { id: id("iln") })), createdAt: new Date().toISOString() }, req);
+  db.billingInvoiceModels.push(copy); save(); audit(req.user, "CREATED", "BillingInvoiceModel", copy.id, { duplicatedFrom: m.id, name: copy.name });
+  res.status(201).json(copy);
+});
 
 /* ---- Factures ---- */
 const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid);
@@ -888,7 +895,9 @@ router.post("/invoices", allow("ADM","CD","RJ","GPF"), (req, res) => {
   const period = b.period || new Date().toISOString().slice(0, 7); const [yy, mm] = period.split("-");
   const seq = mine(db.billingInvoices, req).filter(x => (x.period || "").slice(0, 4) === yy).length + 1;
   const number = `${contract.invoiceSeqPrefix || "029"}/${yy}/${mm}/${String(seq).padStart(5, "0")}`;
-  const inv = stamp({ id: id("binv"), contractId: contract.id, client: contract.clientName, number, period,
+  const _td = (b.termDays != null && b.termDays !== "") ? Number(b.termDays)
+            : (contract.paymentTermDays != null && contract.paymentTermDays !== "") ? Number(contract.paymentTermDays) : "";
+  const inv = stamp({ id: id("binv"), contractId: contract.id, client: contract.clientName, number, period, termDays: _td,
     date: b.date || new Date().toISOString().slice(0, 10), dueDate: b.dueDate || "", objet: b.objet || "", bonCommande: b.bonCommande || "",
     journalId: b.journalId || contract.journalId || "", account: b.account || contract.defaultAccount || "701100",
     tvaRate: contract.tvaExonere ? 0 : 0.1925, tvaExonere: !!contract.tvaExonere, isRate: contract.isEnabled ? Number(contract.isRate || 0) : 0,
@@ -899,21 +908,28 @@ router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   if (inv.status === "validated") return res.status(409).json({ error: "Facture validée — lecture seule" });
   for (const k of ["objet", "bonCommande", "date", "dueDate", "journalId", "account", "annexeSheetId"]) if (req.body[k] !== undefined) inv[k] = req.body[k];
+  if (req.body.termDays !== undefined) inv.termDays = (req.body.termDays === "" || req.body.termDays == null) ? "" : Number(req.body.termDays);
+  // Échéance provisoire recalculée tant que le client n'a pas confirmé réception (sinon elle court depuis la réception).
+  if (!inv.receiptConfirmed && req.body.dueDate === undefined) inv.dueDate = _computeDueDate(inv, contractOf(req, inv.contractId) || {});
   if (req.body.isRate !== undefined) inv.isRate = Number(req.body.isRate) || 0;
   if (req.body.tvaExonere !== undefined) inv.tvaExonere = !!req.body.tvaExonere;
   if (Array.isArray(req.body.lines)) inv.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
   save(); audit(req.user, "UPDATED", "BillingInvoice", inv.id, {}); res.json(withInvTotals(inv));
 });
-// Échéance : nombre de jours du contrat (ou parsé depuis conditionsPaiement), ajouté à la date de facture.
-function _termDays(contract) {
+// Jours d'échéance : priorité à la facture (jours choisis), sinon le contrat (ou parsé depuis conditionsPaiement).
+function _termDays(inv, contract) {
+  if (inv && inv.termDays != null && inv.termDays !== "") return Number(inv.termDays) || 0;
   if (contract && contract.paymentTermDays != null && contract.paymentTermDays !== "") return Number(contract.paymentTermDays) || 0;
   const m = String((contract && contract.conditionsPaiement) || "").match(/(\d{1,3})/);
   return m ? Number(m[1]) : 0;
 }
+// L'échéance court à partir de la RÉCEPTION/COMPTABILISATION par le client (accusé), sinon la date de facture.
+function _dueBase(inv) {
+  const r = inv && inv.receiptConfirmedAt ? String(inv.receiptConfirmedAt).slice(0, 10) : "";
+  return r || (inv && inv.date) || new Date().toISOString().slice(0, 10);
+}
 function _computeDueDate(inv, contract) {
-  if (inv.dueDate) return inv.dueDate;
-  const base = inv.date || new Date().toISOString().slice(0, 10);
-  const d = new Date(base); const days = _termDays(contract); d.setDate(d.getDate() + days);
+  const d = new Date(_dueBase(inv)); d.setDate(d.getDate() + _termDays(inv, contract));
   return d.toISOString().slice(0, 10);
 }
 const invSnap = (inv) => { const t = invTotals(inv); return { number: inv.number, HT: t.HT, TVA: t.TVA, TTC: t.TTC, totalDu: t.totalDu }; };
@@ -958,6 +974,7 @@ router.post("/invoices/:id/confirm-receipt", allow("ADM", "CD", "RJ"), (req, res
   inv.receiptMode = b.mode || "physique"; // physique | numerique
   inv.receiptConfirmedAt = new Date().toISOString();
   inv.receiptConfirmedBy = req.user.fullName || req.user.email || "";
+  inv.dueDate = _computeDueDate(inv, contractOf(req, inv.contractId) || {}); // échéance = date de réception + jours
   inv.receiptRef = b.ref || "";
   let posted = false;
   try { const e = require("./accounting").generateInvoiceEntry(req, inv.id); posted = !!e; } catch (e) {}
@@ -968,7 +985,27 @@ router.post("/invoices/:id/confirm-receipt", allow("ADM", "CD", "RJ"), (req, res
 });
 router.delete("/invoices/:id", allow("ADM","CD","RJ"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
-  db.billingInvoices.splice(db.billingInvoices.indexOf(inv), 1); save(); res.json({ ok: true });
+  // Une facture déjà COMPTABILISÉE ne peut être supprimée (elle a une écriture comptable) — sauf forçage explicite (ADM).
+  if (inv.accounting === "posted" && !(req.query.force === "1" && req.user.role === "ADM"))
+    return res.status(409).json({ error: `Facture « ${inv.number} » déjà comptabilisée — suppression interdite. Contre-passez l'écriture en comptabilité, ou forcez (ADM).`, requiresConfirmation: true, posted: true });
+  db.billingInvoices.splice(db.billingInvoices.indexOf(inv), 1); save();
+  audit(req.user, "DELETED", "BillingInvoice", inv.id, { number: inv.number, wasPosted: inv.accounting === "posted" });
+  res.json({ ok: true });
+});
+// Dupliquer une facture existante -> nouveau brouillon (nouveau numéro, validation/compta/réception réinitialisées).
+router.post("/invoices/:id/duplicate", allow("ADM","CD","RJ","GPF"), (req, res) => {
+  const src = invOf(req, req.params.id); if (!src) return res.status(404).json({ error: "Facture introuvable" });
+  const contract = contractOf(req, src.contractId) || {};
+  const period = new Date().toISOString().slice(0, 7); const [yy, mm] = period.split("-");
+  const seq = mine(db.billingInvoices, req).filter(x => (x.period || "").slice(0, 4) === yy).length + 1;
+  const number = `${contract.invoiceSeqPrefix || "029"}/${yy}/${mm}/${String(seq).padStart(5, "0")}`;
+  const copy = stamp({ id: id("binv"), contractId: src.contractId, client: src.client, number, period, termDays: src.termDays,
+    date: new Date().toISOString().slice(0, 10), dueDate: "", objet: src.objet || "", bonCommande: src.bonCommande || "",
+    journalId: src.journalId || "", account: src.account || "701100", tvaRate: src.tvaRate, tvaExonere: !!src.tvaExonere, isRate: src.isRate || 0,
+    annexeSheetId: null, stage: "devis", status: "draft", accounting: undefined, receiptConfirmed: false,
+    lines: (src.lines || []).map(l => Object.assign({}, l, { id: id("iln") })), createdAt: new Date().toISOString() }, req);
+  db.billingInvoices.push(copy); save(); audit(req.user, "CREATED", "BillingInvoice", copy.id, { duplicatedFrom: src.id, number });
+  res.status(201).json(withInvTotals(copy));
 });
 
 /* ---- Comparer facture ↔ annexe ---- */
