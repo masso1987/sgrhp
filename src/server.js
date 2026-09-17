@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-6 (paie alignée Sage; diagnostic retiré)";
+const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-7 (bulletin: taux part patronale + affichage des taux à 0)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

@@ -1005,12 +1005,14 @@ function drawPayslipModern(doc, s, emp, tenant) {
     gains.map(l => [l.code||"", (l.label||""), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", F(l.gain), ""]),
     ["","TOTAL BRUT","","",F(t.brutTotal),""]);
 
-  /* Cotisations : N° | Cotisation | Base | Taux | Part salariale | Part patronale */
-  const ccols = [{x:L,w:26,a:"left"},{x:L+26,w:150,a:"left"},{x:L+176,w:80,a:"right"},{x:L+256,w:54,a:"right"},{x:L+310,w:120,a:"right"},{x:L+430,w:W-430,a:"right"}];
+  /* Cotisations : N° | Cotisation | Base | [Part salariale: Taux | Montant] | [Part patronale: Taux | Montant] (comme Sage) */
+  const ccols = [{x:L,w:24,a:"left"},{x:L+24,w:132,a:"left"},{x:L+156,w:72,a:"right"},{x:L+228,w:40,a:"right"},{x:L+268,w:88,a:"right"},{x:L+356,w:40,a:"right"},{x:L+396,w:W-396,a:"right"}];
   const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
-  drawTable("Cotisations & retenues", ccols, ["N°","Cotisation","Base","Taux","Part salariale","Part patronale"],
-    cot.map(l => [l.code||"", (l.label||""), l.base?F2(l.base):"", l.rate?(l.rate*100).toFixed(2):"", l.retenue?F(l.retenue):"", l.employer?F(l.employer):""]),
-    ["","TOTAL COTISATIONS","","",F((t.cnpsSalarie||0)+(t.totalImpots||0)),F((t.cnpsPatronal||0)+(t.cfcPatronal||0))]);
+  const rate = (v) => ((Number(v)||0)*100).toFixed(2);   // taux : 0 -> "0.00"
+  const amt = (v) => (Number(v)||0) ? F(v) : "0";        // montant : 0 -> "0"
+  drawTable("Cotisations & retenues", ccols, ["N°","Cotisation","Base","Taux","Part salariale","Taux","Part patronale"],
+    cot.map(l => [l.code||"", (l.label||""), l.base?F2(l.base):"0", rate(l.rate), amt(l.retenue), rate(l.employerRate), amt(l.employer)]),
+    ["","TOTAL COTISATIONS","","",F((t.cnpsSalarie||0)+(t.totalImpots||0)),"",F((t.cnpsPatronal||0)+(t.cfcPatronal||0))]);
 
   if (y > 648) { doc.addPage(); y = 28; }
 
