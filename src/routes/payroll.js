@@ -91,6 +91,19 @@ function configOf(req) {
     if (Number(c.seniority.maxRate) <= 0.30) c.seniority.maxRate = dflt.maxRate;               // déplafonné
     c._seniorityLegalMigrated = true; save();
   }
+  // Migration : réaligne les paramètres FISCAUX/SOCIAUX légaux (IRPP, CFC, FNE, RAV, TDL, taux CNPS)
+  // sur les valeurs en vigueur, en conservant la classe accident du travail (spécifique au tenant).
+  if (!c._statutoryV1Migrated) {
+    const D = require("../payroll/engine").DEFAULT_CONFIG;
+    const keepAccident = (c.cnps && c.cnps.workAccidentEmployer != null) ? c.cnps.workAccidentEmployer : D.cnps.workAccidentEmployer;
+    c.irpp = JSON.parse(JSON.stringify(D.irpp));
+    c.cfc = JSON.parse(JSON.stringify(D.cfc));
+    c.fne = JSON.parse(JSON.stringify(D.fne));
+    c.rav = JSON.parse(JSON.stringify(D.rav));
+    c.tdl = JSON.parse(JSON.stringify(D.tdl));
+    c.cnps = Object.assign({}, JSON.parse(JSON.stringify(D.cnps)), { workAccidentEmployer: keepAccident });
+    c._statutoryV1Migrated = true; save();
+  }
   return c;
 }
 function baseSalaryOf(emp, req) {
@@ -1776,7 +1789,7 @@ function payDiag(matricule, period) {
     employee: { matricule: emp.matricule, name: (emp.firstName||"")+" "+(emp.lastName||""), category: emp.contract && emp.contract.category, conventionName: emp.contract && emp.contract.conventionName, conventionId: emp.contract && emp.contract.conventionId, hireDate: emp.hireDate, startDate: emp.contract && emp.contract.startDate, storedSalary: emp.salary || {} },
     salaryElements: els,
     resolved: { baseSalary: baseSalaryOf(emp, reqLike), ancienneteBaseEchelonA: categorielBaseA(emp, reqLike), seniorityYears: seniorityYears(emp, period) },
-    config: { seniority: cfg.seniority, transportExemptionCap: cfg.transportExemptionCap, accident: cfg.cnps && cfg.cnps.workAccidentEmployer },
+    config: { seniority: cfg.seniority, transportExemptionCap: cfg.transportExemptionCap, irpp: cfg.irpp, cfc: cfg.cfc, fne: cfg.fne, cnps: cfg.cnps },
     input: input ? { baseSalary: input.baseSalary, ancienneteBase: input.ancienneteBase, seniorityYears: input.seniorityYears, gains: input.gains, transport: input.transport } : null,
     primeDanciennete: primeLine ? { base: primeLine.base, rate: primeLine.rate, gain: primeLine.gain } : null,
     totals: result ? { brut: result.totals.brutTotal, cnpsBase: result.meta.cnpsBase, netImposable: result.totals.netImposable, irpp: result.totals.irpp, net: result.totals.netAPayer } : null,

@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-4 (taux ancienneté 2%/an corrigé + échelon auto désactivé)";
+const BUILD_VERSION = "2026-09-17 · PAIE-SAGE-5 (paramètres fiscaux légaux réalignés: IRPP/CFC/FNE/RAV/TDL)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
