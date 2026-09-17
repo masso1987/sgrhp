@@ -1773,31 +1773,6 @@ router.get("/reports/fiche", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   _sendReport(req, res, { format: req.query.format, name: `Fiche_${(e.matricule||nm||eid)}_${lo}_${hi}`, title: `Fiche individuelle — ${nm} (${e.matricule||""})`, meta: `${pfn[e.portfolioId]||""} · ${lo} à ${hi}`, columns, rows });
 });
 
-/* Diagnostic temporaire (exposé en public via server.js /api/pdiag) — à retirer. */
-function payDiag(matricule, period) {
-  period = period || "2026-07";
-  const mat = String(matricule || "").trim();
-  const emp = (db.employees || []).find(e => String(e.matricule || "").trim() === mat) || (db.employees || [])[0];
-  if (!emp) return { error: "salarié introuvable" };
-  const reqLike = { user: { tenantId: emp.tenantId || "t1", role: "ADM" }, query: {} };
-  const cfg = configOf(reqLike);
-  let input, result, err = null;
-  try { const cf = computeFor(emp, period, reqLike); input = cf.input; result = cf.result; } catch (e) { err = String(e && e.message || e); }
-  const els = (mine(db.salaryElements, reqLike) || []).map(el => ({ name: el.name, code: el.rubriqueCode || null, tag: el.tag || null, amount: (emp.salary || {})[el.name] || 0 }));
-  const primeLine = result ? (result.lines || []).find(l => l.code === "1040") : null;
-  return {
-    employee: { matricule: emp.matricule, name: (emp.firstName||"")+" "+(emp.lastName||""), category: emp.contract && emp.contract.category, conventionName: emp.contract && emp.contract.conventionName, conventionId: emp.contract && emp.contract.conventionId, hireDate: emp.hireDate, startDate: emp.contract && emp.contract.startDate, storedSalary: emp.salary || {} },
-    salaryElements: els,
-    resolved: { baseSalary: baseSalaryOf(emp, reqLike), ancienneteBaseEchelonA: categorielBaseA(emp, reqLike), seniorityYears: seniorityYears(emp, period) },
-    config: { seniority: cfg.seniority, transportExemptionCap: cfg.transportExemptionCap, irpp: cfg.irpp, cfc: cfg.cfc, fne: cfg.fne, cnps: cfg.cnps },
-    input: input ? { baseSalary: input.baseSalary, ancienneteBase: input.ancienneteBase, seniorityYears: input.seniorityYears, gains: input.gains, transport: input.transport } : null,
-    primeDanciennete: primeLine ? { base: primeLine.base, rate: primeLine.rate, gain: primeLine.gain } : null,
-    totals: result ? { brut: result.totals.brutTotal, cnpsBase: result.meta.cnpsBase, netImposable: result.totals.netImposable, irpp: result.totals.irpp, net: result.totals.netAPayer } : null,
-    error: err,
-  };
-}
-
 module.exports = router;
-module.exports.payDiag = payDiag;
 
 module.exports.payslipSig = payslipSig;
