@@ -718,6 +718,19 @@ router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res)
   try { require("./accounting").generatePayrollEntry(req, run.id); } catch (e) {}
   res.json({ run });
 });
+// Transfert manuel paie -> comptabilité (ADM/CD/GPF), seulement après clôture. Idempotent (renvoie l'écriture existante).
+router.post("/runs/:id/transfer-accounting", allow("ADM", "CD", "GPF"), (req, res) => {
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  if (run.status !== "CLOSED") return res.status(409).json({ error: "Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE." });
+  try {
+    const e = require("./accounting").generatePayrollEntry(req, run.id);
+    if (!e) return res.status(400).json({ error: "Paie vide — aucune écriture à générer." });
+    const debit = (e.lines || []).reduce((a, l) => a + (l.debit || 0), 0);
+    const credit = (e.lines || []).reduce((a, l) => a + (l.credit || 0), 0);
+    res.json({ ok: true, entryId: e.id, pieceNo: e.pieceNo || "", lines: (e.lines || []).length, debit, credit, balanced: debit === credit });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
 
 /* Rouvrir une période clôturée (ADM) : annule les cumuls de la période, déverrouille les
  * bulletins pour permettre un recalcul (ex. correction de barème), puis re-clôture ensuite. */

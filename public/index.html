@@ -977,6 +977,7 @@ const NAV = [
   { k: "acctcloture", label: "Clôture & fiscal", sec: "Clôture", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctplan", label: "Plan comptable", sec: "Structure", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctjournals", label: "Codes journaux", sec: "Structure", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
+  { k: "acctrubmap", label: "Rubriques → Comptes (paie)", sec: "Structure", roles: ["ADM"], module: "accounting", grp: "comptabilite" },
   { k: "accttiers", label: "Comptes tiers", sec: "Structure", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctimport", label: "Import Sage / FEC", sec: "Données", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "stockhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
@@ -1218,7 +1219,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4387,6 +4388,7 @@ async function payRunView(id) {
     ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">Clôturer la période</button>` : ""}
     ${run.status === "CLOSED" && ME.role === "ADM" ? `<button class="btn" style="background:var(--amber,#f59e0b);color:#fff" onclick="payReopen('${run.id}')">Rouvrir la période</button>` : ""}
+    ${run.status === "CLOSED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#1b2a4a;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.acctEntryId ? "Écriture comptable générée ✓" : "Transférer en comptabilité"}</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">Ordre de virement</button>` : ""}
     ${open && canRunPay() ? `<button class="btn ghost" onclick="tsImportOpen('${run.id}','${run.period}')">Importer pointage</button>` : ""}
     ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
@@ -4406,6 +4408,54 @@ async function payRunView(id) {
     <div id="rosterList"></div></div>`;
   payRenderRoster();
 }
+async function payTransferAccounting(runId){
+  if(!confirm("Transférer la paie CLÔTURÉE en comptabilité ?\nUne écriture équilibrée (débit/crédit) sera générée d'après la table Rubriques → Comptes.")) return;
+  try{ const e = await api("/payroll/runs/"+runId+"/transfer-accounting",{method:"POST"});
+    alert("Transfert effectué.\nÉcriture "+(e.pieceNo||e.entryId)+" — "+(e.lines||0)+" lignes.\nDébit "+fCFA(e.debit)+" = Crédit "+fCFA(e.credit)+(e.balanced?" (équilibrée)":" (⚠ déséquilibrée)"));
+    payRunView(runId);
+  }catch(err){ alert(err.message); }
+}
+async function acctRubMapView(){
+  const rows = await api("/accounting/rubrique-map");
+  window._ARM = rows;
+  view.innerHTML = `<h1>Rubriques de paie → Comptes comptables <button class="btn p sm" style="float:right" onclick="armOpen()">+ Ajouter</button></h1>
+  <div class="note">Table de passation paie → comptabilité (cahier de charge). Configurable par l'<b>administrateur</b> uniquement. Après clôture de la paie du mois, le transfert affecte chaque montant au compte indiqué ici (charges au débit, retenues/dettes et rémunération due au crédit). Les lignes <b>_REM_DUE</b>, <b>_CNPS_PAT</b>, <b>_ETAT_PAT</b> sont les comptes de contrepartie (rémunération due nette, dettes patronales CNPS et État).</div>
+  <div class="panel"><input id="armFilter" placeholder="Filtrer par code, compte ou intitulé…" style="max-width:320px" oninput="armRender()">
+    <span class="note" style="margin-left:8px">${rows.length} correspondances</span>
+    <div id="armList" style="margin-top:8px;max-height:64vh;overflow:auto"></div></div>`;
+  armRender();
+}
+function armRender(){
+  const fi=document.getElementById("armFilter"); const q=(fi&&fi.value?fi.value:"").toLowerCase();
+  const rows=(window._ARM||[]).filter(r=>!q||((r.code+" "+(r.account||"")+" "+(r.label||"")).toLowerCase().indexOf(q)>=0));
+  document.getElementById("armList").innerHTML=`<table><tr><th>Code</th><th>Compte</th><th>Intitulé</th><th></th></tr>
+    ${rows.map(r=>`<tr><td><b>${esc(r.code)}</b></td><td>${esc(r.account||"")}</td><td>${esc(r.label||"")}</td>
+      <td><button class="btn ghost sm" onclick="armOpen('${r.id}')">Modifier</button>
+        <button class="btn ghost sm" onclick="armDup('${r.id}')">Dupliquer</button>
+        <button class="btn ghost sm" style="color:var(--red)" onclick="armDel('${r.id}')">Suppr.</button></td></tr>`).join("")||'<tr><td colspan="4" style="color:var(--muted)">Aucune ligne.</td></tr>'}</table>`;
+}
+function armOpen(id){
+  const r=id?((window._ARM||[]).find(x=>x.id===id)||{}):{code:"",account:"",label:""};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:460px"><h3 style="margin:0 0 8px">${id?"Modifier":"Ajouter"} une correspondance</h3>
+    <div><label>Code rubrique</label><input id="armCode" value="${esc(r.code||"")}"></div>
+    <div><label>Compte comptable</label><input id="armAcc" value="${esc(r.account||"")}"></div>
+    <div><label>Intitulé</label><input id="armLbl" value="${esc(r.label||"")}"></div>
+    <div class="err hidden" id="armErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="armSave('${id||""}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function armSave(id){
+  const g=x=>(document.getElementById(x)||{}).value;
+  const body={code:g("armCode"),account:g("armAcc"),label:g("armLbl")};
+  try{ if(id) await api("/accounting/rubrique-map/"+id,{method:"PUT",body:JSON.stringify(body)});
+    else await api("/accounting/rubrique-map",{method:"POST",body:JSON.stringify(body)});
+    const bgm=document.querySelector(".modal-bg"); if(bgm) bgm.remove(); acctRubMapView(); }
+  catch(e){ const el=document.getElementById("armErr"); if(el){el.textContent=e.message; el.classList.remove("hidden");} else alert(e.message); }
+}
+async function armDup(id){ try{ await api("/accounting/rubrique-map/"+id+"/duplicate",{method:"POST"}); acctRubMapView(); }catch(e){ alert(e.message);} }
+async function armDel(id){ if(!confirm("Supprimer cette correspondance ?")) return; try{ await api("/accounting/rubrique-map/"+id,{method:"DELETE"}); acctRubMapView(); }catch(e){ alert(e.message);} }
 async function payEmailPortfolio(runId) {
   const pf = (document.getElementById("emailPf") || {}).value || "";
   const label = pf ? pfName(pf) : "tous les portefeuilles";

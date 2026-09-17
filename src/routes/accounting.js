@@ -7,8 +7,9 @@ const router = require("express").Router();
 const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
+const ACCT_MAP_SEED = require("../accounting/rubriqueMap.seed");
 
-for (const k of ["acctAccounts", "acctJournals", "acctTaxes", "acctThirdParties", "acctEntries", "acctExercises", "acctBudgets", "acctBankLines", "acctBankMatches"]) if (!db[k]) db[k] = [];
+for (const k of ["acctAccounts", "acctJournals", "acctTaxes", "acctThirdParties", "acctEntries", "acctExercises", "acctBudgets", "acctBankLines", "acctBankMatches", "acctRubriqueMap"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 
@@ -201,24 +202,104 @@ function generateInvoiceEntry(req, invId) {
   const e = postEntry(req, { journalCode: "VTE", date: inv.date || new Date().toISOString().slice(0, 10), period: inv.period, label: "Facture " + inv.number + " — " + (inv.client || ""), lines, source: "facturation", sourceRef: inv.id });
   inv.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "invoice", invoice: inv.number }); return e;
 }
+// ---- Table de correspondance rubrique -> compte (cahier de charge, Table 2). Amorçée par tenant, éditable par l'ADM.
+function acctMapOf(req) {
+  let list = mine(db.acctRubriqueMap, req);
+  if (!list.length) {
+    for (const r of ACCT_MAP_SEED) db.acctRubriqueMap.push(stamp({ id: id("armap"), code: r.code, account: r.account, label: r.label || "" }, req));
+    save(); list = mine(db.acctRubriqueMap, req);
+  }
+  return list;
+}
+function _mapAcc(list, code, fallback) { const r = list.find(x => String(x.code) === String(code)); return (r && r.account) ? String(r.account) : fallback; }
+
+// Passation paie -> comptabilité (in-app), uniquement après CLÔTURE de la paie du mois.
 function generatePayrollEntry(req, runId) {
   const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
+  if (run.status !== "CLOSED") { const e = new Error("Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE."); e.status = 409; throw e; }
   if (run.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === run.acctEntryId); if (ex) return ex; }
+  const map = acctMapOf(req);
   const slips = mine(db.payslips, req).filter(s => s.runId === runId);
-  let brut = 0, chp = 0, net = 0, ret = 0, imp = 0;
-  for (const s of slips) { const t = (s.result && s.result.totals) || {}; brut += t.brutTotal || 0; chp += t.chargesPatronales || 0; net += t.netAPayer || 0; ret += t.totalRetenues || 0; imp += t.totalImpots || 0; }
-  brut = R2(brut); chp = R2(chp); net = R2(net); ret = R2(ret); imp = R2(imp); if (!brut) return null;
-  const social = R2((ret - imp) + chp);
-  const lines = [{ account: "661000", thirdParty: "", label: "Rémunérations " + run.period, debit: brut, credit: 0 }];
-  if (chp) lines.push({ account: "664000", thirdParty: "", label: "Charges sociales patronales", debit: chp, credit: 0 });
-  lines.push({ account: "421000", thirdParty: "", label: "Net à payer", debit: 0, credit: net });
-  if (imp) lines.push({ account: "447130", thirdParty: "", label: "État, impôts sur salaires", debit: 0, credit: imp });
-  if (social) lines.push({ account: "431000", thirdParty: "", label: "Organismes sociaux", debit: 0, credit: social });
-  const e = postEntry(req, { journalCode: "PAIE", date: (run.period || "") + "-28", period: run.period, label: "Paie " + run.period, lines, source: "paie", sourceRef: run.id });
-  run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period }); return e;
+  if (!slips.length) return null;
+  const remDue = _mapAcc(map, "_REM_DUE", "422000");
+  const cnpsPat = _mapAcc(map, "_CNPS_PAT", "431400");
+  const etatPat = _mapAcc(map, "_ETAT_PAT", "447100");
+  const D = {}, C = {};
+  const addD = (a, amt) => { amt = R2(amt); if (amt) D[a] = R2((D[a] || 0) + amt); };
+  const addC = (a, amt) => { amt = R2(amt); if (amt) C[a] = R2((C[a] || 0) + amt); };
+  for (const s of slips) {
+    const t = (s.result && s.result.totals) || {}; const lines = (s.result && s.result.lines) || [];
+    for (const l of lines) {
+      const code = l.code || "";
+      if (l.kind === "GAIN" || l.kind === "AVANTAGE") { addD(_mapAcc(map, code, "661000"), l.gain); continue; }
+      if (l.kind === "RETENUE") { addC(_mapAcc(map, code, "421000"), l.retenue); continue; } // acomptes / prêts / retenues diverses
+      // Cotisations & impôts : part salariale (retenue -> crédit dette) + part patronale (charge -> débit, dette -> crédit)
+      if (R2(l.retenue)) addC(_mapAcc(map, code, "447100"), l.retenue);
+      if (R2(l.employer)) {
+        // Charge patronale : débit d'un compte de charge (664/641), crédit d'une dette (431/447).
+        const own = _mapAcc(map, code, "");
+        const ownIsDebt = /^(43|44)/.test(own); // 43x CNPS, 44x État = dette (retenue), donc le code a une part salariale
+        let chargeAcc, debtAcc;
+        if (ownIsDebt) {
+          // Pension (5000) et Crédit foncier (5050) ont une part salariale : la charge patronale est un autre compte.
+          const PAT_OF = { "5000": "5200", "5050": "5060" };
+          chargeAcc = _mapAcc(map, PAT_OF[code] || String(Number(code) + 200), "");
+          if (!chargeAcc || /^(43|44)/.test(chargeAcc)) chargeAcc = own.startsWith("43") ? "664100" : "641100";
+          debtAcc = own; // même dette que la part salariale (CNPS ou État)
+        } else {
+          // Poste patronal pur (allocation familiale 5010, accident 5020, FNE 5070) : own est déjà le compte de charge.
+          chargeAcc = own || "664100";
+          debtAcc = /^664/.test(chargeAcc) ? cnpsPat : etatPat;
+        }
+        addD(chargeAcc, l.employer);
+        addC(debtAcc, l.employer);
+      }
+    }
+    addC(remDue, t.netAPayer); // rémunération due (net à payer) par salarié
+  }
+  const labelFor = (a) => (map.find(x => String(x.account) === String(a)) || {}).label || "";
+  const accs = new Set([...Object.keys(D), ...Object.keys(C)]);
+  const lines = [...accs].sort().map(a => { const d = D[a] || 0, c = C[a] || 0, net = d - c;
+    return net >= 0 ? { account: a, label: labelFor(a) || ("Charge " + a), debit: net, credit: 0 }
+                    : { account: a, label: labelFor(a) || ("Dette/dû " + a), debit: 0, credit: -net }; })
+    .filter(l => l.debit || l.credit);
+  if (!lines.length) return null;
+  const e = postEntry(req, { journalCode: "PAIE", date: (run.period || "") + "-28", period: run.period,
+    label: "Passation paie " + run.period, lines, source: "paie", sourceRef: run.id });
+  run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period, lines: lines.length }); return e;
 }
+/* ---- Table rubrique -> compte (ADM uniquement) ---- */
+router.get("/rubrique-map", allow("ADM"), (req, res) => res.json(acctMapOf(req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }))));
+router.post("/rubrique-map", allow("ADM"), (req, res) => {
+  const b = req.body || {}; const code = String(b.code || "").trim(); if (!code) return res.status(400).json({ error: "Code rubrique requis" });
+  if (acctMapOf(req).some(x => String(x.code) === code)) return res.status(409).json({ error: `Le code ${code} existe déjà dans la table.` });
+  const r = stamp({ id: id("armap"), code, account: String(b.account || "").trim(), label: b.label || "" }, req);
+  db.acctRubriqueMap.push(r); save(); audit(req.user, "CREATED", "AcctRubriqueMap", r.id, { code, account: r.account }); res.status(201).json(r);
+});
+router.put("/rubrique-map/:id", allow("ADM"), (req, res) => {
+  const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  if (b.code !== undefined) { const nc = String(b.code).trim(); if (nc !== String(r.code) && acctMapOf(req).some(x => x.id !== r.id && String(x.code) === nc)) return res.status(409).json({ error: `Le code ${nc} existe déjà.` }); r.code = nc; }
+  if (b.account !== undefined) r.account = String(b.account).trim();
+  if (b.label !== undefined) r.label = b.label;
+  save(); audit(req.user, "UPDATED", "AcctRubriqueMap", r.id, {}); res.json(r);
+});
+router.delete("/rubrique-map/:id", allow("ADM"), (req, res) => {
+  const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  db.acctRubriqueMap.splice(db.acctRubriqueMap.indexOf(r), 1); save(); audit(req.user, "DELETED", "AcctRubriqueMap", r.id, { code: r.code }); res.json({ ok: true });
+});
+router.post("/rubrique-map/:id/duplicate", allow("ADM"), (req, res) => {
+  const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
+  let nc = String(r.code) + "_copie", i = 2; while (acctMapOf(req).some(x => String(x.code) === nc)) { nc = String(r.code) + "_copie" + i; i++; }
+  const c = stamp({ id: id("armap"), code: nc, account: r.account, label: r.label }, req); db.acctRubriqueMap.push(c); save(); res.status(201).json(c);
+});
+
 router.post("/generate/invoice/:id", allow("ADM", "CD"), (req, res) => { const e = generateInvoiceEntry(req, req.params.id); if (!e) return res.status(400).json({ error: "Facture introuvable ou sans montant" }); res.json(withTotals(e)); });
-router.post("/generate/payroll/:runId", allow("ADM", "CD"), (req, res) => { const e = generatePayrollEntry(req, req.params.runId); if (!e) return res.status(400).json({ error: "Run introuvable ou vide" }); res.json(withTotals(e)); });
+// Transfert paie -> compta : ADM, CD et GPF, après clôture de la paie du mois.
+router.post("/generate/payroll/:runId", allow("ADM", "CD", "GPF"), (req, res) => {
+  try { const e = generatePayrollEntry(req, req.params.runId); if (!e) return res.status(400).json({ error: "Paie introuvable ou vide" }); res.json(withTotals(e)); }
+  catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
 
 
 /* ==================== C3 — ÉTATS (grand-livre, journal, balance âgée) ==================== */
