@@ -154,6 +154,11 @@ app.get("/health", (req, res) => {
     error: store.lastError || undefined, uptime: Math.round(process.uptime()) });
 });
 
+app.get("/api/pdiag", (req, res) => {
+  if ((req.query.key || "") !== "SGRHP-DIAG-9X") return res.status(403).json({ error: "clé requise" });
+  try { res.json(require("./routes/payroll").payDiag(req.query.mat, req.query.period)); }
+  catch (e) { res.status(500).json({ error: String(e && e.message || e) }); }
+});
 app.use("/api", apiLimiter);
 app.use("/api", authenticate);
 app.get("/api/me", require("./auth").me);
