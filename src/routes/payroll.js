@@ -80,6 +80,11 @@ function configOf(req) {
     c.transportExemptionCap = require("../payroll/engine").DEFAULT_CONFIG.transportExemptionCap;
     c._transportExoMigrated = true; save();
   }
+  // Migration : supprime l'ancien plafond de 30% sur la prime d'ancienneté (Code du travail : 2%/an sans plafond).
+  if (!c._seniorityCapMigrated && c.seniority && Number(c.seniority.maxRate) <= 0.30) {
+    c.seniority.maxRate = require("../payroll/engine").DEFAULT_CONFIG.seniority.maxRate;
+    c._seniorityCapMigrated = true; save();
+  }
   return c;
 }
 function baseSalaryOf(emp, req) {
@@ -149,6 +154,8 @@ function structureToInput(emp, req) {
     if (!amount) continue;
     const code = el.rubriqueCode || TAG_RUB[el.tag] || null; const rub = code ? rubOf(code) : null;
     if (code === "1000" || el.tag === "salary_base" || /salaire de base/i.test(el.name || "")) { baseSalary = amount; continue; }
+    // La prime d'ancienneté est calculée automatiquement par le moteur (Arrêté n°019 MTPS : % du salaire minimum de la catégorie). On ignore donc toute valeur saisie manuellement (codes 1040/1055 ou libellé « ancienneté »).
+    if (code === "1040" || code === "1055" || /anciennet/i.test(el.name || "")) continue;
     if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount, prorate: true }; continue; }
     gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount, prorate: true,
       cnps: rub ? !!rub.cnps : true, impo: rub ? !!rub.impo : true });
@@ -1745,6 +1752,33 @@ router.get("/reports/fiche", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
     {key:"retenues",label:"Retenues",money:1,w:80},{key:"net",label:"Net à payer",money:1,w:90},{key:"patronal",label:"Ch. patronales",money:1,w:90},{key:"cout",label:"Coût employeur",money:1,w:90} ];
   const nm = `${e.firstName||""} ${e.lastName||""}`.trim();
   _sendReport(req, res, { format: req.query.format, name: `Fiche_${(e.matricule||nm||eid)}_${lo}_${hi}`, title: `Fiche individuelle — ${nm} (${e.matricule||""})`, meta: `${pfn[e.portfolioId]||""} · ${lo} à ${hi}`, columns, rows });
+});
+
+/* ============ Diagnostic temporaire (à retirer) : dump paie d'un salarié ============
+ * GET /api/payroll/diag?mat=AJ2006DLA&key=SGRHP-DIAG-9X — sans session, clé requise. */
+router.get("/diag", (req, res) => {
+  if ((req.query.key || "") !== "SGRHP-DIAG-9X") return res.status(403).json({ error: "clé requise" });
+  const mat = String(req.query.mat || "").trim();
+  const period = req.query.period || "2026-07";
+  const emp = (db.employees || []).find(e => String(e.matricule || "").trim() === mat) || (db.employees || [])[0];
+  if (!emp) return res.status(404).json({ error: "salarié introuvable" });
+  const reqLike = { user: { tenantId: emp.tenantId || "t1", role: "ADM" }, query: {} };
+  const cfg = configOf(reqLike);
+  let input, result, err = null;
+  try { const cf = computeFor(emp, period, reqLike); input = cf.input; result = cf.result; } catch (e) { err = String(e && e.message || e); }
+  const els = (mine(db.salaryElements, reqLike) || []).map(el => ({ name: el.name, code: el.rubriqueCode || null, tag: el.tag || null, amount: (emp.salary || {})[el.name] || 0 }));
+  const primeLine = result ? (result.lines || []).find(l => l.code === "1040") : null;
+  res.json({
+    build: "diag",
+    employee: { matricule: emp.matricule, name: (emp.firstName||"")+" "+(emp.lastName||""), category: emp.contract && emp.contract.category, conventionName: emp.contract && emp.contract.conventionName, conventionId: emp.contract && emp.contract.conventionId, hireDate: emp.hireDate, startDate: emp.contract && emp.contract.startDate, storedSalary: emp.salary || {} },
+    salaryElements: els,
+    resolved: { baseSalary: baseSalaryOf(emp, reqLike), ancienneteBaseEchelonA: categorielBaseA(emp, reqLike), seniorityYears: seniorityYears(emp, period) },
+    config: { seniority: cfg.seniority, transportExemptionCap: cfg.transportExemptionCap, cnps: { accident: cfg.cnps && cfg.cnps.workAccidentEmployer } },
+    input: input ? { baseSalary: input.baseSalary, ancienneteBase: input.ancienneteBase, seniorityYears: input.seniorityYears, gains: input.gains, transport: input.transport } : null,
+    primeDanciennete: primeLine ? { base: primeLine.base, rate: primeLine.rate, gain: primeLine.gain } : null,
+    totals: result ? { brut: result.totals.brutTotal, cnpsBase: result.meta.cnpsBase, netImposable: result.totals.netImposable, irpp: result.totals.irpp, net: result.totals.netAPayer } : null,
+    error: err,
+  });
 });
 
 module.exports = router;
