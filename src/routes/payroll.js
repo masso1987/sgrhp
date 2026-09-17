@@ -104,6 +104,16 @@ function configOf(req) {
     c.cnps = Object.assign({}, JSON.parse(JSON.stringify(D.cnps)), { workAccidentEmployer: keepAccident });
     c._statutoryV1Migrated = true; save();
   }
+  // Migration : la prime de salissure/salubrité est un remboursement de frais professionnel
+  // -> hors assiette CNPS (comme Sage), mais reste imposable à l'IRPP. Corrige le catalogue stocké.
+  if (!c._salissureCnpsMigrated) {
+    let changed = 0;
+    for (const r of mine(db.payRubriques, req)) {
+      const isSal = r.code === "2129" || r.code === "3010" || /saliss|salubrit/i.test(r.label || "");
+      if (isSal && r.cnps !== false) { r.cnps = false; if (r.impo == null) r.impo = true; changed++; }
+    }
+    c._salissureCnpsMigrated = true; if (changed) save(); else save();
+  }
   return c;
 }
 function baseSalaryOf(emp, req) {
