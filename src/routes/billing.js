@@ -840,14 +840,16 @@ router.post("/invoice-models/:id/duplicate", allow("ADM"), (req, res) => {
 const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid);
 // Numéro de facture : séquence MENSUELLE (réinitialisée chaque mois) et robuste aux suppressions (max+1, jamais réutilisé).
 function _nextInvoiceNumber(req, contract, period) {
+  // Format : {séquence}/{n° client}/{mois}/{année}  — ex. 00001/029/09/2026
+  // La séquence s'incrémente PAR CLIENT et PAR MOIS (réinitialisée chaque mois), robuste aux suppressions (max+1).
   const [yy, mm] = String(period || new Date().toISOString().slice(0, 7)).split("-");
-  const prefix = (contract && contract.invoiceSeqPrefix) || "029";
-  const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const rx = new RegExp("^" + esc + "/" + yy + "/" + mm + "/0*(\\d+)$");
+  const cnum = String((contract && contract.invoiceSeqPrefix) || "000");
+  const esc = cnum.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rx = new RegExp("^0*(\\d+)/" + esc + "/" + mm + "/" + yy + "$");
   let max = 0;
   for (const x of mine(db.billingInvoices, req)) { const m = rx.exec(x.number || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
   for (const x of mine(db.billingSheets, req)) { const m = rx.exec(x.invoiceNumber || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
-  return prefix + "/" + yy + "/" + mm + "/" + String(max + 1).padStart(5, "0");
+  return String(max + 1).padStart(5, "0") + "/" + cnum + "/" + mm + "/" + yy;
 }
 router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   const invs = mine(db.billingInvoices, req).map(withInvTotals);

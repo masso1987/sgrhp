@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-18 · COMPTA-18 (facture: retrait de la ligne Date en en-tête, doublon avec Date de facturation)";
+const BUILD_VERSION = "2026-09-18 · FACT-19 (n° facture = séquence/N°client/mois/année, séquence par client et par mois)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
