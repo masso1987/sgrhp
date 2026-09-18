@@ -4421,10 +4421,12 @@ async function payTransferAccounting(runId){
   }catch(err){ alert(err.message); }
 }
 async function acctRubMapView(){
+  await acctLoadRefs();
   const rows = await api("/accounting/rubrique-map");
   window._ARM = rows;
   view.innerHTML = `<h1>Rubriques de paie → Comptes comptables <button class="btn p sm" style="float:right" onclick="armOpen()">+ Ajouter</button></h1>
   <div class="note">Table de passation paie → comptabilité (cahier de charge). Configurable par l'<b>administrateur</b> uniquement. Après clôture de la paie du mois, le transfert affecte chaque montant au compte indiqué ici (charges au débit, retenues/dettes et rémunération due au crédit). Les lignes <b>_REM_DUE</b>, <b>_CNPS_PAT</b>, <b>_ETAT_PAT</b> sont les comptes de contrepartie (rémunération due nette, dettes patronales CNPS et État).</div>
+  ${acctDLHtml()}
   <div class="panel"><input id="armFilter" placeholder="Filtrer par code, compte ou intitulé…" style="max-width:320px" oninput="armRender()">
     <span class="note" style="margin-left:8px">${rows.length} correspondances</span>
     <div id="armList" style="margin-top:8px;max-height:64vh;overflow:auto"></div></div>`;
@@ -4444,7 +4446,7 @@ function armOpen(id){
   const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="width:460px"><h3 style="margin:0 0 8px">${id?"Modifier":"Ajouter"} une correspondance</h3>
     <div><label>Code rubrique</label><input id="armCode" value="${esc(r.code||"")}"></div>
-    <div><label>Compte comptable</label><input id="armAcc" value="${esc(r.account||"")}"></div>
+    <div><label>Compte comptable</label><input id="armAcc" list="acctDL" value="${esc(r.account||"")}" placeholder="N° compte…"></div>
     <div><label>Intitulé</label><input id="armLbl" value="${esc(r.label||"")}"></div>
     <div class="err hidden" id="armErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="armSave('${id||""}')">Enregistrer</button>
@@ -6554,7 +6556,7 @@ function acctRenderLines() {
   const box = document.getElementById("aeLines"); if (!box) return;
   box.innerHTML = `<table><tr><th>Compte</th><th>Tiers</th><th>Analytique</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th></th></tr>
     ${ACCT_ENTRY.lines.map((l, i) => `<tr>
-      <td><select onchange="acctLineSet(${i},'account',this.value)" style="margin:0;min-width:150px">${acctAccOpts(l.account)}</select></td>
+      <td><input list="acctDL" value="${esc(l.account||'')}" onchange="acctLineSet(${i},'account',this.value)" oninput="acctLineSet(${i},'account',this.value)" style="margin:0;min-width:170px" placeholder="N° compte…"></td>
       <td><input value="${esc(l.thirdParty || "")}" oninput="acctLineSet(${i},'thirdParty',this.value)" style="margin:0;max-width:82px" placeholder="401/411"></td>
       <td><input value="${esc(l.analytic || "")}" oninput="acctLineSet(${i},'analytic',this.value)" style="margin:0;max-width:90px" placeholder="section"></td>
       <td><input value="${esc(l.label || "")}" oninput="acctLineSet(${i},'label',this.value)" style="margin:0;min-width:140px"></td>
@@ -6571,6 +6573,7 @@ function acctRenderTotals() {
     <span style="color:var(--muted)">Totaux</span> <b>Débit ${fCFA(t.d)}</b> <b>Crédit ${fCFA(t.c)}</b>
     <span style="color:${ok ? 'var(--nav-active-color)' : 'var(--red)'};font-weight:600">${ok ? 'Équilibrée' : 'Solde à équilibrer : ' + fCFA(Math.abs(t.d - t.c))}</span></div>`;
 }
+function acctDLHtml(){ return `<datalist id="acctDL">${(ACCT_ACCOUNTS||[]).map(a=>`<option value="${esc(a.number)}">${esc(a.number)} — ${esc(a.label||"")}</option>`).join("")}</datalist>`; }
 async function acctEntryModal(id) {
   await acctLoadRefs();
   ACCT_ENTRY = id ? await api("/accounting/entries/" + id) : { journalCode: window._acctJournal || (ACCT_JOURNALS[0] || {}).code, period: window._acctPeriod || new Date().toISOString().slice(0, 7), date: new Date().toISOString().slice(0, 10), label: "", lines: [{ account: "", thirdParty: "", label: "", debit: 0, credit: 0 }, { account: "", thirdParty: "", label: "", debit: 0, credit: 0 }], status: "draft" };
@@ -6583,6 +6586,7 @@ async function acctEntryModal(id) {
       <div><label>Date</label><input id="aeDate" type="date" value="${esc(ACCT_ENTRY.date || "")}"></div>
       <div><label>Libellé de la pièce</label><input id="aeLabel" value="${esc(ACCT_ENTRY.label || "")}"></div>
     </div>
+    ${acctDLHtml()}
     <div id="aeLines" style="margin-top:8px"></div>
     <div id="aeTotals" style="margin-top:8px"></div>
     <div class="err hidden" id="aeErr" style="margin-top:6px"></div>
@@ -6762,7 +6766,7 @@ async function acctAnalyticView(){
       ${ab.rows.length? ab.rows.map(r=>`<tr><td>${esc(r.code)}</td><td class="r">${f(r.debit)}</td><td class="r">${f(r.credit)}</td><td class="r">${f(r.solde)}</td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucune ventilation analytique (renseignez le champ « Analytique » à la saisie).</td></tr>'}</table></div>
     <div class="panel"><b>Budget vs réalisé ${yy}</b>
       <span style="float:right;display:flex;gap:6px"><input type="number" id="baY" value="${yy}" style="max-width:90px;margin:0"><button class="btn ghost sm" onclick="window._acctYear=Number(document.getElementById('baY').value);acctAnalyticView()">Voir</button>
-        <button class="btn ghost sm" onclick="acctBudgetModal()">+ Budget</button></span>
+        <button class="btn ghost sm" onclick="acctBudgetModal()">+ Budget</button><button class="btn ghost sm" onclick="acctBudgetImportPick()">Importer (Excel)</button><input type="file" id="budFile" accept=".xlsx,.xls" style="display:none" onchange="acctBudgetImportParse(event)"></span>
       <table style="margin-top:8px"><tr><th>Compte</th><th>Intitulé</th><th class="r">Budget</th><th class="r">Réalisé</th><th class="r">Écart</th></tr>
       ${ba.rows.length? ba.rows.map(r=>`<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td class="r">${f(r.budget)}</td><td class="r">${f(r.actual)}</td><td class="r" style="color:${r.ecart>0?'var(--red)':'var(--nav-active-color)'}">${(r.ecart>0?'+':'')}${f(r.ecart)}</td></tr>`).join("") : '<tr><td colspan="5" style="color:var(--muted)">Aucun budget / réalisé.</td></tr>'}</table></div>`;
 }
@@ -6782,6 +6786,45 @@ async function acctBudgetSave(){
   try{ await api("/accounting/budgets",{method:"POST",body:JSON.stringify({account:g("buAcc"),year:Number(g("buY")),amount:Number(g("buA"))})});
     document.querySelector(".modal-bg").remove(); window._acctYear=Number(g("buY")); acctAnalyticView(); }
   catch(e){ const el=document.getElementById("buErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+function acctBudgetImportPick(){ const el=document.getElementById("budFile"); if(el){ el.value=""; el.click(); } }
+async function acctBudgetImportParse(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=async()=>{ try{ const b64=String(rd.result).split(",")[1]||"";
+    window._BUDIMP={ data:b64 };
+    const p=await api("/accounting/budgets/import-parse",{method:"POST",body:JSON.stringify({data:b64})});
+    acctBudgetImportModal(p);
+  }catch(e){ alert("Import: "+e.message); } };
+  rd.readAsDataURL(file);
+}
+function acctBudgetImportModal(p){
+  const opts=(sel)=>`<option value="">- colonne -</option>`+(p.headers||[]).map(h=>`<option value="${esc(h)}" ${sel===h?"selected":""}>${esc(h)}</option>`).join("");
+  const guess=(re)=>(p.headers||[]).find(h=>re.test(String(h).toLowerCase()))||"";
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:620px"><h3 style="margin:0 0 6px">Importer un budget (${p.total} ligne(s))</h3>
+    <div class="note" style="margin-bottom:8px">Associez les colonnes du fichier. « Compte » et « Montant » sont obligatoires ; « Année » facultative (sinon année par défaut ci-dessous).</div>
+    <div class="grid2">
+      <div><label>Colonne Compte</label><select id="biAcc">${opts(guess(/compte|account|n°/))}</select></div>
+      <div><label>Colonne Montant</label><select id="biAmt">${opts(guess(/montant|budget|amount/))}</select></div>
+      <div><label>Colonne Année (facultatif)</label><select id="biYear">${opts(guess(/ann[ée]e|year|exercice/))}</select></div>
+      <div><label>Année par défaut</label><input id="biDefY" type="number" value="${window._acctYear||new Date().getFullYear()}"></div>
+    </div>
+    <div style="max-height:34vh;overflow:auto;margin-top:8px"><table><tr>${(p.headers||[]).map(h=>`<th>${esc(h)}</th>`).join("")}</tr>
+      ${(p.sample||[]).map(row=>`<tr>${(p.headers||[]).map((_,i)=>`<td>${esc(String(row[i]==null?"":row[i]))}</td>`).join("")}</tr>`).join("")}</table></div>
+    <div class="err hidden" id="biErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctBudgetImportCommit()">Importer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function acctBudgetImportCommit(){
+  const g=x=>(document.getElementById(x)||{}).value;
+  const mapping={ account:g("biAcc"), amount:g("biAmt"), year:g("biYear")||"" };
+  if(!mapping.account||!mapping.amount){ const el=document.getElementById("biErr"); el.textContent="Choisissez au moins les colonnes Compte et Montant."; el.classList.remove("hidden"); return; }
+  try{ const r=await api("/accounting/budgets/import",{method:"POST",body:JSON.stringify({ data:(window._BUDIMP||{}).data, mapping, defaultYear:Number(g("biDefY")) })});
+    document.querySelector(".modal-bg").remove(); alert(`Budget importé : ${r.created} créé(s), ${r.updated} mis à jour, ${r.skipped} ignoré(s).`);
+    window._acctYear=Number(g("biDefY")); acctAnalyticView();
+  }catch(e){ const el=document.getElementById("biErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 
 /* ---- Comptabilité : Comptes tiers (clients 411 / fournisseurs 401) ---- */

@@ -751,9 +751,8 @@ router.post("/sheets/:id/stage", allow("ADM", "CD", "RJ", "GPF"), (req, res) => 
   else if (order.includes(to)) {
     s.stage = to;
     if (to === "facture" && !s.invoiceNumber) {
-      const contract = contractOf(req, s.contractId) || {}; const [yy, mm] = s.period.split("-");
-      const seq = mine(db.billingSheets, req).filter(x => x.invoiceNumber && x.period.slice(0, 4) === yy).length + 1;
-      s.invoiceNumber = `${contract.invoiceSeqPrefix || "029"}/${yy}/${mm}/${String(seq).padStart(5, "0")}`;
+      const contract = contractOf(req, s.contractId) || {};
+      s.invoiceNumber = _nextInvoiceNumber(req, contract, s.period);
     }
   } else if (to === "post") { if (s.stage === "facture") s.posted = true; }
   else if (to === "unpost") { s.posted = false; }
@@ -839,6 +838,17 @@ router.post("/invoice-models/:id/duplicate", allow("ADM"), (req, res) => {
 
 /* ---- Factures ---- */
 const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid);
+// Numéro de facture : séquence MENSUELLE (réinitialisée chaque mois) et robuste aux suppressions (max+1, jamais réutilisé).
+function _nextInvoiceNumber(req, contract, period) {
+  const [yy, mm] = String(period || new Date().toISOString().slice(0, 7)).split("-");
+  const prefix = (contract && contract.invoiceSeqPrefix) || "029";
+  const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rx = new RegExp("^" + esc + "/" + yy + "/" + mm + "/0*(\\d+)$");
+  let max = 0;
+  for (const x of mine(db.billingInvoices, req)) { const m = rx.exec(x.number || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
+  for (const x of mine(db.billingSheets, req)) { const m = rx.exec(x.invoiceNumber || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
+  return prefix + "/" + yy + "/" + mm + "/" + String(max + 1).padStart(5, "0");
+}
 router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   const invs = mine(db.billingInvoices, req).map(withInvTotals);
   const val = invs.filter(i => i.status === "validated");
@@ -893,8 +903,7 @@ router.post("/invoices", allow("ADM","CD","RJ","GPF"), (req, res) => {
   if (b.modelId) { const m = imOf(req, b.modelId); if (m) lines = (m.lines || []).map(l => Object.assign({}, l, { id: id("iln") })); }
   if (Array.isArray(b.lines)) lines = b.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
   const period = b.period || new Date().toISOString().slice(0, 7); const [yy, mm] = period.split("-");
-  const seq = mine(db.billingInvoices, req).filter(x => (x.period || "").slice(0, 4) === yy).length + 1;
-  const number = `${contract.invoiceSeqPrefix || "029"}/${yy}/${mm}/${String(seq).padStart(5, "0")}`;
+  const number = _nextInvoiceNumber(req, contract, period);
   const _td = (b.termDays != null && b.termDays !== "") ? Number(b.termDays)
             : (contract.paymentTermDays != null && contract.paymentTermDays !== "") ? Number(contract.paymentTermDays) : "";
   const inv = stamp({ id: id("binv"), contractId: contract.id, client: contract.clientName, number, period, termDays: _td,
@@ -997,8 +1006,7 @@ router.post("/invoices/:id/duplicate", allow("ADM","CD","RJ","GPF"), (req, res) 
   const src = invOf(req, req.params.id); if (!src) return res.status(404).json({ error: "Facture introuvable" });
   const contract = contractOf(req, src.contractId) || {};
   const period = new Date().toISOString().slice(0, 7); const [yy, mm] = period.split("-");
-  const seq = mine(db.billingInvoices, req).filter(x => (x.period || "").slice(0, 4) === yy).length + 1;
-  const number = `${contract.invoiceSeqPrefix || "029"}/${yy}/${mm}/${String(seq).padStart(5, "0")}`;
+  const number = _nextInvoiceNumber(req, contract, period);
   const copy = stamp({ id: id("binv"), contractId: src.contractId, client: src.client, number, period, termDays: src.termDays,
     date: new Date().toISOString().slice(0, 10), dueDate: "", objet: src.objet || "", bonCommande: src.bonCommande || "",
     journalId: src.journalId || "", account: src.account || "701100", tvaRate: src.tvaRate, tvaExonere: !!src.tvaExonere, isRate: src.isRate || 0,
@@ -1045,7 +1053,6 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   doc.fillColor(brand).font("Helvetica-Bold").fontSize(22).text("FACTURE", 330, _top, { width: 237, align: "right" });
   doc.fillColor("#000").font("Helvetica-Bold").fontSize(12).text("N° " + (inv.number || ""), 330, _top + 30, { width: 237, align: "right" });
   doc.font("Helvetica").fontSize(9).text("Date : " + (inv.date || ""), 330, _top + 46, { width: 237, align: "right" });
-  if (inv.dueDate) doc.text("Échéance : " + inv.dueDate, 330, _top + 58, { width: 237, align: "right" });
   // titre centré : {client court} {type} (ex. « CIMPOR MAD ») juste au-dessus de la date de facturation
   let y = Math.max(cy, _top + 74) + 6;
   const _vendeur = inv.vendeur || inv.createdByName || contract.vendeur || "—";

@@ -463,6 +463,35 @@ router.post("/budgets", allow("RC", "ADM", "CD"), (req, res) => {
   if (x) { x.amount = R2(b.amount); } else { x = stamp({ id: id("abud"), account: b.account, year: Number(b.year), amount: R2(b.amount), createdAt: new Date().toISOString() }, req); db.acctBudgets.push(x); }
   save(); res.json(x);
 });
+// ---- Import budget via Excel + mapping des colonnes ----
+function _wbAcct(base64) { const XLSX = require("xlsx"); return XLSX.read(Buffer.from(String(base64 || ""), "base64"), { type: "buffer" }); }
+function _rowsAcct(base64) { const XLSX = require("xlsx"); const wb = _wbAcct(base64); const ws = wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" }); }
+router.post("/budgets/import-parse", allow("RC", "ADM", "CD"), (req, res) => {
+  try { const rows = _rowsAcct((req.body || {}).data); if (!rows.length) return res.status(400).json({ error: "Fichier vide." });
+    res.json({ headers: (rows[0] || []).map(x => String(x)), sample: rows.slice(1, 6), total: Math.max(0, rows.length - 1) });
+  } catch (e) { res.status(400).json({ error: "Fichier Excel illisible (" + e.message + ")" }); }
+});
+router.post("/budgets/import", allow("RC", "ADM", "CD"), (req, res) => {
+  try {
+    const b = req.body || {}, map = b.mapping || {}; const rows = _rowsAcct(b.data);
+    const head = (rows[0] || []).map(x => String(x)); const col = (name) => head.indexOf(name);
+    const cA = col(map.account), cM = col(map.amount), cY = map.year ? col(map.year) : -1;
+    if (cA < 0 || cM < 0) return res.status(400).json({ error: "Colonnes « compte » et « montant » obligatoires." });
+    const defYear = Number(b.defaultYear) || new Date().getFullYear();
+    let created = 0, updated = 0, skipped = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const acc = String(r[cA] == null ? "" : r[cA]).trim().replace(/\s+/g, "");
+      const amt = Math.round(Number(String(r[cM] == null ? "" : r[cM]).replace(/[^0-9.,-]/g, "").replace(/\s/g, "").replace(",", ".")) || 0);
+      const yr = cY >= 0 ? (Number(String(r[cY]).slice(0, 4)) || defYear) : defYear;
+      if (!acc || !amt) { skipped++; continue; }
+      let x = mine(db.acctBudgets, req).find(z => z.account === acc && Number(z.year) === yr);
+      if (x) { x.amount = R2(amt); updated++; } else { db.acctBudgets.push(stamp({ id: id("abud"), account: acc, year: yr, amount: R2(amt), createdAt: new Date().toISOString() }, req)); created++; }
+    }
+    save(); audit(req.user, "IMPORTED", "AcctBudget", null, { created, updated, skipped });
+    res.json({ ok: true, created, updated, skipped });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
 router.get("/budget-actual", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const yy = String(req.query.year || new Date().getFullYear());
   const labels = _accLabel(req); const actual = {};
