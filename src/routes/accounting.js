@@ -269,14 +269,14 @@ function generatePayrollEntry(req, runId) {
   run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period, lines: lines.length }); return e;
 }
 /* ---- Table rubrique -> compte (ADM uniquement) ---- */
-router.get("/rubrique-map", allow("ADM"), (req, res) => res.json(acctMapOf(req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }))));
-router.post("/rubrique-map", allow("ADM"), (req, res) => {
+router.get("/rubrique-map", allow("ADM", "CD"), (req, res) => res.json(acctMapOf(req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }))));
+router.post("/rubrique-map", allow("ADM", "CD"), (req, res) => {
   const b = req.body || {}; const code = String(b.code || "").trim(); if (!code) return res.status(400).json({ error: "Code rubrique requis" });
   if (acctMapOf(req).some(x => String(x.code) === code)) return res.status(409).json({ error: `Le code ${code} existe déjà dans la table.` });
   const r = stamp({ id: id("armap"), code, account: String(b.account || "").trim(), label: b.label || "" }, req);
   db.acctRubriqueMap.push(r); save(); audit(req.user, "CREATED", "AcctRubriqueMap", r.id, { code, account: r.account }); res.status(201).json(r);
 });
-router.put("/rubrique-map/:id", allow("ADM"), (req, res) => {
+router.put("/rubrique-map/:id", allow("ADM", "CD"), (req, res) => {
   const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
   if (b.code !== undefined) { const nc = String(b.code).trim(); if (nc !== String(r.code) && acctMapOf(req).some(x => x.id !== r.id && String(x.code) === nc)) return res.status(409).json({ error: `Le code ${nc} existe déjà.` }); r.code = nc; }
@@ -284,11 +284,11 @@ router.put("/rubrique-map/:id", allow("ADM"), (req, res) => {
   if (b.label !== undefined) r.label = b.label;
   save(); audit(req.user, "UPDATED", "AcctRubriqueMap", r.id, {}); res.json(r);
 });
-router.delete("/rubrique-map/:id", allow("ADM"), (req, res) => {
+router.delete("/rubrique-map/:id", allow("ADM", "CD"), (req, res) => {
   const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
   db.acctRubriqueMap.splice(db.acctRubriqueMap.indexOf(r), 1); save(); audit(req.user, "DELETED", "AcctRubriqueMap", r.id, { code: r.code }); res.json({ ok: true });
 });
-router.post("/rubrique-map/:id/duplicate", allow("ADM"), (req, res) => {
+router.post("/rubrique-map/:id/duplicate", allow("ADM", "CD"), (req, res) => {
   const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
   let nc = String(r.code) + "_copie", i = 2; while (acctMapOf(req).some(x => String(x.code) === nc)) { nc = String(r.code) + "_copie" + i; i++; }
   const c = stamp({ id: id("armap"), code: nc, account: r.account, label: r.label }, req); db.acctRubriqueMap.push(c); save(); res.status(201).json(c);
