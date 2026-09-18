@@ -1041,15 +1041,16 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   _cl([cb.ville || cb.city, cb.pays].filter(Boolean).join(" — ")); _cl(cb.bp ? "B.P. : " + cb.bp : "");
   _cl(cb.nTva ? "N° TVA : " + cb.nTva : (cb.rccm ? "RCCM : " + cb.rccm : ""));
   _cl(cb.niu ? "NIU : " + cb.niu : ""); _cl(cb.tel ? "Tél : " + cb.tel : "");
-  const iban = [bk.code, bk.guichet, bk.account, bk.cle].filter(Boolean).join("");
-  if (iban) { doc.font("Helvetica").fontSize(9).text("IBAN : " + (bk.name ? bk.name + " " : "") + iban, x0, cy + 3, { width: 330 }); cy += 18; }
   // big title (right)
   doc.fillColor(brand).font("Helvetica-Bold").fontSize(22).text("FACTURE", 330, _top, { width: 237, align: "right" });
   doc.fillColor("#000").font("Helvetica-Bold").fontSize(12).text("N° " + (inv.number || ""), 330, _top + 30, { width: 237, align: "right" });
   doc.font("Helvetica").fontSize(9).text("Date : " + (inv.date || ""), 330, _top + 46, { width: 237, align: "right" });
   if (inv.dueDate) doc.text("Échéance : " + inv.dueDate, 330, _top + 58, { width: 237, align: "right" });
-  // info band (Date / Vendeur / Objet)
+  // titre centré : {client court} {type} (ex. « CIMPOR MAD ») juste au-dessus de la date de facturation
   let y = Math.max(cy, _top + 74) + 6;
+  const _short = (contract.clientCode || String(contract.clientName || "").split(/\s+/)[0] || "").trim();
+  const _titre = (_short + " " + (contract.billingType || "")).trim();
+  if (_titre) { doc.fillColor(brand).font("Helvetica-Bold").fontSize(13).text(_fixEnc(_titre), x0, y, { width: W, align: "center" }); y = doc.y + 6; doc.fillColor("#000"); }
   const band = [["Date de facturation", inv.date || ""], ["Vendeur", inv.vendeur || contract.vendeur || "—"], ["Objet", inv.objet || "—"]];
   doc.roundedRect(x0, y, W, 30, 4).fillAndStroke("#f4f7f6", "#c9d6d0"); doc.fillColor("#000");
   let bxi = x0 + 6; const bwn = W / band.length;
@@ -1084,7 +1085,24 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   trow(inv.tvaExonere ? "T.V.A. (exonérée)" : "T.V.A. " + TXP(inv.tvaRate != null ? inv.tvaRate : 0.1925), t.TVA, false);
   if (t.IS) trow("IS (retenue)", -t.IS, false);
   trow(t.IS ? "TOTAL À PAYER" : "Total", t.IS ? t.totalDu : t.TTC, true);
-  doc.fillColor("#000").font("Helvetica-Bold").fontSize(9).text("Montant en lettres : ", x0, y + 14, { continued: true }).font("Helvetica").text(enLettres(t.IS ? t.totalDu : t.TTC) + " Francs CFA");
+  // ---- Pied : PAYABLE À (coordonnées bancaires PROPRES AU CLIENT) à gauche ; montant en lettres + LA DIRECTION à droite ----
+  const _cap = (str) => { str = String(str || ""); return str ? str.charAt(0).toUpperCase() + str.slice(1) : str; };
+  const ttcMontant = t.IS ? t.totalDu : t.TTC;
+  const eur = Math.round(ttcMontant / 655.957); // parité fixe FCFA/EUR
+  let fy = y + 20; const rX = x0 + W - 250, rW = 250;
+  // Colonne droite : « Arrêtée la présente facture… » + lettres FCFA + euros + LA DIRECTION
+  doc.fillColor("#000").font("Helvetica-Oblique").fontSize(9).text("Arrêtée la présente facture à la somme TTC de :", rX, fy, { width: rW });
+  let ry2 = doc.y + 3;
+  doc.font("Helvetica-Bold").fontSize(9).text(_cap(enLettres(ttcMontant)) + " francs CFA", rX, ry2, { width: rW }); ry2 = doc.y + 5;
+  doc.text(_cap(enLettres(eur)) + " euros", rX, ry2, { width: rW }); ry2 = doc.y + 16;
+  doc.font("Helvetica-Bold").fontSize(10).text("LA DIRECTION", rX, ry2, { width: rW, align: "center" });
+  // Colonne gauche : PAYABLE À … (bankBlock du contrat/client)
+  const bb = contract.bankBlock || {};
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#000").text("PAYABLE À : " + _fixEnc(bb.banque || ""), x0, fy, { width: 260 });
+  let ly2 = doc.y + 3; doc.font("Helvetica").fontSize(8.5);
+  const pl = (lab, v) => { if (v != null && String(v).trim() !== "") { doc.text(lab + " : " + _fixEnc(String(v)), x0, ly2, { width: 260 }); ly2 = doc.y + 2; } };
+  pl("CODE BANQUE", bb.codeBanque); pl("CODE GUICHET", bb.codeGuichet); pl("N° DE COMPTE", bb.compte);
+  pl("CLE", bb.cle); pl("CODE SWIFT", bb.swift); pl("NOM", bb.titulaire || co.name);
   _paintFooters(doc); audit(req.user, "EXPORTED", "BillingInvoice", inv.id, { doc: "invoice", format: "pdf" }); doc.end();
 });
 

@@ -5655,7 +5655,17 @@ async function billingContractModal(cid) {
         <div><label>N° TVA</label><input id="cbTva" value="${esc((c.clientBlock || {}).nTva || "")}"></div>
         <div><label>Téléphone</label><input id="cbTel" value="${esc((c.clientBlock || {}).tel || "")}"></div>
         <div><label>Email</label><input id="cbEmail" value="${esc((c.clientBlock || {}).email || "")}"></div>
-        <div><label>Banque (bloc)</label><input id="cbBank" value="${esc((c.bankBlock || {}).banque || "")}"></div>
+      </div>
+      <b style="font-size:12px;color:var(--muted)">COORDONNÉES BANCAIRES — « PAYABLE À » (propre à ce client, imprimé en pied de facture)</b>
+      <div class="note" style="margin:2px 0 4px">Chaque client peut avoir un compte de règlement différent. Ces champs s'impriment dans le bloc « PAYABLE À » du pied de la facture.</div>
+      <div class="grid3" style="margin-top:4px">
+        <div><label>Banque</label><input id="cbBank" value="${esc((c.bankBlock || {}).banque || "")}" placeholder="ex. CBC BANK"></div>
+        <div><label>Code banque</label><input id="cbBankCode" value="${esc((c.bankBlock || {}).codeBanque || "")}" placeholder="ex. 10 008"></div>
+        <div><label>Code guichet</label><input id="cbGuichet" value="${esc((c.bankBlock || {}).codeGuichet || "")}" placeholder="ex. 00020"></div>
+        <div><label>N° de compte</label><input id="cbCompte" value="${esc((c.bankBlock || {}).compte || "")}" placeholder="ex. 371 208 991 01"></div>
+        <div><label>Clé</label><input id="cbCle" value="${esc((c.bankBlock || {}).cle || "")}" placeholder="ex. 92"></div>
+        <div><label>Code SWIFT</label><input id="cbSwift" value="${esc((c.bankBlock || {}).swift || "")}" placeholder="ex. CBC DC MCX"></div>
+        <div><label>Titulaire (NOM)</label><input id="cbTitulaire" value="${esc((c.bankBlock || {}).titulaire || "")}" placeholder="ex. CIBLE RH EMPLOI S.A"></div>
       </div>
     </div>
     <div class="err hidden" id="ccErr"></div>
@@ -5673,7 +5683,7 @@ async function billingSaveContract(cid) {
     prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1", invoiceStyle: g("ccStyle"),
     rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
       congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
-    components, clientBlock: { name2: g("cbName2"), adresse: g("cbAddr"), ville: g("cbCity"), pays: g("cbPays"), bp: g("cbBP"), rccm: g("cbRccm"), niu: g("cbNiu"), nTva: g("cbTva"), tel: g("cbTel"), email: g("cbEmail") }, bankBlock: { banque: g("cbBank") },
+    components, clientBlock: { name2: g("cbName2"), adresse: g("cbAddr"), ville: g("cbCity"), pays: g("cbPays"), bp: g("cbBP"), rccm: g("cbRccm"), niu: g("cbNiu"), nTva: g("cbTva"), tel: g("cbTel"), email: g("cbEmail") }, bankBlock: { banque: g("cbBank"), codeBanque: g("cbBankCode"), codeGuichet: g("cbGuichet"), compte: g("cbCompte"), cle: g("cbCle"), swift: g("cbSwift"), titulaire: g("cbTitulaire") },
     isEnabled: g("ccIs") === "1", isRate: (+g("ccIsRate") || 0) / 100, invoiceSeqPrefix: g("ccSeq"), paymentTermDays: (function(){const sel=document.getElementById("ccTerm");if(!sel)return "";if(sel.value==="__custom"){const c=document.getElementById("ccTermCustom");return c&&c.value!==""?Number(c.value):"";}return sel.value===""?"":Number(sel.value);})(), journalId: g("ccJournal"), defaultAccount: g("ccAcct2"), lineFields: BILL_LINE_FIELDS };
   try { if (cid) await api("/billing/contracts/" + cid, { method: "PUT", body: JSON.stringify(body) });
     else await api("/billing/contracts", { method: "POST", body: JSON.stringify(body) });

@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-18 · ROLES-14 (rôles dédiés: RC Comptabilité, RS Stock, RP Paie — accès complet à leur module)";
+const BUILD_VERSION = "2026-09-18 · FACT-15 (facture: coordonnées bancaires PAYABLE À par client en pied + montant en lettres FCFA/euros, titre {client} {type} centré, bloc client sous le logo)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
