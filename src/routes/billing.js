@@ -849,7 +849,7 @@ function _nextInvoiceNumber(req, contract, period) {
   let max = 0;
   for (const x of mine(db.billingInvoices, req)) { const m = rx.exec(x.number || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
   for (const x of mine(db.billingSheets, req)) { const m = rx.exec(x.invoiceNumber || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
-  return String(max + 1).padStart(5, "0") + "/" + cnum + "/" + mm + "/" + yy;
+  return String(max + 1).padStart(3, "0") + "/" + cnum + "/" + mm + "/" + yy;
 }
 router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   const invs = mine(db.billingInvoices, req).map(withInvTotals);
