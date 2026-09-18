@@ -3180,6 +3180,8 @@ async function paramsView() {
       <div><label>Hauteur en-tête (px)</label><input id="lhHH" type="number" value="${lh.headerHeight||80}"></div>
       <div><label>Hauteur pied (px)</label><input id="lhFH" type="number" value="${lh.footerHeight||50}"></div>
       <div><label>Couleur en-tête tableau facture</label><input id="lhAccent" type="color" value="${lh.accent||"#065f46"}" style="height:34px;padding:2px"></div>
+      <div><label>Décimales quantité (vide = auto)</label><input id="lhQtyDec" type="number" min="0" max="3" value="${lh.qtyDec!=null?lh.qtyDec:""}" placeholder="auto"></div>
+      <div><label>Décimales prix unitaire (vide = auto)</label><input id="lhPriceDec" type="number" min="0" max="3" value="${lh.priceDec!=null?lh.priceDec:""}" placeholder="auto"></div>
     </div>
     <b style="font-size:12px;color:var(--muted)">EN-TÊTE - bandeau image (mode image)</b>
     <div style="display:flex;gap:10px;align-items:center;margin:4px 0 6px"><input type="file" accept="image/*" onchange="lhUpload(event,'header')"><span id="lhHdrName" style="font-size:12px;color:var(--muted)">${lh.headerImage?"image importée":"aucune"}</span><button class="btn ghost sm" onclick="lhClear('header')">Retirer</button></div>
@@ -6377,7 +6379,7 @@ async function saveLetterhead(){
     headerImage:window._LH.headerImage||"", footerImage:window._LH.footerImage||"",
     company:{ name:g("lhcName"),address:g("lhcAddr"),city:g("lhcCity"),phone:g("lhcPhone"),email:g("lhcEmail"),rccm:g("lhcRccm"),niu:g("lhcNiu"),capital:g("lhcCap"),website:g("lhcWeb") },
     bank:{ name:g("lhbName"),holder:g("lhbHolder"),code:g("lhbCode"),guichet:g("lhbGuichet"),account:g("lhbAcct"),cle:g("lhbCle"),swift:g("lhbSwift") },
-    legal:g("lhLegal"), tagline:g("lhTagline"), showPage:(document.getElementById("lhPage")||{}).checked, accent:g("lhAccent")||"" } };
+    legal:g("lhLegal"), tagline:g("lhTagline"), showPage:(document.getElementById("lhPage")||{}).checked, accent:g("lhAccent")||"", qtyDec:g("lhQtyDec"), priceDec:g("lhPriceDec") } };
   try{ await api("/settings/branding",{method:"PUT",body:JSON.stringify(body)}); alert("Papier à en-tête enregistré."); }
   catch(e){ const el=document.getElementById("lhErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
@@ -6555,9 +6557,9 @@ function acctRenderLines() {
       <td><select onchange="acctLineSet(${i},'account',this.value)" style="margin:0;min-width:150px">${acctAccOpts(l.account)}</select></td>
       <td><input value="${esc(l.thirdParty || "")}" oninput="acctLineSet(${i},'thirdParty',this.value)" style="margin:0;max-width:82px" placeholder="401/411"></td>
       <td><input value="${esc(l.analytic || "")}" oninput="acctLineSet(${i},'analytic',this.value)" style="margin:0;max-width:90px" placeholder="section"></td>
-      <td><input value="${esc(l.label || "")}" oninput="acctLineSet(${i},'label',this.value)" style="margin:0;min-width:150px"></td>
-      <td><input type="number" value="${l.debit || 0}" oninput="acctLineSet(${i},'debit',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
-      <td><input type="number" value="${l.credit || 0}" oninput="acctLineSet(${i},'credit',this.value)" style="margin:0;max-width:100px;text-align:right"></td>
+      <td><input value="${esc(l.label || "")}" oninput="acctLineSet(${i},'label',this.value)" style="margin:0;min-width:140px"></td>
+      <td><input type="number" value="${l.debit || 0}" oninput="acctLineSet(${i},'debit',this.value)" style="margin:0;width:150px;min-width:140px;text-align:right;font-size:14px;padding:6px 8px"></td>
+      <td><input type="number" value="${l.credit || 0}" oninput="acctLineSet(${i},'credit',this.value)" style="margin:0;width:150px;min-width:140px;text-align:right;font-size:14px;padding:6px 8px"></td>
       <td><button class="btn ghost sm" onclick="acctLineDel(${i})">Fermer</button></td></tr>`).join("")}</table>
     <button class="btn ghost sm" style="margin-top:6px" onclick="acctLineAdd()">+ Ligne</button>`;
   acctRenderTotals();
@@ -6574,7 +6576,7 @@ async function acctEntryModal(id) {
   ACCT_ENTRY = id ? await api("/accounting/entries/" + id) : { journalCode: window._acctJournal || (ACCT_JOURNALS[0] || {}).code, period: window._acctPeriod || new Date().toISOString().slice(0, 7), date: new Date().toISOString().slice(0, 10), label: "", lines: [{ account: "", thirdParty: "", label: "", debit: 0, credit: 0 }, { account: "", thirdParty: "", label: "", debit: 0, credit: 0 }], status: "draft" };
   const locked = ACCT_ENTRY.status === "locked";
   const bg = document.createElement("div"); bg.className = "modal-bg";
-  bg.innerHTML = `<div class="modal" style="width:780px"><h3 style="margin:0 0 6px">${id ? "Écriture " + esc(ACCT_ENTRY.pieceNo || "") : "Nouvelle écriture"}
+  bg.innerHTML = `<div class="modal" style="width:940px"><h3 style="margin:0 0 6px">${id ? "Écriture " + esc(ACCT_ENTRY.pieceNo || "") : "Nouvelle écriture"}
     ${ACCT_ENTRY.status === "validated" ? '<span class="tag green">Validée</span>' : locked ? '<span class="tag gray">Clôturée</span>' : ''}</h3>
     <div class="grid3">
       <div><label>Journal</label><select id="aeJr" ${id ? "disabled" : ""}>${ACCT_JOURNALS.filter(j=>j.active!==false||j.code===ACCT_ENTRY.journalCode).map(j => `<option value="${j.code}" ${j.code === ACCT_ENTRY.journalCode ? "selected" : ""}>${esc(j.code)} - ${esc(j.label)}</option>`).join("")}</select></div>
@@ -6610,7 +6612,7 @@ async function acctBalanceView() {
     <div class="panel"><div style="display:flex;gap:8px;align-items:end"><div><label>Période (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;acctBalanceView()"></div>
       <div class="note" style="align-self:center">Écritures validées uniquement.</div></div></div>
     <div class="panel"><table><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-      ${bal.rows.length ? bal.rows.map(r => `<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label || "")}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde >= 0 ? "D" : "C"}</td></tr>`).join("")
+      ${bal.rows.length ? bal.rows.map(r => `<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label || "")}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")
         : '<tr><td colspan="5" style="color:var(--muted)">Aucune écriture validée.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="2">TOTAUX</td><td class="r">${fCFA(bal.totalDebit)}</td><td class="r">${fCFA(bal.totalCredit)}</td>
         <td class="r" style="color:${bal.balanced ? 'var(--nav-active-color)' : 'var(--red)'}">${bal.balanced ? 'équilibrée' : 'écart ' + fCFA(Math.abs(bal.totalDebit - bal.totalCredit))}</td></tr>
@@ -6642,8 +6644,8 @@ async function acctLedgerRender(){
   const d=await api("/accounting/ledger?account="+encodeURIComponent(acc)).catch(()=>({rows:[]}));
   document.getElementById("glRows").innerHTML=`<b>${esc(d.account)} - ${esc(d.label||"")}</b>
     <table style="margin-top:6px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-    ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
-    <tr style="font-weight:600;border-top:2px solid #999"><td colspan="4">TOTAUX</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td><td class="r">${fCFA(Math.abs(d.solde))} ${d.solde>=0?'D':'C'}</td></tr></table>`;
+    ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
+    <tr style="font-weight:600;border-top:2px solid #999"><td colspan="4">TOTAUX</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td><td class="r">${fCFA(d.solde)}</td></tr></table>`;
 }
 async function acctJournalRender(){
   await acctLoadRefs();
@@ -6757,7 +6759,7 @@ async function acctAnalyticView(){
     <h1 style="margin-top:10px">Analytique &amp; budget</h1>
     <div class="panel"><b>Balance analytique (par section)</b>
       <table style="margin-top:6px"><tr><th>Section</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-      ${ab.rows.length? ab.rows.map(r=>`<tr><td>${esc(r.code)}</td><td class="r">${f(r.debit)}</td><td class="r">${f(r.credit)}</td><td class="r">${f(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucune ventilation analytique (renseignez le champ « Analytique » à la saisie).</td></tr>'}</table></div>
+      ${ab.rows.length? ab.rows.map(r=>`<tr><td>${esc(r.code)}</td><td class="r">${f(r.debit)}</td><td class="r">${f(r.credit)}</td><td class="r">${f(r.solde)}</td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucune ventilation analytique (renseignez le champ « Analytique » à la saisie).</td></tr>'}</table></div>
     <div class="panel"><b>Budget vs réalisé ${yy}</b>
       <span style="float:right;display:flex;gap:6px"><input type="number" id="baY" value="${yy}" style="max-width:90px;margin:0"><button class="btn ghost sm" onclick="window._acctYear=Number(document.getElementById('baY').value);acctAnalyticView()">Voir</button>
         <button class="btn ghost sm" onclick="acctBudgetModal()">+ Budget</button></span>
@@ -6810,13 +6812,13 @@ async function acctTiersView(){
         <td><code>${esc(r.code)}</code>${r.defined?'':' <span class="tag amber" title="non enregistré dans le référentiel">auto</span>'}</td>
         <td>${esc(r.name||"")}</td><td>${kindTag(r.kind)}</td><td>${esc(r.collectiveAccount||"")}</td>
         <td class="r">${r.count||0}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td>
-        <td class="r"><b>${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</b></td>
+        <td class="r"><b>${fCFA(r.solde)}</b></td>
         <td style="white-space:nowrap"><button class="btn ghost sm" onclick="acctTiersLedger('${esc(r.code)}')">Relevé</button>
           <button class="btn ghost sm" onclick="acctTiersModal('${esc(r.code)}')">${r.defined?'':'+ Enreg.'}</button></td></tr>`).join("")
         : '<tr><td colspan="9" style="color:var(--muted)">Aucun tiers.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="5">TOTAUX (${rows.length})</td>
         <td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
-        <td class="r">${fCFA(Math.abs(sum('debit')-sum('credit')))} ${sum('debit')-sum('credit')>=0?'D':'C'}</td><td></td></tr>
+        <td class="r">${fCFA(sum('debit')-sum('credit'))}</td><td></td></tr>
     </table></div>`;
 }
 function acctTiersModal(code){
@@ -6861,10 +6863,10 @@ async function acctTiersLedger(tp){
     <div class="panel"><table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
       ${d.rows&&d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td>
         <td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td>${esc(r.dueDate||"")}</td><td>${esc(r.lettre||"")}</td>
-        <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")
+        <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")
         : '<tr><td colspan="10" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td>
-        <td class="r">${fCFA(Math.abs(d.solde||0))} ${(d.solde||0)>=0?'D':'C'}</td></tr>
+        <td class="r">${fCFA(d.solde||0)}</td></tr>
     </table></div>`;
 }
 
@@ -7120,11 +7122,11 @@ async function acctTiersBalance(){
       <button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>
     <table style="margin-top:8px"><tr><th>Code</th><th>Nom</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th><th></th></tr>
     ${rows.length?rows.map(r=>`<tr><td><code>${esc(r.code)}</code></td><td>${esc(r.name||'')}</td>
-      <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r"><b>${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</b></td>
+      <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r"><b>${fCFA(r.solde)}</b></td>
       <td><button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(r.code)}')">Relevé</button></td></tr>`).join("")
       :'<tr><td colspan="6" style="color:var(--muted)">Aucun tiers.</td></tr>'}
     <tr style="font-weight:600;border-top:2px solid #999"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
-      <td class="r">${fCFA(Math.abs(sum('debit')-sum('credit')))} ${sum('debit')-sum('credit')>=0?'D':'C'}</td><td></td></tr></table>`;
+      <td class="r">${fCFA(sum('debit')-sum('credit'))}</td><td></td></tr></table>`;
   window._etsBalance=rows;
 }
 async function acctTiersGL(){
@@ -7135,12 +7137,12 @@ async function acctTiersGL(){
   box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><b>Grand-livre des tiers (${d.count||0})</b>
       <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></div>
     ${(d.groups||[]).map(g=>`<div style="margin-top:12px"><div style="font-weight:600">${esc(g.code)}${g.name?' · '+esc(g.name):''}
-        <span class="tag gray">${esc(g.kind)}</span> <span style="float:right">Solde ${fCFA(Math.abs(g.solde))} ${g.solde>=0?'D':'C'}</span></div>
+        <span class="tag gray">${esc(g.kind)}</span> <span style="float:right">Solde ${fCFA(g.solde)}</span></div>
       <table style="margin-top:4px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
       ${g.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td>
-        <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")}
+        <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
       <tr style="font-weight:600;border-top:1px solid #999"><td colspan="5">Total ${esc(g.code)}</td><td class="r">${fCFA(g.debit)}</td><td class="r">${fCFA(g.credit)}</td>
-        <td class="r">${fCFA(Math.abs(g.solde))} ${g.solde>=0?'D':'C'}</td></tr></table></div>`).join("") || '<div class="note" style="margin-top:8px">Aucun mouvement tiers.</div>'}`;
+        <td class="r">${fCFA(g.solde)}</td></tr></table></div>`).join("") || '<div class="note" style="margin-top:8px">Aucun mouvement tiers.</div>'}`;
 }
 async function acctTiersReleveTab(){
   const kind=window._ets.kind;
@@ -7156,10 +7158,10 @@ async function acctTiersReleveTab(){
   document.getElementById("etsReleveRows").innerHTML=`<b>${esc(cur)}${d.name?' · '+esc(d.name):''}</b>
     <table style="margin-top:6px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${d.rows&&d.rows.length?d.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td>${esc(r.lettre||'')}</td>
-      <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")
+      <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")
       :'<tr><td colspan="10" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
     <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td>
-      <td class="r">${fCFA(Math.abs(d.solde||0))} ${(d.solde||0)>=0?'D':'C'}</td></tr></table>`;
+      <td class="r">${fCFA(d.solde||0)}</td></tr></table>`;
 }
 function acctPrintCompany(){ try{ return (window.ME&&ME.tenantName)|| (window.SETTINGS&&SETTINGS.companyName) || document.title || "Société"; }catch(e){ return "Société"; } }
 function acctPrintWindow(title, bodyHtml){
@@ -7180,24 +7182,24 @@ function acctTiersPrintBalance(){
   const rows=window._etsBalance||[]; const kind=window._ets.kind;
   const sum=(k)=>rows.reduce((a,r)=>a+(r[k]||0),0);
   const body=`<table><tr><th>Code</th><th>Nom</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-    ${rows.map(r=>`<tr><td>${esc(r.code)}</td><td>${esc(r.name||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")}
-    <tr class="tot"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td><td class="r">${fCFA(Math.abs(sum('debit')-sum('credit')))} ${sum('debit')-sum('credit')>=0?'D':'C'}</td></tr></table>`;
+    ${rows.map(r=>`<tr><td>${esc(r.code)}</td><td>${esc(r.name||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
+    <tr class="tot"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td><td class="r">${fCFA(sum('debit')-sum('credit'))}</td></tr></table>`;
   acctPrintWindow("Balance des tiers - "+(kind==='all'?'tous':kind), body);
 }
 function acctTiersPrintGL(){
   const d=window._etsGL||{groups:[]};
-  const body=(d.groups||[]).map(g=>`<h2>${esc(g.code)}${g.name?' · '+esc(g.name):''} (solde ${fCFA(Math.abs(g.solde))} ${g.solde>=0?'D':'C'})</h2>
+  const body=(d.groups||[]).map(g=>`<h2>${esc(g.code)}${g.name?' · '+esc(g.name):''} (solde ${fCFA(g.solde)})</h2>
     <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-    ${g.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")}
-    <tr class="tot"><td colspan="5">Total</td><td class="r">${fCFA(g.debit)}</td><td class="r">${fCFA(g.credit)}</td><td class="r">${fCFA(Math.abs(g.solde))} ${g.solde>=0?'D':'C'}</td></tr></table>`).join("");
+    ${g.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
+    <tr class="tot"><td colspan="5">Total</td><td class="r">${fCFA(g.debit)}</td><td class="r">${fCFA(g.credit)}</td><td class="r">${fCFA(g.solde)}</td></tr></table>`).join("");
   acctPrintWindow("Grand-livre des tiers", body||"<p>Aucun mouvement.</p>");
 }
 async function acctTiersPrintReleve(tp){
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(tp)).catch(()=>({rows:[]}));
   const body=`<h2>Relevé de compte - ${esc(tp)}${d.name?' · '+esc(d.name):''}</h2>
     <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-    ${(d.rows||[]).map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(Math.abs(r.solde))} ${r.solde>=0?'D':'C'}</td></tr>`).join("")}
-    <tr class="tot"><td colspan="6">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td><td class="r">${fCFA(Math.abs(d.solde||0))} ${(d.solde||0)>=0?'D':'C'}</td></tr></table>`;
+    ${(d.rows||[]).map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
+    <tr class="tot"><td colspan="6">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td><td class="r">${fCFA(d.solde||0)}</td></tr></table>`;
   acctPrintWindow("Relevé de compte tiers", body);
 }
 
