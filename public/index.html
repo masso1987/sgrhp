@@ -1112,7 +1112,10 @@ function renderLoginFooter(){
 function buildNav() {
   const _adm = ME.role === "ADM" || ME.role === "SADM";
   const _smqFull = _adm || ME.role === "RQ" || !!ME.smqManager;   // accès complet Qualité
-  NAV_VISIBLE = NAV.filter(n =>n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k)));
+  const _MODROLE = { RC: "accounting", RS: "stock", RP: "payroll" }; const _mr = _MODROLE[ME.role];
+  NAV_VISIBLE = NAV.filter(n => _mr
+    ? (n.module === _mr && (ME.modules || []).includes(n.module) && !((ME.disabledFeatures || []).includes(n.k)))
+    : (n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k))));
   NAV_PRESENT = NAV_GROUPS.filter(G =>NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
   const mb = document.getElementById("modbar");
   if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
@@ -1720,7 +1723,7 @@ async function users() {
     <div class="panel" style="max-width:560px"><b>Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:8px">
       <div><label>Nom complet</label><input id="uName"></div><div><label>Email</label><input id="uEmail"></div>
-      <div><label>Role</label><select id="uRole"><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>ADM</option><option>RQ</option></select></div>
+      <div><label>Role</label><select id="uRole"><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>ADM</option><option>RQ</option><option value="RC">RC — Comptabilité</option><option value="RS">RS — Stock</option><option value="RP">RP — Paie</option></select></div>
       <div><label>Mot de passe</label><input id="uPass" type="password"></div></div>
     <div class="err hidden" id="uErr"></div>
     <button class="btn p" onclick="userSave()">Créer</button></div>`;
@@ -3931,7 +3934,7 @@ async function tenantUsers(tid, name) {
     <b style="font-size:12px">Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:6px">
       <input id="nuEmail" placeholder="email" style="margin:0"><input id="nuName" placeholder="nom complet" style="margin:0">
-      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>RQ</option></select></div>
+      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>RQ</option><option value="RC">RC — Comptabilité</option><option value="RS">RS — Stock</option><option value="RP">RP — Paie</option></select></div>
     <div class="err hidden" id="nuErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>

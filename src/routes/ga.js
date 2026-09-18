@@ -6,8 +6,8 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-const RO = ["ADM", "CD", "RJ", "GPF"];
-const RW = ["ADM", "CD", "RJ"];
+const RO = ["ADM", "CD", "RJ", "GPF", "RP"];
+const RW = ["ADM", "CD", "RJ", "RP"];
 
 /* ---------------- Catalogue des sources ---------------- */
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -188,7 +188,7 @@ router.put("/:id", allow(...RW), (req, res) => {
   m.updatedAt = new Date().toISOString(); save(); audit(req.user, "UPDATED", "GaModel", m.id, {});
   res.json(withDebut(m));
 });
-router.delete("/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/:id", allow("RP", "ADM", "CD"), (req, res) => {
   const m = mine(db.gaModels, req).find(x => x.id === req.params.id);
   if (!m) return res.status(404).json({ error: "Modèle introuvable" });
   db.gaModels.splice(db.gaModels.indexOf(m), 1); save(); audit(req.user, "DELETED", "GaModel", m.id, {}); res.json({ ok: true });

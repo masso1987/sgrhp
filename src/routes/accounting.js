@@ -67,21 +67,21 @@ function seedAccounting(tid) {
 
 /* ============================ RÉFÉRENTIELS (CRUD) ============================ */
 function crud(path, col, fields, keyField) {
-  router.get("/" + path, allow("ADM", "CD", "RJ"), (req, res) => { seedAccounting(req.user.tenantId || "t1"); res.json(mine(db[col], req).slice().sort((a, b) => String(a[keyField] || "").localeCompare(String(b[keyField] || "")))); });
-  router.get("/" + path + "/:id", allow("ADM", "CD", "RJ"), (req, res) => { const x = mine(db[col], req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" }); res.json(x); });
-  router.post("/" + path, allow("ADM", "CD"), (req, res) => {
+  router.get("/" + path, allow("RC", "ADM", "CD", "RJ"), (req, res) => { seedAccounting(req.user.tenantId || "t1"); res.json(mine(db[col], req).slice().sort((a, b) => String(a[keyField] || "").localeCompare(String(b[keyField] || "")))); });
+  router.get("/" + path + "/:id", allow("RC", "ADM", "CD", "RJ"), (req, res) => { const x = mine(db[col], req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" }); res.json(x); });
+  router.post("/" + path, allow("RC", "ADM", "CD"), (req, res) => {
     const b = req.body || {}; if (!b[keyField]) return res.status(400).json({ error: keyField + " obligatoire" });
     if (mine(db[col], req).some(r => String(r[keyField]) === String(b[keyField]))) return res.status(409).json({ error: "Existe déjà : " + b[keyField] });
     const rec = { id: id("acc"), createdAt: new Date().toISOString() };
     for (const f of fields) if (b[f] !== undefined) rec[f] = b[f];
     db[col].push(stamp(rec, req)); save(); audit(req.user, "CREATED", col, rec.id, {}); res.status(201).json(rec);
   });
-  router.put("/" + path + "/:id", allow("ADM", "CD"), (req, res) => {
+  router.put("/" + path + "/:id", allow("RC", "ADM", "CD"), (req, res) => {
     const x = mine(db[col], req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
     for (const f of fields) if (f !== keyField && req.body[f] !== undefined) x[f] = req.body[f];
     save(); res.json(x);
   });
-  router.delete("/" + path + "/:id", allow("ADM"), (req, res) => {
+  router.delete("/" + path + "/:id", allow("RC", "ADM"), (req, res) => {
     const x = mine(db[col], req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
     db[col].splice(db[col].indexOf(x), 1); save(); res.json({ ok: true });
   });
@@ -92,8 +92,8 @@ crud("taxes", "acctTaxes", ["code", "label", "rate", "account"], "code");
 crud("third-parties", "acctThirdParties", ["code", "name", "kind", "collectiveAccount", "terms", "niu", "rccm"], "code");
 
 /* ============================ EXERCICES ============================ */
-router.get("/exercises", allow("ADM", "CD", "RJ"), (req, res) => { seedAccounting(req.user.tenantId || "t1"); res.json(mine(db.acctExercises, req).slice().sort((a, b) => b.year - a.year)); });
-router.post("/exercises", allow("ADM"), (req, res) => {
+router.get("/exercises", allow("RC", "ADM", "CD", "RJ"), (req, res) => { seedAccounting(req.user.tenantId || "t1"); res.json(mine(db.acctExercises, req).slice().sort((a, b) => b.year - a.year)); });
+router.post("/exercises", allow("RC", "ADM"), (req, res) => {
   const b = req.body || {}; const year = Number(b.year); if (!year) return res.status(400).json({ error: "Année obligatoire" });
   if (mine(db.acctExercises, req).some(e => e.year === year)) return res.status(409).json({ error: "Exercice déjà ouvert" });
   const e = stamp({ id: id("acc"), year, start: year + "-01-01", end: year + "-12-31", status: "open", current: !!b.current, createdAt: new Date().toISOString() }, req);
@@ -110,16 +110,16 @@ function entryTotals(e) {
 }
 const withTotals = (e) => Object.assign({}, e, entryTotals(e));
 
-router.get("/entries", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/entries", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   let list = mine(db.acctEntries, req);
   if (req.query.journal) list = list.filter(e => e.journalCode === req.query.journal);
   if (req.query.period) list = list.filter(e => (e.period || "") === req.query.period);
   res.json(list.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(withTotals));
 });
-router.get("/entries/:id", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/entries/:id", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Écriture introuvable" }); res.json(withTotals(e));
 });
-router.post("/entries", allow("ADM", "CD"), (req, res) => {
+router.post("/entries", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {};
   if (!b.journalCode || !jrOf(req, b.journalCode)) return res.status(400).json({ error: "Journal obligatoire" });
   const lines = (Array.isArray(b.lines) ? b.lines : []).filter(l => l && l.account && (R2(l.debit) || R2(l.credit)))
@@ -133,7 +133,7 @@ router.post("/entries", allow("ADM", "CD"), (req, res) => {
     label: b.label || "", lines, status: "draft", source: b.source || "manual", sourceRef: b.sourceRef || "", createdAt: new Date().toISOString() }, req);
   db.acctEntries.push(e); save(); audit(req.user, "CREATED", "AcctEntry", e.id, { journal: b.journalCode, piece: pieceNo }); res.status(201).json(withTotals(e));
 });
-router.put("/entries/:id", allow("ADM", "CD"), (req, res) => {
+router.put("/entries/:id", allow("RC", "ADM", "CD"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Écriture introuvable" });
   if (e.status === "locked") return res.status(409).json({ error: "Écriture clôturée — verrouillée" });
   for (const k of ["date", "label", "pieceNo", "period"]) if (req.body[k] !== undefined) e[k] = req.body[k];
@@ -141,7 +141,7 @@ router.put("/entries/:id", allow("ADM", "CD"), (req, res) => {
     .map(l => ({ id: l.id || id("aln"), account: String(l.account), thirdParty: l.thirdParty || "", label: l.label || "", dueDate: l.dueDate || "", debit: R2(l.debit), credit: R2(l.credit), analytic: l.analytic || "" }));
   save(); res.json(withTotals(e));
 });
-router.post("/entries/:id/validate", allow("ADM", "CD"), (req, res) => {
+router.post("/entries/:id/validate", allow("RC", "ADM", "CD"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Écriture introuvable" });
   if (e.status === "locked") return res.status(409).json({ error: "Écriture verrouillée" });
   const t = entryTotals(e);
@@ -149,14 +149,14 @@ router.post("/entries/:id/validate", allow("ADM", "CD"), (req, res) => {
   e.status = e.status === "validated" ? "draft" : "validated"; save();
   audit(req.user, "VALIDATED", "AcctEntry", e.id, { status: e.status }); res.json(withTotals(e));
 });
-router.delete("/entries/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/entries/:id", allow("RC", "ADM", "CD"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Écriture introuvable" });
   if (e.status === "locked") return res.status(409).json({ error: "Écriture verrouillée" });
   db.acctEntries.splice(db.acctEntries.indexOf(e), 1); save(); res.json({ ok: true });
 });
 
 /* ============================ BALANCE ============================ */
-router.get("/balance", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const onlyValidated = req.query.all !== "1";
   const accs = {}; for (const a of mine(db.acctAccounts, req)) accs[a.number] = a.label;
@@ -269,14 +269,14 @@ function generatePayrollEntry(req, runId) {
   run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period, lines: lines.length }); return e;
 }
 /* ---- Table rubrique -> compte (ADM uniquement) ---- */
-router.get("/rubrique-map", allow("ADM", "CD"), (req, res) => res.json(acctMapOf(req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }))));
-router.post("/rubrique-map", allow("ADM", "CD"), (req, res) => {
+router.get("/rubrique-map", allow("RC", "ADM", "CD"), (req, res) => res.json(acctMapOf(req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }))));
+router.post("/rubrique-map", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {}; const code = String(b.code || "").trim(); if (!code) return res.status(400).json({ error: "Code rubrique requis" });
   if (acctMapOf(req).some(x => String(x.code) === code)) return res.status(409).json({ error: `Le code ${code} existe déjà dans la table.` });
   const r = stamp({ id: id("armap"), code, account: String(b.account || "").trim(), label: b.label || "" }, req);
   db.acctRubriqueMap.push(r); save(); audit(req.user, "CREATED", "AcctRubriqueMap", r.id, { code, account: r.account }); res.status(201).json(r);
 });
-router.put("/rubrique-map/:id", allow("ADM", "CD"), (req, res) => {
+router.put("/rubrique-map/:id", allow("RC", "ADM", "CD"), (req, res) => {
   const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
   if (b.code !== undefined) { const nc = String(b.code).trim(); if (nc !== String(r.code) && acctMapOf(req).some(x => x.id !== r.id && String(x.code) === nc)) return res.status(409).json({ error: `Le code ${nc} existe déjà.` }); r.code = nc; }
@@ -284,19 +284,19 @@ router.put("/rubrique-map/:id", allow("ADM", "CD"), (req, res) => {
   if (b.label !== undefined) r.label = b.label;
   save(); audit(req.user, "UPDATED", "AcctRubriqueMap", r.id, {}); res.json(r);
 });
-router.delete("/rubrique-map/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/rubrique-map/:id", allow("RC", "ADM", "CD"), (req, res) => {
   const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
   db.acctRubriqueMap.splice(db.acctRubriqueMap.indexOf(r), 1); save(); audit(req.user, "DELETED", "AcctRubriqueMap", r.id, { code: r.code }); res.json({ ok: true });
 });
-router.post("/rubrique-map/:id/duplicate", allow("ADM", "CD"), (req, res) => {
+router.post("/rubrique-map/:id/duplicate", allow("RC", "ADM", "CD"), (req, res) => {
   const r = mine(db.acctRubriqueMap, req).find(x => x.id === req.params.id); if (!r) return res.status(404).json({ error: "Introuvable" });
   let nc = String(r.code) + "_copie", i = 2; while (acctMapOf(req).some(x => String(x.code) === nc)) { nc = String(r.code) + "_copie" + i; i++; }
   const c = stamp({ id: id("armap"), code: nc, account: r.account, label: r.label }, req); db.acctRubriqueMap.push(c); save(); res.status(201).json(c);
 });
 
-router.post("/generate/invoice/:id", allow("ADM", "CD"), (req, res) => { const e = generateInvoiceEntry(req, req.params.id); if (!e) return res.status(400).json({ error: "Facture introuvable ou sans montant" }); res.json(withTotals(e)); });
+router.post("/generate/invoice/:id", allow("RC", "ADM", "CD"), (req, res) => { const e = generateInvoiceEntry(req, req.params.id); if (!e) return res.status(400).json({ error: "Facture introuvable ou sans montant" }); res.json(withTotals(e)); });
 // Transfert paie -> compta : ADM, CD et GPF, après clôture de la paie du mois.
-router.post("/generate/payroll/:runId", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/generate/payroll/:runId", allow("RC", "ADM", "CD", "GPF"), (req, res) => {
   try { const e = generatePayrollEntry(req, req.params.runId); if (!e) return res.status(400).json({ error: "Paie introuvable ou vide" }); res.json(withTotals(e)); }
   catch (err) { res.status(err.status || 500).json({ error: err.message }); }
 });
@@ -304,7 +304,7 @@ router.post("/generate/payroll/:runId", allow("ADM", "CD", "GPF"), (req, res) =>
 
 /* ==================== C3 — ÉTATS (grand-livre, journal, balance âgée) ==================== */
 function _accLabel(req) { const m = {}; for (const a of mine(db.acctAccounts, req)) m[a.number] = a.label; return m; }
-router.get("/ledger", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/ledger", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const acc = req.query.account; if (!acc) return res.status(400).json({ error: "Compte requis" });
   const onlyVal = req.query.all !== "1"; const labels = _accLabel(req);
@@ -315,7 +315,7 @@ router.get("/ledger", allow("ADM", "CD", "RJ"), (req, res) => {
   let solde = 0, td = 0, tc = 0; for (const r of rows) { solde += r.debit - r.credit; r.solde = solde; td += r.debit; tc += r.credit; }
   res.json({ account: acc, label: labels[acc] || "", rows, totalDebit: td, totalCredit: tc, solde });
 });
-router.get("/journal-report", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/journal-report", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const onlyVal = req.query.all !== "1"; const rows = [];
   for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue;
@@ -325,7 +325,7 @@ router.get("/journal-report", allow("ADM", "CD", "RJ"), (req, res) => {
   const td = rows.reduce((s, r) => s + r.debit, 0), tc = rows.reduce((s, r) => s + r.credit, 0);
   res.json({ rows, totalDebit: td, totalCredit: tc });
 });
-router.get("/aged", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/aged", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const prefix = req.query.kind === "fournisseur" ? "401" : "411";
   const now = new Date(); const by = {};
@@ -349,14 +349,14 @@ function aggByAccount(req, period) {
     for (const l of (e.lines || [])) { const a = (agg[l.account] = agg[l.account] || { debit: 0, credit: 0 }); a.debit += R2(l.debit); a.credit += R2(l.credit); } }
   return agg;
 }
-router.get("/vat", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/vat", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const agg = aggByAccount(req, req.query.period);
   let collectee = 0, deductible = 0;
   for (const [acc, v] of Object.entries(agg)) { if (acc.startsWith("443")) collectee += (v.credit - v.debit); if (acc.startsWith("445")) deductible += (v.debit - v.credit); }
   collectee = R2(collectee); deductible = R2(deductible); const net = collectee - deductible;
   res.json({ period: req.query.period || "toutes", collectee, deductible, aPayer: net > 0 ? net : 0, credit: net < 0 ? -net : 0 });
 });
-router.get("/income-statement", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/income-statement", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const agg = aggByAccount(req, req.query.period); const labels = _accLabel(req);
   const charges = [], produits = []; let tc = 0, tp = 0;
   for (const [acc, v] of Object.entries(agg)) {
@@ -366,7 +366,7 @@ router.get("/income-statement", allow("ADM", "CD", "RJ"), (req, res) => {
   charges.sort((a, b) => a.account.localeCompare(b.account)); produits.sort((a, b) => a.account.localeCompare(b.account));
   res.json({ period: req.query.period || "toutes", produits, charges, totalProduits: R2(tp), totalCharges: R2(tc), resultat: R2(tp - tc) });
 });
-router.get("/balance-sheet", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/balance-sheet", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const agg = aggByAccount(req, req.query.period);
   let immobA = 0, circA = 0, tresoA = 0, capP = 0, dettesP = 0, tresoP = 0, prod = 0, charge = 0;
   for (const [acc, v] of Object.entries(agg)) { const solde = v.debit - v.credit; const cl = acc[0];
@@ -388,17 +388,17 @@ router.get("/balance-sheet", allow("ADM", "CD", "RJ"), (req, res) => {
 
 
 /* ==================== C5 — Clôture & fiscal (lettrage, clôture, FEC) ==================== */
-router.post("/entries/:id/lock", allow("ADM"), (req, res) => {
+router.post("/entries/:id/lock", allow("RC", "ADM"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
   if (e.status !== "validated") return res.status(400).json({ error: "Validez d'abord l'écriture" });
   e.status = "locked"; save(); res.json(withTotals(e));
 });
-router.post("/journals/:code/close", allow("ADM"), (req, res) => {
+router.post("/journals/:code/close", allow("RC", "ADM"), (req, res) => {
   const period = (req.body || {}).period; let n = 0;
   for (const e of mine(db.acctEntries, req)) { if (e.journalCode !== req.params.code) continue; if (period && (e.period || "") !== period) continue; if (e.status === "validated") { e.status = "locked"; n++; } }
   save(); audit(req.user, "CLOSED", "AcctJournal", req.params.code, { period, locked: n }); res.json({ ok: true, locked: n });
 });
-router.post("/lettrage", allow("ADM", "CD"), (req, res) => {
+router.post("/lettrage", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {}; const acc = b.account; const refs = Array.isArray(b.lines) ? b.lines : [];
   if (!acc || refs.length < 2) return res.status(400).json({ error: "Compte + au moins 2 lignes" });
   let sum = 0; const targets = [];
@@ -435,8 +435,8 @@ function closeExercise(req, exId) {
   ex.status = "closed"; ex.current = false; next.current = true; save();
   audit(req.user, "CLOSED_EXERCISE", "AcctExercise", ex.id, { year: ex.year, resultat }); return { ok: true, resultat, exercise: ex, next };
 }
-router.post("/exercises/:id/close", allow("ADM"), (req, res) => { const r = closeExercise(req, req.params.id); if (r.error) return res.status(400).json(r); res.json(r); });
-router.get("/fec", allow("ADM", "CD"), (req, res) => {
+router.post("/exercises/:id/close", allow("RC", "ADM"), (req, res) => { const r = closeExercise(req, req.params.id); if (r.error) return res.status(400).json(r); res.json(r); });
+router.get("/fec", allow("RC", "ADM", "CD"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const labels = _accLabel(req); const jr = {}; for (const j of mine(db.acctJournals, req)) jr[j.code] = j.label;
   const yy = req.query.year || String(new Date().getFullYear()); const fd = d => String(d || "").replace(/-/g, "");
   const head = ["JournalCode", "JournalLib", "EcritureNum", "EcritureDate", "CompteNum", "CompteLib", "CompAuxNum", "CompAuxLib", "PieceRef", "PieceDate", "EcritureLib", "Debit", "Credit", "EcritureLet", "DateLet", "ValidDate", "Montantdevise", "Idevise"];
@@ -449,21 +449,21 @@ router.get("/fec", allow("ADM", "CD"), (req, res) => {
 
 
 /* ==================== C6 — Analytique & budget ==================== */
-router.get("/analytic-balance", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/analytic-balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const by = {};
   for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
     for (const l of (e.lines || [])) { const code = l.analytic || "(non ventilé)"; const g = (by[code] = by[code] || { code, debit: 0, credit: 0 }); g.debit += R2(l.debit); g.credit += R2(l.credit); } }
   const rows = Object.values(by).map(r => Object.assign(r, { solde: r.debit - r.credit })).sort((a, b) => a.code.localeCompare(b.code));
   res.json({ rows });
 });
-router.get("/budgets", allow("ADM", "CD", "RJ"), (req, res) => res.json(mine(db.acctBudgets, req)));
-router.post("/budgets", allow("ADM", "CD"), (req, res) => {
+router.get("/budgets", allow("RC", "ADM", "CD", "RJ"), (req, res) => res.json(mine(db.acctBudgets, req)));
+router.post("/budgets", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {}; if (!b.account || !b.year) return res.status(400).json({ error: "Compte + année obligatoires" });
   let x = mine(db.acctBudgets, req).find(r => r.account === b.account && Number(r.year) === Number(b.year));
   if (x) { x.amount = R2(b.amount); } else { x = stamp({ id: id("abud"), account: b.account, year: Number(b.year), amount: R2(b.amount), createdAt: new Date().toISOString() }, req); db.acctBudgets.push(x); }
   save(); res.json(x);
 });
-router.get("/budget-actual", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/budget-actual", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const yy = String(req.query.year || new Date().getFullYear());
   const labels = _accLabel(req); const actual = {};
   for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if ((e.period || "").slice(0, 4) !== yy) continue;
@@ -475,7 +475,7 @@ router.get("/budget-actual", allow("ADM", "CD", "RJ"), (req, res) => {
 });
 
 /* ==================== Comptes tiers (soldes en direct) ==================== */
-router.get("/third-parties-usage", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/third-parties-usage", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const defined = {}; for (const t of mine(db.acctThirdParties, req)) defined[t.code] = t;
   const agg = {};
@@ -496,7 +496,7 @@ router.get("/third-parties-usage", allow("ADM", "CD", "RJ"), (req, res) => {
 });
 
 /* ==================== Relevé / grand-livre par tiers (États tiers) ==================== */
-router.get("/tiers-ledger", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/tiers-ledger", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const tp = (req.query.tp || "").toString(); if (!tp) return res.status(400).json({ error: "Tiers requis" });
   const onlyVal = req.query.all !== "1"; const labels = _accLabel(req); const rows = [];
@@ -511,7 +511,7 @@ router.get("/tiers-ledger", allow("ADM", "CD", "RJ"), (req, res) => {
 });
 
 /* ==================== Recherche d'écritures (multi-critères) ==================== */
-router.get("/entries-search", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/entries-search", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const q = req.query || {};
   const onlyVal = q.all !== "1";
@@ -557,7 +557,7 @@ function bankBookLines(req, account) {
   rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   return rows;
 }
-router.get("/bank/lines", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/bank/lines", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const account = req.query.account; if (!account) return res.status(400).json({ error: "Compte requis" });
   const matched = new Set(mine(db.acctBankMatches, req).filter(m => m.account === account).map(m => m.bankLineId));
   const rows = mine(db.acctBankLines, req).filter(b => b.account === account)
@@ -565,11 +565,11 @@ router.get("/bank/lines", allow("ADM", "CD", "RJ"), (req, res) => {
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   res.json(rows);
 });
-router.get("/bank/book", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/bank/book", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const account = req.query.account; if (!account) return res.status(400).json({ error: "Compte requis" });
   res.json(bankBookLines(req, account));
 });
-router.post("/bank/import", allow("ADM", "CD"), (req, res) => {
+router.post("/bank/import", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {}; const account = b.account; if (!account) return res.status(400).json({ error: "Compte requis" });
   const statementId = id("bstm");
   const lines = (Array.isArray(b.lines) ? b.lines : []).filter(l => l && (l.date || l.label) && (R2(l.amount) !== 0 || l.amount === 0 && (l.label || "")));
@@ -583,31 +583,31 @@ router.post("/bank/import", allow("ADM", "CD"), (req, res) => {
   save(); audit(req.user, "IMPORTED", "BankStatement", statementId, { account, count: n });
   res.status(201).json({ ok: true, count: n, statementId });
 });
-router.delete("/bank/lines/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/bank/lines/:id", allow("RC", "ADM", "CD"), (req, res) => {
   const x = mine(db.acctBankLines, req).find(b => b.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
   db.acctBankLines.splice(db.acctBankLines.indexOf(x), 1);
   for (const m of mine(db.acctBankMatches, req).filter(m => m.bankLineId === x.id)) db.acctBankMatches.splice(db.acctBankMatches.indexOf(m), 1);
   save(); res.json({ ok: true });
 });
-router.post("/bank/clear", allow("ADM", "CD"), (req, res) => {
+router.post("/bank/clear", allow("RC", "ADM", "CD"), (req, res) => {
   const account = req.query.account || (req.body || {}).account; if (!account) return res.status(400).json({ error: "Compte requis" });
   db.acctBankLines = db.acctBankLines.filter(b => !((b.tenantId || "t1") === (req.user.tenantId || "t1") && b.account === account));
   db.acctBankMatches = db.acctBankMatches.filter(m => !((m.tenantId || "t1") === (req.user.tenantId || "t1") && m.account === account));
   save(); res.json({ ok: true });
 });
-router.post("/bank/match", allow("ADM", "CD"), (req, res) => {
+router.post("/bank/match", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {}; if (!b.account || !b.bankLineId || !b.lineId) return res.status(400).json({ error: "account, bankLineId, lineId requis" });
   if (mine(db.acctBankMatches, req).some(m => m.bankLineId === b.bankLineId || m.lineId === b.lineId)) return res.status(409).json({ error: "Déjà pointé" });
   db.acctBankMatches.push(stamp({ id: id("bmt"), account: b.account, bankLineId: b.bankLineId, entryId: b.entryId || "", lineId: b.lineId, date: new Date().toISOString() }, req));
   save(); res.json({ ok: true });
 });
-router.post("/bank/unmatch", allow("ADM", "CD"), (req, res) => {
+router.post("/bank/unmatch", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {}; const list = mine(db.acctBankMatches, req).filter(m => (b.bankLineId && m.bankLineId === b.bankLineId) || (b.lineId && m.lineId === b.lineId));
   if (!list.length) return res.status(404).json({ error: "Aucun pointage" });
   for (const m of list) db.acctBankMatches.splice(db.acctBankMatches.indexOf(m), 1);
   save(); res.json({ ok: true, removed: list.length });
 });
-router.post("/bank/auto", allow("ADM", "CD"), (req, res) => {
+router.post("/bank/auto", allow("RC", "ADM", "CD"), (req, res) => {
   const b = req.body || {}; const account = b.account; if (!account) return res.status(400).json({ error: "Compte requis" });
   const tol = Number(b.tolDays != null ? b.tolDays : 5);
   const book = bankBookLines(req, account).filter(l => !l.pointed);
@@ -626,7 +626,7 @@ router.post("/bank/auto", allow("ADM", "CD"), (req, res) => {
   }
   save(); res.json({ ok: true, matched: n });
 });
-router.get("/bank/reconcile", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/bank/reconcile", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const account = req.query.account; if (!account) return res.status(400).json({ error: "Compte requis" });
   const closing = req.query.closingBalance !== undefined && req.query.closingBalance !== "" ? R2(req.query.closingBalance) : null;
   const book = bankBookLines(req, account);
@@ -646,7 +646,7 @@ router.get("/bank/reconcile", allow("ADM", "CD", "RJ"), (req, res) => {
 });
 
 /* ==================== États tiers — grand-livre consolidé ==================== */
-router.get("/tiers-ledger-all", allow("ADM", "CD", "RJ"), (req, res) => {
+router.get("/tiers-ledger-all", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const kind = req.query.kind || "all"; const onlyVal = req.query.all !== "1";
   const ref = {}; for (const t of mine(db.acctThirdParties, req)) ref[t.code] = t;
@@ -680,7 +680,7 @@ function _ensureTiers(req,code,name,account){ if(!code) return; if(mine(db.acctT
   const acc=String(account||""); const kind=acc.startsWith("401")?"fournisseur":acc.startsWith("411")?"client":acc.startsWith("42")?"salarie":"";
   db.acctThirdParties.push(stamp({id:id("acc"),code:String(code),name:name||"",kind,collectiveAccount:acc,createdAt:new Date().toISOString()},req)); }
 
-router.post("/import/accounts", allow("ADM","CD"), (req,res)=>{
+router.post("/import/accounts", allow("RC", "ADM","CD"), (req,res)=>{
   seedAccounting(req.user.tenantId||"t1"); const tid=req.user.tenantId||"t1";
   const rows=Array.isArray((req.body||{}).rows)?req.body.rows:[]; let created=0, skipped=0;
   for(const r of rows){ const num=String(r.number||"").trim(); if(!num){skipped++;continue;}
@@ -688,7 +688,7 @@ router.post("/import/accounts", allow("ADM","CD"), (req,res)=>{
     db.acctAccounts.push(stamp({id:id("acc"),number:num,label:r.label||"",type:"detail",nature:r.nature||_natureOf(num),active:true,createdAt:new Date().toISOString()},req)); created++; }
   save(); audit(req.user,"IMPORTED","AcctAccounts","",{created}); res.json({ok:true,created,skipped});
 });
-router.post("/import/tiers", allow("ADM","CD"), (req,res)=>{
+router.post("/import/tiers", allow("RC", "ADM","CD"), (req,res)=>{
   seedAccounting(req.user.tenantId||"t1");
   const rows=Array.isArray((req.body||{}).rows)?req.body.rows:[]; let created=0, skipped=0;
   for(const r of rows){ const code=String(r.code||"").trim(); if(!code){skipped++;continue;}
@@ -697,7 +697,7 @@ router.post("/import/tiers", allow("ADM","CD"), (req,res)=>{
     db.acctThirdParties.push(stamp({id:id("acc"),code,name:r.name||"",kind,collectiveAccount:acc,createdAt:new Date().toISOString()},req)); created++; }
   save(); audit(req.user,"IMPORTED","AcctThirdParties","",{created}); res.json({ok:true,created,skipped});
 });
-router.post("/import/entries", allow("ADM","CD"), (req,res)=>{
+router.post("/import/entries", allow("RC", "ADM","CD"), (req,res)=>{
   seedAccounting(req.user.tenantId||"t1"); const tid=req.user.tenantId||"t1";
   const rows=Array.isArray((req.body||{}).rows)?req.body.rows:[];
   // group by journal + ecriture number
@@ -729,7 +729,7 @@ router.post("/import/entries", allow("ADM","CD"), (req,res)=>{
 });
 
 /* ==================== Tableau de bord (dashboard) ==================== */
-router.get("/dashboard", allow("ADM","CD","RJ"), (req,res)=>{
+router.get("/dashboard", allow("RC", "ADM","CD","RJ"), (req,res)=>{
   seedAccounting(req.user.tenantId||"t1");
   const entries=mine(db.acctEntries,req).filter(e=>e.status!=="draft");
   const ex=mine(db.acctExercises,req).find(x=>x.current)||mine(db.acctExercises,req).sort((a,b)=>b.year-a.year)[0]||null;
@@ -796,7 +796,7 @@ router.get("/dashboard", allow("ADM","CD","RJ"), (req,res)=>{
 });
 
 /* ==================== Import balance (reprise des soldes → à-nouveaux) ==================== */
-router.post("/import/balance", allow("ADM","CD"), (req,res)=>{
+router.post("/import/balance", allow("RC", "ADM","CD"), (req,res)=>{
   seedAccounting(req.user.tenantId||"t1"); const tid=req.user.tenantId||"t1";
   const b=req.body||{}; const rows=Array.isArray(b.rows)?b.rows:[];
   const ex=mine(db.acctExercises,req).find(x=>x.current)||null;

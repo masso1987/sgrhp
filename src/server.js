@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-18 · COMPTA-13 (table Rubriques→Comptes: accès ADM + comptable CD)";
+const BUILD_VERSION = "2026-09-18 · ROLES-14 (rôles dédiés: RC Comptabilité, RS Stock, RP Paie — accès complet à leur module)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

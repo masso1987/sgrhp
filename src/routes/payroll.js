@@ -40,7 +40,7 @@ function sendCSV(res, name, rows) {
 }
 function canRunPayroll(req) { return hasPayPerm(req, "payroll.run"); }
 function hasPayPerm(req, perm) {
-  if (req.user.role === "ADM") return true;
+  if (req.user.role === "ADM" || req.user.role === "RP") return true;
   const u = db.users.find(x => x.id === req.user.id);
   return (((u && u.permissions) || []).includes(perm));
 }
@@ -330,9 +330,9 @@ function employeeRubriques(emp, req) {
 }
 
 /* ============================ CONFIG ============================ */
-router.get("/config", allow("ADM", "CD", "RJ"), (req, res) => res.json(configOf(req)));
+router.get("/config", allow("RP", "ADM", "CD", "RJ"), (req, res) => res.json(configOf(req)));
 
-router.put("/config", allow("ADM"), (req, res) => {
+router.put("/config", allow("RP", "ADM"), (req, res) => {
   const c = configOf(req);
   const before = JSON.parse(JSON.stringify(c));
   Object.assign(c, req.body || {}, { id: c.id, tenantId: c.tenantId });
@@ -352,16 +352,16 @@ function rubriqueInUse(rub, req) {
 }
 const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active"];
 
-router.get("/rubriques", allow("ADM", "CD", "RJ", "GPF"), (req, res) =>
+router.get("/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =>
   res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, inUse: rubriqueInUse(r, req) })))));
 // Rubriques attribuées à un salarié (pour le calcul à l'envers et les éléments variables), triées.
-router.get("/employees/:eid/rubriques", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
   if (!emp) return res.status(404).json({ error: "Employé introuvable" });
   res.json(employeeRubriques(emp, req).map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel })));
 });
 
-router.post("/rubriques", allow("ADM"), (req, res) => {
+router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
   const b = req.body || {};
   if (!b.code || !b.label) return res.status(400).json({ error: "Code et libellé obligatoires" });
   if (mine(db.payRubriques, req).some(r => r.code === b.code))
@@ -377,7 +377,7 @@ router.post("/rubriques", allow("ADM"), (req, res) => {
   res.status(201).json(r);
 });
 
-router.post("/rubriques/import-catalogue", allow("ADM"), (req, res) => {
+router.post("/rubriques/import-catalogue", allow("RP", "ADM"), (req, res) => {
   const { CATALOGUE } = require("../payroll/seed");
   const have = new Set(mine(db.payRubriques, req).map(r => r.code));
   let added = 0;
@@ -397,7 +397,7 @@ router.post("/rubriques/import-catalogue", allow("ADM"), (req, res) => {
   res.json({ ok: true, added, total: mine(db.payRubriques, req).length });
 });
 
-router.put("/rubriques/:id", allow("ADM"), (req, res) => {
+router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Rubrique introuvable" });
   const b = req.body || {};
@@ -418,7 +418,7 @@ router.put("/rubriques/:id", allow("ADM"), (req, res) => {
   res.json({ ...r, inUse });
 });
 
-router.delete("/rubriques/:id", allow("ADM"), (req, res) => {
+router.delete("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Introuvable" });
   if (rubriqueInUse(r, req) && !(req.query.force === "1"))
@@ -431,8 +431,8 @@ router.delete("/rubriques/:id", allow("ADM"), (req, res) => {
 });
 
 /* Bulletins modèles */
-router.get("/models", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.bulletinModels, req)));
-router.post("/models", allow("ADM"), (req, res) => {
+router.get("/models", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.bulletinModels, req)));
+router.post("/models", allow("RP", "ADM"), (req, res) => {
   const b = req.body || {};
   if (!b.code || !b.label) return res.status(400).json({ error: "code et libellé obligatoires" });
   const m = stamp({ id: id("bmod"), code: b.code, label: b.label, type: b.type || "Mensuel",
@@ -440,7 +440,7 @@ router.post("/models", allow("ADM"), (req, res) => {
   db.bulletinModels.push(m); save();
   res.status(201).json(m);
 });
-router.put("/models/:id", allow("ADM"), (req, res) => {
+router.put("/models/:id", allow("RP", "ADM"), (req, res) => {
   const m = mine(db.bulletinModels, req).find(x => x.id === req.params.id);
   if (!m) return res.status(404).json({ error: "Introuvable" });
   Object.assign(m, req.body || {}, { id: m.id, tenantId: m.tenantId }); save();
@@ -448,14 +448,14 @@ router.put("/models/:id", allow("ADM"), (req, res) => {
 });
 
 /* ======================= VARIABLE ELEMENTS ===================== */
-router.get("/elements", allow("ADM", "GPF", "CD", "RJ"), (req, res) => {
+router.get("/elements", allow("RP", "ADM", "GPF", "CD", "RJ"), (req, res) => {
   const { period, employeeId } = req.query;
   let list = mine(db.payElements, req);
   if (period) list = list.filter(e => e.period === period);
   if (employeeId) list = list.filter(e => e.employeeId === employeeId);
   res.json(list);
 });
-router.post("/elements", allow("ADM", "GPF"), (req, res) => {
+router.post("/elements", allow("RP", "ADM", "GPF"), (req, res) => {
   const b = req.body || {};
   if (!b.employeeId || !b.period || !b.type) return res.status(400).json({ error: "employeeId, period, type obligatoires" });
   if (runLocked(b.period, req)) return res.status(409).json({ error: "Période clôturée — saisie impossible" });
@@ -467,7 +467,7 @@ router.post("/elements", allow("ADM", "GPF"), (req, res) => {
   audit(req.user, "CREATED", "PayElement", e.id, { period: e.period, type: e.type, employeeId: e.employeeId });
   res.status(201).json(e);
 });
-router.delete("/elements/:id", allow("ADM", "GPF"), (req, res) => {
+router.delete("/elements/:id", allow("RP", "ADM", "GPF"), (req, res) => {
   const el = mine(db.payElements, req).find(x => x.id === req.params.id);
   if (!el) return res.status(404).json({ error: "Introuvable" });
   if (runLocked(el.period, req)) return res.status(409).json({ error: "Période clôturée" });
@@ -480,11 +480,11 @@ function runLocked(period, req) {
 }
 
 /* ============================ RUNS ============================= */
-router.get("/runs", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/runs", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   res.json(mine(db.payRuns, req).slice().sort((a, b) => (b.period || "").localeCompare(a.period || "")));
 });
 
-router.post("/runs", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+router.post("/runs", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
 
   const period = (req.body && req.body.period || "").trim();
@@ -498,7 +498,7 @@ router.post("/runs", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
   res.status(201).json(run);
 });
 
-router.get("/runs/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/runs/:id", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const slips = mine(db.payslips, req).filter(s => s.runId === run.id).map(summary);
@@ -506,7 +506,7 @@ router.get("/runs/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 });
 
 /** Compute (or recompute) payslips for all active employees in the run's period. */
-router.post("/runs/:id/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+router.post("/runs/:id/compute", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
 
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
@@ -540,7 +540,7 @@ router.post("/runs/:id/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, re
 });
 
 /* Import d'un pointage (timesheet) : jours travaillés, absences, heures supplémentaires par matricule. */
-router.get("/runs/:id/timesheet-template", allow("ADM", "GPF", "CD", "RJ"), (req, res) => {
+router.get("/runs/:id/timesheet-template", allow("RP", "ADM", "GPF", "CD", "RJ"), (req, res) => {
   let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -556,7 +556,7 @@ router.get("/runs/:id/timesheet-template", allow("ADM", "GPF", "CD", "RJ"), (req
   res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
 
-router.post("/runs/:id/timesheet", allow("ADM", "GPF", "CD", "RJ"), tsUpload.single("file"), (req, res) => {
+router.post("/runs/:id/timesheet", allow("RP", "ADM", "GPF", "CD", "RJ"), tsUpload.single("file"), (req, res) => {
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
   let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
   if (!req.file) return res.status(400).json({ error: "Fichier manquant" });
@@ -610,7 +610,7 @@ router.post("/runs/:id/timesheet", allow("ADM", "GPF", "CD", "RJ"), tsUpload.sin
 });
 
 // Per-employee roster for a run (status: PENDING / CALCULATED / CLOSED).
-router.get("/runs/:id/roster", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/roster", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const byEmp = {}; mine(db.payslips, req).filter(s => s.runId === run.id).forEach(s => { byEmp[s.employeeId] = s; });
@@ -630,7 +630,7 @@ router.get("/runs/:id/roster", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res)
 });
 
 // Compute (or recompute) ONE employee's bulletin.
-router.post("/runs/:id/employees/:eid/compute", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+router.post("/runs/:id/employees/:eid/compute", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -654,7 +654,7 @@ router.post("/runs/:id/employees/:eid/compute", allow("ADM", "GPF", "CD", "RJ", 
 });
 
 // Simulation: compute a preview for an employee WITHOUT saving anything.
-router.post("/simulate/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.post("/simulate/:eid", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
   if (!emp) return res.status(404).json({ error: "Employe introuvable" });
   if (!baseSalaryOf(emp, req)) return res.status(422).json({ error: "Salaire de base introuvable" });
@@ -664,7 +664,7 @@ router.post("/simulate/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) 
 });
 
 /* Calcul à l'envers : à partir d'un net à payer cible, trouver le montant de la rubrique d'ajustement. */
-router.post("/reverse/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.post("/reverse/:eid", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
   if (!emp) return res.status(404).json({ error: "Employé introuvable" });
   const b = req.body || {};
@@ -693,7 +693,7 @@ router.post("/reverse/:eid", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) =
 });
 
 /** Close the period: lock payslips and roll year-to-date cumuls. */
-router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+router.post("/runs/:id/close", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
 
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
@@ -719,7 +719,7 @@ router.post("/runs/:id/close", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res)
   res.json({ run });
 });
 // Transfert manuel paie -> comptabilité (ADM/CD/GPF), seulement après clôture. Idempotent (renvoie l'écriture existante).
-router.post("/runs/:id/transfer-accounting", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/runs/:id/transfer-accounting", allow("RP", "ADM", "CD", "GPF"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   if (run.status !== "CLOSED") return res.status(409).json({ error: "Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE." });
@@ -734,7 +734,7 @@ router.post("/runs/:id/transfer-accounting", allow("ADM", "CD", "GPF"), (req, re
 
 /* Rouvrir une période clôturée (ADM) : annule les cumuls de la période, déverrouille les
  * bulletins pour permettre un recalcul (ex. correction de barème), puis re-clôture ensuite. */
-router.post("/runs/:id/reopen", allow("ADM"), (req, res) => {
+router.post("/runs/:id/reopen", allow("RP", "ADM"), (req, res) => {
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -772,7 +772,7 @@ function runTotals(run, req) {
   }, { brut: 0, net: 0, cnps: 0, irpp: 0, charges: 0, cout: 0, count: 0 });
 }
 
-router.get("/dashboard", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/dashboard", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const runs = mine(db.payRuns, req).slice().sort((a, b) => String(a.period).localeCompare(String(b.period)));
   const emps = mine(db.employees, req).filter(e => String(e.status || "").toUpperCase() !== "ARCHIVED");
   const actifs = emps.filter(e => String(e.status || "").toUpperCase() === "ACTIVE").length;
@@ -792,14 +792,14 @@ router.get("/dashboard", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
     trend,
   });
 });
-router.get("/payslips/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/payslips/:id", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const s = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
   res.json(s);
 });
 
 /* Duplicatas : liste des bulletins d'un salarié (mois précédents). */
-router.get("/employees/:eid/payslips", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/employees/:eid/payslips", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const rows = mine(db.payslips, req).filter(x => x.employeeId === req.params.eid)
     .map(x => ({ id: x.id, period: x.period, date: (x.result && x.result.meta && x.result.meta.payDate) || x.createdAt || "",
       net: (x.result && x.result.totals && x.result.totals.netAPayer) || 0, status: x.status }))
@@ -1146,7 +1146,7 @@ function payslipBuffer(s, emp, tenant) {
   });
 }
 
-router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/payslips/:id/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const s = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
   const emp = mine(db.employees, req).find(e => e.id === s.employeeId) || {};
@@ -1160,7 +1160,7 @@ router.get("/payslips/:id/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res
 });
 
 /* Tous les bulletins d'une paie (option: un portefeuille) en un seul PDF */
-router.get("/runs/:id/payslips.pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/payslips.pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const pfId = req.query.portfolioId || null;
@@ -1206,13 +1206,13 @@ function ficheIndividuelle(eid, year, req) {
   ];
   return { employee: { id: emp.id, name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), matricule: emp.matricule || "", category: (emp.contract && emp.contract.category) || "" }, year: Number(year), months: FI_MOIS, rubriques, summary };
 }
-router.get("/employees/:eid/fiche", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/employees/:eid/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const year = req.query.year || new Date().getFullYear();
   const fi = ficheIndividuelle(req.params.eid, year, req);
   if (!fi) return res.status(404).json({ error: "Employé introuvable" });
   res.json(fi);
 });
-router.get("/employees/:eid/fiche.xlsx", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/employees/:eid/fiche.xlsx", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
   const fi = ficheIndividuelle(req.params.eid, req.query.year || new Date().getFullYear(), req);
   if (!fi) return res.status(404).json({ error: "Employé introuvable" });
@@ -1227,7 +1227,7 @@ router.get("/employees/:eid/fiche.xlsx", allow("ADM", "CD", "RJ", "GPF"), (req, 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.send(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
 });
-router.get("/employees/:eid/fiche.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/employees/:eid/fiche.pdf", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const fi = ficheIndividuelle(req.params.eid, req.query.year || new Date().getFullYear(), req);
   if (!fi) return res.status(404).json({ error: "Employé introuvable" });
   const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -1258,7 +1258,7 @@ router.get("/employees/:eid/fiche.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, r
 });
 
 /* ===================== LIVRE DE PAIE ========================== */
-router.get("/runs/:id/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/livre", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Livre de paie non autorise - demandez le droit a votre administrateur" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1267,7 +1267,7 @@ router.get("/runs/:id/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) 
 });
 
 /* ================= ÉTATS DES COTISATIONS ===================== */
-router.get("/runs/:id/cotisations", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/cotisations", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Etats des cotisations non autorise - demandez le droit a votre administrateur" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1283,7 +1283,7 @@ router.get("/runs/:id/cotisations", allow("ADM", "CD", "RJ", "GPF", "UI"), (req,
 
 // Edit an individual payslip: override specific rubrique AMOUNTS by hand (formula/base
 // stay locked). Re-totals without re-running the engine. Adjusts cumuls if the run is closed.
-router.put("/payslips/:id/lines", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
+router.put("/payslips/:id/lines", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
   if (req.user.role !== "ADM") {
     const _u = db.users.find(x => x.id === req.user.id);
     if (!(((_u && _u.permissions) || []).includes("payroll.edit")))
@@ -1330,7 +1330,7 @@ router.put("/payslips/:id/lines", allow("ADM", "GPF", "CD", "RJ", "UI"), (req, r
 });
 
 /* ---------------- Exports (CSV / Excel-openable) ---------------- */
-router.get("/runs/:id/livre/export", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/livre/export", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1344,7 +1344,7 @@ router.get("/runs/:id/livre/export", allow("ADM", "CD", "RJ", "GPF", "UI"), (req
   audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "livre", format: "csv" });
   sendCSV(res, `Livre_de_paie_${run.period}.csv`, rows);
 });
-router.get("/runs/:id/cotisations/export", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/cotisations/export", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1421,7 +1421,7 @@ const _SUMMARY = [
 ];
 
 /* ---- Livre de paie : Excel (matrice) ---- */
-router.get("/runs/:id/livre/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/livre/excel", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1447,7 +1447,7 @@ router.get("/runs/:id/livre/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req,
 });
 
 /* ---- Livre de paie : PDF (matrice, colonnes paginées) ---- */
-router.get("/runs/:id/livre/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/livre/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1498,7 +1498,7 @@ router.get("/runs/:id/livre/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, r
 });
 
 /* ---- État des cotisations : Excel ---- */
-router.get("/runs/:id/cotisations/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/cotisations/excel", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1518,7 +1518,7 @@ router.get("/runs/:id/cotisations/excel", allow("ADM", "CD", "RJ", "GPF", "UI"),
 });
 
 /* ---- État des cotisations : PDF ---- */
-router.get("/runs/:id/cotisations/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/runs/:id/cotisations/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1553,7 +1553,7 @@ router.get("/runs/:id/cotisations/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (
   doc.end();
 });
 // Ordre de virement — net salaries with bank details, for the bank.
-router.get("/runs/:id/virement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/runs/:id/virement", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1597,7 +1597,7 @@ async function sendPayslipEmail(s2, req) {
   return emp.email;
 }
 
-router.post("/payslips/:id/email", allow("ADM", "CD", "RJ", "GPF"), async (req, res) => {
+router.post("/payslips/:id/email", allow("RP", "ADM", "CD", "RJ", "GPF"), async (req, res) => {
   const s2 = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s2) return res.status(404).json({ error: "Bulletin introuvable" });
   try { const to = await sendPayslipEmail(s2, req); res.json({ ok: true, to }); }
@@ -1605,7 +1605,7 @@ router.post("/payslips/:id/email", allow("ADM", "CD", "RJ", "GPF"), async (req, 
 });
 
 // Bulk: email every computed payslip of a run (optionally filtered to one portfolio).
-router.post("/runs/:id/email-portfolio", allow("ADM", "CD", "RJ", "GPF"), async (req, res) => {
+router.post("/runs/:id/email-portfolio", allow("RP", "ADM", "CD", "RJ", "GPF"), async (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const pfId = (req.body && req.body.portfolioId) || null;
@@ -1622,13 +1622,13 @@ router.post("/runs/:id/email-portfolio", allow("ADM", "CD", "RJ", "GPF"), async 
 });
 
 /* ---------------- Prêts (loans with échéancier) ---------------- */
-router.get("/loans", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/loans", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const { employeeId } = req.query;
   let list = mine(db.payLoans, req);
   if (employeeId) list = list.filter(l => l.employeeId === employeeId);
   res.json(list);
 });
-router.post("/loans", allow("ADM", "GPF"), (req, res) => {
+router.post("/loans", allow("RP", "ADM", "GPF"), (req, res) => {
   const b = req.body || {};
   if (!b.employeeId || !(Number(b.principal) > 0) || !(Number(b.installments) > 0))
     return res.status(400).json({ error: "employeeId, principal et nombre d'échéances requis" });
@@ -1641,13 +1641,13 @@ router.post("/loans", allow("ADM", "GPF"), (req, res) => {
   audit(req.user, "CREATED", "PayLoan", l.id, { employeeId: l.employeeId, principal, installments });
   res.status(201).json(l);
 });
-router.put("/loans/:id", allow("ADM", "GPF"), (req, res) => {
+router.put("/loans/:id", allow("RP", "ADM", "GPF"), (req, res) => {
   const l = mine(db.payLoans, req).find(x => x.id === req.params.id);
   if (!l) return res.status(404).json({ error: "Prêt introuvable" });
   if (req.body.active !== undefined) l.active = !!req.body.active;
   save(); res.json(l);
 });
-router.delete("/loans/:id", allow("ADM", "GPF"), (req, res) => {
+router.delete("/loans/:id", allow("RP", "ADM", "GPF"), (req, res) => {
   const i = db.payLoans.findIndex(x => x.id === req.params.id && (x.tenantId || "t1") === (req.user.tenantId || "t1"));
   if (i < 0) return res.status(404).json({ error: "Introuvable" });
   db.payLoans.splice(i, 1); save(); res.json({ ok: true });
@@ -1688,19 +1688,19 @@ function buildJournal(run, req) {
   return { model, entries, totalDebit, totalCredit, balanced: totalDebit === totalCredit, ventilation };
 }
 
-router.get("/accounting-model", allow("ADM", "CD", "RJ"), (req, res) => res.json(accountingOf(req)));
-router.put("/accounting-model", allow("ADM"), (req, res) => {
+router.get("/accounting-model", allow("RP", "ADM", "CD", "RJ"), (req, res) => res.json(accountingOf(req)));
+router.put("/accounting-model", allow("RP", "ADM"), (req, res) => {
   const c = configOf(req); c.accounting = { ...ACC_DEFAULTS, ...(c.accounting || {}), ...(req.body || {}) };
   save(); audit(req.user, "CONFIG_CHANGED", "AccountingModel", c.id, { accounting: c.accounting });
   res.json(c.accounting);
 });
-router.get("/runs/:id/journal", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/runs/:id/journal", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (!hasPayPerm(req, "payroll.compta")) return res.status(403).json({ error: "Passation comptable non autorisée" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   res.json({ run, ...buildJournal(run, req) });
 });
-router.get("/runs/:id/journal/export", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/runs/:id/journal/export", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (!hasPayPerm(req, "payroll.compta")) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
@@ -1715,8 +1715,8 @@ router.get("/runs/:id/journal/export", allow("ADM", "CD", "RJ", "GPF"), (req, re
 
 /* ============ Solde de tout compte / droits de rupture (CCN Commerce Art. 42-48) ============ */
 const _solde = require("../payroll/soldeToutCompte");
-router.get("/rupture/motifs", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(_solde.MOTIFS));
-router.post("/solde/:eid", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/rupture/motifs", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => res.json(_solde.MOTIFS));
+router.post("/solde/:eid", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
   if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
   const b = req.body || {};
@@ -1806,7 +1806,7 @@ function _sendReport(req, res, { format, name, title, columns, rows, meta }) {
   return res.json({ columns, rows, meta, title });
 }
 
-router.get("/reports/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/reports/livre", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.livre")) return res.status(403).json({ error: "Livre de paie non autorisé" });
   const { slips, lo, hi, empById } = _rangeSlips(req, req.query);
   const pfn = _pfNameMap(req);
@@ -1820,7 +1820,7 @@ router.get("/reports/livre", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) =
   _sendReport(req, res, { format: req.query.format, name: `Livre_de_paie_${lo}_${hi}`, title: `Livre de paie — ${lo} à ${hi}`, meta: `${rows.length} bulletin(s)`, columns, rows });
 });
 
-router.get("/reports/cotisations", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+router.get("/reports/cotisations", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   if (!hasPayPerm(req, "payroll.cotisations")) return res.status(403).json({ error: "États des cotisations non autorisé" });
   const { slips, lo, hi } = _rangeSlips(req, req.query);
   const agg = {};
@@ -1833,7 +1833,7 @@ router.get("/reports/cotisations", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, 
   _sendReport(req, res, { format: req.query.format, name: `Etat_cotisations_${lo}_${hi}`, title: `État des cotisations — ${lo} à ${hi}`, meta: `${slips.length} bulletin(s)`, columns, rows });
 });
 
-router.get("/reports/fiche", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/reports/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const eid = req.query.employeeId; if (!eid) return res.status(400).json({ error: "employeeId requis" });
   const { slips, lo, hi, empById } = _rangeSlips(req, Object.assign({}, req.query, { employeeId: eid }));
   const e = empById[eid] || {}; const pfn = _pfNameMap(req);

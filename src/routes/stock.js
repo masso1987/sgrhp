@@ -22,19 +22,19 @@ function seedStock(tid) {
 }
 
 function crud(path, col, fields, keyField, roleWrite) {
-  router.get("/" + path, allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db[col], req).slice().sort((a, b) => String(a[keyField] || "").localeCompare(String(b[keyField] || "")))); });
-  router.post("/" + path, allow(...roleWrite), (req, res) => {
+  router.get("/" + path, allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db[col], req).slice().sort((a, b) => String(a[keyField] || "").localeCompare(String(b[keyField] || "")))); });
+  router.post("/" + path, allow("RS", ...roleWrite), (req, res) => {
     const b = req.body || {}; if (!b[keyField]) return res.status(400).json({ error: keyField + " obligatoire" });
     const rec = { id: id("stk"), createdAt: new Date().toISOString() };
     for (const f of fields) if (b[f] !== undefined) rec[f] = b[f];
     db[col].push(stamp(rec, req)); save(); audit(req.user, "CREATED", col, rec.id, {}); res.status(201).json(rec);
   });
-  router.put("/" + path + "/:id", allow(...roleWrite), (req, res) => {
+  router.put("/" + path + "/:id", allow("RS", ...roleWrite), (req, res) => {
     const x = mine(db[col], req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
     for (const f of fields) if (req.body[f] !== undefined) x[f] = req.body[f];
     save(); res.json(x);
   });
-  router.delete("/" + path + "/:id", allow("ADM", "CD"), (req, res) => {
+  router.delete("/" + path + "/:id", allow("RS", "ADM", "CD"), (req, res) => {
     const x = mine(db[col], req).find(r => r.id === req.params.id); if (!x) return res.status(404).json({ error: "Introuvable" });
     db[col].splice(db[col].indexOf(x), 1); save(); res.json({ ok: true });
   });
@@ -59,7 +59,7 @@ function nextContactId(req, type) {
   let cid; do { cid = pre + String(n).padStart(4, "0"); n++; } while (used.has(cid));
   return cid;
 }
-router.get("/contacts", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/contacts", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   let list = mine(db.stockContacts, req);
   if (req.query.type) list = list.filter(c => (c.type || "fournisseur") === req.query.type);
@@ -67,11 +67,11 @@ router.get("/contacts", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (q) list = list.filter(c => ((c.name || "") + " " + (c.contactId || "") + " " + (c.mobile || "")).toLowerCase().includes(q));
   res.json(list.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
 });
-router.get("/contacts/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/contacts/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Contact introuvable" });
   res.json(c);
 });
-router.post("/contacts", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/contacts", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; if (!b.name) return res.status(400).json({ error: "Nom obligatoire" });
   const type = b.type === "client" ? "client" : "fournisseur";
   let cid = String(b.contactId || "").trim();
@@ -82,18 +82,18 @@ router.post("/contacts", allow("ADM", "CD", "GPF"), (req, res) => {
   rec.type = type; rec.contactId = cid; rec.openingBalance = R2(b.openingBalance);
   db.stockContacts.push(stamp(rec, req)); save(); audit(req.user, "CREATED", "StockContact", rec.id, { type, name: rec.name }); res.status(201).json(rec);
 });
-router.put("/contacts/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/contacts/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Contact introuvable" });
   const b = req.body || {};
   for (const fld of CONTACT_FIELDS) if (fld !== "contactId" && fld !== "type" && b[fld] !== undefined) c[fld] = b[fld];
   if (b.openingBalance !== undefined) c.openingBalance = R2(b.openingBalance);
   save(); res.json(c);
 });
-router.delete("/contacts/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/contacts/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   db.stockContacts.splice(db.stockContacts.indexOf(c), 1); save(); res.json({ ok: true });
 });
-router.get("/contacts/:id/statement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/contacts/:id/statement", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const c = mine(db.stockContacts, req).find(x => x.id === req.params.id); if (!c) return res.status(404).json({ error: "Contact introuvable" });
   const kind = c.type || "fournisseur"; const rows = [];
   const ob = R2(c.openingBalance);
@@ -110,7 +110,7 @@ router.get("/contacts/:id/statement", allow("ADM", "CD", "RJ", "GPF"), (req, res
   res.json({ contact: { id: c.id, code: c.contactId, name: c.name, kind, openingBalance: ob, mobile: c.mobile || "", email: c.email || "" }, rows, totals });
 });
 // Back-compat alias: suppliers = contacts of type fournisseur
-router.get("/suppliers", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/suppliers", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   res.json(mine(db.stockContacts, req).filter(c => (c.type || "fournisseur") === "fournisseur").sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
 });
@@ -127,7 +127,7 @@ function prodOut(p, req) {
     out: qty <= 0
   });
 }
-router.get("/products", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/products", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   let list = mine(db.stockProducts, req);
   const q = (req.query.q || "").toLowerCase();
@@ -136,11 +136,11 @@ router.get("/products", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (req.query.low === "1") list = list.filter(p => prodOut(p, req).low);
   res.json(list.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))).map(p => prodOut(p, req)));
 });
-router.get("/products/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/products/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const p = mine(db.stockProducts, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Produit introuvable" });
   res.json(prodOut(p, req));
 });
-router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/products", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; if (!b.name) return res.status(400).json({ error: "Nom du produit obligatoire" });
   if (b.sku && mine(db.stockProducts, req).some(p => (p.sku || "") && p.sku === b.sku)) return res.status(409).json({ error: "SKU déjà utilisé : " + b.sku });
   const initial = Q(b.qty || 0);
@@ -155,7 +155,7 @@ router.post("/products", allow("ADM", "CD", "GPF"), (req, res) => {
   if (initial) db.stockMovements.push(stamp({ id: id("mov"), date: new Date().toISOString().slice(0, 10), type: "initial", productId: p.id, qty: initial, unitCost: p.purchasePrice, ref: "Stock initial", note: "", createdBy: req.user.id, createdAt: new Date().toISOString() }, req));
   save(); audit(req.user, "CREATED", "StockProduct", p.id, { name: p.name }); res.status(201).json(prodOut(p, req));
 });
-router.put("/products/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/products/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const p = mine(db.stockProducts, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Produit introuvable" });
   const b = req.body || {};
   for (const f of ["sku", "barcode", "name", "categoryId", "unitId", "supplierId", "brandId", "warrantyId", "priceGroupId", "note", "expDate", "mfgDate", "variationId", "variantPrices"]) if (b[f] !== undefined) p[f] = b[f];
@@ -164,7 +164,7 @@ router.put("/products/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   if (b.active !== undefined) p.active = !!b.active;
   save(); res.json(prodOut(p, req));
 });
-router.delete("/products/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/products/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const p = mine(db.stockProducts, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Produit introuvable" });
   db.stockProducts.splice(db.stockProducts.indexOf(p), 1); save(); res.json({ ok: true });
 });
@@ -172,7 +172,7 @@ router.delete("/products/:id", allow("ADM", "CD"), (req, res) => {
 const _prod = (req, pid) => mine(db.stockProducts, req).find(p => p.id === pid);
 function logMove(req, m) { const rec = stamp(Object.assign({ id: id("mov"), createdBy: req.user.id, createdAt: new Date().toISOString() }, m), req); db.stockMovements.push(rec); return rec; }
 
-router.post("/movements/purchase", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/movements/purchase", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const lines = Array.isArray(b.lines) ? b.lines : [];
   const date = (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const done = [];
@@ -185,7 +185,7 @@ router.post("/movements/purchase", allow("ADM", "CD", "GPF"), (req, res) => {
   save(); audit(req.user, "STOCK_IN", "StockMovement", "", { lines: done.length }); res.status(201).json({ ok: true, movements: done.length });
 });
 
-router.post("/movements/sale", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/movements/sale", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const lines = Array.isArray(b.lines) ? b.lines : [];
   const date = (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const allowNeg = !!b.allowNegative;
@@ -200,7 +200,7 @@ router.post("/movements/sale", allow("ADM", "CD", "GPF"), (req, res) => {
   save(); audit(req.user, "STOCK_OUT", "StockMovement", "", { lines: done.length }); res.status(201).json({ ok: true, movements: done.length });
 });
 
-router.post("/movements/adjust", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/movements/adjust", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const p = _prod(req, b.productId); if (!p) return res.status(404).json({ error: "Produit introuvable" });
   const date = (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const cur = Q(p.qty || 0);
@@ -212,7 +212,7 @@ router.post("/movements/adjust", allow("ADM", "CD", "GPF"), (req, res) => {
   save(); audit(req.user, "STOCK_ADJUST", "StockMovement", m.id, { productId: p.id, delta }); res.status(201).json({ ok: true, newQty: p.qty });
 });
 
-router.get("/movements", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/movements", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   const prods = {}; for (const p of mine(db.stockProducts, req)) prods[p.id] = p;
   let list = mine(db.stockMovements, req);
@@ -225,7 +225,7 @@ router.get("/movements", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   res.json(rows.slice(0, 1000));
 });
 
-router.get("/dashboard", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/dashboard", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   const prods = mine(db.stockProducts, req).map(p => prodOut(p, req));
   const stockValue = prods.reduce((s, p) => s + p.stockValue, 0);
@@ -248,7 +248,7 @@ function refByName(req, col, name) {
   if (!x) { x = stamp({ id: id("stk"), name: n, createdAt: new Date().toISOString() }, req); db[col].push(x); }
   return x.id;
 }
-router.post("/products/import", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/products/import", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   const rows = Array.isArray((req.body || {}).rows) ? req.body.rows : [];
   let created = 0, skipped = 0;
@@ -267,7 +267,7 @@ router.post("/products/import", allow("ADM", "CD", "GPF"), (req, res) => {
   }
   save(); audit(req.user, "IMPORTED", "StockProducts", "", { created }); res.json({ ok: true, created, skipped });
 });
-router.post("/opening", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/opening", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   const rows = Array.isArray((req.body || {}).rows) ? req.body.rows : [];
   let updated = 0, notfound = 0, unchanged = 0;
@@ -327,15 +327,15 @@ function poOut(po) {
   const status = received <= 0 ? "ordered" : (remaining > 0 ? "partial" : "completed");
   return Object.assign({}, po, { ordered, received, remaining, status });
 }
-router.get("/po", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/po", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   res.json(mine(db.stockPOs, req).map(po => Object.assign(poOut(po), { addedBy: uName(po.createdBy) })).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
 });
-router.get("/po/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/po/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   const o = poOut(po); o.lines = (o.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })); res.json(o);
 });
-router.post("/po", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/po", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines);
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
   const t = docTotals(subtotal, b.taxPct, b.shippingFee);
@@ -345,7 +345,7 @@ router.post("/po", allow("ADM", "CD", "GPF"), (req, res) => {
     taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee), subtotal, tax: t.tax, total: t.total, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockPOs.push(po); save(); audit(req.user, "CREATED", "StockPO", po.id, { ref: po.ref }); res.status(201).json(poOut(po));
 });
-router.put("/po/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/po/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà partiellement reçu — non modifiable" });
   const b = req.body || {};
@@ -357,7 +357,7 @@ router.put("/po/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   if (b.shippingFee !== undefined) po.shippingFee = R2(b.shippingFee);
   save(); audit(req.user, "UPDATED", "StockPO", po.id, { ref: po.ref }); res.json(poOut(po));
 });
-router.put("/po/:id/shipping", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/po/:id/shipping", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   const b = req.body || {};
   if (b.orderStatus !== undefined && PO_ORDER_STATUS.includes(b.orderStatus)) po.orderStatus = b.orderStatus;
@@ -365,18 +365,18 @@ router.put("/po/:id/shipping", allow("ADM", "CD", "GPF"), (req, res) => {
   if (b.shippingFee !== undefined) { po.shippingFee = R2(b.shippingFee); po.total = po.subtotal + po.tax + po.shippingFee; }
   save(); audit(req.user, "SHIPPING", "StockPO", po.id, {}); res.json(poOut(po));
 });
-router.delete("/po/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/po/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "Introuvable" });
   if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà reçu — non supprimable" });
   db.stockPOs.splice(db.stockPOs.indexOf(po), 1); save(); res.json({ ok: true });
 });
 // Réception d'un BC : reçoit le reliquat, incrémente le stock, crée un achat
-router.put("/po/:id/status", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/po/:id/status", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   const st = (req.body || {}).orderStatus; if (!PO_ORDER_STATUS.includes(st)) return res.status(400).json({ error: "Statut invalide" });
   po.orderStatus = st; save(); audit(req.user, "STATUS", "StockPO", po.id, { orderStatus: st }); res.json({ ok: true, orderStatus: st });
 });
-router.post("/po/:id/receive", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/po/:id/receive", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
   const date = (req.body && req.body.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const recvLines = [];
@@ -416,11 +416,11 @@ function createPurchase(req, b) {
   }
   return pur;
 }
-router.get("/purchases", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/purchases", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   res.json(mine(db.stockPurchases, req).map(p => Object.assign({}, p, { addedBy: uName(p.createdBy), totalQty: lineQty(p) })).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
 });
-router.get("/purchases/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/purchases/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Achat introuvable" });
   res.json(Object.assign({}, pur, { lines: (pur.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
 });
@@ -429,20 +429,20 @@ function reversePurchase(req, pur) {
   if (pur.poId) { const po = mine(db.stockPOs, req).find(x => x.id === pur.poId); if (po) for (const l of (po.lines || [])) { const pl = (pur.lines || []).find(x => x.productId === l.productId); if (pl) l.receivedQty = Q(Q(l.receivedQty || 0) - Q(pl.qty)); } }
   db.stockPurchases.splice(db.stockPurchases.indexOf(pur), 1);
 }
-router.post("/purchases", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/purchases", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines } = calcLines(b.lines);
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
   if (b.replaceId) { const old = mine(db.stockPurchases, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; reversePurchase(req, old); } }
   const pur = createPurchase(req, b); save(); audit(req.user, "STOCK_IN", "StockPurchase", pur.id, { ref: pur.ref }); res.status(201).json(pur);
 });
-router.post("/purchases/:id/pay", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/purchases/:id/pay", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Achat introuvable" });
   const amt = R2((req.body || {}).amount);
   pur.amountPaid = Math.min(R2(pur.amountPaid) + amt, pur.total);
   pur.paymentStatus = pur.amountPaid >= pur.total && pur.total > 0 ? "paid" : pur.amountPaid > 0 ? "partial" : "due";
   save(); res.json({ ok: true, amountPaid: pur.amountPaid, paymentStatus: pur.paymentStatus });
 });
-router.delete("/purchases/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/purchases/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const pur = mine(db.stockPurchases, req).find(x => x.id === req.params.id); if (!pur) return res.status(404).json({ error: "Introuvable" });
   // reverse stock + remove linked movements
   for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "purchase" && m.sourceId === pur.id)) {
@@ -453,11 +453,11 @@ router.delete("/purchases/:id", allow("ADM", "CD"), (req, res) => {
 });
 
 /* ---- Retours d'achat ---- */
-router.get("/returns", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/returns", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   res.json(mine(db.stockReturns, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")));
 });
-router.post("/returns", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/returns", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines);
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
   const ret = stamp({ id: id("ret"), ref: b.ref || seqRef(req, "stockReturns", "RET", "ref"), supplierId: b.supplierId || "", purchaseId: b.purchaseId || "",
@@ -468,7 +468,7 @@ router.post("/returns", allow("ADM", "CD", "GPF"), (req, res) => {
   }
   save(); audit(req.user, "STOCK_RETURN", "StockReturn", ret.id, { ref: ret.ref }); res.status(201).json(ret);
 });
-router.delete("/returns/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/returns/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const ret = mine(db.stockReturns, req).find(x => x.id === req.params.id); if (!ret) return res.status(404).json({ error: "Introuvable" });
   for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "return" && m.sourceId === ret.id)) {
     const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1);
@@ -492,12 +492,12 @@ function soOut(so) {
   const status = delivered <= 0 ? "ordered" : (remaining > 0 ? "partial" : "completed");
   return Object.assign({}, so, { ordered, delivered, remaining, status });
 }
-router.get("/so", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSOs, req).map(soOut).sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
-router.get("/so/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/so", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSOs, req).map(soOut).sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.get("/so/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const so = mine(db.stockSOs, req).find(x => x.id === req.params.id); if (!so) return res.status(404).json({ error: "Commande introuvable" });
   const o = soOut(so); o.lines = (o.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })); res.json(o);
 });
-router.post("/so", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/so", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
   if (b.replaceId) { const old = mine(db.stockSOs, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; db.stockSOs.splice(db.stockSOs.indexOf(old), 1); } }
   const t = docTotals(subtotal, b.taxPct, b.shippingFee);
@@ -506,12 +506,12 @@ router.post("/so", allow("ADM", "CD", "GPF"), (req, res) => {
     subtotal, tax: t.tax, total: t.total, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockSOs.push(so); save(); audit(req.user, "CREATED", "StockSO", so.id, { ref: so.ref }); res.status(201).json(soOut(so));
 });
-router.delete("/so/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/so/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const so = mine(db.stockSOs, req).find(x => x.id === req.params.id); if (!so) return res.status(404).json({ error: "Introuvable" });
   if ((so.lines || []).some(l => Q(l.deliveredQty || 0) > 0)) return res.status(409).json({ error: "Commande déjà livrée — non supprimable" });
   db.stockSOs.splice(db.stockSOs.indexOf(so), 1); save(); res.json({ ok: true });
 });
-router.post("/so/:id/deliver", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/so/:id/deliver", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const so = mine(db.stockSOs, req).find(x => x.id === req.params.id); if (!so) return res.status(404).json({ error: "Commande introuvable" });
   const allowNeg = !!(req.body && req.body.allowNegative);
   const lines = [];
@@ -542,8 +542,8 @@ function createSale(req, b) {
   }
   return sale;
 }
-router.get("/sales", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSales, req).map(p => Object.assign({}, p, { addedBy: uName(p.createdBy), totalQty: lineQty(p) })).sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
-router.get("/sales/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/sales", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSales, req).map(p => Object.assign({}, p, { addedBy: uName(p.createdBy), totalQty: lineQty(p) })).sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.get("/sales/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Vente introuvable" });
   res.json(Object.assign({}, sale, { lines: (sale.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
 });
@@ -551,19 +551,19 @@ function reverseSale(req, sale) {
   for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "sale" && m.sourceId === sale.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
   db.stockSales.splice(db.stockSales.indexOf(sale), 1);
 }
-router.post("/sales", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/sales", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
   if (b.replaceId) { const old = mine(db.stockSales, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; reverseSale(req, old); } }
   const err = stockAvail(req, lines, !!b.allowNegative); if (err) return res.status(400).json({ error: err });
   const sale = createSale(req, b); save(); audit(req.user, "STOCK_OUT", "StockSale", sale.id, { ref: sale.ref }); res.status(201).json(sale);
 });
-router.post("/sales/:id/pay", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/sales/:id/pay", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Vente introuvable" });
   sale.amountPaid = Math.min(R2(sale.amountPaid) + R2((req.body || {}).amount), sale.total);
   sale.paymentStatus = sale.amountPaid >= sale.total && sale.total > 0 ? "paid" : sale.amountPaid > 0 ? "partial" : "due";
   save(); res.json({ ok: true, amountPaid: sale.amountPaid, paymentStatus: sale.paymentStatus });
 });
-router.delete("/sales/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/sales/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const sale = mine(db.stockSales, req).find(x => x.id === req.params.id); if (!sale) return res.status(404).json({ error: "Introuvable" });
   for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "sale" && m.sourceId === sale.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
   if (sale.soId) { const so = mine(db.stockSOs, req).find(x => x.id === sale.soId); if (so) for (const l of (so.lines || [])) { const sl = (sale.lines || []).find(x => x.productId === l.productId); if (sl) l.deliveredQty = Q(Q(l.deliveredQty || 0) - Q(sl.qty)); } }
@@ -571,12 +571,12 @@ router.delete("/sales/:id", allow("ADM", "CD"), (req, res) => {
 });
 
 /* ---- Devis (quotations) ---- */
-router.get("/quotes", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockQuotes, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
-router.get("/quotes/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/quotes", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockQuotes, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.get("/quotes/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const q = mine(db.stockQuotes, req).find(x => x.id === req.params.id); if (!q) return res.status(404).json({ error: "Devis introuvable" });
   res.json(Object.assign({}, q, { lines: (q.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
 });
-router.post("/quotes", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/quotes", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne" });
   if (b.replaceId) { const old = mine(db.stockQuotes, req).find(x => x.id === b.replaceId); if (old) { if (!b.ref) b.ref = old.ref; db.stockQuotes.splice(db.stockQuotes.indexOf(old), 1); } }
   const t = docTotals(subtotal, b.taxPct, b.shippingFee);
@@ -584,11 +584,11 @@ router.post("/quotes", allow("ADM", "CD", "GPF"), (req, res) => {
     note: b.note || "", taxPct: Number(b.taxPct) || 0, shippingFee: R2(b.shippingFee), subtotal, tax: t.tax, total: t.total, status: "open", lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockQuotes.push(q); save(); res.status(201).json(q);
 });
-router.delete("/quotes/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/quotes/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const q = mine(db.stockQuotes, req).find(x => x.id === req.params.id); if (!q) return res.status(404).json({ error: "Introuvable" });
   db.stockQuotes.splice(db.stockQuotes.indexOf(q), 1); save(); res.json({ ok: true });
 });
-router.post("/quotes/:id/convert", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/quotes/:id/convert", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const q = mine(db.stockQuotes, req).find(x => x.id === req.params.id); if (!q) return res.status(404).json({ error: "Devis introuvable" });
   const err = stockAvail(req, q.lines || [], !!(req.body && req.body.allowNegative)); if (err) return res.status(400).json({ error: err });
   const sale = createSale(req, { customerId: q.customerId, date: new Date().toISOString().slice(0, 10), lines: q.lines, taxPct: q.taxPct, shippingFee: q.shippingFee, amountPaid: 0, allowNegative: true, note: "Devis " + q.ref });
@@ -596,8 +596,8 @@ router.post("/quotes/:id/convert", allow("ADM", "CD", "GPF"), (req, res) => {
 });
 
 /* ---- Retours de vente ---- */
-router.get("/salesreturns", allow("ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSalesReturns, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
-router.post("/salesreturns", allow("ADM", "CD", "GPF"), (req, res) => {
+router.get("/salesreturns", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => { seedStock(req.user.tenantId || "t1"); res.json(mine(db.stockSalesReturns, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))); });
+router.post("/salesreturns", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines); if (!lines.length) return res.status(400).json({ error: "Au moins une ligne" });
   const ret = stamp({ id: id("sret"), ref: b.ref || seqRef(req, "stockSalesReturns", "RTV", "ref"), customerId: b.customerId || "", saleId: b.saleId || "",
     date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10), note: b.note || "", subtotal, total: subtotal, lines, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
@@ -605,7 +605,7 @@ router.post("/salesreturns", allow("ADM", "CD", "GPF"), (req, res) => {
   for (const l of lines) { const p = _prod(req, l.productId); if (!p) continue; p.qty = Q((p.qty || 0) + l.qty); logMove(req, { date: ret.date, type: "retourv", productId: p.id, qty: l.qty, unitCost: l.unitCost, ref: ret.ref, customer: cName(req, ret.customerId), sourceType: "salesreturn", sourceId: ret.id }); }
   save(); res.status(201).json(ret);
 });
-router.delete("/salesreturns/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/salesreturns/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const ret = mine(db.stockSalesReturns, req).find(x => x.id === req.params.id); if (!ret) return res.status(404).json({ error: "Introuvable" });
   for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "salesreturn" && m.sourceId === ret.id)) { const p = _prod(req, m.productId); if (p) p.qty = Q((p.qty || 0) - Q(m.qty)); db.stockMovements.splice(db.stockMovements.indexOf(m), 1); }
   db.stockSalesReturns.splice(db.stockSalesReturns.indexOf(ret), 1); save(); res.json({ ok: true });
@@ -614,15 +614,15 @@ router.delete("/salesreturns/:id", allow("ADM", "CD"), (req, res) => {
 /* ============================ TRANSFERTS DE STOCK ============================ */
 const TRF_STATUS = ["en_cours", "termine", "annule"];
 function locName(req, id) { const l = mine(db.stockLocations, req).find(x => x.id === id); return l ? l.name : ""; }
-router.get("/transfers", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/transfers", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   res.json(mine(db.stockTransfers, req).map(t => Object.assign({}, t, { fromName: locName(req, t.fromId), toName: locName(req, t.toId) })).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
 });
-router.get("/transfers/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/transfers/:id", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const t = mine(db.stockTransfers, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Transfert introuvable" });
   res.json(Object.assign({}, t, { fromName: locName(req, t.fromId), toName: locName(req, t.toId), lines: (t.lines || []).map(l => Object.assign({}, l, { productName: pName(req, l.productId) })) }));
 });
-router.post("/transfers", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/transfers", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; const { lines, subtotal } = calcLines(b.lines);
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne (produit + quantité)" });
   if (!b.fromId || !b.toId) return res.status(400).json({ error: "Lieu (Du) et Lieu (Au) obligatoires" });
@@ -636,12 +636,12 @@ router.post("/transfers", allow("ADM", "CD", "GPF"), (req, res) => {
   for (const l of lines) logMove(req, { date: t.date, type: "transfert", productId: l.productId, qty: l.qty, unitCost: l.unitCost, ref: t.ref, note: label, sourceType: "transfer", sourceId: t.id });
   save(); audit(req.user, "STOCK_TRANSFER", "StockTransfer", t.id, { ref: t.ref }); res.status(201).json(t);
 });
-router.put("/transfers/:id/status", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/transfers/:id/status", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const t = mine(db.stockTransfers, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
   const st = (req.body || {}).status; if (!TRF_STATUS.includes(st)) return res.status(400).json({ error: "Statut invalide" });
   t.status = st; save(); res.json({ ok: true, status: st });
 });
-router.delete("/transfers/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/transfers/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const t = mine(db.stockTransfers, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
   for (const m of mine(db.stockMovements, req).filter(m => m.sourceType === "transfer" && m.sourceId === t.id)) db.stockMovements.splice(db.stockMovements.indexOf(m), 1);
   db.stockTransfers.splice(db.stockTransfers.indexOf(t), 1); save(); res.json({ ok: true });
@@ -653,7 +653,7 @@ function expOut(req, e) {
   const acc = mine(db.stockPaymentAccounts, req).find(x => x.id === e.paymentAccountId);
   return Object.assign({}, e, { categoryName: c ? c.name : "", supplierName: cName(req, e.supplierId), accountName: acc ? acc.name : "", addedBy: uName(e.createdBy) });
 }
-router.get("/expenses", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/expenses", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   let list = mine(db.stockExpenses, req);
   if (req.query.from) list = list.filter(e => (e.date || "") >= req.query.from);
@@ -661,21 +661,21 @@ router.get("/expenses", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (req.query.categoryId) list = list.filter(e => e.categoryId === req.query.categoryId);
   res.json(list.map(e => expOut(req, e)).sort((a, b) => (b.date || "").localeCompare(a.date || "")));
 });
-router.post("/expenses", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/expenses", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; if (!(R2(b.amount) > 0)) return res.status(400).json({ error: "Montant obligatoire" });
   const e = stamp({ id: id("exp"), ref: b.ref || seqRef(req, "stockExpenses", "DEP", "ref"), date: (b.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
     categoryId: b.categoryId || "", amount: R2(b.amount), supplierId: b.supplierId || "", location: b.location || "", paymentAccountId: b.paymentAccountId || "", note: b.note || "",
     createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.stockExpenses.push(e); save(); audit(req.user, "CREATED", "StockExpense", e.id, { amount: e.amount }); res.status(201).json(expOut(req, e));
 });
-router.put("/expenses/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/expenses/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const e = mine(db.stockExpenses, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Dépense introuvable" });
   const b = req.body || {};
   for (const k of ["date", "categoryId", "supplierId", "location", "paymentAccountId", "note"]) if (b[k] !== undefined) e[k] = b[k];
   if (b.amount !== undefined) e.amount = R2(b.amount);
   save(); res.json(expOut(req, e));
 });
-router.delete("/expenses/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/expenses/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const e = mine(db.stockExpenses, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
   db.stockExpenses.splice(db.stockExpenses.indexOf(e), 1); save(); res.json({ ok: true });
 });
@@ -689,25 +689,25 @@ function acctBalance(req, accId) {
   for (const x of mine(db.stockExpenses, req)) if (x.paymentAccountId === accId) bal -= R2(x.amount);
   return bal;
 }
-router.get("/accounts", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/accounts", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   res.json(mine(db.stockPaymentAccounts, req).map(a => Object.assign({}, a, { balance: acctBalance(req, a.id) })).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
 });
-router.post("/accounts", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/accounts", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {}; if (!b.name) return res.status(400).json({ error: "Nom obligatoire" });
   const a = stamp({ id: id("pac"), name: b.name, type: b.type || "caisse", openingBalance: R2(b.openingBalance), note: b.note || "", createdAt: new Date().toISOString() }, req);
   db.stockPaymentAccounts.push(a); save(); res.status(201).json(Object.assign({}, a, { balance: acctBalance(req, a.id) }));
 });
-router.put("/accounts/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/accounts/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const a = mine(db.stockPaymentAccounts, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {}; for (const k of ["name", "type", "note"]) if (b[k] !== undefined) a[k] = b[k]; if (b.openingBalance !== undefined) a.openingBalance = R2(b.openingBalance);
   save(); res.json(Object.assign({}, a, { balance: acctBalance(req, a.id) }));
 });
-router.delete("/accounts/:id", allow("ADM", "CD"), (req, res) => {
+router.delete("/accounts/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const a = mine(db.stockPaymentAccounts, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
   db.stockPaymentAccounts.splice(db.stockPaymentAccounts.indexOf(a), 1); save(); res.json({ ok: true });
 });
-router.get("/accounts/:id/statement", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/accounts/:id/statement", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const a = mine(db.stockPaymentAccounts, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
   const rows = [{ date: "", type: "Solde d'ouverture", ref: "", inflow: R2(a.openingBalance) > 0 ? R2(a.openingBalance) : 0, outflow: R2(a.openingBalance) < 0 ? -R2(a.openingBalance) : 0 }];
   for (const x of mine(db.stockSales, req)) if (x.paymentAccountId === a.id && R2(x.amountPaid) > 0) rows.push({ date: x.date, type: "Encaissement vente", ref: x.ref, inflow: R2(x.amountPaid), outflow: 0 });
@@ -749,7 +749,7 @@ const NOTIF_DEFS = [
 ];
 function notifTagsFor(sets) { const out = []; for (const s of sets) for (const tg of (NOTIF_TAGS[s] || [])) if (!out.includes(tg)) out.push(tg); return out; }
 
-router.get("/notif-templates", allow("ADM", "CD", "GPF"), (req, res) => {
+router.get("/notif-templates", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const saved = mine(db.stockNotifTemplates, req);
   const groups = NOTIF_DEFS.map(g => ({
     group: g.group, label: g.label, tags: notifTagsFor(g.tags),
@@ -760,7 +760,7 @@ router.get("/notif-templates", allow("ADM", "CD", "GPF"), (req, res) => {
   }));
   res.json(groups);
 });
-router.put("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/notif-templates/:key", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const key = req.params.key;
   if (!NOTIF_DEFS.some(g => g.events.some(e => e.key === key))) return res.status(400).json({ error: "Clé de modèle inconnue" });
   const b = req.body || {};
@@ -769,7 +769,7 @@ router.put("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => {
   for (const f of ["subject", "cc", "bcc", "body"]) if (b[f] !== undefined) t[f] = b[f];
   t.updatedAt = new Date().toISOString(); save(); audit(req.user, "UPDATED", "StockNotifTemplate", key, {}); res.json(t);
 });
-router.delete("/notif-templates/:key", allow("ADM", "CD", "GPF"), (req, res) => {
+router.delete("/notif-templates/:key", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const t = mine(db.stockNotifTemplates, req).find(x => x.key === req.params.key);
   if (t) { db.stockNotifTemplates.splice(db.stockNotifTemplates.indexOf(t), 1); save(); }
   res.json({ ok: true });
@@ -795,9 +795,9 @@ function epiRows(req, pfId) {
     return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId, lines, planned, issued, pct: planned ? Math.round(issued / planned * 100) : 0 };
   });
 }
-router.get("/epi/portfolios", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.portfolios, req).filter(p => p.epiEnabled).map(p => ({ id: p.id, name: p.name }))));
-router.get("/epi", allow("ADM", "CD", "RJ", "GPF"), (req, res) => res.json(epiRows(req, req.query.portfolioId || null)));
-router.get("/epi/progress", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/epi/portfolios", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.portfolios, req).filter(p => p.epiEnabled).map(p => ({ id: p.id, name: p.name }))));
+router.get("/epi", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => res.json(epiRows(req, req.query.portfolioId || null)));
+router.get("/epi/progress", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const rows = epiRows(req);
   const byPf = {};
   for (const r of rows) { const k = r.portfolioId || "-"; (byPf[k] = byPf[k] || { portfolioId: k, planned: 0, issued: 0, employees: 0 }); byPf[k].planned += r.planned; byPf[k].issued += r.issued; byPf[k].employees++; }
@@ -805,7 +805,7 @@ router.get("/epi/progress", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   res.json({ perPortfolio: Object.values(byPf).map(x => ({ ...x, pct: x.planned ? Math.round(x.issued / x.planned * 100) : 0 })),
     total: { ...tot, pct: tot.planned ? Math.round(tot.issued / tot.planned * 100) : 0 }, employees: rows });
 });
-router.post("/epi/issue", allow("ADM", "CD", "GPF"), (req, res) => {
+router.post("/epi/issue", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const b = req.body || {};
   const emp = mine(db.employees, req).find(e => e.id === b.employeeId);
   if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
@@ -826,7 +826,7 @@ router.post("/epi/issue", allow("ADM", "CD", "GPF"), (req, res) => {
 });
 
 /* Historique des remises EPI d'un salarié (ou tous) */
-router.get("/epi/issues", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/epi/issues", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   let list = mine(db.epiIssues, req);
   if (req.query.employeeId) list = list.filter(i => i.employeeId === req.query.employeeId);
   const eName = (eid) => { const e = mine(db.employees, req).find(x => x.id === eid); return e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : ""; };
@@ -834,7 +834,7 @@ router.get("/epi/issues", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
     .sort((a, b) => String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""))));
 });
 /* Corriger une remise (ajuste le stock du produit lié) */
-router.put("/epi/issue/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+router.put("/epi/issue/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const rec = mine(db.epiIssues, req).find(x => x.id === req.params.id);
   if (!rec) return res.status(404).json({ error: "Remise introuvable" });
   const b = req.body || {};
@@ -857,7 +857,7 @@ router.put("/epi/issue/:id", allow("ADM", "CD", "GPF"), (req, res) => {
   res.json({ ok: true, issue: rec });
 });
 /* Supprimer une remise (restaure le stock du produit lié) */
-router.delete("/epi/issue/:id", allow("ADM", "CD", "GPF"), (req, res) => {
+router.delete("/epi/issue/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const rec = mine(db.epiIssues, req).find(x => x.id === req.params.id);
   if (!rec) return res.status(404).json({ error: "Remise introuvable" });
   if (rec.productId) {
@@ -871,7 +871,7 @@ router.delete("/epi/issue/:id", allow("ADM", "CD", "GPF"), (req, res) => {
 });
 
 /* Fiche de dotation EPI (imprimable, avec zone de signature) */
-router.get("/epi/fiche/:employeeId.pdf", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const PDFDocument = require("pdfkit");
   const emp = mine(db.employees, req).find(e => e.id === req.params.employeeId);
   if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
@@ -1023,7 +1023,7 @@ function groupBy(rows, keyField, nameField, aggs) {
   for (const r of rows) { const k = r[keyField] || "—"; const o = g[k] || (g[k] = { _name: r[nameField] || k }); for (const a of aggs) o[a] = (o[a] || 0) + (r[a] || 0); }
   return Object.entries(g).map(([k, v]) => Object.assign({ key: k, name: v._name }, v));
 }
-router.get("/reports", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+router.get("/reports", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   const q = req.query || {};
   const f = { from: q.from || "", to: q.to || "", productId: q.productId || "", categoryId: q.categoryId || "", brandId: q.brandId || "", customerId: q.customerId || "", supplierId: q.supplierId || "", createdBy: q.createdBy || "", q: (q.q || "").toLowerCase().trim() };

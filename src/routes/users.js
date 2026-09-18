@@ -24,7 +24,7 @@ const _grantModuleIfTenant = (u, key) => { if (_tenantModules(u).includes(key) &
 
 router.post("/", allow("ADM"), (req, res) => {
   const { email, fullName, role, portfolioIds = [], password } = req.body;
-  if (!email || !fullName || !["GPF","CD","RJ","UI","ADM","RQ"].includes(role) || !password)
+  if (!email || !fullName || !["GPF","CD","RJ","UI","ADM","RQ","RC","RS","RP"].includes(role) || !password)
     return res.status(400).json({ error: "email, fullName, valid role and password required" });
   if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Email exists" });
   const pwErr = passwordPolicy(password);
@@ -33,6 +33,9 @@ router.post("/", allow("ADM"), (req, res) => {
   const smtpOn = !!(mailer.cfg() || {}).enabled;
   const u = stamp({ id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true, confirmed: true }, req);
   if (role === "RQ") _grantModuleIfTenant(u, "quality");
+  if (role === "RC") _grantModuleIfTenant(u, "accounting");
+  if (role === "RS") _grantModuleIfTenant(u, "stock");
+  if (role === "RP") _grantModuleIfTenant(u, "payroll");
   if (smtpOn) require("../auth").newConfirmToken(u);   // inactive until the user confirms by email
   db.users.push(u); save();
   audit(req.user, "CREATED", "User", u.id, { email, role, pendingConfirmation: smtpOn });
@@ -90,13 +93,16 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
   const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
   const role = req.body && req.body.role;
-  if (!["GPF", "CD", "RJ", "UI", "ADM", "RQ"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
+  if (!["GPF", "CD", "RJ", "UI", "ADM", "RQ", "RC", "RS", "RP"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
   if (u.role === "ADM" && role !== "ADM" &&
       !_tenantUsers(u).some(x => x.role === "ADM" && x.active && x.id !== u.id))
     return res.status(400).json({ error: "Impossible : c'est le dernier administrateur du tenant" });
   const before = u.role; u.role = role;
   if (role !== "GPF") u.portfolioIds = [];
   if (role === "RQ") _grantModuleIfTenant(u, "quality");
+  if (role === "RC") _grantModuleIfTenant(u, "accounting");
+  if (role === "RS") _grantModuleIfTenant(u, "stock");
+  if (role === "RP") _grantModuleIfTenant(u, "payroll");
   save();
   audit(req.user, "ROLE_CHANGED", "User", u.id, { email: u.email, before, after: role });
   res.json({ id: u.id, role: u.role });
