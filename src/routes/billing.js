@@ -1052,7 +1052,6 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   // big title (right)
   doc.fillColor(brand).font("Helvetica-Bold").fontSize(22).text("FACTURE", 330, _top, { width: 237, align: "right" });
   doc.fillColor("#000").font("Helvetica-Bold").fontSize(12).text("N° " + (inv.number || ""), 330, _top + 30, { width: 237, align: "right" });
-  doc.font("Helvetica").fontSize(9).text("Date : " + (inv.date || ""), 330, _top + 46, { width: 237, align: "right" });
   // titre centré : {client court} {type} (ex. « CIMPOR MAD ») juste au-dessus de la date de facturation
   let y = Math.max(cy, _top + 74) + 6;
   const _vendeur = inv.vendeur || inv.createdByName || contract.vendeur || "—";

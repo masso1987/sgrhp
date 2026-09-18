@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-18 · COMPTA-17 (n° facture mensuel anti-réutilisation; auto-complétion des comptes à la saisie et Rubriques→Comptes; import budget Excel avec mapping)";
+const BUILD_VERSION = "2026-09-18 · COMPTA-18 (facture: retrait de la ligne Date en en-tête, doublon avec Date de facturation)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
