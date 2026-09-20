@@ -4414,11 +4414,46 @@ async function payRunView(id) {
   payRenderRoster();
 }
 async function payTransferAccounting(runId){
-  if(!confirm("Transférer la paie CLÔTURÉE en comptabilité ?\nUne écriture équilibrée (débit/crédit) sera générée d'après la table Rubriques → Comptes.")) return;
-  try{ const e = await api("/payroll/runs/"+runId+"/transfer-accounting",{method:"POST"});
-    alert("Transfert effectué.\nÉcriture "+(e.pieceNo||e.entryId)+" — "+(e.lines||0)+" lignes.\nDébit "+fCFA(e.debit)+" = Crédit "+fCFA(e.credit)+(e.balanced?" (équilibrée)":" (⚠ déséquilibrée)"));
+  let rep; try{ rep = await api("/payroll/runs/"+runId+"/passation-check"); }catch(e){ alert(e.message); return; }
+  payPassationModal(runId, rep);
+}
+function payPassationModal(runId, rep){
+  const c=rep.checks||{}; const chk=(ok)=>ok?'<span style="color:#16a34a;font-weight:700">✓</span>':'<span style="color:#dc2626;font-weight:700">✗</span>';
+  const unmapped=c.unmapped||[]; const missing=c.missingAccounts||[];
+  const recRows=(rep.reconciliation||[]).map(r=>`<tr><td>${esc(r.label)}</td><td class="r">${fCFA(r.paie)}</td><td class="r">${fCFA(r.compta)}</td><td class="r" style="color:${r.ok?'#16a34a':'#dc2626'};font-weight:600">${r.ok?'OK':fCFA(r.ecart)}</td></tr>`).join("");
+  const lineRows=(rep.lines||[]).map(l=>`<tr><td><code>${esc(l.account)}</code></td><td>${esc(l.label||'')}</td><td class="r">${l.debit?fCFA(l.debit):''}</td><td class="r">${l.credit?fCFA(l.credit):''}</td></tr>`).join("");
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:780px;max-height:88vh;overflow:auto"><h3 style="margin:0 0 6px">Contrôle de passation — Paie ${esc(rep.period||'')}</h3>
+    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">CONTRÔLES</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px">
+        <div>${chk(c.clotured)} Période clôturée</div>
+        <div>${chk(!c.alreadyPosted)} Non déjà comptabilisée</div>
+        <div>${chk(c.balanced)} Écriture équilibrée (${fCFA(rep.totalDebit)} = ${fCFA(rep.totalCredit)})</div>
+        <div>${chk(unmapped.length===0)} Toutes les rubriques mappées${unmapped.length?` <span class="tag" style="background:#dc2626;color:#fff">${unmapped.length}</span>`:''}</div>
+        <div>${chk(rep.reconOk)} Réconciliation paie ↔ écriture</div>
+        <div>${missing.length?`<span style="color:#f59e0b">⚠ ${missing.length} compte(s) seront créés</span>`:`${chk(true)} Comptes présents au plan`}</div>
+      </div>
+      ${unmapped.length?`<div class="note" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;margin-top:6px">Rubriques SANS compte : ${unmapped.map(u=>esc(u.code)+' ('+fCFA(u.amount)+')').join(', ')}. Corrigez la table <b>Rubriques → Comptes</b>, ou cochez ci-dessous pour router vers le compte d'attente ${esc(rep.suspenseAccount||'471000')}.</div>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="ppSusp"><span>Router les rubriques non mappées vers le compte d'attente (${esc(rep.suspenseAccount||'471000')})</span></label>`:''}
+    </div>
+    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">RÉCONCILIATION PAR PILIER (paie ↔ écriture)</b>
+      <table style="margin-top:6px"><tr><th>Pilier</th><th class="r">Paie</th><th class="r">Écriture</th><th class="r">Écart</th></tr>${recRows}</table></div>
+    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">ÉCRITURE PROPOSÉE (${(rep.lines||[]).length} lignes)</b>
+      <table style="margin-top:6px"><tr><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr>${lineRows}</table></div>
+    <div class="err hidden" id="ppErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn p" ${c.alreadyPosted?'disabled':''} onclick="payPassationConfirm('${runId}')">Confirmer et comptabiliser</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button>
+      ${c.alreadyPosted?'<span class="tag blue" style="align-self:center">Déjà comptabilisée</span>':''}</div></div>`;
+  document.body.appendChild(bg);
+}
+async function payPassationConfirm(runId){
+  const susp=(document.getElementById("ppSusp")||{}).checked;
+  try{ const e=await api("/payroll/runs/"+runId+"/transfer-accounting",{method:"POST",body:JSON.stringify({allowSuspense:!!susp})});
+    const bgm=document.querySelector(".modal-bg"); if(bgm) bgm.remove();
+    alert("Comptabilisé.\nÉcriture "+(e.pieceNo||e.entryId)+" — "+(e.lines||0)+" lignes.\nDébit "+fCFA(e.debit)+" = Crédit "+fCFA(e.credit)+(e.balanced?" (équilibrée)":" (⚠)"));
     payRunView(runId);
-  }catch(err){ alert(err.message); }
+  }catch(err){ const el=document.getElementById("ppErr"); if(el){ el.textContent=err.message; el.classList.remove("hidden"); } else alert(err.message); }
 }
 async function acctRubMapView(){
   await acctLoadRefs();

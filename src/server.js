@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-20 · COMPTA-21 (options Sage: numérotation journaux, paramètres de saisie/report/analytique des comptes, fiche tiers étendue)";
+const BUILD_VERSION = "2026-09-20 · COMPTA-22 (contrôle de passation paie→compta: complétude mapping, réconciliation par pilier, compte d attente 471, création auto des comptes, confirmation comptable)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

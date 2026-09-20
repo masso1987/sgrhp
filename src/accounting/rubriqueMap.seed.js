@@ -166,4 +166,5 @@ module.exports = [
   { code: "_REM_DUE", account: "422000", label: "Rémunération due (net à payer)" },
   { code: "_CNPS_PAT", account: "431400", label: "CNPS à payer (part patronale)" },
   { code: "_ETAT_PAT", account: "447100", label: "État, charges patronales à payer (FNE, CF patr.)" },
+  { code: "_ATTENTE", account: "471000", label: "Compte d'attente (rubriques non mappées)" },
 ];

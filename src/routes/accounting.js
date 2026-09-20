@@ -222,59 +222,79 @@ function acctMapOf(req) {
 function _mapAcc(list, code, fallback) { const r = list.find(x => String(x.code) === String(code)); return (r && r.account) ? String(r.account) : fallback; }
 
 // Passation paie -> comptabilité (in-app), uniquement après CLÔTURE de la paie du mois.
-function generatePayrollEntry(req, runId) {
-  const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
-  if (run.status !== "CLOSED") { const e = new Error("Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE."); e.status = 409; throw e; }
-  if (run.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === run.acctEntryId); if (ex) return ex; }
+// ---- Passation paie -> compta : construction + contrôles (contrôle de passation) ----
+function _buildPayrollPassation(req, run, allowSuspense) {
   const map = acctMapOf(req);
-  const slips = mine(db.payslips, req).filter(s => s.runId === runId);
-  if (!slips.length) return null;
+  const slips = mine(db.payslips, req).filter(s => s.runId === run.id);
   const remDue = _mapAcc(map, "_REM_DUE", "422000");
   const cnpsPat = _mapAcc(map, "_CNPS_PAT", "431400");
   const etatPat = _mapAcc(map, "_ETAT_PAT", "447100");
-  const D = {}, C = {};
-  const addD = (a, amt) => { amt = R2(amt); if (amt) D[a] = R2((D[a] || 0) + amt); };
-  const addC = (a, amt) => { amt = R2(amt); if (amt) C[a] = R2((C[a] || 0) + amt); };
+  const attente = _mapAcc(map, "_ATTENTE", "471000");
+  const isMapped = (code) => map.some(x => String(x.code) === String(code) && x.account);
+  const D = {}, C = {}; const addD = (a, v) => { v = R2(v); if (v) D[a] = R2((D[a]||0)+v); }; const addC = (a, v) => { v = R2(v); if (v) C[a] = R2((C[a]||0)+v); };
+  const unmapped = {}; let suspense = 0; const reg = { brut:0, chargesPat:0, net:0, retSal:0, autres:0 };
+  const flag = (code, amt) => { unmapped[code] = R2((unmapped[code]||0) + amt); if (allowSuspense) suspense = R2(suspense + amt); };
   for (const s of slips) {
     const t = (s.result && s.result.totals) || {}; const lines = (s.result && s.result.lines) || [];
+    reg.brut += R2(t.brutTotal); reg.chargesPat += R2(t.chargesPatronales); reg.net += R2(t.netAPayer);
+    reg.retSal += R2((t.cnpsSalarie||0)+(t.totalImpots||0)); reg.autres += R2(t.autresRetenues);
     for (const l of lines) {
       const code = l.code || "";
-      if (l.kind === "GAIN" || l.kind === "AVANTAGE") { addD(_mapAcc(map, code, "661000"), l.gain); continue; }
-      if (l.kind === "RETENUE") { addC(_mapAcc(map, code, "421000"), l.retenue); continue; } // acomptes / prêts / retenues diverses
-      // Cotisations & impôts : part salariale (retenue -> crédit dette) + part patronale (charge -> débit, dette -> crédit)
-      if (R2(l.retenue)) addC(_mapAcc(map, code, "447100"), l.retenue);
+      if (l.kind === "GAIN" || l.kind === "AVANTAGE") { const m = isMapped(code); if (!m) flag(code, l.gain); addD(m ? _mapAcc(map, code, "661000") : (allowSuspense ? attente : "661000"), l.gain); continue; }
+      if (l.kind === "RETENUE") { const m = isMapped(code); if (!m) flag(code, l.retenue); addC(m ? _mapAcc(map, code, "421000") : (allowSuspense ? attente : "421000"), l.retenue); continue; }
+      if (R2(l.retenue)) { const m = isMapped(code); if (!m) flag(code, l.retenue); addC(m ? _mapAcc(map, code, "447100") : (allowSuspense ? attente : "447100"), l.retenue); }
       if (R2(l.employer)) {
-        // Charge patronale : débit d'un compte de charge (664/641), crédit d'une dette (431/447).
-        const own = _mapAcc(map, code, "");
-        const ownIsDebt = /^(43|44)/.test(own); // 43x CNPS, 44x État = dette (retenue), donc le code a une part salariale
-        let chargeAcc, debtAcc;
-        if (ownIsDebt) {
-          // Pension (5000) et Crédit foncier (5050) ont une part salariale : la charge patronale est un autre compte.
-          const PAT_OF = { "5000": "5200", "5050": "5060" };
-          chargeAcc = _mapAcc(map, PAT_OF[code] || String(Number(code) + 200), "");
-          if (!chargeAcc || /^(43|44)/.test(chargeAcc)) chargeAcc = own.startsWith("43") ? "664100" : "641100";
-          debtAcc = own; // même dette que la part salariale (CNPS ou État)
-        } else {
-          // Poste patronal pur (allocation familiale 5010, accident 5020, FNE 5070) : own est déjà le compte de charge.
-          chargeAcc = own || "664100";
-          debtAcc = /^664/.test(chargeAcc) ? cnpsPat : etatPat;
-        }
-        addD(chargeAcc, l.employer);
-        addC(debtAcc, l.employer);
+        const own = _mapAcc(map, code, ""); const ownIsDebt = /^(43|44)/.test(own); let chargeAcc, debtAcc;
+        if (ownIsDebt) { const PAT_OF = { "5000":"5200","5050":"5060" }; chargeAcc = _mapAcc(map, PAT_OF[code] || String(Number(code)+200), ""); if (!chargeAcc || /^(43|44)/.test(chargeAcc)) chargeAcc = own.startsWith("43") ? "664100" : "641100"; debtAcc = own; }
+        else { chargeAcc = own || "664100"; debtAcc = /^664/.test(chargeAcc) ? cnpsPat : etatPat; }
+        addD(chargeAcc, l.employer); addC(debtAcc, l.employer);
       }
     }
-    addC(remDue, t.netAPayer); // rémunération due (net à payer) par salarié
+    addC(remDue, t.netAPayer);
   }
   const labelFor = (a) => (map.find(x => String(x.account) === String(a)) || {}).label || "";
   const accs = new Set([...Object.keys(D), ...Object.keys(C)]);
-  const lines = [...accs].sort().map(a => { const d = D[a] || 0, c = C[a] || 0, net = d - c;
-    return net >= 0 ? { account: a, label: labelFor(a) || ("Charge " + a), debit: net, credit: 0 }
-                    : { account: a, label: labelFor(a) || ("Dette/dû " + a), debit: 0, credit: -net }; })
-    .filter(l => l.debit || l.credit);
-  if (!lines.length) return null;
-  const e = postEntry(req, { journalCode: "PAIE", date: (run.period || "") + "-28", period: run.period,
-    label: "Passation paie " + run.period, lines, source: "paie", sourceRef: run.id });
-  run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period, lines: lines.length }); return e;
+  const lines = [...accs].sort().map(a => { const d = D[a]||0, c = C[a]||0, net = d - c;
+    return net >= 0 ? { account:a, label: labelFor(a)||("Charge "+a), debit: net, credit: 0 } : { account:a, label: labelFor(a)||("Dette/du "+a), debit:0, credit:-net }; }).filter(l => l.debit || l.credit);
+  const active = new Set(mine(db.acctAccounts, req).filter(a => a.active !== false).map(a => String(a.number)));
+  const missingAccounts = [...accs].filter(a => !active.has(String(a)));
+  const sumP = (dict, prefs) => Object.entries(dict).filter(([a]) => prefs.some(p => String(a).startsWith(p))).reduce((s,[,v]) => s+v, 0);
+  const totalD = lines.reduce((s,l) => s+l.debit, 0), totalC = lines.reduce((s,l) => s+l.credit, 0);
+  const comptaChargesPat = sumP(D, ["664","641"]);
+  const rc = (label, paie, compta) => ({ label, paie: R2(paie), compta: R2(compta), ecart: R2(paie)-R2(compta), ok: R2(paie) === R2(compta) });
+  const reconciliation = [
+    rc("Salaire brut", reg.brut, sumP(D, ["661","663"])),
+    rc("Charges patronales", reg.chargesPat, comptaChargesPat),
+    rc("Rémunération due (net à payer)", reg.net, C[remDue] || 0),
+    rc("Retenues & cotisations salariales", reg.retSal, sumP(C, ["43","44"]) - comptaChargesPat),
+  ];
+  return { lines, unmapped: Object.entries(unmapped).map(([code, amount]) => ({ code, amount: R2(amount) })), suspense: R2(suspense),
+    missingAccounts, totalDebit: R2(totalD), totalCredit: R2(totalC), balanced: R2(totalD) === R2(totalC), reconciliation, attente };
+}
+// Rapport de contrôle de passation (sans comptabiliser)
+function payrollPassationCheck(req, runId) {
+  const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
+  const slips = mine(db.payslips, req).filter(s => s.runId === runId);
+  const b = _buildPayrollPassation(req, run, false);
+  const checks = { clotured: run.status === "CLOSED", hasPayslips: slips.length > 0, alreadyPosted: !!run.acctEntryId, balanced: b.balanced, unmapped: b.unmapped, missingAccounts: b.missingAccounts };
+  const blocking = !checks.clotured || !checks.hasPayslips || checks.unmapped.length > 0 || !checks.balanced;
+  return { runId, period: run.period, status: run.status, checks, reconciliation: b.reconciliation, reconOk: b.reconciliation.every(r => r.ok),
+    totalDebit: b.totalDebit, totalCredit: b.totalCredit, lines: b.lines, suspenseAccount: b.attente, blocking, canPost: !blocking && !checks.alreadyPosted };
+}
+// Comptabilisation effective (après contrôle). opts.allowSuspense route les rubriques non mappées vers le compte d'attente.
+function generatePayrollEntry(req, runId, opts) {
+  opts = opts || {};
+  const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
+  if (run.status !== "CLOSED") { const e = new Error("Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE."); e.status = 409; throw e; }
+  if (run.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === run.acctEntryId); if (ex) return ex; }
+  const b = _buildPayrollPassation(req, run, !!opts.allowSuspense);
+  if (b.unmapped.length && !opts.allowSuspense) { const e = new Error("Rubriques sans compte comptable : " + b.unmapped.map(u => u.code).join(", ") + ". Corrigez la table Rubriques -> Comptes, ou routez en compte d'attente."); e.status = 422; e.report = payrollPassationCheck(req, runId); throw e; }
+  if (!b.lines.length) return null;
+  if (!b.balanced) { const e = new Error("Écriture déséquilibrée (Débit " + b.totalDebit + " != Crédit " + b.totalCredit + ")."); e.status = 422; throw e; }
+  const tid = req.user.tenantId || "t1";
+  for (const l of b.lines) _ensureAccount(req, tid, l.account, l.label); // crée les comptes absents du plan
+  const e = postEntry(req, { journalCode: "PAIE", date: (run.period||"")+"-28", period: run.period, label: "Passation paie "+run.period, lines: b.lines, source: "paie", sourceRef: run.id });
+  run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period, lines: b.lines.length, suspense: b.suspense }); return e;
 }
 /* ---- Table rubrique -> compte (ADM uniquement) ---- */
 router.get("/rubrique-map", allow("RC", "ADM", "CD"), (req, res) => res.json(acctMapOf(req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }))));
@@ -863,3 +883,4 @@ module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
 module.exports.generatePayrollEntry = generatePayrollEntry;
+module.exports.payrollPassationCheck = payrollPassationCheck;

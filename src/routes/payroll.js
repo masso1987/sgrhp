@@ -715,21 +715,27 @@ router.post("/runs/:id/close", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req
   run.status = "CLOSED"; run.closedAt = new Date().toISOString();
   save();
   audit(req.user, "CLOSED", "PayRun", run.id, { period: run.period });
-  try { require("./accounting").generatePayrollEntry(req, run.id); } catch (e) {}
+  // La comptabilisation ne se fait plus automatiquement à la clôture : elle passe par le Contrôle de passation (bouton « Transférer en comptabilité »).
   res.json({ run });
 });
 // Transfert manuel paie -> comptabilité (ADM/CD/GPF), seulement après clôture. Idempotent (renvoie l'écriture existante).
+// Contrôle de passation (pré-vol) — sans comptabiliser.
+router.get("/runs/:id/passation-check", allow("RP", "ADM", "CD", "GPF"), (req, res) => {
+  const rep = require("./accounting").payrollPassationCheck(req, req.params.id);
+  if (!rep) return res.status(404).json({ error: "Paie introuvable" });
+  res.json(rep);
+});
 router.post("/runs/:id/transfer-accounting", allow("RP", "ADM", "CD", "GPF"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   if (run.status !== "CLOSED") return res.status(409).json({ error: "Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE." });
   try {
-    const e = require("./accounting").generatePayrollEntry(req, run.id);
+    const e = require("./accounting").generatePayrollEntry(req, run.id, { allowSuspense: !!(req.body && req.body.allowSuspense) });
     if (!e) return res.status(400).json({ error: "Paie vide — aucune écriture à générer." });
     const debit = (e.lines || []).reduce((a, l) => a + (l.debit || 0), 0);
     const credit = (e.lines || []).reduce((a, l) => a + (l.credit || 0), 0);
     res.json({ ok: true, entryId: e.id, pieceNo: e.pieceNo || "", lines: (e.lines || []).length, debit, credit, balanced: debit === credit });
-  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+  } catch (err) { res.status(err.status || 500).json({ error: err.message, report: err.report || null }); }
 });
 
 /* Rouvrir une période clôturée (ADM) : annule les cumuls de la période, déverrouille les
