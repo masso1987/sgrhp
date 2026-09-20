@@ -1563,12 +1563,17 @@ router.get("/runs/:id/virement", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, re
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
-  const rows = [["Matricule", "Bénéficiaire", "Banque", "N° Compte", "Montant net", "Devise", "Motif"]];
+  const rows = [["Matricule", "Bénéficiaire", "Nom banque", "Code banque", "Code guichet", "N° de compte", "Clé RIB", "RIB complet", "Montant net", "Devise", "Motif"]];
+  let total = 0;
   for (const s2 of mine(db.payslips, req).filter(x => x.runId === run.id)) {
     const emp = mine(db.employees, req).find(e => e.id === s2.employeeId) || {};
-    const c = emp.contract || {};
-    rows.push([s2.matricule, s2.employeeName, emp.bankName || c.bankName || "", emp.bankAccount || c.bankIban || "", s2.result.totals.netAPayer, "XAF", `Salaire ${run.period}`]);
+    const c = emp.contract || {}; const bk = emp.bank || {};
+    const code = bk.code || emp.bankCode || "", gui = bk.branch || emp.bankBranch || "", acc = bk.account || emp.bankAccount || c.bankIban || "", key = bk.key || emp.bankKey || "";
+    const rib = [code, gui, acc, key].filter(Boolean).join(" ");
+    const net = s2.result.totals.netAPayer; total += net;
+    rows.push([s2.matricule, s2.employeeName, bk.name || emp.bankName || c.bankName || "", code, gui, acc, key, rib, net, "XAF", `Salaire ${run.period}`]);
   }
+  rows.push(["", "TOTAL", "", "", "", "", "", "", total, "XAF", `Ordre de virement ${run.period}`]);
   audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "virement", format: "csv" });
   sendCSV(res, `Ordre_de_virement_${run.period}.csv`, rows);
 });

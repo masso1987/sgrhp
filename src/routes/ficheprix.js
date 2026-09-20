@@ -45,6 +45,19 @@ function compute(f) {
     marge: r(marge), ht: r(ht), tva: r(tva), ttc: r(ttc) };
 }
 
+// Fiche multi-postes : lignes = libellés d'éléments partagés ; colonnes = postes/positions.
+function computeMulti(f) {
+  const labels = f.elementLabels || [];
+  const positions = (f.positions || []).map(p => {
+    const elements = labels.map((lab, i) => ({ label: lab, amount: N((p.amounts || [])[i]) }));
+    const c = compute({ elements, params: f.params });
+    const eff = N(p.effectif) || 1;
+    return { name: p.name || "", category: p.category || "", effectif: eff, jours: N(p.jours) || 30, elements, computed: c };
+  });
+  const r = (x) => Math.round(x * 100) / 100;
+  const grand = positions.reduce((a, p) => { a.ht += p.computed.ht * p.effectif; a.tva += p.computed.tva * p.effectif; a.ttc += p.computed.ttc * p.effectif; a.effectif += p.effectif; return a; }, { ht: 0, tva: 0, ttc: 0, effectif: 0 });
+  return { positions, grand: { ht: r(grand.ht), tva: r(grand.tva), ttc: r(grand.ttc), effectif: grand.effectif } };
+}
 /* Nombre entier -> lettres (français), pour la ligne "montant en toutes lettres". */
 function frWords(n) {
   n = Math.round(Math.abs(Number(n) || 0));
@@ -83,14 +96,14 @@ function frWords(n) {
 router.get("/defaults", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json({ params: DEFAULT_PARAMS, elements: DEFAULT_ELEMENTS }));
 
 router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) =>
-  res.json(mine(db.fichesPrix, req).map(f => ({ ...f, computed: compute(f) }))
+  res.json(mine(db.fichesPrix, req).map(f => ({ ...f, computed: compute(f), multi: computeMulti(f) }))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))));
 
 router.get("/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const f = mine(db.fichesPrix, req).find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: "Introuvable" });
   const c = compute(f);
-  res.json({ ...f, computed: c, ttcWords: (frWords(Math.round(c.ttc)) + " francs CFA").replace(/^./, s => s.toUpperCase()) });
+  res.json({ ...f, computed: c, multi: computeMulti(f), ttcWords: (frWords(Math.round(c.ttc)) + " francs CFA").replace(/^./, s => s.toUpperCase()) });
 });
 
 router.post("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
@@ -100,24 +113,28 @@ router.post("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
     title: b.title || "Simulation", client: b.client || "", employeeName: b.employeeName || "",
     hiringDate: b.hiringDate || "", conventionId: b.conventionId || "", conventionName: b.conventionName || "",
     category: b.category || "", elements: Array.isArray(b.elements) ? b.elements : [],
+    kind: b.kind || (Array.isArray(b.positions) && b.positions.length ? "multiposte" : "simple"),
+    elementLabels: Array.isArray(b.elementLabels) ? b.elementLabels : [], positions: Array.isArray(b.positions) ? b.positions : [], statut: b.statut || "", lieu: b.lieu || "",
     params: b.params || JSON.parse(JSON.stringify(DEFAULT_PARAMS)),
     createdAt: new Date().toISOString(), createdBy: req.user.id,
   }, req);
   db.fichesPrix.push(f); save();
   audit(req.user, "CREATED", "FichePrix", f.id, { title: f.title });
-  res.status(201).json({ ...f, computed: compute(f) });
+  res.status(201).json({ ...f, computed: compute(f), multi: computeMulti(f) });
 });
 
 router.put("/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const f = mine(db.fichesPrix, req).find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  ["title", "client", "employeeName", "hiringDate", "conventionId", "conventionName", "category"].forEach(k => { if (b[k] !== undefined) f[k] = b[k]; });
+  ["title", "client", "employeeName", "hiringDate", "conventionId", "conventionName", "category", "kind", "statut", "lieu"].forEach(k => { if (b[k] !== undefined) f[k] = b[k]; });
+  if (Array.isArray(b.elementLabels)) f.elementLabels = b.elementLabels;
+  if (Array.isArray(b.positions)) f.positions = b.positions;
   if (Array.isArray(b.elements)) f.elements = b.elements;
   if (b.params) f.params = b.params;
   f.updatedAt = new Date().toISOString(); save();
   audit(req.user, "UPDATED", "FichePrix", f.id, {});
-  res.json({ ...f, computed: compute(f) });
+  res.json({ ...f, computed: compute(f), multi: computeMulti(f) });
 });
 
 router.delete("/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
@@ -233,6 +250,70 @@ router.get("/:id/pdf", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   });
   y += 10; doc.fontSize(10).font("Helvetica-Oblique").fillColor("#333333").text("Arr\u00eat\u00e9 \u00e0 la somme de : " + words, 40, y, { width: 515 });
   doc.fontSize(8).fillColor("#999999").font("Helvetica").text("G\u00e9n\u00e9r\u00e9 par SGRHP le " + new Date().toLocaleDateString("fr-FR"), 40, 805, { width: 515, align: "center" });
+  doc.end();
+});
+
+// Fiche de prix MULTI-POSTES — PDF paysage (colonnes = postes/positions).
+router.get("/:id/pdf-postes", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  let PDFDocument; try { PDFDocument = require("pdfkit"); } catch (e) { return res.status(500).json({ error: "PDF indisponible" }); }
+  const f = mine(db.fichesPrix, req).find(x => x.id === req.params.id);
+  if (!f) return res.status(404).json({ error: "Introuvable" });
+  const m = computeMulti(f); const brand = brandCtx(req);
+  const NF = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 24 });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'attachment; filename="fiche_prix_postes.pdf"');
+  doc.pipe(res);
+  const PW = 842, x0 = 24, W = PW - 48; let y = 24;
+  if (brand.logo) { try { doc.image(brand.logo.buf, x0, y, { fit: [140, 46] }); } catch (e) {} }
+  doc.font("Helvetica-Bold").fontSize(14).fillColor("#111").text("OFFRE FINANCIÈRE — FICHE DE PRIX", x0 + 150, y + 6, { width: W - 150, align: "right" });
+  y += 52;
+  doc.font("Helvetica").fontSize(9).fillColor("#333");
+  const meta = [["Client", f.client], ["Convention", f.conventionName], ["Statut", f.statut], ["Lieu", f.lieu], ["Réf.", f.ref]].filter(x => x[1]);
+  doc.text(meta.map(x => x[0] + " : " + x[1]).join("     "), x0, y, { width: W }); y += 18;
+  const positions = m.positions; const nP = positions.length;
+  const labelW = 150; const colW = Math.max(58, Math.min(120, (W - labelW) / Math.max(1, nP)));
+  const rowH = 14; const NAVY = "#1b2a4a";
+  // header row (position names)
+  const drawHeader = () => {
+    doc.save(); doc.rect(x0, y, labelW + colW * nP, rowH * 3).fill(NAVY); doc.restore();
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#fff");
+    doc.text("POSTE", x0 + 3, y + 3, { width: labelW - 6 });
+    doc.text("Effectif", x0 + 3, y + rowH + 3, { width: labelW - 6 });
+    doc.text("Nbre de jours", x0 + 3, y + rowH * 2 + 3, { width: labelW - 6 });
+    positions.forEach((p, i) => { const cx = x0 + labelW + i * colW;
+      doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#fff").text(String(p.name || "").toUpperCase(), cx + 2, y + 2, { width: colW - 4, height: rowH * 1.4 - 2, ellipsis: true });
+      doc.font("Helvetica").fontSize(7).text(String(p.effectif), cx + 2, y + rowH + 3, { width: colW - 4, align: "center" });
+      doc.text(String(p.jours), cx + 2, y + rowH * 2 + 3, { width: colW - 4, align: "center" }); });
+    y += rowH * 3;
+  };
+  drawHeader();
+  const labels = f.elementLabels || [];
+  const rowsSpec = [];
+  labels.forEach((lab, i) => rowsSpec.push({ label: lab, val: (p) => p.elements[i].amount }));
+  rowsSpec.push({ label: "SALAIRE BRUT", bold: 1, val: (p) => p.computed.brut });
+  rowsSpec.push({ label: "Provision congés", val: (p) => p.computed.provConges });
+  rowsSpec.push({ label: "Provision fin de contrat", val: (p) => p.computed.provFin });
+  rowsSpec.push({ label: "SOUS-TOTAL 1", bold: 1, val: (p) => p.computed.sousTotal1 });
+  rowsSpec.push({ label: "Charges patronales", val: (p) => p.computed.chargesPatronales });
+  rowsSpec.push({ label: "Frais fixes / médical", val: (p) => p.computed.fraisFixes });
+  rowsSpec.push({ label: "TOTAL 2", bold: 1, val: (p) => p.computed.total2 });
+  rowsSpec.push({ label: "Frais de gestion (marge)", val: (p) => p.computed.marge });
+  rowsSpec.push({ label: "TOTAL HT / POSITION", bold: 1, val: (p) => p.computed.ht });
+  rowsSpec.push({ label: "TVA 19,25 %", val: (p) => p.computed.tva });
+  rowsSpec.push({ label: "TOTAL TTC / POSITION", bold: 1, hl: 1, val: (p) => p.computed.ttc });
+  rowsSpec.push({ label: "TOTAL TTC × EFFECTIF", bold: 1, hl: 1, val: (p) => p.computed.ttc * p.effectif });
+  rowsSpec.forEach((rs, ri) => {
+    if (y > 560) { doc.addPage({ size: "A4", layout: "landscape", margin: 24 }); y = 24; drawHeader(); }
+    if (rs.hl) { doc.save(); doc.rect(x0, y, labelW + colW * nP, rowH).fill("#eef3f8"); doc.restore(); }
+    else if (ri % 2) { doc.save(); doc.rect(x0, y, labelW + colW * nP, rowH).fill("#f7f9fb"); doc.restore(); }
+    doc.font(rs.bold ? "Helvetica-Bold" : "Helvetica").fontSize(7).fillColor("#111").text(rs.label, x0 + 3, y + 3, { width: labelW - 6, ellipsis: true });
+    positions.forEach((p, i) => { const v = rs.val(p); doc.font(rs.bold ? "Helvetica-Bold" : "Helvetica").fontSize(7).fillColor("#111").text(v ? NF(v) : "", x0 + labelW + i * colW + 2, y + 3, { width: colW - 4, align: "right" }); });
+    y += rowH;
+  });
+  // grand total
+  y += 6; doc.font("Helvetica-Bold").fontSize(9).fillColor("#111")
+    .text("TOTAL GÉNÉRAL (effectif " + m.grand.effectif + ") — HT " + NF(m.grand.ht) + "   TVA " + NF(m.grand.tva) + "   TTC " + NF(m.grand.ttc) + " FCFA", x0, y, { width: W, align: "right" });
   doc.end();
 });
 

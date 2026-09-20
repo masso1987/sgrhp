@@ -276,10 +276,25 @@ function payrollPassationCheck(req, runId) {
   const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
   const slips = mine(db.payslips, req).filter(s => s.runId === runId);
   const b = _buildPayrollPassation(req, run, false);
+  // Contrôle des déclarations sociales & fiscales (à rapprocher CNPS / DIPE, échéance le 15 du mois suivant).
+  const dec = { cnpsSalarie:0, cnpsPatronal:0, irpp:0, cac:0, cfc:0, rav:0, tdl:0, fne:0 };
+  for (const s of slips) { const t = (s.result && s.result.totals) || {};
+    dec.cnpsSalarie += R2(t.cnpsSalarie); dec.cnpsPatronal += R2(t.cnpsPatronal);
+    dec.irpp += R2(t.irpp); dec.cac += R2(t.cac); dec.cfc += R2((t.cfcSalarie||0)+(t.cfcPatronal||0));
+    dec.rav += R2(t.rav); dec.tdl += R2(t.tdl); dec.fne += R2(t.fnePatronal); }
+  const declarations = {
+    cnps: { salarie: R2(dec.cnpsSalarie), patronal: R2(dec.cnpsPatronal), total: R2(dec.cnpsSalarie + dec.cnpsPatronal) },
+    dipe: [
+      { label: "IRPP", montant: R2(dec.irpp) }, { label: "CAC (10% IRPP)", montant: R2(dec.cac) },
+      { label: "Crédit foncier (CFC)", montant: R2(dec.cfc) }, { label: "Redevance audiovisuelle (RAV)", montant: R2(dec.rav) },
+      { label: "Taxe communale (TDL)", montant: R2(dec.tdl) }, { label: "FNE", montant: R2(dec.fne) },
+    ],
+    dipeTotal: R2(dec.irpp + dec.cac + dec.cfc + dec.rav + dec.tdl + dec.fne),
+  };
   const checks = { clotured: run.status === "CLOSED", hasPayslips: slips.length > 0, alreadyPosted: !!run.acctEntryId, balanced: b.balanced, unmapped: b.unmapped, missingAccounts: b.missingAccounts };
   const blocking = !checks.clotured || !checks.hasPayslips || checks.unmapped.length > 0 || !checks.balanced;
   return { runId, period: run.period, status: run.status, checks, reconciliation: b.reconciliation, reconOk: b.reconciliation.every(r => r.ok),
-    totalDebit: b.totalDebit, totalCredit: b.totalCredit, lines: b.lines, suspenseAccount: b.attente, blocking, canPost: !blocking && !checks.alreadyPosted };
+    totalDebit: b.totalDebit, totalCredit: b.totalCredit, lines: b.lines, suspenseAccount: b.attente, declarations, blocking, canPost: !blocking && !checks.alreadyPosted };
 }
 // Comptabilisation effective (après contrôle). opts.allowSuspense route les rubriques non mappées vers le compte d'attente.
 function generatePayrollEntry(req, runId, opts) {
