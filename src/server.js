@@ -43,13 +43,13 @@ app.use(express.json({ limit: "30mb" }));
 const LOGIN_MAX = process.env.LOGIN_LIMIT === undefined ? 10 : Number(process.env.LOGIN_LIMIT);
 const loginLimiter = LOGIN_MAX > 0
   ? rateLimit({ windowMs: 15 * 60 * 1000, max: LOGIN_MAX, standardHeaders: true, legacyHeaders: false,
-      message: { error: "Trop de tentatives de connexion — réessayez dans quelques minutes" } })
+      message: { error: "Trop de tentatives de connexion - réessayez dans quelques minutes" } })
   : (req, res, next) => next();
 // RATE_LIMIT_PER_MIN=0 disables throttling (used by the automated test suite)
 const RPM = process.env.RATE_LIMIT_PER_MIN === undefined ? 300 : Number(process.env.RATE_LIMIT_PER_MIN);
 const apiLimiter = RPM > 0
   ? rateLimit({ windowMs: 60 * 1000, max: RPM, standardHeaders: true, legacyHeaders: false,
-      message: { error: "Trop de requêtes — patientez un instant" } })
+      message: { error: "Trop de requêtes - patientez un instant" } })
   : (req, res, next) => next();
 // Serve the SPA HTML with no-cache so nav/feature updates always load.
 app.use((req, res, next) => { if (req.path === "/" || req.path.endsWith(".html")) res.setHeader("Cache-Control", "no-cache"); next(); });
@@ -61,7 +61,7 @@ app.post("/api/2fa/setup", loginLimiter, require("./auth").totpSetup);
 app.post("/api/2fa/confirm", loginLimiter, require("./auth").totpConfirm);
 
 // Health endpoint for load balancers / uptime monitoring
-// Public branding — no auth, so the login screen reflects the tenant's identity
+// Public branding - no auth, so the login screen reflects the tenant's identity
 app.get("/api/confirm", (req, res) => {
   const r = require("./auth").confirmAccount(req.query.token);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-20 · BUILD-23 (fiche de prix multi-postes + PDF; ordre de virement RIB complet; contrôle CNPS/DIPE dans la passation; traduction EN de la navigation)";
+const BUILD_VERSION = "2026-09-20 - BUILD-24 (retrait des tirets cadratins et points medians, remplaces par des traits d union)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -84,7 +84,7 @@ app.get("/api/branding", (req, res) => {
   res.json(b);
 });
 
-// Public payslip authenticity check (scanned from the QR on the bulletin) — no auth.
+// Public payslip authenticity check (scanned from the QR on the bulletin) - no auth.
 app.get("/verify/:id", (req, res) => {
   const { db } = require("./store");
   const payroll = require("./routes/payroll");
@@ -100,7 +100,7 @@ app.get("/verify/:id", (req, res) => {
   res.send(wrap(`<div style="border:2px solid #10b981;border-radius:12px;padding:24px;background:#fff"><h1 style="color:#065f46;margin:0 0 8px">Bulletin authentique</h1><p style="color:#374151;margin:0 0 12px">Emis par <b>${esc(tenant ? tenant.name : "")}</b> via le systeme RH &amp; Paie (SGRHP).</p><table style="width:100%;border-top:1px solid #e5e7eb;font-size:15px">${row("Salarie", esc(s.employeeName))}${row("Matricule", esc(s.matricule || "-"))}${row("Periode", esc(s.period))}${row("Net a payer", Math.round(tot.netAPayer).toLocaleString("fr-FR") + " XAF")}${row("Reference", esc(String(s.id).toUpperCase()))}</table></div>`));
 });
 
-// ---- Formulaires d'evaluation publics (client / salarie) — sans authentification ----
+// ---- Formulaires d'evaluation publics (client / salarie) - sans authentification ----
 const evalLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: "Trop de requetes." } });
 function evalEsc(v) { return String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 app.get("/eval/:token", (req, res) => {
@@ -111,7 +111,7 @@ app.get("/eval/:token", (req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   const tenant = f && (db.tenants || []).find(t => t.id === (f.tenantId || "t1"));
   const brandName = (tenant && tenant.name) || (settings.branding && settings.branding.appName) || "SGRHP";
-  const shell = (inner) => `<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=robots content="noindex"><title>${evalEsc(f ? f.title : "Evaluation")}</title><style>body{font-family:Inter,system-ui,sans-serif;background:#f5f8f7;margin:0;padding:32px 14px;color:#111827}.card{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:26px}h1{font-size:20px;margin:0 0 6px}.sub{color:#6b7280;font-size:14px;margin:0 0 16px}label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}input,textarea{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d1d5db;border-radius:9px;font-size:14px;font-family:inherit}.rate{display:flex;gap:6px;flex-wrap:wrap}.rate button{flex:0 0 auto;width:42px;height:42px;border:1px solid #d1d5db;border-radius:9px;background:#fff;font-size:15px;cursor:pointer}.rate button.on{background:#065f46;color:#fff;border-color:#065f46}.q{border-top:1px solid #f0f0f0;padding-top:6px;margin-top:6px}.send{margin-top:18px;background:#065f46;color:#fff;border:0;padding:11px 20px;border-radius:9px;font-size:15px;cursor:pointer;width:100%}.foot{text-align:center;color:#9ca3af;font-size:12px;margin-top:16px}</style></head><body><div class=card>${inner}</div><p class=foot>${evalEsc(brandName)} — Systeme de management de la qualite</p></body></html>`;
+  const shell = (inner) => `<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=robots content="noindex"><title>${evalEsc(f ? f.title : "Evaluation")}</title><style>body{font-family:Inter,system-ui,sans-serif;background:#f5f8f7;margin:0;padding:32px 14px;color:#111827}.card{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:26px}h1{font-size:20px;margin:0 0 6px}.sub{color:#6b7280;font-size:14px;margin:0 0 16px}label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}input,textarea{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d1d5db;border-radius:9px;font-size:14px;font-family:inherit}.rate{display:flex;gap:6px;flex-wrap:wrap}.rate button{flex:0 0 auto;width:42px;height:42px;border:1px solid #d1d5db;border-radius:9px;background:#fff;font-size:15px;cursor:pointer}.rate button.on{background:#065f46;color:#fff;border-color:#065f46}.q{border-top:1px solid #f0f0f0;padding-top:6px;margin-top:6px}.send{margin-top:18px;background:#065f46;color:#fff;border:0;padding:11px 20px;border-radius:9px;font-size:15px;cursor:pointer;width:100%}.foot{text-align:center;color:#9ca3af;font-size:12px;margin-top:16px}</style></head><body><div class=card>${inner}</div><p class=foot>${evalEsc(brandName)} - Systeme de management de la qualite</p></body></html>`;
   if (!f) return res.status(404).send(shell(`<h1>Formulaire indisponible</h1><p class=sub>Ce lien d'evaluation est invalide ou a ete cloture.</p>`));
   const max = Number(f.scaleMax) || 5;
   const qs = (f.questions || []).map(q => {
@@ -187,11 +187,11 @@ const requireModule = (key) => (req, res, next) => {
   const t = (db.tenants || []).find(x => x.id === (u.tenantId || "t1"));
   const mods = (t && t.modules) || [];
   if (!mods.includes(key))
-    return res.status(403).json({ error: `Module « ${key} » non activé pour votre organisation — contactez le super-administrateur.` });
+    return res.status(403).json({ error: `Module « ${key} » non activé pour votre organisation - contactez le super-administrateur.` });
   if (u.role !== "ADM" && u.role !== "SADM") {
     const dbu = (db.users || []).find(x => x.id === u.id);
     if (!(((dbu && dbu.modules) || []).includes(key)))
-      return res.status(403).json({ error: `Accès au module « ${key} » non accordé — contactez votre administrateur.` });
+      return res.status(403).json({ error: `Accès au module « ${key} » non accordé - contactez votre administrateur.` });
   }
   next();
 };
@@ -208,7 +208,7 @@ setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console
 setInterval(() => { try { require("./expiry").scanAndRemind(); } catch (e) { console.error(e); } try { require("./expiry").advanceEchelons(); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000);
 setTimeout(() => { try { require("./expiry").scanAndRemind(); } catch (e) {} try { require("./expiry").advanceEchelons(); } catch (e) {} }, 30000);
 
-// 404 — JSON for the API, custom page for everything else.
+// 404 - JSON for the API, custom page for everything else.
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/")) return res.status(404).json({ error: "Ressource introuvable" });
   if (req.method === "GET" && req.accepts("html"))
@@ -233,7 +233,7 @@ const PORT = process.env.PORT || 4000;
   const server = http.createServer(app);
   try { require("./chat").attach(server); } catch (e) { console.warn("[chat] non attaché:", e.message); }
   server.listen(PORT, () =>
-    console.log(`SGRHP running on http://localhost:${PORT} — storage: ${info.backend} — chat WS /ws`));
+    console.log(`SGRHP running on http://localhost:${PORT} - storage: ${info.backend} - chat WS /ws`));
 })().catch(e => {
   console.error("\n=== SGRHP startup failed ===");
   console.error("Reason :", e.message);

@@ -85,12 +85,12 @@ function login(req, res) {
 
   if (!user) return fail("Identifiants invalides");
   if (user.active === false) {
-    if (user.confirmed === false) return fail("Compte non confirmé — cliquez le lien de confirmation envoyé par email.", 403);
-    return fail("Compte désactivé — contactez votre administrateur.", 403);
+    if (user.confirmed === false) return fail("Compte non confirmé - cliquez le lien de confirmation envoyé par email.", 403);
+    return fail("Compte désactivé - contactez votre administrateur.", 403);
   }
   if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
     const mins = Math.ceil((new Date(user.lockedUntil) - Date.now()) / 60000);
-    return fail(`Compte temporairement verrouillé — réessayez dans ${mins} min`, 423);
+    return fail(`Compte temporairement verrouillé - réessayez dans ${mins} min`, 423);
   }
   if (!verifyPw(password || "", user.password)) {
     const p = policy();
@@ -107,7 +107,7 @@ function login(req, res) {
 
   // Reset link / temporary password expires after 30 minutes.
   if (user.tempPasswordExpires && Date.now() > new Date(user.tempPasswordExpires).getTime())
-    return fail("Mot de passe temporaire expiré — demandez une nouvelle réinitialisation.", 401);
+    return fail("Mot de passe temporaire expiré - demandez une nouvelle réinitialisation.", 401);
 
   // Two-factor: policy-driven (Settings > Security)
   const needs2fa = twoFaRequiredFor(user);
@@ -143,7 +143,7 @@ function authenticate(req, res, next) {
     const prev = lastSeen.get(req.user.id);
     if (prev && Date.now() - prev > idleMs) {
       lastSeen.delete(req.user.id);
-      return res.status(401).json({ error: "Session expirée pour inactivité — reconnectez-vous", idle: true });
+      return res.status(401).json({ error: "Session expirée pour inactivité - reconnectez-vous", idle: true });
     }
     lastSeen.set(req.user.id, Date.now());
     next();
@@ -195,7 +195,7 @@ function totpConfirm(req, res) {
   if (!user.pendingTotp) return res.status(400).json({ error: "Aucune configuration 2FA en cours" });
   const ok = speakeasy.totp.verify({ secret: user.pendingTotp, encoding: "base32",
     token: String(req.body?.totp || ""), window: 1 });
-  if (!ok) return res.status(400).json({ error: "Code invalide — vérifiez l'heure de votre téléphone" });
+  if (!ok) return res.status(400).json({ error: "Code invalide - vérifiez l'heure de votre téléphone" });
   user.totpSecret = user.pendingTotp; user.totpEnabled = true; delete user.pendingTotp; save();
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: "t1" },
     "CONFIG_CHANGED", "User", user.id, { twoFactor: "enabled" });

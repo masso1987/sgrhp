@@ -1,4 +1,4 @@
-/** Real-time HR dashboard (§7.2) — role-aware KPIs, SLA timers, expiry alerts. */
+/** Real-time HR dashboard (§7.2) - role-aware KPIs, SLA timers, expiry alerts. */
 const router = require("express").Router();
 const { db } = require("../store");
 const { allow } = require("../rbac");

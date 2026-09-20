@@ -16,7 +16,7 @@ function toUser(userId, subject, body, ref = null) {
   const e = emailCfg();
   if (e.enabled && e.notifyOnWorkflow) {
     const u = db.users.find(x => x.id === userId);
-    if (u && u.email) mailer.trySend(u.email, `SGRHP — ${subject}`, `${body}\n\n—\nSGRHP`);
+    if (u && u.email) mailer.trySend(u.email, `SGRHP - ${subject}`, `${body}\n\n-\nSGRHP`);
   }
 }
 function toRole(role, subject, body, ref = null) {
@@ -24,7 +24,7 @@ function toRole(role, subject, body, ref = null) {
 }
 
 /**
- * event(eventKey, {role, userId}, vars, {sla}) — records the in-app message (from
+ * event(eventKey, {role, userId}, vars, {sla}) - records the in-app message (from
  * the template, default language French) and emails role users + extra recipients
  * using the bilingual template.
  */

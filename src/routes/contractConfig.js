@@ -1,5 +1,5 @@
 /**
- * §3.2 + §3.4 — Contract types (parameterizable, versioned), salary elements,
+ * §3.2 + §3.4 - Contract types (parameterizable, versioned), salary elements,
  * and the salary grid linking base salary to categories.
  */
 const router = require("express").Router();
@@ -156,7 +156,7 @@ const CMR_CONVENTIONS = [
 ];
 /* Barème indicatif : grille catégorie (I-XII) x échelon (A-E), ancrée sur des points réels
  * (Commerce 6D=173 573, 12A~442 225 issus des fiches réelles) et des fourchettes sectorielles
- * publiées. Valeurs INDICATIVES et modifiables — à confirmer avec l'annexe officielle. */
+ * publiées. Valeurs INDICATIVES et modifiables - à confirmer avec l'annexe officielle. */
 const COMMERCE_BASE_A = { 1: 66480, 2: 78980, 3: 93830, 4: 111470, 5: 132430, 6: 157080, 7: 186610, 8: 221690, 9: 263370, 10: 312880, 11: 371700, 12: 441580 };
 const ECH_FACTOR = { A: 1.0, B: 1.035, C: 1.07, D: 1.105, E: 1.14, F: 1.175 };
 function sectorMultiplier(name) {

@@ -1,5 +1,5 @@
 /**
- * SGRHP — Payroll module routes (Module Paie)
+ * SGRHP - Payroll module routes (Module Paie)
  * Config (rubriques, caisses/config, bulletins modèles) + monthly runs, variable
  * elements, batch calculation, payslips (view + PDF), livre de paie, états des
  * cotisations, and period close with cumuls.  Cameroon rules via ../payroll/engine.
@@ -66,7 +66,7 @@ function recomputePayslip(s) {
   t.coutTotalEmployeur = t.brutTotal + t.chargesPatronales;
 }
 const fmtPeriod = (p) => p; // "YYYY-MM"
-// N° CNPS + clé (dernier chiffre) — ex. « 3511115179 2 » (comme Sage).
+// N° CNPS + clé (dernier chiffre) - ex. « 3511115179 2 » (comme Sage).
 function cnpsFull(emp) {
   const n = emp && emp.cnpsNumber != null ? String(emp.cnpsNumber).trim() : "";
   if (!n) return "";
@@ -126,7 +126,7 @@ function configOf(req) {
 function baseSalaryOf(emp, req) {
   if (emp.salary && Number(emp.salary.base) > 0) return Number(emp.salary.base);
   const c = emp.contract || {}; const cat = c.category;
-  // 1) Convention collective grid (nouvelle source de vérité) — par conventionId, sinon toute convention ayant la catégorie.
+  // 1) Convention collective grid (nouvelle source de vérité) - par conventionId, sinon toute convention ayant la catégorie.
   if (cat) {
     const convs = mine(db.conventions, req);
     const byId = c.conventionId ? convs.find(x => x.id === c.conventionId) : null;
@@ -144,7 +144,7 @@ function baseSalaryOf(emp, req) {
   }
   return 0;
 }
-// Salaire MINIMUM de la catégorie (1er échelon / échelon A) — base légale de la prime d'ancienneté.
+// Salaire MINIMUM de la catégorie (1er échelon / échelon A) - base légale de la prime d'ancienneté.
 function categorielBaseA(emp, req) {
   const c = emp.contract || {}; const cat = String(c.category || "");
   const m = cat.match(/^(\d{1,2})([A-F])$/);
@@ -422,7 +422,7 @@ router.delete("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Introuvable" });
   if (rubriqueInUse(r, req) && !(req.query.force === "1"))
-    return res.status(409).json({ error: "Rubrique utilisée dans des bulletins calculés — suppression bloquée",
+    return res.status(409).json({ error: "Rubrique utilisée dans des bulletins calculés - suppression bloquée",
       requiresConfirmation: true,
       warning: `« ${r.code} ${r.label} » est utilisée dans la paie. La supprimer peut casser des recalculs. Confirmez pour supprimer.` });
   db.payRubriques.splice(db.payRubriques.indexOf(r), 1); save();
@@ -458,7 +458,7 @@ router.get("/elements", allow("RP", "ADM", "GPF", "CD", "RJ"), (req, res) => {
 router.post("/elements", allow("RP", "ADM", "GPF"), (req, res) => {
   const b = req.body || {};
   if (!b.employeeId || !b.period || !b.type) return res.status(400).json({ error: "employeeId, period, type obligatoires" });
-  if (runLocked(b.period, req)) return res.status(409).json({ error: "Période clôturée — saisie impossible" });
+  if (runLocked(b.period, req)) return res.status(409).json({ error: "Période clôturée - saisie impossible" });
   const e = stamp({ id: id("pel"), employeeId: b.employeeId, period: b.period, type: b.type,
     code: b.code || b.type, label: b.label || b.type, amount: b.amount ? Number(b.amount) : undefined,
     hours: b.hours ? Number(b.hours) : undefined, days: b.days ? Number(b.days) : undefined,
@@ -719,7 +719,7 @@ router.post("/runs/:id/close", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req
   res.json({ run });
 });
 // Transfert manuel paie -> comptabilité (ADM/CD/GPF), seulement après clôture. Idempotent (renvoie l'écriture existante).
-// Contrôle de passation (pré-vol) — sans comptabiliser.
+// Contrôle de passation (pré-vol) - sans comptabiliser.
 router.get("/runs/:id/passation-check", allow("RP", "ADM", "CD", "GPF"), (req, res) => {
   const rep = require("./accounting").payrollPassationCheck(req, req.params.id);
   if (!rep) return res.status(404).json({ error: "Paie introuvable" });
@@ -731,7 +731,7 @@ router.post("/runs/:id/transfer-accounting", allow("RP", "ADM", "CD", "GPF"), (r
   if (run.status !== "CLOSED") return res.status(409).json({ error: "Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE." });
   try {
     const e = require("./accounting").generatePayrollEntry(req, run.id, { allowSuspense: !!(req.body && req.body.allowSuspense) });
-    if (!e) return res.status(400).json({ error: "Paie vide — aucune écriture à générer." });
+    if (!e) return res.status(400).json({ error: "Paie vide - aucune écriture à générer." });
     const debit = (e.lines || []).reduce((a, l) => a + (l.debit || 0), 0);
     const credit = (e.lines || []).reduce((a, l) => a + (l.credit || 0), 0);
     res.json({ ok: true, entryId: e.id, pieceNo: e.pieceNo || "", lines: (e.lines || []).length, debit, credit, balanced: debit === credit });
@@ -951,7 +951,7 @@ function drawPayslip(doc, s, emp, tenant) {
   T(474, cy + 2, "Signature", { b: 1, s: 7 });
   T(280, cy + 3, "Congés acquis : " + ((r.meta && r.meta.leaveAccrued) || 2.5) + " j/mois", { s: 7 });
 
-  // Authenticity QR — scans to the public /verify page; vector-drawn so it is synchronous
+  // Authenticity QR - scans to the public /verify page; vector-drawn so it is synchronous
   try {
     const QR = require("qrcode");
     const base = process.env.PUBLIC_URL || "";
@@ -997,19 +997,19 @@ function drawPayslipModern(doc, s, emp, tenant) {
   /* HEADER */
   card(L, y, W, 52, CARD);
   txt(L + 12, y + 9, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 12, c: TXT, w: 250 });
-  txt(L + 12, y + 26, [CO.address, CO.city].filter(Boolean).join(" · "), { s: 6.5, c: MUT, w: 250 });
-  txt(L + 12, y + 37, `N° Contribuable ${CO.niu || tenant.niu || "—"}   ·   N° Employeur ${CO.employerNo || tenant.cnpsEmployer || "—"}`, { s: 6.5, c: MUT, w: 260 });
+  txt(L + 12, y + 26, [CO.address, CO.city].filter(Boolean).join(" - "), { s: 6.5, c: MUT, w: 250 });
+  txt(L + 12, y + 37, `N° Contribuable ${CO.niu || tenant.niu || "-"}   -   N° Employeur ${CO.employerNo || tenant.cnpsEmployer || "-"}`, { s: 6.5, c: MUT, w: 260 });
   txt(RgT - 240, y + 7, "BULLETIN DE PAIE", { b: 1, s: 12, c: TXT, w: 228, a: "right" });
   txt(RgT - 240, y + 24, `Période du ${dS} au ${dE}`, { s: 7, c: MUT, w: 228, a: "right" });
   txt(RgT - 240, y + 34, `Payé le ${dE} par ${C.paymentMethod || "Virement"}`, { s: 7, c: MUT, w: 228, a: "right" });
-  txt(RgT - 240, y + 44, `Banque ${String(emp.bankName || C.bankName || "—").slice(0,18)}  Cpte ${emp.bankAccount || C.bankIban || "—"}`, { s: 6.5, c: MUT, w: 228, a: "right" });
+  txt(RgT - 240, y + 44, `Banque ${String(emp.bankName || C.bankName || "-").slice(0,18)}  Cpte ${emp.bankAccount || C.bankIban || "-"}`, { s: 6.5, c: MUT, w: 228, a: "right" });
   y += 60;
 
-  /* EMPLOYÉ card — full detail grid */
+  /* EMPLOYÉ card - full detail grid */
   const empH = 92;
   card(L, y, W, empH, CARD);
   txt(L + 12, y + 8, `${emp.civility || ""} ${(emp.firstName||"")} ${(emp.lastName||"")}`.trim(), { b: 1, s: 11, c: TXT, w: 300 });
-  txt(RgT - 160, y + 9, `Matricule ${s.matricule || "—"}`, { b: 1, s: 8, c: TXT, w: 148, a: "right" });
+  txt(RgT - 160, y + 9, `Matricule ${s.matricule || "-"}`, { b: 1, s: 8, c: TXT, w: 148, a: "right" });
   doc.save(); doc.moveTo(L + 12, y + 26).lineTo(RgT - 12, y + 26).strokeColor(LINE).stroke(); doc.restore();
   const colL = L + 12, colM = L + 190, colR = L + 372;
   const pairs = [
@@ -1049,7 +1049,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
     gains.map(l => [l.code||"", (l.label||""), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", F(l.gain), ""]),
     ["","TOTAL BRUT","","",F(t.brutTotal),""]);
 
-  /* Cotisations & retenues — en-tête groupé (Part salariale / Part patronale), façon Sage */
+  /* Cotisations & retenues - en-tête groupé (Part salariale / Part patronale), façon Sage */
   {
     const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
     const rate = (v) => ((Number(v)||0)*100).toFixed(2);   // taux : 0 -> "0.00"
@@ -1093,7 +1093,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
 
   if (y > 648) { doc.addPage(); y = 28; }
 
-  /* CUMUL DE LA PÉRIODE — dedicated, 2 columns */
+  /* CUMUL DE LA PÉRIODE - dedicated, 2 columns */
   const heuresSupp = r.lines.filter(l => l.hours).reduce((a, l) => a + Number(l.hours || 0), 0);
   const sumRows = [
     ["Salaire brut", F(t.brutTotal)], ["Charges salariales", F((t.cnpsSalarie||0)+(t.totalImpots||0))],
@@ -1110,7 +1110,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
     txt(bx, byy, rw[0], { s: 7.5, c: MUT, w: colW - 90 }); txt(bx + colW - 92, byy, rw[1] + " FCFA", { b: 1, s: 8, c: TXT, w: 80, a: "right" }); });
   y += sumH + 8;
 
-  /* NET À PAYER — usual place, bottom */
+  /* NET À PAYER - usual place, bottom */
   if (y > 700) { doc.addPage(); y = 28; }
   const nbw = 240, nbx = RgT - nbw;
   doc.save(); doc.roundedRect(nbx, y, nbw, 36, 4).fill(NAVY); doc.restore();
@@ -1122,7 +1122,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const half = (W - 10) / 2, bh2 = 52;
   card(L, y, half, bh2); card(L + half + 10, y, half, bh2);
   txt(L + 10, y + 8, "CONGÉS", { b: 1, s: 6.5, c: MUT });
-  txt(L + 10, y + 22, `Pris ${(r.meta && r.meta.leaveTaken) || 0}    ·    Restant ${(r.meta && r.meta.leaveBalance) || 0}`, { s: 7.5, c: TXT, w: half - 20 });
+  txt(L + 10, y + 22, `Pris ${(r.meta && r.meta.leaveTaken) || 0}    -    Restant ${(r.meta && r.meta.leaveBalance) || 0}`, { s: 7.5, c: TXT, w: half - 20 });
   txt(L + 10, y + 35, `Acquis ${(r.meta && r.meta.leaveAccrued) || 2.5} j/mois`, { s: 7.5, c: TXT, w: half - 20 });
   txt(L + half + 20, y + 8, "AUTHENTIFICATION", { b: 1, s: 6.5, c: MUT });
   try {
@@ -1223,7 +1223,7 @@ router.get("/employees/:eid/fiche.xlsx", allow("RP", "ADM", "CD", "RJ", "GPF"), 
   const fi = ficheIndividuelle(req.params.eid, req.query.year || new Date().getFullYear(), req);
   if (!fi) return res.status(404).json({ error: "Employé introuvable" });
   const head = ["Rubrique", ...fi.months.map(m => m.slice(0, 4)), "Total"];
-  const aoa = [[`Fiche individuelle — ${fi.employee.name} (${fi.employee.matricule})`], [`Année ${fi.year}`], [], head];
+  const aoa = [[`Fiche individuelle - ${fi.employee.name} (${fi.employee.matricule})`], [`Année ${fi.year}`], [], head];
   fi.rubriques.forEach(r => aoa.push([`${r.code} ${r.label}`, ...r.monthly.map(x => Math.round(x)), Math.round(r.total)]));
   aoa.push([]);
   fi.summary.forEach(r => aoa.push([r.label, ...r.monthly.map(x => Math.round(x)), Math.round(r.total)]));
@@ -1241,8 +1241,8 @@ router.get("/employees/:eid/fiche.pdf", allow("RP", "ADM", "CD", "RJ", "GPF"), (
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="FI_${(fi.employee.name || "").replace(/[^\w]/g, "_")}_${fi.year}.pdf"`);
   doc.pipe(res);
-  doc.fontSize(13).font("Helvetica-Bold").text(`Fiche individuelle — ${fi.employee.name}`, 20, 20);
-  doc.fontSize(9).font("Helvetica").fillColor("#555").text(`Matricule ${fi.employee.matricule || "-"} · Catégorie ${fi.employee.category || "-"} · Année ${fi.year}`, 20, 38);
+  doc.fontSize(13).font("Helvetica-Bold").text(`Fiche individuelle - ${fi.employee.name}`, 20, 20);
+  doc.fontSize(9).font("Helvetica").fillColor("#555").text(`Matricule ${fi.employee.matricule || "-"} - Catégorie ${fi.employee.category || "-"} - Année ${fi.year}`, 20, 38);
   doc.fillColor("#111");
   const X0 = 20, W = 802, cLabel = 150, cTot = 60, cM = (W - cLabel - cTot) / 12;
   let y = 58;
@@ -1293,7 +1293,7 @@ router.put("/payslips/:id/lines", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (
   if (req.user.role !== "ADM") {
     const _u = db.users.find(x => x.id === req.user.id);
     if (!(((_u && _u.permissions) || []).includes("payroll.edit")))
-      return res.status(403).json({ error: "Correction de paie non autorisée — demandez le droit à l'administrateur" });
+      return res.status(403).json({ error: "Correction de paie non autorisée - demandez le droit à l'administrateur" });
   }
   const s = mine(db.payslips, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Bulletin introuvable" });
@@ -1367,7 +1367,7 @@ router.get("/runs/:id/cotisations/export", allow("RP", "ADM", "CD", "RJ", "GPF",
   sendCSV(res, `Etats_cotisations_${run.period}.csv`, rows);
 });
 
-/* ============ LIVRE DE PAIE & ÉTAT DES COTISATIONS — PDF / Excel ============ */
+/* ============ LIVRE DE PAIE & ÉTAT DES COTISATIONS - PDF / Excel ============ */
 function _sexOf(e) { const c = (e && e.civility) || ""; return (c === "Mme" || c === "Mlle") ? "F" : "H"; }
 function _slipsOfRun(run, req) {
   return mine(db.payslips, req).filter(x => x.runId === run.id)
@@ -1468,8 +1468,8 @@ router.get("/runs/:id/livre/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (
   groups.forEach((grp, gi) => {
     if (gi > 0) doc.addPage();
     const labelW = 150, colW = 78, x0 = 20; let y = 20;
-    doc.font("Helvetica-Bold").fontSize(13).fillColor("#000").text(`Livre de paie  —  ${run.period}`, x0, y);
-    doc.font("Helvetica").fontSize(8).text(`${tenant.name || ""}   ·   Page ${gi + 1}/${groups.length}`, x0, y + 16);
+    doc.font("Helvetica-Bold").fontSize(13).fillColor("#000").text(`Livre de paie  -  ${run.period}`, x0, y);
+    doc.font("Helvetica").fontSize(8).text(`${tenant.name || ""}   -   Page ${gi + 1}/${groups.length}`, x0, y + 16);
     y = 46;
     const colX = (i) => x0 + labelW + i * colW;
     const T = (x, yy, txt, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 7).fillColor(o.c || "#000").text(txt == null ? "" : String(txt), x, yy, { width: o.w, align: o.a, lineBreak: false }); };
@@ -1533,8 +1533,8 @@ router.get("/runs/:id/cotisations/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "U
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Etat_cotisations_${run.period}.pdf"`);
   doc.pipe(res);
-  doc.font("Helvetica-Bold").fontSize(14).fillColor("#000").text(`État des cotisations  —  ${run.period}`, { align: "center" });
-  doc.font("Helvetica").fontSize(9).text(`${tenant.name || ""}   ·   Base de déclaration CNPS & impôts (DIPE)`, { align: "center" });
+  doc.font("Helvetica-Bold").fontSize(14).fillColor("#000").text(`État des cotisations  -  ${run.period}`, { align: "center" });
+  doc.font("Helvetica").fontSize(9).text(`${tenant.name || ""}   -   Base de déclaration CNPS & impôts (DIPE)`, { align: "center" });
   doc.moveDown(0.6);
   const cols = [["Code", 34, "left"], ["Intitulé rubrique", 170, "left"], ["Tx sal.", 42, "right"], ["Tx pat.", 42, "right"], ["Tx glob.", 44, "right"], ["Assiette", 88, "right"], ["M. salarial", 78, "right"], ["M. patronal", 78, "right"], ["M. global", 78, "right"], ["H", 30, "right"], ["F", 30, "right"]];
   const x0 = 24; let x = x0; const xs = cols.map(c => { const cx = x; x += c[1]; return cx; }); const totW = x - x0;
@@ -1558,7 +1558,7 @@ router.get("/runs/:id/cotisations/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "U
   audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "cotisations", format: "pdf" });
   doc.end();
 });
-// Ordre de virement — net salaries with bank details, for the bank.
+// Ordre de virement - net salaries with bank details, for the bank.
 router.get("/runs/:id/virement", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
@@ -1591,7 +1591,7 @@ async function sendPayslipEmail(s2, req) {
     `Salaire brut   : ${money(t.brutTotal)} XAF\n` +
     `Total retenues : ${money(t.totalRetenues)} XAF\n` +
     `Net à payer    : ${money(t.netAPayer)} XAF\n\n` +
-    `Cordialement,\nLe service RH — ${tenant.name}\n\n` +
+    `Cordialement,\nLe service RH - ${tenant.name}\n\n` +
     `----------------------------------------------------------------------\n` +
     `AUTHENTICITÉ : Ce message et le bulletin ci-joint (PDF) ont été générés\n` +
     `automatiquement par le système RH & Paie de ${tenant.name} (SGRHP).\n` +
@@ -1601,7 +1601,7 @@ async function sendPayslipEmail(s2, req) {
     `le service RH de ${tenant.name}. Ne communiquez ce bulletin à personne.`;
   const pdf = await payslipBuffer(s2, emp, tenant);
   const filename = `Bulletin_${String(s2.employeeName || "").replace(/[^\w]/g, "_")}_${s2.period}.pdf`;
-  await require("../mailer").send(emp.email, `Bulletin de paie ${s2.period} — ${tenant.name}`, body,
+  await require("../mailer").send(emp.email, `Bulletin de paie ${s2.period} - ${tenant.name}`, body,
     [{ filename, content: pdf, contentType: "application/pdf" }]);
   s2.emailedAt = new Date().toISOString(); save();
   audit(req.user, "EMAILED", "Payslip", s2.id, { to: emp.email, period: s2.period });
@@ -1676,7 +1676,7 @@ function buildJournal(run, req) {
   for (const s of slips) {
     const t = s.result.totals;
     const emp = mine(db.employees, req).find(e => e.id === s.employeeId) || {};
-    const pf = emp.portfolioId || "—";
+    const pf = emp.portfolioId || "-";
     const acc = (o) => {
       o.brut += t.brutTotal; o.cnpsSal += t.cnpsSalarie; o.cnpsPat += t.cnpsPatronal;
       o.impots += (t.irpp || 0) + (t.cac || 0) + (t.cfcSalarie || 0) + (t.rav || 0) + (t.tdl || 0);
@@ -1828,7 +1828,7 @@ router.get("/reports/livre", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, 
   const columns = [ {key:"periode",label:"Période",w:52},{key:"matricule",label:"Matricule",w:60},{key:"nom",label:"Salarié",w:120},{key:"portefeuille",label:"Portefeuille",w:90},
     {key:"brut",label:"Brut",money:1,w:66},{key:"retenues",label:"Retenues",money:1,w:60},{key:"cnps",label:"CNPS",money:1,w:52},{key:"irpp",label:"IRPP",money:1,w:52},
     {key:"net",label:"Net à payer",money:1,w:66},{key:"patronal",label:"Ch. patron.",money:1,w:60},{key:"cout",label:"Coût employeur",money:1,w:72} ];
-  _sendReport(req, res, { format: req.query.format, name: `Livre_de_paie_${lo}_${hi}`, title: `Livre de paie — ${lo} à ${hi}`, meta: `${rows.length} bulletin(s)`, columns, rows });
+  _sendReport(req, res, { format: req.query.format, name: `Livre_de_paie_${lo}_${hi}`, title: `Livre de paie - ${lo} à ${hi}`, meta: `${rows.length} bulletin(s)`, columns, rows });
 });
 
 router.get("/reports/cotisations", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
@@ -1841,7 +1841,7 @@ router.get("/reports/cotisations", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), 
   const rows = Object.values(agg).map(a=>({ ...a, total: a.salarie + a.patronal })).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
   const columns = [ {key:"code",label:"Code",w:44},{key:"libelle",label:"Cotisation / impôt",w:150},{key:"base",label:"Base cumulée",money:1,w:80},
     {key:"salarie",label:"Part salariale",money:1,w:80},{key:"patronal",label:"Part patronale",money:1,w:80},{key:"total",label:"Total",money:1,w:80} ];
-  _sendReport(req, res, { format: req.query.format, name: `Etat_cotisations_${lo}_${hi}`, title: `État des cotisations — ${lo} à ${hi}`, meta: `${slips.length} bulletin(s)`, columns, rows });
+  _sendReport(req, res, { format: req.query.format, name: `Etat_cotisations_${lo}_${hi}`, title: `État des cotisations - ${lo} à ${hi}`, meta: `${slips.length} bulletin(s)`, columns, rows });
 });
 
 router.get("/reports/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
@@ -1854,7 +1854,7 @@ router.get("/reports/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =
   const columns = [ {key:"periode",label:"Période",w:60},{key:"brut",label:"Brut",money:1,w:80},{key:"netImposable",label:"Net imposable",money:1,w:90},
     {key:"retenues",label:"Retenues",money:1,w:80},{key:"net",label:"Net à payer",money:1,w:90},{key:"patronal",label:"Ch. patronales",money:1,w:90},{key:"cout",label:"Coût employeur",money:1,w:90} ];
   const nm = `${e.firstName||""} ${e.lastName||""}`.trim();
-  _sendReport(req, res, { format: req.query.format, name: `Fiche_${(e.matricule||nm||eid)}_${lo}_${hi}`, title: `Fiche individuelle — ${nm} (${e.matricule||""})`, meta: `${pfn[e.portfolioId]||""} · ${lo} à ${hi}`, columns, rows });
+  _sendReport(req, res, { format: req.query.format, name: `Fiche_${(e.matricule||nm||eid)}_${lo}_${hi}`, title: `Fiche individuelle - ${nm} (${e.matricule||""})`, meta: `${pfn[e.portfolioId]||""} - ${lo} à ${hi}`, columns, rows });
 });
 
 module.exports = router;

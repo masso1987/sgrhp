@@ -1,10 +1,10 @@
 /**
- * SGRHP — Payroll engine v2 (Module Paie) — Cameroon, calibrated from Sage Paie i7.
+ * SGRHP - Payroll engine v2 (Module Paie) - Cameroon, calibrated from Sage Paie i7.
  *
  * Named-base model (reproduces the CIBLE ENERGIE bulletin):
  *   BRUT     = Σ all gains
- *   NETCOTI  = Σ gains flagged `cnps`  (base cotisable CNPS — PVID/PF/RP)
- *   NETIMPO  = Σ gains flagged `impo`  (base imposable — IRPP, RAV, TDL)  minus exemption caps
+ *   NETCOTI  = Σ gains flagged `cnps`  (base cotisable CNPS - PVID/PF/RP)
+ *   NETIMPO  = Σ gains flagged `impo`  (base imposable - IRPP, RAV, TDL)  minus exemption caps
  *   BASECF   = round(NETIMPO, 1000)    (base Crédit Foncier)
  *
  * Every rate/bracket is editable per tenant (values below are the Sage-extracted defaults).
@@ -19,16 +19,16 @@ const DEFAULT_CONFIG = {
 
   cnps: {
     ceiling: 750000,          // PLAFOND (CNPS monthly ceiling)
-    pvidEmployee: 0.042,      // 5000 PENSION VIEILLESSE — salarié
-    pvidEmployer: 0.042,      //                          — employeur
-    familyEmployer: 0.07,     // 5010 ALLOCATIONS FAMILIALES — employeur
-    workAccidentEmployer: 0.025, // 5020 ACCIDENT DE TRAVAIL — employeur (classe société)
+    pvidEmployee: 0.042,      // 5000 PENSION VIEILLESSE - salarié
+    pvidEmployer: 0.042,      //                          - employeur
+    familyEmployer: 0.07,     // 5010 ALLOCATIONS FAMILIALES - employeur
+    workAccidentEmployer: 0.025, // 5020 ACCIDENT DE TRAVAIL - employeur (classe société)
   },
 
   cfc: { employee: 0.01, employer: 0.015 }, // 5050/5060 Crédit Foncier
   fne: { employer: 0.01 },                  // 5070 FNE (base BRUT)
 
-  // IRPP — SNI = fraisProRate × NETIMPO − PVID − (annualAbatement/12) ; progressive ; CAC = cacRate × IRPP
+  // IRPP - SNI = fraisProRate × NETIMPO − PVID − (annualAbatement/12) ; progressive ; CAC = cacRate × IRPP
   // (validated against ZANG payslip: NETIMPO 396 211 → IRPP 24 602)
   irpp: {
     fraisProRate: 0.70,       // abattement 30% frais professionnels
@@ -46,14 +46,14 @@ const DEFAULT_CONFIG = {
   // Transport allowance exemption cap (excess is added to NETIMPO). Editable.
   transportExemptionCap: 14500, // Exonération IRPP de la prime de transport (F/mois). La prime de transport est déjà hors assiette CNPS ; seule la fraction au-delà de ce plafond est imposable à l'IRPP.
 
-  // RAV — Redevance audiovisuelle (^^CRTV), monthly amount by bracket on SALBASE
+  // RAV - Redevance audiovisuelle (^^CRTV), monthly amount by bracket on SALBASE
   rav: [
     { upTo: 50000, amount: 0 }, { upTo: 100000, amount: 750 }, { upTo: 200000, amount: 1950 },
     { upTo: 300000, amount: 3250 }, { upTo: 400000, amount: 4550 }, { upTo: 500000, amount: 5850 },
     { upTo: 600000, amount: 7150 }, { upTo: 700000, amount: 8450 }, { upTo: 800000, amount: 9750 },
     { upTo: 900000, amount: 11050 }, { upTo: 1000000, amount: 12350 }, { upTo: 1e12, amount: 13000 },
   ],
-  // TDL — Taxe communale (^^TAXCOM), by bracket on SALBASE
+  // TDL - Taxe communale (^^TAXCOM), by bracket on SALBASE
   tdl: [
     { upTo: 62000, amount: 0 }, { upTo: 75000, amount: 250 }, { upTo: 100000, amount: 500 },
     { upTo: 125000, amount: 750 }, { upTo: 150000, amount: 1000 }, { upTo: 200000, amount: 1250 },
@@ -64,7 +64,7 @@ const DEFAULT_CONFIG = {
   // Seniority (^^ANCTAUX): 4% at 2 years, +2%/year, capped.
   seniority: { startYears: 2, startRate: 0.04, perYearRate: 0.02, maxRate: 1.0 }, // Code du travail : 4% à 2 ans, +2%/an, sans plafond conventionnel
   leave: {
-    daysPerMonth: 2.5, // CONGE1 — provision comptable (jours calendaires) / mois
+    daysPerMonth: 2.5, // CONGE1 - provision comptable (jours calendaires) / mois
     ouvrablePerMonth: 2, baseAnnual: 24, // Art. 63.1 : 2 jours ouvrables / mois = 24 / an
     // Art. 63.5 : majoration d'ancienneté (jours ouvrables ajoutés au congé annuel)
     seniorityMajoration: [
@@ -168,7 +168,7 @@ function computePayslip(input, configOverride) {
     add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: pr === 1 ? 1 : r3(pr), base: fullAmt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
   }
 
-  // Avantages en nature: valued benefit — taxable (and optionally cotisable) but NOT
+  // Avantages en nature: valued benefit - taxable (and optionally cotisable) but NOT
   // paid in cash. Increases NETIMPO/NETCOTI (so IRPP/CNPS rise) without touching brut/net.
   const avantages = input.avantages || input.nonCashBenefits || [];
   let avTotal = 0, avImpo = 0, avCnps = 0;

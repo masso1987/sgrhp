@@ -1,5 +1,5 @@
 /**
- * Facturation — per-tenant seed (idempotent).
+ * Facturation - per-tenant seed (idempotent).
  * Seeds the editable component catalogue (primes, HS, hors-charges, prestation,
  * retenues). Contracts are created by the admin (a client = configuration).
  */
@@ -91,7 +91,7 @@ function seedBilling(tid) {
     added++;
   }
   if (added) save();
-  // Example annexe template (configurable) — CIMPOR MAD
+  // Example annexe template (configurable) - CIMPOR MAD
   if (!(db.billingAnnexeTemplates || []).some(t => (t.tenantId || "t1") === tid && t.code === "CIMPOR_MAD")) {
     db.billingAnnexeTemplates.push({ id: id("batpl"), tenantId: tid, code: "CIMPOR_MAD",
       title: "ANNEXE DE FACTURATION : CIMPOR MAD", groupBy: null,

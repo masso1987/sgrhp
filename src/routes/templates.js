@@ -47,8 +47,8 @@ module.exports = router;
 
 /* ================= Template Studio (§3.3) =================
  * Turn a normal Word document (attestation, certificat...) into a template:
- * 1) POST /raw          — upload .docx, returns extracted text + rawId
- * 2) POST /raw/:id/tagify — {replacements:[{find,tag}], name, docType}
+ * 1) POST /raw          - upload .docx, returns extracted text + rawId
+ * 2) POST /raw/:id/tagify - {replacements:[{find,tag}], name, docType}
  *    replaces each 'find' text with {{tag}} (even across Word runs) and
  *    registers the result as a generation template.
  */
@@ -90,7 +90,7 @@ router.post("/raw/:id/tagify", allow("ADM"), (req, res, next) => {
       // pass 1: direct replace when the text is inside a single run
       if (xml.includes(find)) { xml = xml.split(find).join(`{{${tag}}}`); hit = true; }
       else {
-        // pass 2: text split across runs — rebuild each paragraph's text
+        // pass 2: text split across runs - rebuild each paragraph's text
         xml = xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (para) => {
           const texts = [...para.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]);
           const joined = texts.join("");

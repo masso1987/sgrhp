@@ -1,5 +1,5 @@
 /**
- * Facturation — configurable annexe engine.
+ * Facturation - configurable annexe engine.
  * An annexe TEMPLATE = ordered columns (each a formula), grouping, taxes, header.
  * Per employee/unit line we build a scope { BASE, JOURS, PRES, <component codes>,
  * cascade values } and evaluate each column in order (a column may reference earlier
@@ -16,7 +16,7 @@ function lineScope(line, contract) {
     PRES: Number(line.pres != null ? line.pres : line.jours) || 0,
     BASE: c.raw.basePorata != null ? c.raw.basePorata : Number(line.salaireBase) || 0,
     SALAIREBASE: Number(line.salaireBase) || 0,
-    // cascade values (convenience — templates may ignore them and use pure formulas)
+    // cascade values (convenience - templates may ignore them and use pure formulas)
     BRUT: c.raw.brut || 0, CONGES: c.raw.conges || 0, CHARGES: c.raw.charges || 0,
     FRAIS: c.raw.fraisGestion || 0, HT: c.raw.HT || 0, TVA_CASC: c.raw.TVA || 0, TTC_CASC: c.raw.TTC || 0,
   };
@@ -53,7 +53,7 @@ function computeRow(line, template, contract) {
   const ALIAS = { cat: "categorie", categorie: "cat", position: "poste", poste: "position", mat: "matricule", matricule: "mat", noms: "name", nom: "name" };
   for (const col of template.columns || []) {
     const hasExpr = col.expr != null && String(col.expr).trim() !== "";
-    // A column with a formula ALWAYS computes — even if the source toggle was left on "champ".
+    // A column with a formula ALWAYS computes - even if the source toggle was left on "champ".
     if (!hasExpr && col.source === "field") {
       let fv = line[col.field];
       if (fv == null && ALIAS[col.field] != null) fv = line[ALIAS[col.field]];
@@ -77,7 +77,7 @@ function computeAnnexe(template, lines, contract) {
   let groups = null;
   if (template.groupBy === "poste") {
     groups = {};
-    for (const r of rows) (groups[r._poste || "—"] = groups[r._poste || "—"] || []).push(r);
+    for (const r of rows) (groups[r._poste || "-"] = groups[r._poste || "-"] || []).push(r);
   }
   const sumCols = (rws) => { const t = {}; for (const c of numCols) t[c.key] = rws.reduce((s, r) => s + (Number(r.cells[c.key]) || 0), 0); return t; };
   const groupTotals = {};

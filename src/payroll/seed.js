@@ -1,7 +1,7 @@
 /**
- * Payroll module — per-tenant seed (idempotent).
+ * Payroll module - per-tenant seed (idempotent).
  * Seeds the calculation config, the full rubriques catalogue (from Sage T_RUB, 163
- * lines — the admin baseline), and a default payslip template.
+ * lines - the admin baseline), and a default payslip template.
  */
 const { db, save, id } = require("../store");
 const { DEFAULT_CONFIG } = require("./engine");

@@ -1,5 +1,5 @@
 /**
- * SGRHP — messages directs (1-to-1).
+ * SGRHP - messages directs (1-to-1).
  * - Utilisateurs normaux : contacts = utilisateurs de leur organisation (+ toute
  *   personne avec qui une conversation existe déjà, ex. le super-admin).
  * - Super-admin (SADM) : contacts = tous les utilisateurs, groupés par organisation.

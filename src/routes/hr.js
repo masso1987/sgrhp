@@ -1,5 +1,5 @@
 /**
- * M4 — Contract amendments (avenants, versioned), decisions & sanctions,
+ * M4 - Contract amendments (avenants, versioned), decisions & sanctions,
  * leave/permissions/final settlements with balance tracking (§3.2, §3.5).
  * Amendments and leave requests follow the standard 2-level workflow;
  * on RJ approval the amendment is applied / the leave is deducted.
@@ -54,7 +54,7 @@ router.post("/:id/amendments", allow("GPF", "ADM"), (req, res) => {
   const version = (db.documents.filter(d => d.type === "AMENDMENT" && d.refId === emp.id).length) + 1;
   const doc = { id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AMENDMENT", refId: emp.id,
     data: { changes, avenantType, effectiveDate: effectiveDate || null, reason: reason || "" }, version,
-    title: `${avenantType} n°${version} — ${emp.firstName} ${emp.lastName}`,
+    title: `${avenantType} n°${version} - ${emp.firstName} ${emp.lastName}`,
     createdById: req.user.id, createdAt: new Date().toISOString(),
     status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null,
     submittedAt: new Date().toISOString() };
@@ -106,8 +106,8 @@ router.post("/:id/decisions", allow("GPF", "ADM"), decUpload.single("file"), (re
     if (salaryChanges) changes.salary = salaryChanges;
     const version = (db.documents.filter(d => d.type === "AMENDMENT" && d.refId === emp.id).length) + 1;
     const doc = { id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AMENDMENT", refId: emp.id,
-      data: { changes, avenantType: "Avenant salarial", effectiveDate: dec.date, reason: `${type} — ${detail || ""}` },
-      version, title: `Avenant salarial n°${version} (${type}) — ${emp.firstName} ${emp.lastName}`,
+      data: { changes, avenantType: "Avenant salarial", effectiveDate: dec.date, reason: `${type} - ${detail || ""}` },
+      version, title: `Avenant salarial n°${version} (${type}) - ${emp.firstName} ${emp.lastName}`,
       createdById: req.user.id, createdAt: new Date().toISOString(),
       status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null, submittedAt: new Date().toISOString() };
     doc.steps.push({ id: id("stp"), stage: "CD", assignedAt: doc.submittedAt,
@@ -198,7 +198,7 @@ router.post("/:id/leave", allow("GPF", "ADM"), (req, res) => {
     if (days <= 0) return res.status(400).json({ error: "endDate must be after startDate" });
     if (leaveType === "Congé annuel" && days > leaveBalance(emp).remaining)
       return res.status(400).json({ error: `Solde insuffisant : ${leaveBalance(emp).remaining} j restants, ${days} demandés` });
-    // Art. 64 : permissions exceptionnelles — barème par événement + plafond 12 j / an.
+    // Art. 64 : permissions exceptionnelles - barème par événement + plafond 12 j / an.
     if (leaveType === "Permission exceptionnelle") {
       const ev = (LEAVE_CFG.permissions || []).find(p => p.key === permissionKey);
       if (!ev) return res.status(400).json({ error: `permissionKey requis (Art. 64) : ${(LEAVE_CFG.permissions || []).map(p => p.key).join(", ")}` });
@@ -211,7 +211,7 @@ router.post("/:id/leave", allow("GPF", "ADM"), (req, res) => {
   }
   const doc = { id: id("doc"), tenantId: req.user.tenantId || "t1", type: "LEAVE", refId: emp.id,
     data: { leaveType, startDate, endDate, days, reason: reason || "", permissionKey: permissionKey || null, permissionLabel },
-    title: `${leaveType} (${days ? days + "j" : "—"}) — ${emp.firstName} ${emp.lastName}`,
+    title: `${leaveType} (${days ? days + "j" : "-"}) - ${emp.firstName} ${emp.lastName}`,
     createdById: req.user.id, createdAt: new Date().toISOString(),
     status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null,
     submittedAt: new Date().toISOString() };
@@ -278,7 +278,7 @@ router.post("/avi", allow("GPF", "ADM", "CD", "RJ"), aviUpload.single("letter"),
   const autoRef = b.ref && String(b.ref).trim() ? b.ref : `${_pref}/${String(_nAvi).padStart(3, "0")}/${_mm}/${_yy}`;
   const doc = {
     id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AVI", refId: emp.id,
-    title: `AVI — ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+    title: `AVI - ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
     createdById: req.user.id, createdAt: new Date().toISOString(), status: "DRAFT", cycle: 1, steps: [], generatedFile: null,
     attachment: { fileName: req.file.originalname, storedAs: req.file.filename, at: new Date().toISOString() },
     data: {
@@ -308,7 +308,7 @@ router.post("/:id/contract-letter", allow("GPF", "ADM", "CD", "RJ"), (req, res) 
   const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
   const doc = {
     id: id("doc"), tenantId: req.user.tenantId || "t1", type: "CONTRACT_END", refId: emp.id,
-    title: `Lettre fin de contrat — ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+    title: `Lettre fin de contrat - ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
     createdById: req.user.id, createdAt: new Date().toISOString(), status: "DRAFT", cycle: 1, steps: [], generatedFile: null,
     data: {
       employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), civility: civ, matricule: emp.matricule || "",

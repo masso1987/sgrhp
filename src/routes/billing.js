@@ -1,5 +1,5 @@
 /**
- * SGRHP — Facturation module routes (Module Facturation).
+ * SGRHP - Facturation module routes (Module Facturation).
  * Contracts (per-client config) + components catalogue + monthly sheets (annexes)
  * with the parameterizable engine, and the consolidated monthly recap.
  * A client = configuration (no per-client code).
@@ -177,7 +177,7 @@ router.put("/contracts/:id", allow("ADM"), (req, res) => {
 });
 router.delete("/contracts/:id", allow("ADM"), (req, res) => {
   const c = contractOf(req, req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
-  if (mine(db.billingSheets, req).some(s => s.contractId === c.id)) return res.status(409).json({ error: "Des fiches existent pour ce client — supprimez-les d'abord" });
+  if (mine(db.billingSheets, req).some(s => s.contractId === c.id)) return res.status(409).json({ error: "Des fiches existent pour ce client - supprimez-les d'abord" });
   db.billingContracts.splice(db.billingContracts.indexOf(c), 1); save(); res.json({ ok: true });
 });
 
@@ -219,7 +219,7 @@ router.post("/sheets", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 router.put("/sheets/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Fiche introuvable" });
-  if (s.status === "validated") return res.status(409).json({ error: "Fiche validée — lecture seule" });
+  if (s.status === "validated") return res.status(409).json({ error: "Fiche validée - lecture seule" });
   if (Array.isArray(req.body.lines)) s.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("bln") }, l));
   for (const k of ["objet", "bonCommande", "conditionsPaiement", "vendeur", "dateEcheance"]) if (req.body[k] !== undefined) s[k] = req.body[k];
   save(); audit(req.user, "UPDATED", "BillingSheet", s.id, { lines: s.lines.length }); res.json(withCompute(s, req));
@@ -297,7 +297,7 @@ router.post("/import/parse", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
 router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Fiche introuvable" });
-  if (s.status === "validated") return res.status(409).json({ error: "Fiche validée — lecture seule" });
+  if (s.status === "validated") return res.status(409).json({ error: "Fiche validée - lecture seule" });
   const contract = contractOf(req, s.contractId) || {};
   try {
     const { data, sheet, headerRow, mapping, mode, preview } = req.body || {};
@@ -364,7 +364,7 @@ function _drawFooter(doc, pageNo, pageCount) {
   const lh = _lh(); const pw = doc.page.width, ph = doc.page.height;
   if (lh.mode === "image" && lh.footerImage) { const buf = _dataBuf(lh.footerImage); if (buf) { try { doc.image(buf, 0, ph - (lh.footerHeight || 50), { width: pw, height: lh.footerHeight || 50 }); } catch (e) {} } return; }
   const c = lh.company || {};
-  const line1 = [c.address, c.city].filter(Boolean).map(_fixEnc).join(" – ");
+  const line1 = [c.address, c.city].filter(Boolean).map(_fixEnc).join(" - ");
   const line2 = [c.phone ? "Tél : " + c.phone : "", c.email ? "Email : " + c.email : "", c.website || ""].filter(Boolean).join("     ");
   const y = ph - 48;
   doc.save(); doc.lineWidth(0.5).strokeColor("#cfcfcf").moveTo(40, y).lineTo(pw - 40, y).stroke();
@@ -403,7 +403,7 @@ function _drawHeader(doc, co, client, title) {
     if (logo) { const lb = _dataBuf(logo); if (lb) { try { doc.image(lb, 24, 18, { height: 34 }); ly = 56; } catch (e) {} } }
     if (lh.tagline) { doc.font("Helvetica-Oblique").fontSize(8).fillColor("#b3261e").text(_fixEnc(lh.tagline), 24, ly, { width: pw / 2 - 24 }); ly += 12; }
     doc.fillColor("#000");
-    // company block — right aligned
+    // company block - right aligned
     const cw = 250, cx = pw - 24 - cw; let ry = 20;
     doc.font("Helvetica-Bold").fontSize(11).text(_fixEnc(c.name || co.name || "CIBLE RH EMPLOI"), cx, ry, { width: cw, align: "right" }); ry += 15;
     doc.font("Helvetica").fontSize(8);
@@ -420,7 +420,7 @@ function _drawHeader(doc, co, client, title) {
     doc.font("Helvetica").fontSize(9); let yy = clientTop + 13;
     const cl2 = (v) => { if (v) { doc.text(_fixEnc(String(v)), 24, yy, { width: 300 }); yy += 11; } };
     cl2(cb.name); cl2(cb.name2); cl2(cb.adresse);
-    cl2([cb.ville || cb.city, cb.pays].filter(Boolean).join(" — ")); cl2(cb.bp ? "B.P. : " + cb.bp : "");
+    cl2([cb.ville || cb.city, cb.pays].filter(Boolean).join(" - ")); cl2(cb.bp ? "B.P. : " + cb.bp : "");
     cl2(cb.nTva ? "N° TVA : " + cb.nTva : (cb.rccm ? "RCCM : " + cb.rccm : "")); cl2(cb.niu ? "NIU : " + cb.niu : "");
     top = Math.max(top, yy + 4);
   }
@@ -462,10 +462,10 @@ router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req
   if (co.city) doc.text(_fixEnc(co.city), right - 300, 33, { width: 300, align: "right" });
   if (co.niu) doc.text("NIU : " + co.niu, right - 300, 44, { width: 300, align: "right" });
   hy = 60;
-  doc.font(F.bold).fontSize(14).fillColor("#111").text(`Annexe Mensuelle – ${_fixEnc(client)}`, x0, hy); hy += 20;
+  doc.font(F.bold).fontSize(14).fillColor("#111").text(`Annexe Mensuelle - ${_fixEnc(client)}`, x0, hy); hy += 20;
   doc.font(F.reg).fontSize(9).fillColor("#333");
   doc.text(`Client : ${_fixEnc((D.contract.clientBlock && D.contract.clientBlock.name) || client)}`, x0, hy); hy += 12;
-  doc.text(`Période : ${per.first} – ${per.last}`, x0, hy); hy += 12;
+  doc.text(`Période : ${per.first} - ${per.last}`, x0, hy); hy += 12;
   doc.text(`Établi par : ${_fixEnc(req.user.fullName || req.user.email || "")}`, x0, hy); hy += 16;
 
   // ---- Colonnes ----
@@ -534,7 +534,7 @@ router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req
   if (groupByPoste) {
     for (const poste of Object.keys(D.computed.groups).sort()) {
       pageBreak(16);
-      doc.rect(x0, y, usable, 14).fill("#eef2ff"); doc.fillColor("#3730a3").font(F.bold).fontSize(8).text(_fixEnc(poste || "—"), xAt[1] + PAD, y + 3, { width: usable - 20 }); y += 14;
+      doc.rect(x0, y, usable, 14).fill("#eef2ff"); doc.fillColor("#3730a3").font(F.bold).fontSize(8).text(_fixEnc(poste || "-"), xAt[1] + PAD, y + 3, { width: usable - 20 }); y += 14;
       for (const l of D.computed.groups[poste]) drawRow(l);
     }
   } else {
@@ -578,7 +578,7 @@ router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (re
   doc.pipe(res);
   _drawHeader(doc, co, c.clientBlock, "FACTURE / PROFORMA");
   doc.font("Helvetica-Bold").fontSize(9).text("N° " + (s.number || ""), 360, 118); doc.font("Helvetica").fontSize(9).text("Date : " + s.period, 360, 130);
-  doc.font("Helvetica-Bold").fontSize(9).text(`Objet : ${s.objet || "Mise à disposition — " + s.period}`, 28, 118);
+  doc.font("Helvetica-Bold").fontSize(9).text(`Objet : ${s.objet || "Mise à disposition - " + s.period}`, 28, 118);
   if (s.bonCommande) doc.font("Helvetica").fontSize(8).text("Bon de commande : " + s.bonCommande, 28, 130);
   if (s.invoiceNumber) doc.font("Helvetica-Bold").fontSize(9).text("Facture N° " + s.invoiceNumber, 360, 142);
   let y = 150; const x0 = 28, W = 539;
@@ -593,7 +593,7 @@ router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (re
     const xs = []; let x = x0; cols.forEach(cc => { xs.push(x); x += cc[1]; });
     doc.rect(x0, y, W, 16).fillAndStroke("#e6efe9", "#000"); doc.fillColor("#000");
     cols.forEach((cc, i) => T(xs[i], y + 4, cc[0], cc[1], i === 3 ? "right" : "left", true)); y += 16;
-    let n = 0; for (const l of D.computed.lines) { n++; T(xs[0], y + 3, n, 26); T(xs[1], y + 3, `${l.name}${l.poste ? " — " + l.poste : ""}`, 300); T(xs[2], y + 3, 1, 40, "center"); T(xs[3], y + 3, _NF(l.HT), 173, "right"); doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 14).lineTo(x0 + W, y + 14).stroke(); y += 15; if (y > 720) { doc.addPage(); y = 40; } }
+    let n = 0; for (const l of D.computed.lines) { n++; T(xs[0], y + 3, n, 26); T(xs[1], y + 3, `${l.name}${l.poste ? " - " + l.poste : ""}`, 300); T(xs[2], y + 3, 1, 40, "center"); T(xs[3], y + 3, _NF(l.HT), 173, "right"); doc.lineWidth(0.3).strokeColor("#ddd").moveTo(x0, y + 14).lineTo(x0 + W, y + 14).stroke(); y += 15; if (y > 720) { doc.addPage(); y = 40; } }
   }
   y += 6; doc.lineWidth(0.6).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 5;
   const tot = (lbl, v, b) => { T(x0 + 300, y, lbl, 120, "right", b); T(x0 + 420, y, _NF(v) + " FCFA", W - 420, "right", b); y += 15; };
@@ -610,7 +610,7 @@ router.get("/sheets/:id/invoice/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (
   const D = withCompute(s, req); const c = D.contract; const t = D.computed.totals; const XLSX = require("xlsx"); const style = c.invoiceStyle || "lines";
   const aoa = [[_company().name], [c.clientName], ["Facture N°", s.number, "Période", s.period], []];
   if (style === "proforma") { aoa.push(["Description", "Montant HT"]); for (const [lbl, amt] of _proformaLines(s, D.computed, c)) aoa.push([lbl, amt]); }
-  else { aoa.push(["#", "Désignation", "Qté", "Montant HT"]); let n = 0; for (const l of D.computed.lines) aoa.push([++n, `${l.name}${l.poste ? " — " + l.poste : ""}`, 1, l.HT]); }
+  else { aoa.push(["#", "Désignation", "Qté", "Montant HT"]); let n = 0; for (const l of D.computed.lines) aoa.push([++n, `${l.name}${l.poste ? " - " + l.poste : ""}`, 1, l.HT]); }
   aoa.push([]); aoa.push(["", "", "Total HT", t.HT]); aoa.push(["", "", c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA]);
   if (t.IS) aoa.push(["", "", "IS (retenue)", -t.IS]);
   aoa.push(["", "", t.IS ? "TOTAL À PAYER" : "TOTAL TTC", t.IS ? t.totalDu : t.TTC]);
@@ -642,7 +642,7 @@ router.post("/contracts/:id/generate-annexe", allow("ADM"), (req, res) => {
   cols.push({ key: "TVA", expr: "TVA_CASC", label: "TVA", w: 66 });
   cols.push({ key: "TTC", expr: "TTC_CASC", label: "Total TTC", w: 84, bold: true });
   let t = mine(db.billingAnnexeTemplates, req).find(x => x.contractId === c.id);
-  const patch = { title: "Annexe — " + (c.clientName || ""), code: (c.clientCode || "CLI") + "_ANX", contractId: c.id,
+  const patch = { title: "Annexe - " + (c.clientName || ""), code: (c.clientCode || "CLI") + "_ANX", contractId: c.id,
     groupBy: null, roundMode: "unrounded", taxes: { tva: tva, is: c.isEnabled ? Number(c.isRate || 0) : 0 },
     columns: cols };
   if (t) { Object.assign(t, patch); }
@@ -744,7 +744,7 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
 router.post("/sheets/:id/stage", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Fiche introuvable" });
-  if (s.posted && (req.body || {}).to !== "unpost") return res.status(409).json({ error: "Facture comptabilisée — verrouillée" });
+  if (s.posted && (req.body || {}).to !== "unpost") return res.status(409).json({ error: "Facture comptabilisée - verrouillée" });
   const order = ["devis", "commande", "facture"]; s.stage = s.stage || "devis";
   const to = (req.body || {}).to;
   if (to === "back") { const i = order.indexOf(s.stage); if (i > 0) s.stage = order[i - 1]; s.posted = false; }
@@ -779,7 +779,7 @@ router.post("/sheets/:id/duplicate", allow("ADM", "CD", "RJ", "GPF"), (req, res)
   res.status(201).json(withCompute(copy, req));
 });
 
-/* Template-driven annexe — Excel */
+/* Template-driven annexe - Excel */
 router.get("/sheets/:id/annexe-template/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
   const t = tplOf(req, req.query.templateId); if (!t) return res.status(400).json({ error: "Modèle d'annexe requis" });
@@ -840,7 +840,7 @@ router.post("/invoice-models/:id/duplicate", allow("ADM"), (req, res) => {
 const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid);
 // Numéro de facture : séquence MENSUELLE (réinitialisée chaque mois) et robuste aux suppressions (max+1, jamais réutilisé).
 function _nextInvoiceNumber(req, contract, period) {
-  // Format : {séquence}/{n° client}/{mois}/{année}  — ex. 00001/029/09/2026
+  // Format : {séquence}/{n° client}/{mois}/{année}  - ex. 00001/029/09/2026
   // La séquence s'incrémente PAR CLIENT et PAR MOIS (réinitialisée chaque mois), robuste aux suppressions (max+1).
   const [yy, mm] = String(period || new Date().toISOString().slice(0, 7)).split("-");
   const cnum = String((contract && contract.invoiceSeqPrefix) || "000");
@@ -859,7 +859,7 @@ router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   val.forEach(i => { const p = i.period || (i.date || "").slice(0, 7); if (!p) return; (byPeriod[p] = byPeriod[p] || { TTC: 0, HT: 0, n: 0 }); byPeriod[p].TTC += i.TTC; byPeriod[p].HT += i.HT; byPeriod[p].n++; });
   const trend = Object.keys(byPeriod).sort().slice(-8).map(p => ({ periode: p, TTC: byPeriod[p].TTC, HT: byPeriod[p].HT, n: byPeriod[p].n }));
   const byClient = {};
-  val.forEach(i => { const c = i.client || "—"; (byClient[c] = byClient[c] || { TTC: 0, n: 0 }); byClient[c].TTC += i.TTC; byClient[c].n++; });
+  val.forEach(i => { const c = i.client || "-"; (byClient[c] = byClient[c] || { TTC: 0, n: 0 }); byClient[c].TTC += i.TTC; byClient[c].n++; });
   const topClients = Object.keys(byClient).map(c => ({ client: c, TTC: byClient[c].TTC, n: byClient[c].n })).sort((a, b) => b.TTC - a.TTC).slice(0, 6);
   const contrats = mine(db.billingContracts, req).length;
   const recent = invs.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 6)
@@ -875,7 +875,7 @@ router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
 });
 router.get("/invoices", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   res.json(mine(db.billingInvoices, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(withInvTotals)));
-// Factures échues (date d'échéance atteinte, non comptabilisées ou en attente de paiement) — alertes comptable + GPF.
+// Factures échues (date d'échéance atteinte, non comptabilisées ou en attente de paiement) - alertes comptable + GPF.
 router.get("/invoices/due", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const byId = {}; mine(db.billingContracts, req).forEach(c => byId[c.id] = c);
@@ -917,7 +917,7 @@ router.post("/invoices", allow("ADM","CD","RJ","GPF"), (req, res) => {
 });
 router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
-  if (inv.status === "validated") return res.status(409).json({ error: "Facture validée — lecture seule" });
+  if (inv.status === "validated") return res.status(409).json({ error: "Facture validée - lecture seule" });
   for (const k of ["objet", "bonCommande", "date", "dueDate", "journalId", "account", "annexeSheetId"]) if (req.body[k] !== undefined) inv[k] = req.body[k];
   if (req.body.termDays !== undefined) inv.termDays = (req.body.termDays === "" || req.body.termDays == null) ? "" : Number(req.body.termDays);
   // Échéance provisoire recalculée tant que le client n'a pas confirmé réception (sinon elle court depuis la réception).
@@ -948,7 +948,7 @@ router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   const { qualityEvent } = require("../quality");
   if (inv.status === "validated") {
-    // Réouverture d'une facture validée = correction contrôlée (motif requis) — on capture l'état avant.
+    // Réouverture d'une facture validée = correction contrôlée (motif requis) - on capture l'état avant.
     const motif = (req.body && req.body.motif || "").trim();
     if (!motif) return res.status(400).json({ error: "Motif de correction obligatoire pour rouvrir une facture validée." });
     inv.status = "draft";
@@ -996,9 +996,9 @@ router.post("/invoices/:id/confirm-receipt", allow("ADM", "CD", "RJ"), (req, res
 });
 router.delete("/invoices/:id", allow("ADM","CD","RJ"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
-  // Une facture déjà COMPTABILISÉE ne peut être supprimée (elle a une écriture comptable) — sauf forçage explicite (ADM).
+  // Une facture déjà COMPTABILISÉE ne peut être supprimée (elle a une écriture comptable) - sauf forçage explicite (ADM).
   if (inv.accounting === "posted" && !(req.query.force === "1" && req.user.role === "ADM"))
-    return res.status(409).json({ error: `Facture « ${inv.number} » déjà comptabilisée — suppression interdite. Contre-passez l'écriture en comptabilité, ou forcez (ADM).`, requiresConfirmation: true, posted: true });
+    return res.status(409).json({ error: `Facture « ${inv.number} » déjà comptabilisée - suppression interdite. Contre-passez l'écriture en comptabilité, ou forcez (ADM).`, requiresConfirmation: true, posted: true });
   db.billingInvoices.splice(db.billingInvoices.indexOf(inv), 1); save();
   audit(req.user, "DELETED", "BillingInvoice", inv.id, { number: inv.number, wasPosted: inv.accounting === "posted" });
   res.json({ ok: true });
@@ -1048,7 +1048,7 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   doc.font("Helvetica").fontSize(9);
   const _cl = (v) => { if (v) { doc.text(_fixEnc(String(v)), x0, cy, { width: 300 }); cy += 12; } };
   _cl(cb.adresse);
-  _cl([cb.ville || cb.city, cb.pays].filter(Boolean).join(" — ")); _cl(cb.bp ? "B.P. : " + cb.bp : "");
+  _cl([cb.ville || cb.city, cb.pays].filter(Boolean).join(" - ")); _cl(cb.bp ? "B.P. : " + cb.bp : "");
   _cl(cb.nTva ? "N° TVA : " + cb.nTva : (cb.rccm ? "RCCM : " + cb.rccm : ""));
   _cl(cb.niu ? "NIU : " + cb.niu : ""); _cl(cb.tel ? "Tél : " + cb.tel : "");
   // big title (right)
@@ -1056,8 +1056,8 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   doc.fillColor("#000").font("Helvetica-Bold").fontSize(12).text("N° " + (inv.number || ""), 330, _top + 30, { width: 237, align: "right" });
   // titre centré : {client court} {type} (ex. « CIMPOR MAD ») juste au-dessus de la date de facturation
   let y = Math.max(cy, _top + 74) + 6;
-  const _vendeur = inv.vendeur || inv.createdByName || contract.vendeur || "—";
-  const band = [["Date de facturation", inv.date || ""], ["Vendeur", _vendeur], ["Objet", inv.objet || "—"]];
+  const _vendeur = inv.vendeur || inv.createdByName || contract.vendeur || "-";
+  const band = [["Date de facturation", inv.date || ""], ["Vendeur", _vendeur], ["Objet", inv.objet || "-"]];
   doc.roundedRect(x0, y, W, 30, 4).fillAndStroke("#f4f7f6", "#c9d6d0"); doc.fillColor("#000");
   let bxi = x0 + 6; const bwn = W / band.length;
   for (const [lab, val] of band) { doc.fillColor(brand).font("Helvetica-Bold").fontSize(8).text(lab, bxi, y + 5, { width: bwn - 12, lineBreak: false }); doc.fillColor("#000").font("Helvetica").fontSize(9).text(val, bxi, y + 16, { width: bwn - 12, lineBreak: false }); bxi += bwn; }
@@ -1156,8 +1156,8 @@ router.get("/reports/ca", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
     const doc = new PDFDocument({ margin: 28, size: "A4" }); const F=_annexeFonts(doc);
     res.setHeader("Content-Type","application/pdf"); res.setHeader("Content-Disposition",`attachment; filename="${name}.pdf"`);
     doc.pipe(res); const x0=28, usable=doc.page.width-56;
-    doc.font(F.bold).fontSize(14).text(`Rapport de facturation — ${lo} à ${hi}`, x0, 28);
-    doc.font(F.reg).fontSize(9).fillColor("#555").text(`${rows.length} client(s) · ${tot.annexes} annexe(s)`, x0, 48); doc.fillColor("#000");
+    doc.font(F.bold).fontSize(14).text(`Rapport de facturation - ${lo} à ${hi}`, x0, 28);
+    doc.font(F.reg).fontSize(9).fillColor("#555").text(`${rows.length} client(s) - ${tot.annexes} annexe(s)`, x0, 48); doc.fillColor("#000");
     let y=68; const tw=columns.reduce((a,c)=>a+c.w,0), sc=usable/tw; columns.forEach(c=>c._w=c.w*sc);
     const xs=[]; { let x=x0; columns.forEach(c=>{xs.push(x);x+=c._w;}); }
     const money=(v)=>_NF(v)+" FCFA";

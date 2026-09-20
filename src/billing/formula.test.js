@@ -10,5 +10,5 @@ chk("priorité * avant +", evalFormula("2 + 3 * 4", {}), 14);
 chk("unaire moins", evalFormula("-5 + 10", {}), 5);
 chk("variable inconnue = 0", evalFormula("MYSTERE + 100", {}), 100);
 chk("division par zéro = 0", evalFormula("100 / 0", {}), 0);
-console.log(`\n${f===0?"PASS":"FAIL"} — ${7-f}/7`);
+console.log(`\n${f===0?"PASS":"FAIL"} - ${7-f}/7`);
 process.exit(f?1:0);

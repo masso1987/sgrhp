@@ -1,4 +1,4 @@
-/** Business-hours calendar (§5.3): Mon–Fri, 08:00–17:00 (9h/day).
+/** Business-hours calendar (§5.3): Mon-Fri, 08:00-17:00 (9h/day).
  *  TODO M7: tenant-configurable working days + public holidays. */
 const WORK_START = 8, WORK_END = 17;
 const isWorkDay = d => d.getDay() >= 1 && d.getDay() <= 5;

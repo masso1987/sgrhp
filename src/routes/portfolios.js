@@ -37,7 +37,7 @@ router.put("/:id", allow("ADM"), (req, res) => {
   res.json(pf);
 });
 
-// Supprimer un portefeuille — bloqué s'il est encore rattaché à des salariés ou à des utilisateurs GPF.
+// Supprimer un portefeuille - bloqué s'il est encore rattaché à des salariés ou à des utilisateurs GPF.
 router.delete("/:id", allow("ADM"), (req, res) => {
   const pf = mine(db.portfolios, req).find(p => p.id === req.params.id);
   if (!pf) return res.status(404).json({ error: "Portefeuille introuvable" });
@@ -50,7 +50,7 @@ router.delete("/:id", allow("ADM"), (req, res) => {
   res.json({ ok: true });
 });
 
-// Update required documents — CNI cannot be removed; change traced (§2.3.3)
+// Update required documents - CNI cannot be removed; change traced (§2.3.3)
 router.put("/:id/requirements", allow("ADM"), (req, res) => {
   const pf = mine(db.portfolios, req).find(p => p.id === req.params.id);
   if (!pf) return res.status(404).json({ error: "Not found" });

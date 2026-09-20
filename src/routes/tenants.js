@@ -1,5 +1,5 @@
 /**
- * Platform layer — tenant provisioning (multi-tenant SaaS).
+ * Platform layer - tenant provisioning (multi-tenant SaaS).
  * Only the platform super-administrator (SADM) manages tenants: create a client
  * company with its full legal profile + logo, toggle licensed modules, suspend.
  * Tenant data isolation is by tenant_id (shared database).
@@ -42,8 +42,8 @@ const FEATURE_CATALOGUE = [
   { key: "billing", label: "Annexes de facturation", module: "invoicing" },
   { key: "invoices", label: "Factures", module: "invoicing" },
   { key: "billingcfg", label: "Config facturation", module: "invoicing" },
-  { key: "stockproducts", label: "Stock — produits", module: "stock" },
-  { key: "smq", label: "Qualité — SMQ", module: "quality" },
+  { key: "stockproducts", label: "Stock - produits", module: "stock" },
+  { key: "smq", label: "Qualité - SMQ", module: "quality" },
 ];
 
 /* Subscription / licensing (platform monetisation). Prices are in XAF (FCFA) and
@@ -84,7 +84,7 @@ function publicView(t) { return t; }
 
 router.get("/modules", allow("SADM"), (req, res) => res.json(MODULES));
 
-// Nom de l'application (plateforme) — global, piloté uniquement par le super-administrateur, visible de tous les tenants.
+// Nom de l'application (plateforme) - global, piloté uniquement par le super-administrateur, visible de tous les tenants.
 const APP_NAME_DEFAULT = "MBOKA Mon RH";
 function platformCfg() {
   if (!db.platform) db.platform = {};
@@ -342,7 +342,7 @@ router.delete("/:id/license/:key", allow("SADM"), (req, res) => {
   const t = tenants().find(x => x.id === req.params.id);
   if (!t) return res.status(404).json({ error: "Tenant introuvable" });
   const key = req.params.key;
-  if (MODULES.find(m => m.key === key && m.core)) return res.status(400).json({ error: "Module de base — non désactivable" });
+  if (MODULES.find(m => m.key === key && m.core)) return res.status(400).json({ error: "Module de base - non désactivable" });
   t.modules = (t.modules || []).filter(k => k !== key);
   if (t.licenses && t.licenses[key]) { t.licenses[key].cancelledAt = new Date().toISOString(); }
   save();
@@ -419,7 +419,7 @@ router.post("/superadmins", allow("SADM"), (req, res) => {
   if (!email || !fullName) return res.status(400).json({ error: "Email et nom complet obligatoires" });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email invalide" });
   if (db.users.find(u => (u.email || "").toLowerCase() === email.toLowerCase()))
-    return res.status(409).json({ error: "Cet email existe déjà — utilisez « Promouvoir » pour lui donner le rôle super-admin." });
+    return res.status(409).json({ error: "Cet email existe déjà - utilisez « Promouvoir » pour lui donner le rôle super-admin." });
   const pw = password || ("Admin" + new Date().getFullYear() + "!");
   const pwErr = passwordPolicy(pw);
   if (pwErr) return res.status(400).json({ error: pwErr });

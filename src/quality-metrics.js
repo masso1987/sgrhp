@@ -1,5 +1,5 @@
 /**
- * SGRHP — registre de métriques qualité (SMQ Phase 4bis).
+ * SGRHP - registre de métriques qualité (SMQ Phase 4bis).
  * Chaque métrique est une fonction NOMMÉE et SÛRE (pas d'évaluation de code arbitraire)
  * qui calcule une valeur à partir des autres modules pour une période 'YYYY-MM'.
  * Un indicateur « auto » référence une clé de ce catalogue ; le moteur écrit la mesure.

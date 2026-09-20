@@ -166,7 +166,7 @@ router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   res.json(emp);
 });
 
-// Upload a hiring document for an employee (§2.3) — local storage dev adapter;
+// Upload a hiring document for an employee (§2.3) - local storage dev adapter;
 // swapped for Azure Blob (Managed Identity + SSE) in M7.
 router.post("/:id/files", allow("GPF", "ADM"), upload.single("file"), (req, res) => {
   const emp = scoped(req).find(e => e.id === req.params.id);

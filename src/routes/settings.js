@@ -29,41 +29,41 @@ const DEFAULTS = {
     sendmail: { path: "/usr/sbin/sendmail" },
   },
   workflows: {
-    employee_file: { label: "RH — Création / dossier d'un employé", enabled: true, steps: ["CD", "RJ"] },
-    template_doc:  { label: "RH — Documents générés (modèles)", enabled: true, steps: ["CD", "RJ"] },
-    amendment:     { label: "RH — Avenants au contrat", enabled: true, steps: ["CD", "RJ"] },
-    avi:           { label: "RH — Attestation de virement irrévocable (AVI)", enabled: true, steps: ["CD", "RJ"] },
-    contract_end:  { label: "RH — Lettre de fin de contrat (banque)", enabled: true, steps: ["RJ"] },
-    leave:         { label: "RH — Congés & permissions", enabled: true, steps: ["CD"] },
-    decision:      { label: "RH — Décisions & sanctions", enabled: false, steps: ["CD", "RJ"] },
-    solde_tout_compte: { label: "RH — Solde de tout compte", enabled: false, steps: ["CD", "RJ"] },
-    payroll_run:   { label: "Paie — Clôture d'une période de paie", enabled: false, steps: ["CD", "RJ"] },
-    billing_sheet: { label: "Facturation — Annexe mensuelle", enabled: true, steps: ["CD"] },
-    invoice:       { label: "Facturation — Facture", enabled: true, steps: ["CD"] },
-    accounting_entry: { label: "Comptabilité — Écriture / pièce", enabled: false, steps: ["CD"] },
-    stock_movement: { label: "Stock — Mouvements (entrée/sortie/transfert)", enabled: false, steps: ["CD"] },
-    stock_po:      { label: "Stock — Bons de commande fournisseur", enabled: false, steps: ["CD", "RJ"] },
-    quality_action: { label: "Qualité — Actions & améliorations", enabled: false, steps: ["RQ"] },
+    employee_file: { label: "RH - Création / dossier d'un employé", enabled: true, steps: ["CD", "RJ"] },
+    template_doc:  { label: "RH - Documents générés (modèles)", enabled: true, steps: ["CD", "RJ"] },
+    amendment:     { label: "RH - Avenants au contrat", enabled: true, steps: ["CD", "RJ"] },
+    avi:           { label: "RH - Attestation de virement irrévocable (AVI)", enabled: true, steps: ["CD", "RJ"] },
+    contract_end:  { label: "RH - Lettre de fin de contrat (banque)", enabled: true, steps: ["RJ"] },
+    leave:         { label: "RH - Congés & permissions", enabled: true, steps: ["CD"] },
+    decision:      { label: "RH - Décisions & sanctions", enabled: false, steps: ["CD", "RJ"] },
+    solde_tout_compte: { label: "RH - Solde de tout compte", enabled: false, steps: ["CD", "RJ"] },
+    payroll_run:   { label: "Paie - Clôture d'une période de paie", enabled: false, steps: ["CD", "RJ"] },
+    billing_sheet: { label: "Facturation - Annexe mensuelle", enabled: true, steps: ["CD"] },
+    invoice:       { label: "Facturation - Facture", enabled: true, steps: ["CD"] },
+    accounting_entry: { label: "Comptabilité - Écriture / pièce", enabled: false, steps: ["CD"] },
+    stock_movement: { label: "Stock - Mouvements (entrée/sortie/transfert)", enabled: false, steps: ["CD"] },
+    stock_po:      { label: "Stock - Bons de commande fournisseur", enabled: false, steps: ["CD", "RJ"] },
+    quality_action: { label: "Qualité - Actions & améliorations", enabled: false, steps: ["RQ"] },
   },
   emailRecipients: { globalCC: "", byEvent: { submitted: "", validated: "", rejected: "", slaWarning: "", slaBreach: "", expiry: "" } },
   emailTemplates: {
     submitted: { subjectFr: "Nouveau document à valider : {{title}}", subjectEn: "New document to validate: {{title}}",
-      bodyFr: "Bonjour,\n\nLe document « {{title}} » a été soumis par {{initiator}} et attend votre validation (délai : {{sla}}h).\n\n— SGRHP", 
-      bodyEn: "Hello,\n\nThe document \"{{title}}\" was submitted by {{initiator}} and awaits your validation (deadline: {{sla}}h).\n\n— SGRHP" },
+      bodyFr: "Bonjour,\n\nLe document « {{title}} » a été soumis par {{initiator}} et attend votre validation (délai : {{sla}}h).\n\n- SGRHP", 
+      bodyEn: "Hello,\n\nThe document \"{{title}}\" was submitted by {{initiator}} and awaits your validation (deadline: {{sla}}h).\n\n- SGRHP" },
     validated: { subjectFr: "Document validé : {{title}}", subjectEn: "Document validated: {{title}}",
-      bodyFr: "Le document « {{title}} » a été validé.\n\n— SGRHP", bodyEn: "The document \"{{title}}\" has been validated.\n\n— SGRHP" },
+      bodyFr: "Le document « {{title}} » a été validé.\n\n- SGRHP", bodyEn: "The document \"{{title}}\" has been validated.\n\n- SGRHP" },
     rejected: { subjectFr: "Document rejeté : {{title}}", subjectEn: "Document rejected: {{title}}",
-      bodyFr: "Le document « {{title}} » a été rejeté par {{validator}}.\nMotif : {{reason}}\n\nMerci de corriger et resoumettre.\n\n— SGRHP",
-      bodyEn: "The document \"{{title}}\" was rejected by {{validator}}.\nReason: {{reason}}\n\nPlease correct and resubmit.\n\n— SGRHP" },
+      bodyFr: "Le document « {{title}} » a été rejeté par {{validator}}.\nMotif : {{reason}}\n\nMerci de corriger et resoumettre.\n\n- SGRHP",
+      bodyEn: "The document \"{{title}}\" was rejected by {{validator}}.\nReason: {{reason}}\n\nPlease correct and resubmit.\n\n- SGRHP" },
     slaWarning: { subjectFr: "Alerte délai (36h) : {{title}}", subjectEn: "SLA warning (36h): {{title}}",
-      bodyFr: "Le document « {{title}} » approche du délai de validation de 48h ({{elapsed}}h écoulées).\n\n— SGRHP",
-      bodyEn: "The document \"{{title}}\" is approaching the 48h validation deadline ({{elapsed}}h elapsed).\n\n— SGRHP" },
+      bodyFr: "Le document « {{title}} » approche du délai de validation de 48h ({{elapsed}}h écoulées).\n\n- SGRHP",
+      bodyEn: "The document \"{{title}}\" is approaching the 48h validation deadline ({{elapsed}}h elapsed).\n\n- SGRHP" },
     slaBreach: { subjectFr: "Dépassement de délai : {{title}}", subjectEn: "SLA breach: {{title}}",
-      bodyFr: "Le délai de 48h est dépassé pour « {{title}} » ({{elapsed}}h).\n\n— SGRHP",
-      bodyEn: "The 48h deadline is exceeded for \"{{title}}\" ({{elapsed}}h).\n\n— SGRHP" },
-    expiry: { subjectFr: "Alerte d'expiration : {{document}} — {{employee}}", subjectEn: "Expiry alert: {{document}} — {{employee}}",
-      bodyFr: "Bonjour,\n\nLe document « {{document}} » de {{employee}} ({{portfolio}}) {{state}} (échéance : {{date}}).\nMerci de préparer le renouvellement.\n\n— SGRHP",
-      bodyEn: "Hello,\n\nThe document \"{{document}}\" of {{employee}} ({{portfolio}}) {{state}} (due: {{date}}).\nPlease prepare the renewal.\n\n— SGRHP" },
+      bodyFr: "Le délai de 48h est dépassé pour « {{title}} » ({{elapsed}}h).\n\n- SGRHP",
+      bodyEn: "The 48h deadline is exceeded for \"{{title}}\" ({{elapsed}}h).\n\n- SGRHP" },
+    expiry: { subjectFr: "Alerte d'expiration : {{document}} - {{employee}}", subjectEn: "Expiry alert: {{document}} - {{employee}}",
+      bodyFr: "Bonjour,\n\nLe document « {{document}} » de {{employee}} ({{portfolio}}) {{state}} (échéance : {{date}}).\nMerci de préparer le renouvellement.\n\n- SGRHP",
+      bodyEn: "Hello,\n\nThe document \"{{document}}\" of {{employee}} ({{portfolio}}) {{state}} (due: {{date}}).\nPlease prepare the renewal.\n\n- SGRHP" },
   },
   branding: {
     theme: "emerald",
@@ -203,7 +203,7 @@ router.post("/email/test", allow("ADM"), async (req, res) => {
   const to = req.body && req.body.to;
   if (!to || !EMAILRE.test(to)) return res.status(400).json({ error: "Adresse email de test invalide" });
   try {
-    const info = await mailer.send(to, "SGRHP — test de configuration email",
+    const info = await mailer.send(to, "SGRHP - test de configuration email",
       `Ceci est un email de test envoyé via le fournisseur « ${mailer.cfg().provider} ».\n\nSi vous le recevez, la configuration est correcte.`);
     audit(req.user, "CONFIG_CHANGED", "Settings", "email-test", { to, provider: mailer.cfg().provider, ok: true });
     res.json({ ok: true, provider: mailer.cfg().provider, messageId: info.messageId || null });
@@ -242,7 +242,7 @@ router.put("/branding", allow("ADM"), (req, res) => {
     for (const k of ["name", "address", "city", "niu", "employerNo", "dipe", "dg", "dga", "aviRefPrefix"])
       if (b.company[k] !== undefined) s.branding.company[k] = String(b.company[k]).slice(0, 120);
   }
-  // appName est global (plateforme) et piloté uniquement par le super-administrateur — ignoré ici.
+  // appName est global (plateforme) et piloté uniquement par le super-administrateur - ignoré ici.
   if (b.tagline !== undefined) s.branding.tagline = String(b.tagline).slice(0, 80);
   if (b.logo !== undefined) {
     if (b.logo && !/^data:image\/(png|jpeg|svg\+xml);base64,/.test(b.logo) && b.logo.length > 0)

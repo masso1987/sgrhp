@@ -1,5 +1,5 @@
 /**
- * Facturation — safe formula evaluator for configurable annexe columns.
+ * Facturation - safe formula evaluator for configurable annexe columns.
  * Recursive-descent parser (NO eval): numbers, UPPER/lower identifiers, + - * / ( ),
  * unary +/-. Unknown variables resolve to 0 so optional columns are tolerated.
  * Used so each annexe column can be an expression over other columns / components /

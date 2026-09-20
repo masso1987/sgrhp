@@ -1,6 +1,6 @@
 /**
  * Multi-provider email delivery (§7.1).
- * Providers: SMTP, Amazon SES, Postmark, Mailgun, Sendmail — all via nodemailer
+ * Providers: SMTP, Amazon SES, Postmark, Mailgun, Sendmail - all via nodemailer
  * (SES/Postmark/Mailgun through their SMTP interface, no extra SDKs).
  * Config in settings.email; bilingual templates in settings.emailTemplates;
  * extra recipients in settings.emailRecipients.

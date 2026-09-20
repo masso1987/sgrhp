@@ -1,5 +1,5 @@
 /**
- * SGRHP — Système de Management de la Qualité (module « quality »).
+ * SGRHP - Système de Management de la Qualité (module « quality »).
  * Phase 1 : cartographie & fiches processus (livret), maîtrise documentaire (versionnée),
  * axes stratégiques, politique qualité, parties intéressées, domaine & exclusions,
  * bibliothèque de clauses ISO 9001:2015, indicateurs (+ mesures manuelles) et tableau de bord.
@@ -89,7 +89,7 @@ function seedSMQ(tid) {
   save();
 }
 
-// Modèle CRHE (cartographie réelle) — chargé à la demande comme point de départ.
+// Modèle CRHE (cartographie réelle) - chargé à la demande comme point de départ.
 const CRHE_AXES = [
   "Consolider nos parts de marché en MAD (industrie pétrolière, télécommunications).",
   "Donner à l'entreprise un meilleur positionnement en Conseils et Prestation RH.",
@@ -559,7 +559,7 @@ router.get("/improvements-summary", allow(...RO), (req, res) => {
 router.get("/actions-tracker", allow(...RO), (req, res) => {
   seedSMQ(req.user.tenantId || "t1");
   const rows = mine(db.smqImprovements, req);
-  const procName = (pid) => { const p = mine(db.smqProcesses, req).find(x => x.id === pid); return p ? (p.code + " · " + p.intitule) : ""; };
+  const procName = (pid) => { const p = mine(db.smqProcesses, req).find(x => x.id === pid); return p ? (p.code + " - " + p.intitule) : ""; };
   const today = now().slice(0, 10);
   const DONE = ["faite", "verifiee", "cloturee"];
   const actions = [];
@@ -763,7 +763,7 @@ router.post("/items/:id/to-improvement", allow(...RW), (req, res) => {
     id: id("smq"), ref: impRef(req, (a.processIds || [])[0] || null), entite: "QHSE",
     date: now().slice(0, 10), processId: (a.processIds || [])[0] || null, origine,
     type: "interne", gravite: it.gravite || (it.conformite === "OBS" ? "mineure" : "majeure"), statut: "ouverte",
-    description: `Constat d'audit ${a.ref || ""} — clause ${it.clause} : ${it.constat || it.question || ""}`,
+    description: `Constat d'audit ${a.ref || ""} - clause ${it.clause} : ${it.constat || it.question || ""}`,
     analyseCauses: "", actions: [], emetteurName: req.user.fullName,
     sourceAuditId: a.id, sourceAuditItemId: it.id, norme: a.norme, clause: it.clause, auditRef: a.ref, createdAt: now(),
   }, req);
@@ -873,7 +873,7 @@ router.post("/risks/:id/to-improvement", allow(...RW), (req, res) => {
     id: id("smq"), ref: impRef(req, r.processId || null), entite: "QHSE", date: now().slice(0, 10),
     processId: r.processId || null, origine: "Risques et opportunités", type: "interne",
     gravite: (Number(r.vraisemblance) || 0) * (Number(r.impact) || 0) >= 13 ? "critique" : "majeure", statut: "ouverte",
-    description: `Traitement du risque ${r.ref} — ${r.evenement || ""}. Cause : ${r.cause || ""}. Effet : ${r.effet || ""}.`,
+    description: `Traitement du risque ${r.ref} - ${r.evenement || ""}. Cause : ${r.cause || ""}. Effet : ${r.effet || ""}.`,
     analyseCauses: r.cause || "", actions: [], emetteurName: req.user.fullName,
     roRecurrence: true, sourceRiskId: r.id, createdAt: now(),
   }, req);
@@ -951,7 +951,7 @@ router.get("/satisfaction-summary", allow(...RO), (req, res) => {
   const moyenne = rows.length ? Math.round(rows.reduce((a, r) => a + norm(r), 0) / rows.length * 10) / 10 : 0;
   const byPeriod = {}; rows.forEach(r => { const p = String(r.periode || r.date || "").slice(0, 7); if (!p) return; (byPeriod[p] = byPeriod[p] || []).push(norm(r)); });
   const trend = Object.keys(byPeriod).sort().map(p => ({ periode: p, moyenne: Math.round(byPeriod[p].reduce((a, b) => a + b, 0) / byPeriod[p].length * 10) / 10, n: byPeriod[p].length }));
-  const byCanal = {}; rows.forEach(r => { const c = r.canal || "—"; (byCanal[c] = byCanal[c] || []).push(norm(r)); });
+  const byCanal = {}; rows.forEach(r => { const c = r.canal || "-"; (byCanal[c] = byCanal[c] || []).push(norm(r)); });
   const canaux = Object.keys(byCanal).map(c => ({ canal: c, moyenne: Math.round(byCanal[c].reduce((a, b) => a + b, 0) / byCanal[c].length * 10) / 10, n: byCanal[c].length }));
   res.json({ total: rows.length, moyenne, trend, canaux });
 });
@@ -1015,7 +1015,7 @@ router.post("/claims/:id/to-improvement", allow(...RW), (req, res) => {
   const rec = stamp({
     id: id("smq"), ref: impRef(req, null), entite: "QHSE", date: now().slice(0, 10),
     origine: "Réclamation client", type: "interne", gravite: c.gravite || "majeure", statut: "ouverte",
-    description: `Réclamation ${c.ref} — ${c.clientName || ""} : ${c.objet || ""}. ${c.description || ""}`,
+    description: `Réclamation ${c.ref} - ${c.clientName || ""} : ${c.objet || ""}. ${c.description || ""}`,
     analyseCauses: "", actions: [], emetteurName: req.user.fullName, sourceClaimId: c.id, createdAt: now(),
   }, req);
   db.smqImprovements.push(rec); c.improvementId = rec.id; save();
@@ -1054,7 +1054,7 @@ router.post("/claims/:id/treat", allow(...RO), (req, res) => {
   c.updatedAt = now(); save();
   // Prévenir le responsable SMQ que le traitement est prêt.
   (db.users || []).filter(u => (u.tenantId || "t1") === (req.user.tenantId || "t1") && (u.smqManager || ["RJ", "RQ"].includes(u.role)) && u.id !== req.user.id)
-    .forEach(u => notifyUser(req, u.id, `Réclamation ${c.ref} traitée par ${req.user.fullName} — à vérifier / clôturer.`, { type: "view", id: "smqclaims", label: "Réclamation " + c.ref }));
+    .forEach(u => notifyUser(req, u.id, `Réclamation ${c.ref} traitée par ${req.user.fullName} - à vérifier / clôturer.`, { type: "view", id: "smqclaims", label: "Réclamation " + c.ref }));
   audit(req.user, "TREATED", "SmqClaim", c.id, { ref: c.ref, statut: st });
   res.json(c);
 });
@@ -1279,7 +1279,7 @@ router.get("/equipment-summary", allow(...RO), (req, res) => {
   res.json({ total: rows.length, conformes, aEtalonner, tauxConforme: rows.length ? Math.round(conformes / rows.length * 1000) / 10 : 0 });
 });
 
-/* ============================ Revue de direction / processus (§9.3) — auto-agrégation ============================ */
+/* ============================ Revue de direction / processus (§9.3) - auto-agrégation ============================ */
 // Rassemble les données d'entrée ISO 9.3 en direct. scope 'direction' (global) ou 'processus' (processId).
 function reviewAggregate(req, opts = {}) {
   const scope = opts.scope || "direction";
@@ -1647,7 +1647,7 @@ router.delete("/tdb/:id", allow("ADM", "CD", "RQ"), (req, res) => {
   db.smqTdbData = db.smqTdbData.filter(d => d.tdbId !== t.id);
   db.smqTdb.splice(db.smqTdb.indexOf(t), 1); save(); res.json({ ok: true });
 });
-// Saisie des données (base) — pilote ou responsable SMQ.
+// Saisie des données (base) - pilote ou responsable SMQ.
 router.put("/tdb/:id/data", allow(...RW), (req, res) => {
   const t = mine(db.smqTdb, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
   if (!procAccess(req, t.processId)) return DENY(res);
@@ -1779,7 +1779,7 @@ router.post("/tdb/:id/remind", allow(...RW), (req, res) => {
   const p = mine(db.smqProcesses, req).find(x => x.id === t.processId) || {};
   const targets = [p.piloteUserId, p.coPiloteUserId].filter(Boolean);
   if (!targets.length) return res.status(400).json({ error: "Aucun pilote/co-pilote attribué à ce processus." });
-  const text = (req.body && req.body.message) || `Rappel : merci de mettre à jour le tableau de bord « ${t.titre} » (${p.code || ""} · ${t.annee}).`;
+  const text = (req.body && req.body.message) || `Rappel : merci de mettre à jour le tableau de bord « ${t.titre} » (${p.code || ""} - ${t.annee}).`;
   if (!db.dmMessages) db.dmMessages = [];
   let chat = null; try { chat = require("../chat"); } catch (e) {}
   let sent = 0;

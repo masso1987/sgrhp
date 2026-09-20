@@ -1,4 +1,4 @@
-// Table 2 du cahier de charge — code rubrique de paie -> compte OHADA (SYSCOHADA). Modifiable par l'ADM.
+// Table 2 du cahier de charge - code rubrique de paie -> compte OHADA (SYSCOHADA). Modifiable par l'ADM.
 // + comptes de contrepartie « virtuels » utilisés par la passation (rémunération due, dettes patronales).
 module.exports = [
   { code: "1000", account: "661110", label: "SALAIRE DE BASE" },

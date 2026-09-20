@@ -32,5 +32,5 @@ chk("fiche: nb lignes", S.totals.count, 2);
 chk("fiche: ΣTTC", S.totals.TTC, 429239 * 2);
 chk("fiche: tri alphabétique", S.lines[0].name, "ABENA");
 
-console.log(`\n${fail===0?"PASS":"FAIL"} — ${16-fail}/16`);
+console.log(`\n${fail===0?"PASS":"FAIL"} - ${16-fail}/16`);
 process.exit(fail ? 1 : 0);

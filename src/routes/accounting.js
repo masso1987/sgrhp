@@ -1,5 +1,5 @@
 /**
- * SGRHP — Comptabilité (Module Comptabilité, OHADA/SYSCOHADA).
+ * SGRHP - Comptabilité (Module Comptabilité, OHADA/SYSCOHADA).
  * Phase C1 : référentiels (plan comptable, journaux, taxes, tiers, exercices)
  * + saisie des écritures avec contrôle d'équilibre (Débit = Crédit) + balance.
  */
@@ -15,29 +15,29 @@ const R2 = (n) => Math.round(Number(n) || 0);
 
 /* ============================ SEED (OHADA + CIBLE RH) ============================ */
 const SEED_ACCOUNTS = [
-  // Classe 1 — Capitaux
+  // Classe 1 - Capitaux
   ["101300", "Capital versé non amorti", "capitaux"], ["106150", "Écart réévaluation immob. amorties", "capitaux"],
   ["111000", "Réserve légale", "capitaux"], ["118100", "Réserve facultative", "capitaux"],
   ["121000", "Report à nouveau créditeur", "capitaux"], ["129100", "Report à nouveau débiteur", "capitaux"],
   ["130100", "Résultat en instance (bénéfice)", "capitaux"], ["130900", "Résultat exercice (perte)", "capitaux"],
   ["162100", "Emprunts ets de crédit", "capitaux"], ["164100", "Compte courant associé", "capitaux"],
   ["191000", "Provisions - litiges", "capitaux"], ["198100", "Provisions amendes/pénalités", "capitaux"],
-  // Classe 2 — Immobilisations
+  // Classe 2 - Immobilisations
   ["213000", "Logiciel (serveur)", "immobilisations"], ["213100", "Logiciel (tests)", "immobilisations"],
   ["213200", "Logiciel (paie)", "immobilisations"], ["213201", "Logiciel (comptabilité)", "immobilisations"],
   ["213210", "Site internet - plateforme", "immobilisations"], ["222100", "Terrain à bâtir", "immobilisations"],
-  // Classe 4 — Tiers
+  // Classe 4 - Tiers
   ["401110", "Fournisseurs", "tiers"], ["411100", "Clients", "tiers"],
   ["443100", "TVA collectée (19,25 %)", "tiers"], ["445400", "TVA déductible", "tiers"],
   ["447110", "État, IS retenue à la source", "tiers"], ["447130", "État, autres impôts et taxes", "tiers"],
   ["421000", "Personnel, rémunérations dues", "tiers"], ["431000", "CNPS", "tiers"],
-  // Classe 5 — Trésorerie
+  // Classe 5 - Trésorerie
   ["521000", "Banque (CBC)", "financiers"], ["571000", "Caisse", "financiers"],
-  // Classe 6 — Charges
+  // Classe 6 - Charges
   ["605200", "Achats (autres)", "charges"], ["605810", "Achats divers", "charges"],
   ["624210", "Transports sur ventes", "charges"], ["632710", "Frais de mise à disposition (MAD)", "charges"],
   ["661000", "Rémunérations du personnel", "charges"], ["664000", "Charges sociales", "charges"],
-  // Classe 7 — Produits
+  // Classe 7 - Produits
   ["701100", "Ventes de marchandises/prestations dans la région", "produits"], ["706000", "Services vendus", "produits"],
 ];
 const SEED_JOURNALS = [
@@ -134,7 +134,7 @@ router.post("/entries", allow("RC", "ADM", "CD"), (req, res) => {
 });
 router.put("/entries/:id", allow("RC", "ADM", "CD"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Écriture introuvable" });
-  if (e.status === "locked") return res.status(409).json({ error: "Écriture clôturée — verrouillée" });
+  if (e.status === "locked") return res.status(409).json({ error: "Écriture clôturée - verrouillée" });
   for (const k of ["date", "label", "pieceNo", "period"]) if (req.body[k] !== undefined) e[k] = req.body[k];
   if (Array.isArray(req.body.lines)) e.lines = req.body.lines.filter(l => l && l.account && (R2(l.debit) || R2(l.credit)))
     .map(l => ({ id: l.id || id("aln"), account: String(l.account), thirdParty: l.thirdParty || "", label: l.label || "", dueDate: l.dueDate || "", debit: R2(l.debit), credit: R2(l.credit), analytic: l.analytic || "" }));
@@ -173,7 +173,7 @@ router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   res.json({ rows, totalDebit: totalD, totalCredit: totalC, balanced: totalD === totalC });
 });
 
-/* ==================== C2 — GÉNÉRATION AUTO (Facturation & Paie) ==================== */
+/* ==================== C2 - GÉNÉRATION AUTO (Facturation & Paie) ==================== */
 // Numérotation des pièces selon le mode du journal (Sage : Manuelle / Continue par journal / Continue pour le fichier / Mensuelle).
 function _nextPiece(req, journal, period, provided) {
   const mode = (journal && journal.numerotation) || "continue_journal";
@@ -207,7 +207,7 @@ function generateInvoiceEntry(req, invId) {
   if (t.IS) lines.push({ account: "447110", thirdParty: "", label: "IS retenue", debit: t.IS, credit: 0 });
   lines.push({ account: prodAcc, thirdParty: "", label: "Prestation " + inv.number, debit: 0, credit: t.HT });
   if (t.TVA) lines.push({ account: "443100", thirdParty: "", label: "TVA collectée", debit: 0, credit: t.TVA });
-  const e = postEntry(req, { journalCode: "VTE", date: inv.date || new Date().toISOString().slice(0, 10), period: inv.period, label: "Facture " + inv.number + " — " + (inv.client || ""), lines, source: "facturation", sourceRef: inv.id });
+  const e = postEntry(req, { journalCode: "VTE", date: inv.date || new Date().toISOString().slice(0, 10), period: inv.period, label: "Facture " + inv.number + " - " + (inv.client || ""), lines, source: "facturation", sourceRef: inv.id });
   inv.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "invoice", invoice: inv.number }); return e;
 }
 // ---- Table de correspondance rubrique -> compte (cahier de charge, Table 2). Amorçée par tenant, éditable par l'ADM.
@@ -345,7 +345,7 @@ router.post("/generate/payroll/:runId", allow("RC", "ADM", "CD", "GPF"), (req, r
 });
 
 
-/* ==================== C3 — ÉTATS (grand-livre, journal, balance âgée) ==================== */
+/* ==================== C3 - ÉTATS (grand-livre, journal, balance âgée) ==================== */
 function _accLabel(req) { const m = {}; for (const a of mine(db.acctAccounts, req)) m[a.number] = a.label; return m; }
 router.get("/ledger", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
@@ -385,7 +385,7 @@ router.get("/aged", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
 });
 
 
-/* ==================== C4 — TVA & états légaux (OHADA) ==================== */
+/* ==================== C4 - TVA & états légaux (OHADA) ==================== */
 function aggByAccount(req, period) {
   const agg = {};
   for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if (period && (e.period || "") !== period) continue;
@@ -430,7 +430,7 @@ router.get("/balance-sheet", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
 });
 
 
-/* ==================== C5 — Clôture & fiscal (lettrage, clôture, FEC) ==================== */
+/* ==================== C5 - Clôture & fiscal (lettrage, clôture, FEC) ==================== */
 router.post("/entries/:id/lock", allow("RC", "ADM"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Introuvable" });
   if (e.status !== "validated") return res.status(400).json({ error: "Validez d'abord l'écriture" });
@@ -466,7 +466,7 @@ function closeExercise(req, exId) {
   let resultat = 0;
   if (cloLines.length) { const d = cloLines.reduce((s, l) => s + l.debit, 0), c = cloLines.reduce((s, l) => s + l.credit, 0); const diff = c - d; resultat = R2(diff);
     cloLines.push(diff >= 0 ? { account: "130100", label: "Résultat de l'exercice", debit: R2(diff), credit: 0 } : { account: "130100", label: "Résultat de l'exercice", debit: 0, credit: R2(-diff) });
-    postEntry(req, { journalCode: "CLO", date: yy + "-12-31", period: yy + "-12", label: "Clôture — soldes de gestion " + yy, lines: cloLines, source: "cloture", sourceRef: ex.id, status: "locked" }); }
+    postEntry(req, { journalCode: "CLO", date: yy + "-12-31", period: yy + "-12", label: "Clôture - soldes de gestion " + yy, lines: cloLines, source: "cloture", sourceRef: ex.id, status: "locked" }); }
   // Report à nouveau : classes 1-5 -> exercice suivant (journal AN)
   let next = mine(db.acctExercises, req).find(e => e.year === ex.year + 1);
   if (!next) { next = stamp({ id: id("acc"), year: ex.year + 1, start: (ex.year + 1) + "-01-01", end: (ex.year + 1) + "-12-31", status: "open", current: false, createdAt: new Date().toISOString() }, req); db.acctExercises.push(next); }
@@ -491,7 +491,7 @@ router.get("/fec", allow("RC", "ADM", "CD"), (req, res) => {
 });
 
 
-/* ==================== C6 — Analytique & budget ==================== */
+/* ==================== C6 - Analytique & budget ==================== */
 router.get("/analytic-balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const by = {};
   for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
@@ -615,7 +615,7 @@ router.get("/entries-search", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   res.json({ rows: cap, count: rows.length, capped: rows.length > 1000, totalDebit: cap.reduce((s, r) => s + r.debit, 0), totalCredit: cap.reduce((s, r) => s + r.credit, 0) });
 });
 
-/* ==================== C5b — Rapprochement bancaire ==================== */
+/* ==================== C5b - Rapprochement bancaire ==================== */
 // Book-side movements on a bank/cash account (validated entries only)
 function bankBookLines(req, account) {
   const rows = [];
@@ -717,7 +717,7 @@ router.get("/bank/reconcile", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   });
 });
 
-/* ==================== États tiers — grand-livre consolidé ==================== */
+/* ==================== États tiers - grand-livre consolidé ==================== */
 router.get("/tiers-ledger-all", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const kind = req.query.kind || "all"; const onlyVal = req.query.all !== "1";
@@ -884,7 +884,7 @@ router.post("/import/balance", allow("RC", "ADM","CD"), (req,res)=>{
     const net=d-c; const dd=net>0?net:0, cc=net<0?-net:0;
     lines.push({id:id("aln"),account:num,thirdParty:String(r.thirdParty||"").trim(),label:"Reprise solde "+num,debit:dd,credit:cc});
   }
-  if(!lines.length) return res.status(400).json({error:"Aucun solde à reprendre — vérifiez le mapping des colonnes de solde."});
+  if(!lines.length) return res.status(400).json({error:"Aucun solde à reprendre - vérifiez le mapping des colonnes de solde."});
   const td=lines.reduce((s,l)=>s+l.debit,0), tc=lines.reduce((s,l)=>s+l.credit,0);
   const balanced=td===tc;
   _ensureJournal(req,"AN","Journal des à-nouveaux");

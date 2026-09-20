@@ -1,5 +1,5 @@
 /**
- * SGRHP — Billing engine (Module Facturation)
+ * SGRHP - Billing engine (Module Facturation)
  * ONE parameterizable calculation engine replacing the 30+ per-client Odoo models.
  *
  * A `contract` (billing.contract) carries every rate and rule for a client; a `line`
@@ -9,11 +9,11 @@
  * franc CFA (cf. cahier de charges §3.3, §6.2 F7).
  *
  * Billing types:
- *   MAD        — mise à disposition (salary-cost cascade, the dominant pattern)
- *   PRESTATION — quantité × prix unitaire / tonnage / forfait / heures
- *   RECAP      — HT saisi par ligne (HEVECAM), TVA/TTC auto
- *   PORTAGE    — portage salarial (montants unitaires saisis)
- *   CONSULTANT — consultant (montants saisis, multi-pays)
+ *   MAD        - mise à disposition (salary-cost cascade, the dominant pattern)
+ *   PRESTATION - quantité × prix unitaire / tonnage / forfait / heures
+ *   RECAP      - HT saisi par ligne (HEVECAM), TVA/TTC auto
+ *   PORTAGE    - portage salarial (montants unitaires saisis)
+ *   CONSULTANT - consultant (montants saisis, multi-pays)
  */
 
 const r2 = (n) => Math.round((Number(n) || 0)); // franc CFA, HALF_UP via Math.round
@@ -161,7 +161,7 @@ function computeSheet(sheet, contract) {
   const lines = (sheet.lines || []).map(l => Object.assign({ id: l.id }, computeLine(l, contract)));
   lines.sort((a, b) => (a.poste || "").localeCompare(b.poste || "") || (a.name || "").localeCompare(b.name || ""));
   const groups = {};
-  for (const l of lines) (groups[l.poste || "—"] = groups[l.poste || "—"] || []).push(l);
+  for (const l of lines) (groups[l.poste || "-"] = groups[l.poste || "-"] || []).push(l);
   const sum = (k) => lines.reduce((s, l) => s + (l[k] != null ? l[k] : (l.raw[k] || 0)), 0);
   const totals = { HT: r2(sum("HT")), TVA: r2(sum("TVA")), TTC: r2(sum("TTC")),
     brut: r2(sum("brut")), charges: r2(sum("charges")), fraisGestion: r2(sum("fraisGestion")),

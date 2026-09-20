@@ -62,7 +62,7 @@ function createFromTemplate(templateId, employeeId, provided, user) {
   }
   const doc = { id: id("doc"), tenantId: user.tenantId || "t1", type: "TEMPLATE_DOC", refId: employeeId,
     templateId, data: resolved,
-    title: `${template.name} — ${emp.firstName} ${emp.lastName}`,
+    title: `${template.name} - ${emp.firstName} ${emp.lastName}`,
     createdById: user.id, createdAt: new Date().toISOString(),
     status: "DRAFT", cycle: 1, steps: [], generatedFile: null };
   db.documents.push(doc);
@@ -96,7 +96,7 @@ function submitEmployeeFile(employeeId, user, opts = {}) {
   const gateList = (pf && Array.isArray(pf.requiredCreation) && pf.requiredCreation.length) ? pf.requiredCreation : ["V"];
   const missing = gateList.filter(c => !uploaded.has(c));
   if (!opts.skipGate && missing.length) {
-    const e = new Error(`Cannot submit: required documents missing (${missing.join(", ")}) — §2.3`);
+    const e = new Error(`Cannot submit: required documents missing (${missing.join(", ")}) - §2.3`);
     e.status = 400; throw e;
   }
   let doc = db.documents.find(d => d.type === "EMPLOYEE_FILE" && d.refId === employeeId);
@@ -105,7 +105,7 @@ function submitEmployeeFile(employeeId, user, opts = {}) {
   }
   if (!doc) {
     doc = { id: id("doc"), tenantId: user.tenantId || "t1", type: "EMPLOYEE_FILE", refId: employeeId,
-      title: `Employee file — ${emp.firstName} ${emp.lastName}`,
+      title: `Employee file - ${emp.firstName} ${emp.lastName}`,
       createdById: user.id, createdAt: new Date().toISOString(),
       status: "DRAFT", cycle: 0, steps: [], generatedFile: null };
     db.documents.push(doc);
@@ -232,7 +232,7 @@ function contractEndParagraphs(doc) {
     { text: `Réf : ${d.ref || ""}`, size: 20 },
     { text: `${co.city}, le ${_fr(d.date) || new Date().toLocaleDateString("fr-FR")}`, align: "right", size: 20 },
     { text: `À l'attention du Chef d'Agence,\n${d.bankName || "…………"}`, bold: true },
-    { text: `Objet : Fin de contrat — ${civ} ${name}`, bold: true },
+    { text: `Objet : Fin de contrat - ${civ} ${name}`, bold: true },
     { text: `Madame, Monsieur,` },
     { text: `Nous vous informons que ${civ} ${name}, matricule ${d.matricule || "……"}, employé(e) de ${co.name}, a cessé ses fonctions au sein de notre société le ${_fr(d.endDate)}${d.motif ? " (motif : " + d.motif + ")" : ""}.` },
     { text: `Le virement correspondant à son dernier salaire${d.lastNet ? " (net : " + Number(d.lastNet).toLocaleString("fr-FR") + " FCFA)" : ""} et au solde de tout compte${d.soldeTotal ? " d'un montant de " + Number(d.soldeTotal).toLocaleString("fr-FR") + " FCFA" : ""} sera effectué sur le compte N° ${d.accountNumber || "…………"} ouvert dans vos livres. En conséquence, l'attestation de virement irrévocable établie au profit de l'intéressé(e) prend fin à cette date.` },
@@ -262,14 +262,14 @@ function generateOfficial(doc) {
   const fname = `${doc.id}.html`;
   const emp = doc.type === "EMPLOYEE_FILE" ? db.employees.find(e => e.id === doc.refId) : null;
   fs.writeFileSync(path.join(dir, fname), `<html><body style="font-family:serif">
-    <h2>CIBLE RH EMPLOI S.A. — OFFICIAL DOCUMENT</h2><h3>${doc.title}</h3>
+    <h2>CIBLE RH EMPLOI S.A. - OFFICIAL DOCUMENT</h2><h3>${doc.title}</h3>
     ${emp ? `<p>Employee: ${emp.firstName} ${emp.lastName}<br>CNI: ${emp.cniNumber}<br>CNPS: ${emp.cnpsNumber || ""}<br>Hired: ${emp.hireDate}</p>` : ""}
     <p>Generated: ${new Date().toISOString()}</p>
     <p><i>M3 will generate this from your uploaded Word template.</i></p></body></html>`);
   return fname;
 }
 
-/** SLA scan (§5.4) — run every minute; also invoked lazily on queue reads. */
+/** SLA scan (§5.4) - run every minute; also invoked lazily on queue reads. */
 function slaScan() {
   let changed = false;
   for (const doc of db.documents) {

@@ -1,15 +1,15 @@
 /**
- * Solde de tout compte / droits de rupture — CCN Commerce 2024.
+ * Solde de tout compte / droits de rupture - CCN Commerce 2024.
  * Articles : 42 (préavis), 45 (indemnité de licenciement), 46 (indemnité de fin
  * de carrière), 47 (décès = indemnité de fin de carrière), 48 (prime de bonne
  * séparation), 42 al.2b (inaptitude : 3 mois si ≥ 2 ans).
  *
  * Barèmes « à corriger » : les durées de préavis (Art.42) renvoient à « la
- * réglementation en vigueur » (Code du travail) — valeurs par collège éditables.
+ * réglementation en vigueur » (Code du travail) - valeurs par collège éditables.
  */
 
 const DEFAULT_RUPTURE = {
-  // Indemnité de licenciement (Art. 45) — % du salaire moyen des 12 derniers
+  // Indemnité de licenciement (Art. 45) - % du salaire moyen des 12 derniers
   // mois, par année de présence, cumulé par tranche d'ancienneté.
   licenciement: [
     { upToYears: 5, rate: 0.30 },
@@ -26,7 +26,7 @@ const DEFAULT_RUPTURE = {
     { upToYears: 20, rate: 0.70 },
     { upToYears: Infinity, rate: 0.80 },
   ],
-  // Prime de bonne séparation (Art. 48) — nb de mois (plancher) par palier,
+  // Prime de bonne séparation (Art. 48) - nb de mois (plancher) par palier,
   // base = salaire catégoriel échelonné + prime d'ancienneté + sursalaire.
   bonneSeparation: [
     { upToYears: 3, months: 4 },
@@ -34,7 +34,7 @@ const DEFAULT_RUPTURE = {
     { upToYears: 10, months: 10 },
     { upToYears: Infinity, months: 12 },
   ],
-  // Préavis (Art. 42) — durée en mois par collège (n° de catégorie).
+  // Préavis (Art. 42) - durée en mois par collège (n° de catégorie).
   // 1-6 : ouvriers/employés ; 7-9 : agents de maîtrise ; 10-12 : cadres.
   preavisMonths: { ouvrier: 1, maitrise: 2, cadre: 3 },
   minSeniorityIndemnite: 1, // ancienneté minimale (années) pour licenciement / fin de carrière / décès
@@ -109,7 +109,7 @@ function computeSolde(input, cfg) {
   const lines = [];
   const push = (label, amount, note, article) => { const a = r0(amount); if (a) lines.push({ label, amount: a, note: note || "", article: article || "" }); };
 
-  // 1) Indemnité compensatrice de congés payés — due dans tous les cas.
+  // 1) Indemnité compensatrice de congés payés - due dans tous les cas.
   if (leaveDays > 0 && dailyRate > 0)
     push("Indemnité compensatrice de congés payés", leaveDays * dailyRate,
       `${Math.round(leaveDays * 10) / 10} j × ${r0(dailyRate)} FCFA`, "Art. 63");
@@ -120,7 +120,7 @@ function computeSolde(input, cfg) {
     const college = collegeOf(category);
     const pm = R.preavisMonths[college] || 1;
     push("Indemnité compensatrice de préavis", pm * senMonthly,
-      `${pm} mois × ${r0(senMonthly)} (collège ${college}) — à corriger selon réglementation`, "Art. 42");
+      `${pm} mois × ${r0(senMonthly)} (collège ${college}) - à corriger selon réglementation`, "Art. 42");
     if (eligIndemnite)
       push("Indemnité de licenciement", yearsBracket(seniorityYears, R.licenciement, monthlyRef),
         `${Math.round(seniorityYears * 10) / 10} ans sur salaire moyen ${r0(monthlyRef)}`, "Art. 45");
@@ -132,7 +132,7 @@ function computeSolde(input, cfg) {
   } else if (m === "deces") {
     if (eligIndemnite)
       push("Indemnité de décès (= fin de carrière)", yearsBracket(seniorityYears, R.finCarriere, monthlyRef),
-        `${Math.round(seniorityYears * 10) / 10} ans sur salaire moyen ${r0(monthlyRef)} — versée aux ayants droit`, "Art. 47");
+        `${Math.round(seniorityYears * 10) / 10} ans sur salaire moyen ${r0(monthlyRef)} - versée aux ayants droit`, "Art. 47");
   } else if (m === "separation_amiable") {
     if (eligIndemnite) {
       const mo = monthsForYears(seniorityYears, R.bonneSeparation);

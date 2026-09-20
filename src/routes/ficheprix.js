@@ -1,5 +1,5 @@
 /**
- * Fiche de Prix — simulateur de coût de mise à disposition (staffing) -> prix client.
+ * Fiche de Prix - simulateur de coût de mise à disposition (staffing) -> prix client.
  * Chaîne : éléments de salaire -> brut -> provisions (congés=1/12, fin contrat=brut*35%/12)
  * -> sous-total 1 -> charges patronales (16,2%) -> frais fixes -> total 2 (contributions)
  * -> marge admin (15%) -> HT -> TVA (19,25%) -> TTC. Tous les taux sont configurables.
@@ -253,7 +253,7 @@ router.get("/:id/pdf", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   doc.end();
 });
 
-// Fiche de prix MULTI-POSTES — PDF paysage (colonnes = postes/positions).
+// Fiche de prix MULTI-POSTES - PDF paysage (colonnes = postes/positions).
 router.get("/:id/pdf-postes", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   let PDFDocument; try { PDFDocument = require("pdfkit"); } catch (e) { return res.status(500).json({ error: "PDF indisponible" }); }
   const f = mine(db.fichesPrix, req).find(x => x.id === req.params.id);
@@ -266,7 +266,7 @@ router.get("/:id/pdf-postes", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   doc.pipe(res);
   const PW = 842, x0 = 24, W = PW - 48; let y = 24;
   if (brand.logo) { try { doc.image(brand.logo.buf, x0, y, { fit: [140, 46] }); } catch (e) {} }
-  doc.font("Helvetica-Bold").fontSize(14).fillColor("#111").text("OFFRE FINANCIÈRE — FICHE DE PRIX", x0 + 150, y + 6, { width: W - 150, align: "right" });
+  doc.font("Helvetica-Bold").fontSize(14).fillColor("#111").text("OFFRE FINANCIÈRE - FICHE DE PRIX", x0 + 150, y + 6, { width: W - 150, align: "right" });
   y += 52;
   doc.font("Helvetica").fontSize(9).fillColor("#333");
   const meta = [["Client", f.client], ["Convention", f.conventionName], ["Statut", f.statut], ["Lieu", f.lieu], ["Réf.", f.ref]].filter(x => x[1]);
@@ -313,7 +313,7 @@ router.get("/:id/pdf-postes", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   });
   // grand total
   y += 6; doc.font("Helvetica-Bold").fontSize(9).fillColor("#111")
-    .text("TOTAL GÉNÉRAL (effectif " + m.grand.effectif + ") — HT " + NF(m.grand.ht) + "   TVA " + NF(m.grand.tva) + "   TTC " + NF(m.grand.ttc) + " FCFA", x0, y, { width: W, align: "right" });
+    .text("TOTAL GÉNÉRAL (effectif " + m.grand.effectif + ") - HT " + NF(m.grand.ht) + "   TVA " + NF(m.grand.tva) + "   TTC " + NF(m.grand.ttc) + " FCFA", x0, y, { width: W, align: "right" });
   doc.end();
 });
 

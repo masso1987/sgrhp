@@ -1,5 +1,5 @@
 /**
- * Referential settings (§3 — Éléments de base).
+ * Referential settings (§3 - Éléments de base).
  * Each referential is a named list of values, optionally linked to a template
  * placeholder tag: the generation form then offers its values as a dropdown.
  * Examples: conventions collectives -> {{collective_agreement}},
@@ -23,7 +23,7 @@ router.post("/", allow("ADM"), (req, res) => {
   res.status(201).json(r);
 });
 
-// ADM replaces the value list (add/remove) — audited with before/after
+// ADM replaces the value list (add/remove) - audited with before/after
 router.put("/:key", allow("ADM"), (req, res) => {
   const r = mine(db.referentials, req).find(x => x.key === req.params.key);
   if (!r) return res.status(404).json({ error: "Not found" });

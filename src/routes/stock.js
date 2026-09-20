@@ -1,5 +1,5 @@
 /**
- * SGRHP — Gestion de stock (module « stock »).
+ * SGRHP - Gestion de stock (module « stock »).
  * Catalogue (produits, catégories, unités, fournisseurs) + mouvements de stock
  * (entrées/achats, sorties/ventes, ajustements) avec stock courant et valorisation.
  */
@@ -347,7 +347,7 @@ router.post("/po", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
 });
 router.put("/po/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
-  if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà partiellement reçu — non modifiable" });
+  if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà partiellement reçu - non modifiable" });
   const b = req.body || {};
   for (const f of ["supplierId", "date", "location", "paymentTerms", "deliveryDelay", "deliverTo", "note"]) if (b[f] !== undefined) po[f] = b[f];
   if (b.orderStatus !== undefined && PO_ORDER_STATUS.includes(b.orderStatus)) po.orderStatus = b.orderStatus;
@@ -367,7 +367,7 @@ router.put("/po/:id/shipping", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
 });
 router.delete("/po/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "Introuvable" });
-  if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà reçu — non supprimable" });
+  if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà reçu - non supprimable" });
   db.stockPOs.splice(db.stockPOs.indexOf(po), 1); save(); res.json({ ok: true });
 });
 // Réception d'un BC : reçoit le reliquat, incrémente le stock, crée un achat
@@ -508,7 +508,7 @@ router.post("/so", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
 });
 router.delete("/so/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const so = mine(db.stockSOs, req).find(x => x.id === req.params.id); if (!so) return res.status(404).json({ error: "Introuvable" });
-  if ((so.lines || []).some(l => Q(l.deliveredQty || 0) > 0)) return res.status(409).json({ error: "Commande déjà livrée — non supprimable" });
+  if ((so.lines || []).some(l => Q(l.deliveredQty || 0) > 0)) return res.status(409).json({ error: "Commande déjà livrée - non supprimable" });
   db.stockSOs.splice(db.stockSOs.indexOf(so), 1); save(); res.json({ ok: true });
 });
 router.post("/so/:id/deliver", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
@@ -732,19 +732,19 @@ const NOTIF_TAGS = {
 const NOTIF_DEFS = [
   { group: "fournisseur", label: "Notifications du fournisseur", tags: ["common", "purchase", "location", "contact", "shipping"], events: [
     { key: "fournisseur.new_order", label: "Nouvelle commande", subject: "Nouvelle commande, de {business_name}", body: "Bonjour {contact_name},\n\nNous avons une nouvelle commande portant la référence {order_ref_number}. Merci de traiter les produits dès que possible.\n\n{business_name}\n{business_logo}" },
-    { key: "fournisseur.payment_paid", label: "Paiement payé", subject: "Paiement effectué — {business_name}", body: "Bonjour {contact_name},\n\nNous confirmons le paiement d'un montant de {received_amount} pour la commande {order_ref_number}. Solde dû : {due_amount}.\n\n{business_name}" },
-    { key: "fournisseur.items_received", label: "Articles reçus", subject: "Articles reçus — {order_ref_number}", body: "Bonjour {contact_name},\n\nNous confirmons la réception des articles de la commande {order_ref_number}.\n\n{business_name}" },
-    { key: "fournisseur.items_pending", label: "Articles en attente", subject: "Articles en attente — {order_ref_number}", body: "Bonjour {contact_name},\n\nCertains articles de la commande {order_ref_number} sont toujours en attente de livraison.\n\n{business_name}" },
+    { key: "fournisseur.payment_paid", label: "Paiement payé", subject: "Paiement effectué - {business_name}", body: "Bonjour {contact_name},\n\nNous confirmons le paiement d'un montant de {received_amount} pour la commande {order_ref_number}. Solde dû : {due_amount}.\n\n{business_name}" },
+    { key: "fournisseur.items_received", label: "Articles reçus", subject: "Articles reçus - {order_ref_number}", body: "Bonjour {contact_name},\n\nNous confirmons la réception des articles de la commande {order_ref_number}.\n\n{business_name}" },
+    { key: "fournisseur.items_pending", label: "Articles en attente", subject: "Articles en attente - {order_ref_number}", body: "Bonjour {contact_name},\n\nCertains articles de la commande {order_ref_number} sont toujours en attente de livraison.\n\n{business_name}" },
   ] },
   { group: "client", label: "Notifications client", tags: ["common", "sale", "location", "contact", "shipping"], events: [
     { key: "client.new_sale", label: "Nouvelle vente", subject: "Merci de la part de {business_name}", body: "Bonjour {contact_name},\n\nVotre numéro de facture est {invoice_number}\nMontant total : {total_amount}\nMontant payé : {received_amount}\n\nMerci de votre confiance.\n\n{business_logo}" },
-    { key: "client.payment_received", label: "Paiement reçu", subject: "Paiement reçu — {business_name}", body: "Bonjour {contact_name},\n\nNous confirmons la réception de votre paiement de {paid_amount} pour la facture {invoice_number}. Solde dû : {due_amount}.\n\n{business_name}" },
-    { key: "client.payment_remise", label: "Remise de paiement", subject: "Remise de paiement — {business_name}", body: "Bonjour {contact_name},\n\nUne remise a été appliquée sur la facture {invoice_number}.\n\n{business_name}" },
-    { key: "client.new_reservation", label: "Nouvelle réservation", subject: "Nouvelle réservation — {business_name}", body: "Bonjour {contact_name},\n\nVotre réservation a bien été enregistrée.\n\n{business_name}" },
-    { key: "client.new_quote", label: "Nouveau devis", subject: "Votre devis — {business_name}", body: "Bonjour {contact_name},\n\nVeuillez trouver votre devis. Montant total : {total_amount}.\n\n{business_name}" },
+    { key: "client.payment_received", label: "Paiement reçu", subject: "Paiement reçu - {business_name}", body: "Bonjour {contact_name},\n\nNous confirmons la réception de votre paiement de {paid_amount} pour la facture {invoice_number}. Solde dû : {due_amount}.\n\n{business_name}" },
+    { key: "client.payment_remise", label: "Remise de paiement", subject: "Remise de paiement - {business_name}", body: "Bonjour {contact_name},\n\nUne remise a été appliquée sur la facture {invoice_number}.\n\n{business_name}" },
+    { key: "client.new_reservation", label: "Nouvelle réservation", subject: "Nouvelle réservation - {business_name}", body: "Bonjour {contact_name},\n\nVotre réservation a bien été enregistrée.\n\n{business_name}" },
+    { key: "client.new_quote", label: "Nouveau devis", subject: "Votre devis - {business_name}", body: "Bonjour {contact_name},\n\nVeuillez trouver votre devis. Montant total : {total_amount}.\n\n{business_name}" },
   ] },
   { group: "ledger", label: "Relevé de compte", tags: ["common", "ledger", "contact"], events: [
-    { key: "ledger.send", label: "Envoyer le relevé", subject: "Votre relevé de compte — {business_name}", body: "Bonjour {contact_name},\n\nVeuillez trouver votre relevé de compte. Solde dû : {balance_due}.\n\n{business_name}\n{business_logo}" },
+    { key: "ledger.send", label: "Envoyer le relevé", subject: "Votre relevé de compte - {business_name}", body: "Bonjour {contact_name},\n\nVeuillez trouver votre relevé de compte. Solde dû : {balance_due}.\n\n{business_name}\n{business_logo}" },
   ] },
 ];
 function notifTagsFor(sets) { const out = []; for (const s of sets) for (const tg of (NOTIF_TAGS[s] || [])) if (!out.includes(tg)) out.push(tg); return out; }
@@ -908,11 +908,11 @@ router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), 
   doc.fontSize(13).fillColor("#000").text("FICHE DE DOTATION EPI", M, 96, { align: "center" });
   doc.moveTo(M, 116).lineTo(R, 116).strokeColor("#e8833a").lineWidth(1.5).stroke();
   doc.moveDown(1.2);
-  const KV = (k, v) => doc.fontSize(10).font("Helvetica-Bold").fillColor("#444").text(k + " : ", M, doc.y, { continued: true }).font("Helvetica").fillColor("#000").text(String(v || "—"));
+  const KV = (k, v) => doc.fontSize(10).font("Helvetica-Bold").fillColor("#444").text(k + " : ", M, doc.y, { continued: true }).font("Helvetica").fillColor("#000").text(String(v || "-"));
   KV("Salarié", `${emp.firstName || ""} ${emp.lastName || ""}`.trim());
-  KV("Matricule", emp.matricule || "—");
-  KV("Client / portefeuille", pf ? pf.name : "—");
-  KV("Poste", emp.position || emp.qualification || "—");
+  KV("Matricule", emp.matricule || "-");
+  KV("Client / portefeuille", pf ? pf.name : "-");
+  KV("Poste", emp.position || emp.qualification || "-");
   KV("Année de dotation", year);
   doc.moveDown(.6);
 
@@ -924,14 +924,14 @@ router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), 
   y += 18; doc.font("Helvetica").fillColor("#000");
   const drawRow = (r, i) => {
     if (i % 2) { doc.rect(M, y, R - M, 16).fill("#f4f6f9"); doc.fillColor("#000"); }
-    x = M; const cells = [r.designation, String(r.planned), String(r.issued), String(r.remaining), r.last ? fr(r.last) : "—"];
+    x = M; const cells = [r.designation, String(r.planned), String(r.issued), String(r.remaining), r.last ? fr(r.last) : "-"];
     cols.forEach((c, j) => { doc.fontSize(9.5).fillColor("#000").text(cells[j], x + 4, y + 4, { width: c.w - 8, align: c.a }); x += c.w; });
     y += 16;
   };
   if (lines.length) lines.forEach(drawRow); else { doc.fontSize(9.5).text("Aucun EPI planifié pour cette année.", M + 4, y + 4); y += 16; }
   doc.y = y + 6;
   const tot = lines.reduce((a, r) => { a.p += r.planned; a.i += r.issued; a.r += r.remaining; return a; }, { p: 0, i: 0, r: 0 });
-  doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#1e3a5f").text(`Total — prévu ${tot.p} · livré ${tot.i} · reste ${tot.r}`, M, doc.y, { align: "right", width: R - M });
+  doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#1e3a5f").text(`Total - prévu ${tot.p} - livré ${tot.i} - reste ${tot.r}`, M, doc.y, { align: "right", width: R - M });
 
   // Historique des remises (registre cumulé)
   doc.moveDown(1);
@@ -961,7 +961,7 @@ router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), 
   doc.moveTo(M + 300, sy + 46).lineTo(M + 300 + 200, sy + 46).stroke();
   doc.fontSize(8).fillColor("#777").font("Helvetica").text("Nom, date et signature", M, sy + 50);
   doc.text("Nom, date et signature", M + 300, sy + 50);
-  doc.fontSize(7.5).fillColor("#999").text(`Éditée le ${new Date().toLocaleString("fr-FR")} — ${(tenant && tenant.name) || "SGRHP"}`, M, 800, { align: "center", width: R - M });
+  doc.fontSize(7.5).fillColor("#999").text(`Éditée le ${new Date().toLocaleString("fr-FR")} - ${(tenant && tenant.name) || "SGRHP"}`, M, 800, { align: "center", width: R - M });
   doc.end();
 });
 
@@ -1020,7 +1020,7 @@ function flattenPurchases(req, f) {
 const C = (k, l, fmt, align) => ({ k, l, fmt: fmt || "text", align: align || (fmt === "money" || fmt === "qty" || fmt === "pct" ? "r" : "l") });
 function groupBy(rows, keyField, nameField, aggs) {
   const g = {};
-  for (const r of rows) { const k = r[keyField] || "—"; const o = g[k] || (g[k] = { _name: r[nameField] || k }); for (const a of aggs) o[a] = (o[a] || 0) + (r[a] || 0); }
+  for (const r of rows) { const k = r[keyField] || "-"; const o = g[k] || (g[k] = { _name: r[nameField] || k }); for (const a of aggs) o[a] = (o[a] || 0) + (r[a] || 0); }
   return Object.entries(g).map(([k, v]) => Object.assign({ key: k, name: v._name }, v));
 }
 router.get("/reports", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
@@ -1034,19 +1034,19 @@ router.get("/reports", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (type === "product-sales") {
     const S = flattenSales(req, f);
     if (tab === "grouped") {
-      out.title = "Rapport de vente de produit — Groupé";
+      out.title = "Rapport de vente de produit - Groupé";
       out.columns = [C("name", "Produit"), C("sku", "SKU"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money"), C("marge", "Marge", "money")];
       const g = {}; for (const r of S) { const o = g[r.productId] || (g[r.productId] = { name: r.productName, sku: r.sku, qty: 0, net: 0, tax: 0, ttc: 0, cost: 0 }); o.qty += r.qty; o.net += r.net; o.tax += r.tax; o.ttc += r.ttc; o.cost += r.cost; }
       out.rows = Object.values(g).map(o => Object.assign(o, { marge: o.net - o.cost }));
     } else if (tab === "category" || tab === "brand") {
       const nf = tab === "category" ? "categoryName" : "brandName";
-      out.title = "Rapport de vente de produit — Par " + (tab === "category" ? "catégorie" : "marque");
+      out.title = "Rapport de vente de produit - Par " + (tab === "category" ? "catégorie" : "marque");
       out.columns = [C("name", tab === "category" ? "Catégorie" : "Marque"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money"), C("marge", "Marge", "money")];
-      const g = {}; for (const r of S) { const key = r[nf] || "—"; const o = g[key] || (g[key] = { name: key, qty: 0, net: 0, tax: 0, ttc: 0, cost: 0 }); o.qty += r.qty; o.net += r.net; o.tax += r.tax; o.ttc += r.ttc; o.cost += r.cost; }
+      const g = {}; for (const r of S) { const key = r[nf] || "-"; const o = g[key] || (g[key] = { name: key, qty: 0, net: 0, tax: 0, ttc: 0, cost: 0 }); o.qty += r.qty; o.net += r.net; o.tax += r.tax; o.ttc += r.ttc; o.cost += r.cost; }
       out.rows = Object.values(g).map(o => Object.assign(o, { marge: o.net - o.cost }));
     } else {
       const atCost = tab === "cost";
-      out.title = "Rapport de vente de produit — Détaillé" + (atCost ? " (à l'achat)" : "");
+      out.title = "Rapport de vente de produit - Détaillé" + (atCost ? " (à l'achat)" : "");
       out.columns = [C("productName", "Produit"), C("sku", "SKU"), C("customerName", "Client"), C("ref", "Réf n°"), C("date", "Date"), C("qty", "Quantité", "qty"), C("pu", "Prix unitaire", "money"), C("tax", "Impôt", "money"), C("ttc", "Prix TTC", "money"), atCost ? C("cost", "Coût", "money") : C("net", "Total HT", "money")];
       out.rows = S;
     }
@@ -1055,12 +1055,12 @@ router.get("/reports", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   else if (type === "product-purchases") {
     const P = flattenPurchases(req, f);
     if (tab === "grouped") {
-      out.title = "Rapport d'achat de produit — Groupé";
+      out.title = "Rapport d'achat de produit - Groupé";
       out.columns = [C("name", "Produit"), C("sku", "SKU"), C("qty", "Quantité", "qty"), C("net", "Total HT", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money")];
       const g = {}; for (const r of P) { const o = g[r.productId] || (g[r.productId] = { name: r.productName, sku: r.sku, qty: 0, net: 0, tax: 0, ttc: 0 }); o.qty += r.qty; o.net += r.net; o.tax += r.tax; o.ttc += r.ttc; }
       out.rows = Object.values(g);
     } else {
-      out.title = "Rapport d'achat de produit — Détaillé";
+      out.title = "Rapport d'achat de produit - Détaillé";
       out.columns = [C("productName", "Produit"), C("sku", "SKU"), C("supplierName", "Fournisseur"), C("ref", "Réf n°"), C("date", "Date"), C("qty", "Quantité", "qty"), C("pu", "Coût unitaire", "money"), C("tax", "Impôt", "money"), C("ttc", "Total TTC", "money")];
       out.rows = P;
     }
@@ -1146,7 +1146,7 @@ router.get("/reports", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
     const S = flattenSales(req, f); const users = {}; for (const u of (db.users || [])) users[u.id] = u.fullName || u.email;
     out.title = "Rapport du représentant (par utilisateur)";
     out.columns = [C("name", "Utilisateur"), C("qty", "Quantité", "qty"), C("net", "CA HT", "money"), C("ttc", "CA TTC", "money")];
-    const g = {}; for (const r of S) { const key = r.createdBy || "—"; const o = g[key] || (g[key] = { name: users[key] || "—", qty: 0, net: 0, ttc: 0 }); o.qty += r.qty; o.net += r.net; o.ttc += r.ttc; }
+    const g = {}; for (const r of S) { const key = r.createdBy || "-"; const o = g[key] || (g[key] = { name: users[key] || "-", qty: 0, net: 0, ttc: 0 }); o.qty += r.qty; o.net += r.net; o.ttc += r.ttc; }
     out.rows = Object.values(g).sort((a, b) => b.net - a.net);
     out.totals = { qty: sum(out.rows, "qty"), net: sum(out.rows, "net"), ttc: sum(out.rows, "ttc") };
   }
@@ -1186,7 +1186,7 @@ router.get("/reports", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   else if (type === "epi-dotation") {
     const yr = (f.from || "").slice(0, 4) || String(new Date().getFullYear());
     const issues = mine(db.epiIssues, req);
-    out.title = "Rapport de dotation EPI" + (yr ? " — " + yr : "");
+    out.title = "Rapport de dotation EPI" + (yr ? " - " + yr : "");
     out.columns = [C("employee", "Salarié"), C("portfolio", "Client / portefeuille"), C("designation", "EPI"), C("planned", "Prévu", "qty"), C("issued", "Livré", "qty"), C("remaining", "Reste", "qty"), C("pct", "Taux", "pct")];
     const rows = [];
     for (const r of epiRows(req, null)) {

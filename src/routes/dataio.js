@@ -111,7 +111,7 @@ router.get("/export", allow("CD", "RJ", "ADM"), (req, res) => {
     const doc = new PDFDocument({ margin: 30, size: "A4", layout: "landscape" });
     doc.pipe(res);
     doc.fontSize(14).fillColor("#1e3a5f").font("Helvetica-Bold").text("CIBLE RH EMPLOI S.A.", { align: "center" });
-    doc.fontSize(11).text(`Liste du personnel — ${rows.length} employés`, { align: "center" });
+    doc.fontSize(11).text(`Liste du personnel - ${rows.length} employés`, { align: "center" });
     doc.fontSize(7.5).fillColor("#777").font("Helvetica")
       .text(`Édité le ${new Date().toLocaleString("fr-FR")} par ${req.user.fullName || req.user.id}`, { align: "center" });
     doc.moveDown(.6);
@@ -150,7 +150,7 @@ router.get("/import/template", allow("GPF", "ADM"), (req, res) => {
 /* ---------------- Import ---------------- */
 router.get("/import/fields", allow("GPF", "ADM"), (req, res) => res.json(FIELDS));
 
-/** Step 1 — upload the file, return detected columns + a preview + an auto-mapping guess. */
+/** Step 1 - upload the file, return detected columns + a preview + an auto-mapping guess. */
 router.post("/import/analyze", allow("GPF", "ADM"), upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Fichier requis (Excel ou CSV)" });
   let rows;
@@ -185,7 +185,7 @@ router.post("/import/analyze", allow("GPF", "ADM"), upload.single("file"), (req,
     preview: rows.slice(0, 5), suggestedMapping: mapping, fields: FIELDS });
 });
 
-/** Step 2 — validate the mapping against real data without writing (dry run). */
+/** Step 2 - validate the mapping against real data without writing (dry run). */
 function validateRows(rows, mapping, user, { commit } = {}) {
   const req = { user };   // for tenant-scoped mine()
   const cats = mine(db.referentials, req).find(r => r.key === "categories")?.values || [];
@@ -240,7 +240,7 @@ function validateRows(rows, mapping, user, { commit } = {}) {
         hireDate: toISO(get("hireDate")), birthDate: toISO(get("birthDate")), birthPlace: get("birthPlace"),
         maritalStatus: get("maritalStatus"), address: get("address"), phone: get("phone"), email: get("email"),
         emergencyName: get("emergencyName"), emergencyPhone: get("emergencyPhone"),
-        emergencyContact: [get("emergencyName"), get("emergencyPhone")].filter(Boolean).join(" — "),
+        emergencyContact: [get("emergencyName"), get("emergencyPhone")].filter(Boolean).join(" - "),
         cniNumber: cni, cniExpiry: toISO(get("cniExpiry")), cnpsNumber: cnps,
         contract: { type: ctype, category: cat || undefined, step: get("step") || undefined,
           paymentMethod: get("paymentMethod") || undefined, startDate: toISO(get("hireDate")),
@@ -258,17 +258,17 @@ function validateRows(rows, mapping, user, { commit } = {}) {
 router.post("/import/validate", allow("GPF", "ADM"), (req, res) => {
   const { token, mapping } = req.body || {};
   const staged = (db._imports || {})[token];
-  if (!staged) return res.status(400).json({ error: "Session d'import expirée — recommencez" });
+  if (!staged) return res.status(400).json({ error: "Session d'import expirée - recommencez" });
   for (const f of FIELDS) if (f.required && !mapping?.[f.key])
     return res.status(400).json({ error: `Colonne obligatoire non mappée : ${f.label}` });
   res.json(validateRows(staged.rows, mapping, req.user, { commit: false }));
 });
 
-/** Step 3 — commit valid rows (invalid ones are skipped and reported). */
+/** Step 3 - commit valid rows (invalid ones are skipped and reported). */
 router.post("/import/commit", allow("GPF", "ADM"), (req, res) => {
   const { token, mapping } = req.body || {};
   const staged = (db._imports || {})[token];
-  if (!staged) return res.status(400).json({ error: "Session d'import expirée — recommencez" });
+  if (!staged) return res.status(400).json({ error: "Session d'import expirée - recommencez" });
   const out = validateRows(staged.rows, mapping, req.user, { commit: true });
   save();
   delete db._imports[token];

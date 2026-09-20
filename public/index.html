@@ -147,7 +147,7 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
     <button class="btn p" style="width:100%" onclick="confirm2fa()">Activer la 2FA</button>
   </div>
   <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--muted)">
-    <a href="#" onclick="openLegal('tos');return false" style="color:var(--muted)">Conditions d’utilisation</a> · <a href="#" onclick="openLegal('privacy');return false" style="color:var(--muted)">Politique de confidentialité</a>
+    <a href="#" onclick="openLegal('tos');return false" style="color:var(--muted)">Conditions d’utilisation</a> - <a href="#" onclick="openLegal('privacy');return false" style="color:var(--muted)">Politique de confidentialité</a>
   </div>
   <div id="loginFooter" style="text-align:center;margin-top:8px;font-size:11px;color:var(--muted)"></div>
 </div>
@@ -1258,7 +1258,7 @@ function renderFooter(){
   const co = window.ME ? (ME.role==="SADM" ? _app : (ME.tenantName || _app)) : _app;
   const _build=(window.BRANDING&&BRANDING.build)||"";
   const el=document.getElementById("appFooter");
-  if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés. · <a href="#" onclick="openLegal('tos');return false">Conditions</a> · <a href="#" onclick="openLegal('privacy');return false">Confidentialité</a>`+(_build?` · <span style="color:var(--muted)">build ${esc(_build)}</span>`:"");
+  if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés. - <a href="#" onclick="openLegal('tos');return false">Conditions</a> - <a href="#" onclick="openLegal('privacy');return false">Confidentialité</a>`+(_build?` - <span style="color:var(--muted)">build ${esc(_build)}</span>`:"");
 }
 function renderLoginFooter(){
   const y=new Date().getFullYear();
@@ -1404,7 +1404,7 @@ function pagerHTML(key, total) {
   const pg = PAGERS[key]; const pages = Math.max(1, Math.ceil(total / pg.pageSize)); const page = Math.min(pg.page, pages);
   const b = (p, l, dis) => `<button class="btn ghost sm" ${dis ? "disabled" : ""} onclick="PAGERS['${key}'].go(${p})" style="min-width:30px;padding:3px 8px">${l}</button>`;
   return `<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px">
-    <span class="note" style="margin:0">${total} élément(s) · page ${page}/${pages}</span>
+    <span class="note" style="margin:0">${total} élément(s) - page ${page}/${pages}</span>
     <span style="display:flex;gap:6px;align-items:center">
       <label class="note" style="margin:0">Par page</label>
       <select style="margin:0;width:auto;padding:3px 6px" onchange="PAGERS['${key}'].size(+this.value)">${[25,50,100,200].map(n=>`<option ${n===pg.pageSize?"selected":""}>${n}</option>`).join("")}</select>
@@ -1671,8 +1671,8 @@ async function empDetail(id) {
       <div><label>Né(e) le</label><div>${e.birthDate} - ${esc(e.birthPlace || "-")}</div></div>
       <div><label>CNI</label><div>${esc(e.cniNumber)} (exp. ${e.cniExpiry})</div></div>
       <div><label>CNPS</label><div>${esc(e.cnpsNumber || "-")}${e.cnpsKey?" clé "+esc(e.cnpsKey):""}</div></div>
-      <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "-"}${e.emergencyPhone ? " · " + e.emergencyPhone : ""}</div></div>
-      <div><label>Contrat</label><div>${e.contract?.type || "-"} · ${e.contract?.paymentMethod || ""}<br>
+      <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "-"}${e.emergencyPhone ? " - " + e.emergencyPhone : ""}</div></div>
+      <div><label>Contrat</label><div>${e.contract?.type || "-"} - ${e.contract?.paymentMethod || ""}<br>
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
     <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles. Every upload/download is logged.</div>
@@ -1881,7 +1881,7 @@ async function users() {
     <div class="panel" style="max-width:560px"><b>Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:8px">
       <div><label>Nom complet</label><input id="uName"></div><div><label>Email</label><input id="uEmail"></div>
-      <div><label>Role</label><select id="uRole"><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>ADM</option><option>RQ</option><option value="RC">RC — Comptabilité</option><option value="RS">RS — Stock</option><option value="RP">RP — Paie</option></select></div>
+      <div><label>Role</label><select id="uRole"><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>ADM</option><option>RQ</option><option value="RC">RC - Comptabilité</option><option value="RS">RS - Stock</option><option value="RP">RP - Paie</option></select></div>
       <div><label>Mot de passe</label><input id="uPass" type="password"></div></div>
     <div class="err hidden" id="uErr"></div>
     <button class="btn p" onclick="userSave()">Créer</button></div>`;
@@ -2065,7 +2065,7 @@ function renderAudit(){
       </div>
       <div style="text-align:right;white-space:nowrap">
         <div style="font-size:12px"><b>${l.userName||l.userId}</b> <span class="tag gray">${l.role||""}</span></div>
-        <div style="font-size:11px;color:var(--muted)" title="${w.abs}">${w.rel} · ${w.abs}</div>
+        <div style="font-size:11px;color:var(--muted)" title="${w.abs}">${w.rel} - ${w.abs}</div>
       </div></div>`;
   }).join("");
 }
@@ -2114,7 +2114,7 @@ async function showNotifs() {
   const n = await api("/notifications");
   view.innerHTML = `<h1>Notifications</h1><div class="panel">` + (n.items.length ? n.items.map(x => `
     <div class="doc-row" style="${x.readAt ? "opacity:.6" : ""}"><div><b>${esc(x.subject)}</b><br>
-    <small style="color:var(--muted)">${esc(x.body || "")} · ${x.at.replace("T"," ").slice(0,16)}</small></div></div>`).join("") : "Aucune notification") + `</div>
+    <small style="color:var(--muted)">${esc(x.body || "")} - ${x.at.replace("T"," ").slice(0,16)}</small></div></div>`).join("") : "Aucune notification") + `</div>
     <button class="btn ghost" onclick="markRead()">Tout marquer comme lu</button>`;
 }
 async function markRead(){ await api("/notifications/read-all",{method:"POST"}); refreshBell(); showNotifs(); }
@@ -2185,8 +2185,8 @@ function renderGen() {
     ${rows.map(d=>`<tr>
       <td><span class="tag gray">${esc(genTypeLabel(d.type))}</span></td>
       <td><b>${esc(d.title)}</b></td>
-      <td>${esc(d.employeeName||"—")}</td>
-      <td>${esc(d.portfolioId?pfName(d.portfolioId):"—")}</td>
+      <td>${esc(d.employeeName||"-")}</td>
+      <td>${esc(d.portfolioId?pfName(d.portfolioId):"-")}</td>
       <td>${(d.generatedAt||"").replace("T"," ").slice(0,16)}</td>
       <td style="white-space:nowrap"><button class="btn p sm" onclick="openGen('${d.id}',0)">Télécharger</button>
         <button class="btn ghost sm" onclick="openGen('${d.id}',1)">Imprimer</button></td></tr>`).join("")}
@@ -2281,7 +2281,7 @@ async function soldeCalc(empId,btn){
     const r=await api("/payroll/solde/"+empId,{method:"POST",body:JSON.stringify(body)});
     window._lastSolde=r;
     const rows=(r.lines||[]).map(l=>`<tr><td>${esc(l.label)} ${l.article?`<span class="tag">${esc(l.article)}</span>`:""}<div class="note" style="font-size:11px;color:#6b7280">${esc(l.note||"")}</div></td><td style="text-align:right;white-space:nowrap"><b>${Number(l.amount).toLocaleString("fr-FR")}</b></td></tr>`).join("");
-    out.innerHTML=`<div class="note" style="margin-bottom:6px">Salaire moyen retenu : <b>${Number(r.monthlyRef).toLocaleString("fr-FR")}</b> FCFA · collège : <b>${esc(r.college)}</b> · ancienneté : <b>${r.seniorityYears}</b> ans</div>
+    out.innerHTML=`<div class="note" style="margin-bottom:6px">Salaire moyen retenu : <b>${Number(r.monthlyRef).toLocaleString("fr-FR")}</b> FCFA - collège : <b>${esc(r.college)}</b> - ancienneté : <b>${r.seniorityYears}</b> ans</div>
       <table class="tbl" style="width:100%"><tbody>${rows||'<tr><td colspan=2 class="note">Aucun droit dû pour ce motif (hors salaire du mois).</td></tr>'}
       <tr style="border-top:2px solid #111"><td><b>TOTAL SOLDE DE TOUT COMPTE</b></td><td style="text-align:right"><b>${Number(r.total).toLocaleString("fr-FR")} FCFA</b></td></tr></tbody></table>
       <div class="note" style="margin-top:6px;color:#b45309">Le salaire du dernier mois (prorata jusqu'à la date de fin) est calculé séparément dans la paie et s'ajoute à ce solde.</div>
@@ -2349,8 +2349,8 @@ async function empDetail(id) {
       <div><label>Né(e) le</label><div>${e.birthDate} - ${esc(e.birthPlace || "-")}</div></div>
       <div><label>CNI</label><div>${esc(e.cniNumber)} (exp. ${e.cniExpiry})</div></div>
       <div><label>CNPS</label><div>${esc(e.cnpsNumber || "-")}${e.cnpsKey?" clé "+esc(e.cnpsKey):""}</div></div>
-      <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "-"}${e.emergencyPhone ? " · " + e.emergencyPhone : ""}</div></div>
-      <div><label>Contrat</label><div>${e.contract?.type || "-"} · ${e.contract?.paymentMethod || ""}<br>
+      <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "-"}${e.emergencyPhone ? " - " + e.emergencyPhone : ""}</div></div>
+      <div><label>Contrat</label><div>${e.contract?.type || "-"} - ${e.contract?.paymentMethod || ""}<br>
   <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
     </div></div>
     <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px;color:var(--muted)">CONTRAT</b>
@@ -2361,7 +2361,7 @@ async function empDetail(id) {
         <div><label>Fin</label><div>${(e.contract&&e.contract.type)==="CDI"?"durée indéterminée":esc((e.contract&&e.contract.endDate)||"-")}</div></div>
         <div><label>Mode de paiement</label><div>${esc(e.contract&&e.contract.paymentMethod||"-")}</div></div>
       </div>
-      ${(e.contract&&e.contract.endDate)?`<div class="note" style="margin-top:6px;color:#b45309">Fin de contrat prévue le <b>${esc(e.contract.endDate)}</b>${e.contract.departureReason?" — motif : "+esc(e.contract.departureReason):""}. Cette date apparaît dans la paie et les alertes d'expiration.</div>
+      ${(e.contract&&e.contract.endDate)?`<div class="note" style="margin-top:6px;color:#b45309">Fin de contrat prévue le <b>${esc(e.contract.endDate)}</b>${e.contract.departureReason?" - motif : "+esc(e.contract.departureReason):""}. Cette date apparaît dans la paie et les alertes d'expiration.</div>
       ${canEdit?`<div style="margin-top:6px"><button class="btn ghost sm" onclick="contractLetter('${e.id}')">Générer la lettre à la banque (fin de contrat)</button></div>`:""}`:""}
       ${(e.contractsHistory&&e.contractsHistory.length)?`<div style="margin-top:8px"><b style="font-size:12px;color:var(--muted)">ANCIENS CONTRATS</b>
         <div style="overflow:auto"><table style="width:100%;margin-top:4px"><tr><th>Type</th><th>Début</th><th>Fin</th><th>Réf.</th></tr>
@@ -2581,7 +2581,7 @@ async function dashView() {
   <div class="cards">
     <div class="card"><div class="kpi">${d.headcount}</div><div class="lbl">Employés</div></div>
     ${roleCard}
-    <div class="card"><div class="kpi" style="color:var(--amber)">${d.pendingCD + d.pendingRJ}</div><div class="lbl">Validations en attente (CD ${d.pendingCD} · RJ ${d.pendingRJ})</div></div>
+    <div class="card"><div class="kpi" style="color:var(--amber)">${d.pendingCD + d.pendingRJ}</div><div class="lbl">Validations en attente (CD ${d.pendingCD} - RJ ${d.pendingRJ})</div></div>
     <div class="card"><div class="kpi" style="color:${d.breaches ? "var(--red)" : "var(--green)"}">${d.breaches}</div><div class="lbl">Dépassements SLA (&gt;48h)</div></div>
     <div class="card"><div class="kpi" style="color:${d.warnings ? "var(--amber)" : "var(--green)"}">${d.warnings}</div><div class="lbl">Alertes 36h</div></div>
     <div class="card"><div class="kpi">${d.generated}</div><div class="lbl">Documents générés</div></div>
@@ -2649,10 +2649,10 @@ async function hrSection(id) {
   <div class="panel"><b style="font-size:12px;color:var(--muted)">CONGÉS & PERMISSIONS</b>
     <div style="margin:6px 0"><span class="tag green">Solde : ${lv.balance.remaining} j</span>
       <span class="tag gray">acquis ${lv.balance.accrued} j</span> <span class="tag gray">pris ${lv.balance.taken} j</span></div>
-    <div class="note" style="font-size:11px;color:var(--muted);margin-bottom:6px">Droit annuel : <b>${lv.balance.annualEntitlement} j</b> ouvrables (base ${lv.balance.baseAnnual} + majoration ancienneté ${lv.balance.majoration} j — Art. 63). Permissions exceptionnelles utilisées cette année : <b>${lv.permissionsUsed || 0}/${lv.permissionsCap || 12} j</b> (Art. 64).</div>
+    <div class="note" style="font-size:11px;color:var(--muted);margin-bottom:6px">Droit annuel : <b>${lv.balance.annualEntitlement} j</b> ouvrables (base ${lv.balance.baseAnnual} + majoration ancienneté ${lv.balance.majoration} j - Art. 63). Permissions exceptionnelles utilisées cette année : <b>${lv.permissionsUsed || 0}/${lv.permissionsCap || 12} j</b> (Art. 64).</div>
     ${canEdit ? `<div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
       <select id="lvType" style="max-width:210px;margin:0" onchange="lvTypeChange()">${lvTypes.map(t => `<option>${t}</option>`).join("")}</select>
-      <select id="lvPerm" style="max-width:260px;margin:0;display:none" onchange="lvPermChange()"><option value="">— Événement (Art. 64) —</option>${(lv.permissionsScale||[]).map(p => `<option value="${p.key}" data-days="${p.days}">${esc(p.label)} (${p.days} j)</option>`).join("")}</select>
+      <select id="lvPerm" style="max-width:260px;margin:0;display:none" onchange="lvPermChange()"><option value="">- Événement (Art. 64) -</option>${(lv.permissionsScale||[]).map(p => `<option value="${p.key}" data-days="${p.days}">${esc(p.label)} (${p.days} j)</option>`).join("")}</select>
       <input id="lvStart" type="date" style="max-width:150px;margin:0"><input id="lvEnd" type="date" style="max-width:150px;margin:0">
       <input id="lvReason" placeholder="Motif" style="max-width:170px;margin:0">
       <button class="btn p sm" onclick="lvCreate('${id}')">+ Soumettre la demande</button></div>` : ""}
@@ -2871,7 +2871,7 @@ function renderExpiring(){
   const groups={}; const keyer = mode==="type" ? (x=>x.typeLabel||x.label) : (x=>x.portfolioName||"(sans portefeuille)");
   list.forEach(x=>{ const k=keyer(x); (groups[k]=groups[k]||[]).push(x); });
   const gkeys=Object.keys(groups).sort((a,b)=>a.localeCompare(b,"fr"));
-  const section=(title,items)=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(title)}</b><span class="note">${items.length} échéance(s) · ${items.filter(i=>i.daysLeft<0).length} expirée(s)</span></div>
+  const section=(title,items)=>`<div class="panel" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(title)}</b><span class="note">${items.length} échéance(s) - ${items.filter(i=>i.daysLeft<0).length} expirée(s)</span></div>
     <div style="overflow:auto;margin-top:6px"><table style="width:100%"><tr><th>Salarié</th><th>Document / échéance</th><th>Date</th><th>Reste</th></tr>${rowsOf(items.slice().sort((a,b)=>a.daysLeft-b.daysLeft))}</table></div></div>`;
   const chip=(k,l,c)=>`<button class="btn ${st===k?"p":"ghost"} sm" onclick="window._EXPST='${k}';renderExpiring()">${l}${c!=null?` (${c})`:""}</button>`;
   view.innerHTML=`<h1>Alertes d'expiration</h1>
@@ -2930,7 +2930,7 @@ function cnvRenderGrid(){
         <button class="btn ghost sm" onclick="cnvPrefill('${c.id}')">Pré-remplir</button>
         <button class="btn ghost sm" onclick="cnvRename('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Renommer</button>
         <button class="btn ghost sm" style="color:var(--red)" onclick="cnvDelete('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Supprimer</button></div></div>
-    ${c.gridSource==='officiel 2024'?'<div class="note" style="margin-top:4px;color:#16a34a">Grille officielle 2024 (effet 1er janvier 2024).</div>':(c.gridSource==='indicatif'?'<div class="note" style="margin-top:4px;color:var(--amber)">Barème indicatif (reconstitué) — à confirmer avec l\'annexe officielle.</div>':'')}`;
+    ${c.gridSource==='officiel 2024'?'<div class="note" style="margin-top:4px;color:#16a34a">Grille officielle 2024 (effet 1er janvier 2024).</div>':(c.gridSource==='indicatif'?'<div class="note" style="margin-top:4px;color:var(--amber)">Barème indicatif (reconstitué) - à confirmer avec l\'annexe officielle.</div>':'')}`;
   if(isMatrix){
     const byCat={}; grid.forEach(g=>{ const m=String(g.category).match(/^(\d{1,2})([A-F])$/); if(m){ (byCat[m[1]]=byCat[m[1]]||{})[m[2]]=g.baseSalary; } });
     const cats=Object.keys(byCat).map(Number).sort((a,b)=>a-b);
@@ -2976,7 +2976,7 @@ async function fichePrixView(){
    <div class="note" style="margin-bottom:8px">Simulation du coût de mise à disposition d'un salarié jusqu'au prix client (TTC).</div>
    <div style="margin-bottom:10px;display:flex;gap:8px"><button class="btn p sm" onclick="fichePrixForm()">+ Nouvelle simulation</button><button class="btn sm" onclick="fpMultiNew()">+ Fiche multi-postes</button></div>
    <div class="panel"><div style="overflow:auto"><table style="width:100%"><tr><th>Réf.</th><th>Titre / Client</th><th>Type</th><th class="r">TTC</th><th></th></tr>
-   ${list.length?list.map(f=>{const mp=f.kind==="multiposte";const ttc=mp?(f.multi&&f.multi.grand?f.multi.grand.ttc:0):(f.computed?f.computed.ttc:0);return `<tr><td>${esc(f.ref||'')}</td><td>${esc(f.title||f.client||'')}${f.client&&f.title?' · '+esc(f.client):''}</td><td>${mp?'<span class="tag" style="background:#0d9488;color:#fff">Multi-postes ('+((f.positions||[]).length)+')</span>':'<span class="tag gray">Simple</span>'}</td><td class="r"><b>${fpMoney(ttc)}</b></td>
+   ${list.length?list.map(f=>{const mp=f.kind==="multiposte";const ttc=mp?(f.multi&&f.multi.grand?f.multi.grand.ttc:0):(f.computed?f.computed.ttc:0);return `<tr><td>${esc(f.ref||'')}</td><td>${esc(f.title||f.client||'')}${f.client&&f.title?' - '+esc(f.client):''}</td><td>${mp?'<span class="tag" style="background:#0d9488;color:#fff">Multi-postes ('+((f.positions||[]).length)+')</span>':'<span class="tag gray">Simple</span>'}</td><td class="r"><b>${fpMoney(ttc)}</b></td>
      <td style="white-space:nowrap">${mp?`<button class="btn ghost sm" onclick="fpMultiOpen('${f.id}')">Ouvrir</button> <button class="btn ghost sm" onclick="fpMultiPdf('${f.id}')">PDF postes</button>`:`<button class="btn ghost sm" onclick="fichePrixForm('${f.id}')">Ouvrir</button> <button class="btn ghost sm" onclick="fpExport('${f.id}')">Excel</button> <button class="btn ghost sm" onclick="fpPdf('${f.id}')">PDF</button>`} <button class="btn ghost sm" style="color:var(--red)" onclick="fpDelete('${f.id}')">Supprimer</button></td></tr>`;}).join(""):'<tr><td colspan="5" class="note">Aucune fiche.</td></tr>'}</table></div></div>`;
 }
 const FP_LABELS_DEF=["Salaire de base","Indemnité de logement","Prime d'électricité","Prime d'eau","Indemnité de représentation","Prime de salissure","Indemnité d'intéressement","Indemnité de transport"];
@@ -3035,7 +3035,7 @@ function fpMultiTotals(){
     ["brut","provConges","provFin","st1","chp","frais","t2","marge","ht","tva","ttc"].forEach(k=>{ const el=document.getElementById("fpm-"+k+"-"+pi); if(el) el.textContent=fpMoney(c[k]); });
     const te=document.getElementById("fpm-ttcEff-"+pi); if(te) te.textContent=fpMoney(c.ttc*(Number(p.effectif)||0));
     gHt+=c.ht*(Number(p.effectif)||0); gTva+=c.tva*(Number(p.effectif)||0); gTtc+=c.ttc*(Number(p.effectif)||0); gEff+=Number(p.effectif)||0; });
-  const g=document.getElementById("fpmGrand"); if(g) g.textContent="TOTAL GÉNÉRAL (effectif "+gEff+") — HT "+fpMoney(gHt)+" · TVA "+fpMoney(gTva)+" · TTC "+fpMoney(gTtc)+" FCFA";
+  const g=document.getElementById("fpmGrand"); if(g) g.textContent="TOTAL GÉNÉRAL (effectif "+gEff+") - HT "+fpMoney(gHt)+" - TVA "+fpMoney(gTva)+" - TTC "+fpMoney(gTtc)+" FCFA";
 }
 async function fpMultiSave(andPrint){
   const body={ kind:"multiposte", title:FPM.title, client:FPM.client, conventionName:FPM.conventionName, statut:FPM.statut, lieu:FPM.lieu,
@@ -3213,7 +3213,7 @@ async function careerTab(k) {
           <input id="ckNext" type="date" title="Next check-in" style="max-width:150px;margin:0">
           <button class="btn p sm" onclick="ckAdd()">+ Enregistrer</button></div>` : ""}
         ${chk.map(c => `<div class="doc-row"><div><b>${c.date}</b> - ${esc(c.notes || "-")}<br>
-          <small style="color:var(--muted)">by ${c.managerName}${c.nextDate ? " · next: " + c.nextDate : ""}</small></div></div>`).join("") || "<small style='color:var(--muted)'>Aucun.</small>"}</div>
+          <small style="color:var(--muted)">by ${c.managerName}${c.nextDate ? " - next: " + c.nextDate : ""}</small></div></div>`).join("") || "<small style='color:var(--muted)'>Aucun.</small>"}</div>
       <div class="panel"><b>Entretiens dématérialisés (signature électronique)</b>
         ${canMgr ? `<div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
           <select id="itType" style="max-width:200px;margin:0"><option>Entretien annuel</option><option>Entretien professionnel</option></select>
@@ -3221,7 +3221,7 @@ async function careerTab(k) {
         ${itv.map(it => `<div class="doc-row"><div><b>${it.type}</b> - ${it.date}
           ${it.status === "SIGNED_ARCHIVED" ? '<span class="tag green">Signed & archived </span>' : '<span class="tag amber">En attente de signatures</span>'}<br>
           <small style="color:var(--muted)">${esc(it.summary || "")}</small><br>
-          <small>Manager: ${it.signatures.manager ? "" + it.signatures.manager.name : "-"} · Employee: ${it.signatures.employee ? "" + it.signatures.employee.name : "-"}</small></div>
+          <small>Manager: ${it.signatures.manager ? "" + it.signatures.manager.name : "-"} - Employee: ${it.signatures.employee ? "" + it.signatures.employee.name : "-"}</small></div>
           <div>${!it.signatures.manager && canMgr ? `<button class="btn ghost sm" onclick="itSign('${it.id}','manager')">Signer (responsable)</button>` : ""}
           ${!it.signatures.employee && canEdit ? `<button class="btn ghost sm" onclick="itSign('${it.id}','employee')">Signer (employé)</button>` : ""}</div></div>`).join("") || "<small style='color:var(--muted)'>Aucun.</small>"}</div></div>`;
   }
@@ -3486,7 +3486,7 @@ async function paramsView() {
     <p style="font-size:12px;color:var(--muted);margin:6px 0">Personnalisez le nom, le logo, les couleurs et la densité de l'interface. L'aperçu est immédiat.</p>
     ${themePresetRow(s.branding.theme)}
     <div class="grid2">
-      <div><label>Nom de l'application <span class="tag gray">plateforme — géré par le super-administrateur</span></label>
+      <div><label>Nom de l'application <span class="tag gray">plateforme - géré par le super-administrateur</span></label>
         <input id="bName" value="${esc((BRANDING&&BRANDING.appName)||s.branding.appName||'MBOKA Mon RH')}" disabled style="background:var(--sidebar-bg);color:var(--muted)"></div>
       <div><label>Sous-titre</label><input id="bTag" value="${esc(s.branding.tagline||'')}"></div>
     </div>
@@ -3750,7 +3750,7 @@ async function impValidate() {
         <span class="tag ${r.invalid ? "red" : "gray"}">${r.invalid} en erreur</span></div>
       ${bad.length ? `<table><tr><th>Ligne</th><th>Employé</th><th>Erreurs</th></tr>
         ${bad.slice(0,50).map(x => `<tr><td>${x.line}</td><td>${esc(x.name)}</td>
-          <td style="color:var(--red);font-size:12px">${x.errors.join(" · ")}</td></tr>`).join("")}</table>
+          <td style="color:var(--red);font-size:12px">${x.errors.join(" - ")}</td></tr>`).join("")}</table>
         <p style="font-size:12px;color:var(--muted)">Les lignes en erreur seront ignorées à l'import.</p>` : '<p style="color:var(--green)">Toutes les lignes sont valides </p>'}
       ${r.valid ? `<button class="btn p" onclick="impCommit()">4. Importer ${r.valid} employé(s)</button>` : ''}</div>`;
   } catch (e) { mapErr.textContent = e.message; mapErr.classList.remove("hidden"); }
@@ -3922,7 +3922,7 @@ async function subsView(){
     }).join("");
     return `<div class="panel" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-        <b style="font-size:15px">${esc(h.tenantName)} <span class="note">${h.tenantStatus==='SUSPENDED'?'· suspendu':''}</span></b>
+        <b style="font-size:15px">${esc(h.tenantName)} <span class="note">${h.tenantStatus==='SUSPENDED'?'- suspendu':''}</span></b>
         <button class="btn p sm" onclick="subsLicenseForm('${h.tenantId}','')">Ajouter / renouveler une licence</button>
       </div>
       <table style="margin-top:8px"><tr><th>Module</th><th>Terme</th><th>Période</th><th>Statut</th><th class="r">Prix</th><th>Paiement</th><th>Règlement</th><th></th></tr>${body}</table>
@@ -4150,7 +4150,7 @@ async function tenantUsers(tid, name) {
         <b>${esc(u.fullName)}</b>
         <select onchange="sadmSetRole('${u.id}', this.value)" style="margin:0 0 0 6px;max-width:82px;display:inline-block;padding:2px">
           ${["GPF","CD","RJ","UI","ADM"].map(r=>`<option ${u.role===r?"selected":""}>${r}</option>`).join("")}</select>
-        <br><small style="color:var(--muted)">${esc(u.email)}${u.active?'':' · <span style="color:var(--red)">désactivé</span>'}</small></div>
+        <br><small style="color:var(--muted)">${esc(u.email)}${u.active?'':' - <span style="color:var(--red)">désactivé</span>'}</small></div>
         <div style="display:flex;gap:4px">
           <button class="btn ghost sm" title="Modules & droits" onclick="sadmRights('${u.id}')">Modules & droits</button>
           <button class="btn ${u.active?'ghost':'p'} sm" title="${u.active?'Désactiver':'Activer'}" onclick="sadmToggleActive('${u.id}', ${!u.active})">${u.active?'':'▶'}</button>
@@ -4160,7 +4160,7 @@ async function tenantUsers(tid, name) {
     <b style="font-size:12px">Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:6px">
       <input id="nuEmail" placeholder="email" style="margin:0"><input id="nuName" placeholder="nom complet" style="margin:0">
-      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>RQ</option><option value="RC">RC — Comptabilité</option><option value="RS">RS — Stock</option><option value="RP">RP — Paie</option></select></div>
+      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>RQ</option><option value="RC">RC - Comptabilité</option><option value="RS">RS - Stock</option><option value="RP">RP - Paie</option></select></div>
     <div class="err hidden" id="nuErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>
@@ -4310,7 +4310,7 @@ async function aviView(){
   const [emps,docs]=await Promise.all([api("/employees").catch(()=>[]),api("/documents").catch(()=>[])]);
   const avis=(docs||[]).filter(d=>d.type==="AVI").sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
   const stTag=(d)=>d.status==="GENERATED"?'<span class="tag green">Générée</span>':d.status==="DRAFT"?'<span class="tag red">Rejetée / brouillon</span>':`<span class="tag amber">En validation${d.currentStage?" ("+d.currentStage+")":""}</span>`;
-  view.innerHTML=`<h1>AVI — Attestations de virement irrévocable</h1>
+  view.innerHTML=`<h1>AVI - Attestations de virement irrévocable</h1>
     <div class="note" style="max-width:780px">Document remis au salarié pour un prêt bancaire. Le GPF joint d'abord la <b>lettre de demande</b> ; l'AVI passe ensuite par le circuit de validation configuré, puis est générée (Word).</div>
     <div style="margin:8px 0"><button class="btn p" onclick="aviForm()">+ Nouvelle demande d'AVI</button></div>
     <div class="panel"><table style="width:100%"><tr><th>Salarié</th><th>Type</th><th>Banque</th><th>Statut</th><th>Créée le</th><th></th></tr>
@@ -4365,13 +4365,13 @@ function wfRender(){
   const box=document.getElementById("wfList"); if(!box)return; const wf=window._WF;
   box.innerHTML=Object.keys(wf).map(k=>{ const w=wf[k];
     const chips=(w.steps||[]).map((r,i)=>`<span class="tag" style="background:var(--primary);color:#fff;display:inline-flex;gap:6px;align-items:center">${i+1}. ${esc(r)}
-      <a style="cursor:pointer" onclick="wfMove('${k}',${i},-1)">↑</a><a style="cursor:pointer" onclick="wfMove('${k}',${i},1)">↓</a><a style="cursor:pointer;color:#fecaca" onclick="wfDel('${k}',${i})">×</a></span>`).join(" ")||'<span class="note">Aucun niveau — génération immédiate</span>';
+      <a style="cursor:pointer" onclick="wfMove('${k}',${i},-1)">↑</a><a style="cursor:pointer" onclick="wfMove('${k}',${i},1)">↓</a><a style="cursor:pointer;color:#fecaca" onclick="wfDel('${k}',${i})">×</a></span>`).join(" ")||'<span class="note">Aucun niveau - génération immédiate</span>';
     return `<div class="panel" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center">
       <b>${esc(w.label||k)}</b>
       <label class="chk" style="margin:0"><input type="checkbox" ${w.enabled!==false?"checked":""} onchange="window._WF['${k}'].enabled=this.checked;wfRender()"><span>Actif</span></label></div>
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">${chips}</div>
       <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
-        <select id="wfAdd_${k}" style="max-width:220px;margin:0">${WF_ROLES.map(r=>`<option value="${r[0]}">${r[0]} — ${esc(r[1])}</option>`).join("")}</select>
+        <select id="wfAdd_${k}" style="max-width:220px;margin:0">${WF_ROLES.map(r=>`<option value="${r[0]}">${r[0]} - ${esc(r[1])}</option>`).join("")}</select>
         <button class="btn ghost sm" onclick="wfAdd('${k}')">+ Ajouter un niveau</button>
         <span class="note">Aperçu : ${(w.enabled===false||!(w.steps||[]).length)?"soumission → génération directe":"GPF → "+(w.steps||[]).join(" → ")+" → génération"}</span></div>
     </div>`;
@@ -4458,7 +4458,7 @@ async function payEtatsView(){
      </div></div>
    <div class="note" style="margin-bottom:8px">Éditez, par période de paie, le livre de paie, l'état des cotisations et la passation comptable.</div>
    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-     <div><label>Période de paie</label><select id="etRun" style="max-width:280px" onchange="window._ETRUN=this.value;payEtatsView()"><option value="">- choisir -</option>${runs.map(r=>`<option value="${r.id}" ${rid===r.id?'selected':''}>${esc(r.period)} · ${esc(({OPEN:'ouverte',CALCULATED:'calculée',CLOSED:'clôturée'})[r.status]||r.status||'')}</option>`).join("")}</select></div>
+     <div><label>Période de paie</label><select id="etRun" style="max-width:280px" onchange="window._ETRUN=this.value;payEtatsView()"><option value="">- choisir -</option>${runs.map(r=>`<option value="${r.id}" ${rid===r.id?'selected':''}>${esc(r.period)} - ${esc(({OPEN:'ouverte',CALCULATED:'calculée',CLOSED:'clôturée'})[r.status]||r.status||'')}</option>`).join("")}</select></div>
    </div>
    ${rid?`<div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
      ${hasRight("payroll.livre") ? `<button class="btn ghost" onclick="payLivre('${rid}')">Livre de paie</button>` : ""}
@@ -4506,7 +4506,7 @@ async function payFicheLoad(){
   const mh=fi.months.map(m=>`<th class="r">${m.slice(0,3)}</th>`).join("");
   const rrow=r=>`<tr><td style="white-space:nowrap">${esc(r.code?r.code+' ':'')}${esc(r.label)}</td>${r.monthly.map(v=>`<td class="r">${v?F(v):''}</td>`).join("")}<td class="r"><b>${F(r.total)}</b></td></tr>`;
   const srow=r=>`<tr style="font-weight:700;background:var(--sidebar-bg)"><td>${esc(r.label)}</td>${r.monthly.map(v=>`<td class="r">${v?F(v):''}</td>`).join("")}<td class="r">${F(r.total)}</td></tr>`;
-  body.innerHTML=`<div class="panel"><div style="margin-bottom:6px"><b>${esc(fi.employee.name)}</b> <span class="note">Matricule ${esc(fi.employee.matricule||'-')} · Catégorie ${esc(fi.employee.category||'-')} · Année ${fi.year}</span></div>
+  body.innerHTML=`<div class="panel"><div style="margin-bottom:6px"><b>${esc(fi.employee.name)}</b> <span class="note">Matricule ${esc(fi.employee.matricule||'-')} - Catégorie ${esc(fi.employee.category||'-')} - Année ${fi.year}</span></div>
     <div style="overflow:auto"><table style="width:100%;min-width:900px;font-size:12px"><tr><th style="text-align:left">Rubrique</th>${mh}<th class="r">Total</th></tr>
     ${fi.rubriques.length?fi.rubriques.map(rrow).join(""):'<tr><td colspan="14" class="note">Aucun bulletin calculé pour cette année.</td></tr>'}
     ${fi.summary.map(srow).join("")}</table></div></div>`;
@@ -4647,7 +4647,7 @@ function payPassationModal(runId, rep){
   const recRows=(rep.reconciliation||[]).map(r=>`<tr><td>${esc(r.label)}</td><td class="r">${fCFA(r.paie)}</td><td class="r">${fCFA(r.compta)}</td><td class="r" style="color:${r.ok?'#16a34a':'#dc2626'};font-weight:600">${r.ok?'OK':fCFA(r.ecart)}</td></tr>`).join("");
   const lineRows=(rep.lines||[]).map(l=>`<tr><td><code>${esc(l.account)}</code></td><td>${esc(l.label||'')}</td><td class="r">${l.debit?fCFA(l.debit):''}</td><td class="r">${l.credit?fCFA(l.credit):''}</td></tr>`).join("");
   const bg=document.createElement("div"); bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="width:780px;max-height:88vh;overflow:auto"><h3 style="margin:0 0 6px">Contrôle de passation — Paie ${esc(rep.period||'')}</h3>
+  bg.innerHTML=`<div class="modal" style="width:780px;max-height:88vh;overflow:auto"><h3 style="margin:0 0 6px">Contrôle de passation - Paie ${esc(rep.period||'')}</h3>
     <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">CONTRÔLES</b>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px">
         <div>${chk(c.clotured)} Période clôturée</div>
@@ -4662,7 +4662,7 @@ function payPassationModal(runId, rep){
     </div>
     <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">RÉCONCILIATION PAR PILIER (paie ↔ écriture)</b>
       <table style="margin-top:6px"><tr><th>Pilier</th><th class="r">Paie</th><th class="r">Écriture</th><th class="r">Écart</th></tr>${recRows}</table></div>
-    ${rep.declarations?`<div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">DÉCLARATIONS À RAPPROCHER — CNPS &amp; DIPE (échéance le 15 du mois suivant)</b>
+    ${rep.declarations?`<div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">DÉCLARATIONS À RAPPROCHER - CNPS &amp; DIPE (échéance le 15 du mois suivant)</b>
       <table style="margin-top:6px"><tr><th>CNPS</th><th class="r">Part salariale (PVID)</th><th class="r">Part patronale</th><th class="r">Total CNPS</th></tr>
         <tr><td>À déclarer</td><td class="r">${fCFA(rep.declarations.cnps.salarie)}</td><td class="r">${fCFA(rep.declarations.cnps.patronal)}</td><td class="r"><b>${fCFA(rep.declarations.cnps.total)}</b></td></tr></table>
       <table style="margin-top:8px"><tr><th>Impôts (DIPE)</th><th class="r">Montant</th></tr>
@@ -4681,7 +4681,7 @@ async function payPassationConfirm(runId){
   const susp=(document.getElementById("ppSusp")||{}).checked;
   try{ const e=await api("/payroll/runs/"+runId+"/transfer-accounting",{method:"POST",body:JSON.stringify({allowSuspense:!!susp})});
     const bgm=document.querySelector(".modal-bg"); if(bgm) bgm.remove();
-    alert("Comptabilisé.\nÉcriture "+(e.pieceNo||e.entryId)+" — "+(e.lines||0)+" lignes.\nDébit "+fCFA(e.debit)+" = Crédit "+fCFA(e.credit)+(e.balanced?" (équilibrée)":" (⚠)"));
+    alert("Comptabilisé.\nÉcriture "+(e.pieceNo||e.entryId)+" - "+(e.lines||0)+" lignes.\nDébit "+fCFA(e.debit)+" = Crédit "+fCFA(e.credit)+(e.balanced?" (équilibrée)":" (⚠)"));
     payRunView(runId);
   }catch(err){ const el=document.getElementById("ppErr"); if(el){ el.textContent=err.message; el.classList.remove("hidden"); } else alert(err.message); }
 }
@@ -4758,7 +4758,7 @@ function payRenderRoster() {
 function tsImportOpen(runId,period){
   const pf=window._PAYPF||"";
   const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:520px"><b>Importer un pointage — ${esc(period)}</b>
+  bg.innerHTML=`<div class="modal" style="max-width:520px"><b>Importer un pointage - ${esc(period)}</b>
     <div class="note" style="margin:4px 0 8px">Colonnes reconnues : Matricule, Jours travaillés, Absence (jours), HS 20%, HS 30%, HS 40%, Heures nuit. Le pointage remplace l'assiduité et les heures supp. de la période.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn ghost sm" onclick="payDownload('/payroll/runs/${runId}/timesheet-template${pf?('?portfolioId='+pf):''}','pointage_${period}.xlsx')">Télécharger le modèle</button>
@@ -4797,8 +4797,8 @@ async function bulletinView(runId, empId) {
   const tab = (k, lbl) => `<button class="btn ${BULLETIN_TAB === k ? "p" : "ghost"} sm" onclick="BULLETIN_TAB='${k}';bulletinRenderTab()">${lbl}</button>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${runId}')">Liste des salariés</button>
   <h1 style="margin-top:10px">Bulletin - ${esc(emp.firstName)} ${esc(emp.lastName)}
-    <small style="color:var(--muted)">${esc(rmeta.matricule || "")} · ${esc(run.period)}</small> ${rosterStatusTag(rmeta)}</h1>
-  ${(emp.contract&&emp.contract.endDate)?(() => { const end=emp.contract.endDate; const inPeriod=String(end).slice(0,7)===run.period; const past=new Date(end)<new Date(run.period+"-01"); return `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:8px;margin-bottom:8px;color:#b45309"><b>Fin de contrat le ${esc(end)}</b>${inPeriod?" — dernier mois de paie (le contrat se termine dans cette période)":past?" — contrat déjà terminé avant cette période":""}${emp.contract.departureReason?" · motif : "+esc(emp.contract.departureReason):""}</div>`; })():""}
+    <small style="color:var(--muted)">${esc(rmeta.matricule || "")} - ${esc(run.period)}</small> ${rosterStatusTag(rmeta)}</h1>
+  ${(emp.contract&&emp.contract.endDate)?(() => { const end=emp.contract.endDate; const inPeriod=String(end).slice(0,7)===run.period; const past=new Date(end)<new Date(run.period+"-01"); return `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:8px;margin-bottom:8px;color:#b45309"><b>Fin de contrat le ${esc(end)}</b>${inPeriod?" - dernier mois de paie (le contrat se termine dans cette période)":past?" - contrat déjà terminé avant cette période":""}${emp.contract.departureReason?" - motif : "+esc(emp.contract.departureReason):""}</div>`; })():""}
   <div class="panel" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     ${open && canRunPay() ? `<button class="btn p" onclick="bulletinCompute('${runId}','${empId}')">Calculer ce bulletin</button>` : ""}
     ${open && canRunPay() ? `<button class="btn ghost" onclick="revCalcOpen('${runId}','${empId}','${run.period}')">Calcul à l'envers</button>` : ""}
@@ -4827,7 +4827,7 @@ async function revCalcOpen(runId,empId,period){
   const groups={}; (rubs||[]).forEach(r=>{ (groups[r.sectionLabel||"Rubriques"]=groups[r.sectionLabel||"Rubriques"]||[]).push(r); });
   const opts=Object.keys(groups).map(g=>`<optgroup label="${esc(g)}">`+groups[g].map(r=>`<option value="${esc(String(r.code))}" data-l="${esc(r.label||"")}">${esc(String(r.code))} - ${esc(r.label||"")}</option>`).join("")+`</optgroup>`).join("")||'<option value="1000" data-l="Salaire de base">1000 - Salaire de base</option>';
   const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Calcul à l'envers — bulletin à partir du net à payer</b>
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Calcul à l'envers - bulletin à partir du net à payer</b>
     <div class="note" style="margin:4px 0 8px">Saisissez le net à payer souhaité et la rubrique d'ajustement. Le logiciel calcule le montant brut de cette rubrique qui donne exactement ce net.</div>
     <div class="grid2"><div><label>Net à payer cible (FCFA)</label><input id="rvNet" type="number" min="0" placeholder="ex. 300000"></div>
       <div><label>Rubrique d'ajustement</label><select id="rvCode">${opts}</select></div></div>
@@ -5263,8 +5263,8 @@ async function payconfigView() {
   <div class="panel"><b style="font-size:12px;color:var(--muted)">VALEURS CONVENTIONNELLES (CCN Commerce)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>Transport / jour effectif (Art.74)</label>${num("legal.transportPerDay", (cfg.legal&&cfg.legal.transportPerDay)!=null?cfg.legal.transportPerDay:1300)}</div>
-      <div><label>Prime de caisse — principal (Art.78)</label>${num("legal.caissePrincipal", (cfg.legal&&cfg.legal.caissePrincipal)!=null?cfg.legal.caissePrincipal:33000)}</div>
-      <div><label>Prime de caisse — secondaire</label>${num("legal.caisseSecondaire", (cfg.legal&&cfg.legal.caisseSecondaire)!=null?cfg.legal.caisseSecondaire:26000)}</div>
+      <div><label>Prime de caisse - principal (Art.78)</label>${num("legal.caissePrincipal", (cfg.legal&&cfg.legal.caissePrincipal)!=null?cfg.legal.caissePrincipal:33000)}</div>
+      <div><label>Prime de caisse - secondaire</label>${num("legal.caisseSecondaire", (cfg.legal&&cfg.legal.caisseSecondaire)!=null?cfg.legal.caisseSecondaire:26000)}</div>
       <div><label>Indemnité logement (fraction du salaire cat., Art.81)</label>${num("legal.logementPct", (cfg.legal&&cfg.legal.logementPct)!=null?cfg.legal.logementPct:0.40)}</div>
       <div><label>Exonération IRPP transport (F/mois)</label>${num("transportExemptionCap", cfg.transportExemptionCap!=null?cfg.transportExemptionCap:14500)}</div>
     </div>
@@ -5278,7 +5278,7 @@ async function payconfigView() {
       <div><label>Prestations familiales (emp.)</label>${num("cnps.familyEmployer", cfg.cnps.familyEmployer)}</div>
       <div><label>Risques prof. (emp.)</label>${num("cnps.workAccidentEmployer", cfg.cnps.workAccidentEmployer)}</div>
     </div></div>
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">IMPÔTS & AUTRES CAISSES (Trésor · Crédit Foncier · FNE)</b>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">IMPÔTS & AUTRES CAISSES (Trésor - Crédit Foncier - FNE)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>IRPP - frais pro (abattement)</label>${num("irpp.fraisProRate", cfg.irpp.fraisProRate)}</div>
       <div><label>IRPP - abattement annuel</label>${num("irpp.annualAbatement", cfg.irpp.annualAbatement)}</div>
@@ -5522,7 +5522,7 @@ async function billingView() {
     ${kpi("Total HT", fCFA(sum("HT")), "FCFA")}
     ${kpi("Total TVA", fCFA(sum("TVA")), "FCFA")}
     ${kpi("Total TTC", fCFA(sum("TTC")), "FCFA")}
-    ${kpi("Fiches", sheets.length, `· ${nVal} validée${nVal > 1 ? "s" : ""}`)}
+    ${kpi("Fiches", sheets.length, `- ${nVal} validée${nVal > 1 ? "s" : ""}`)}
   </div>
   <div class="panel" style="max-width:680px"><b>Nouvelle fiche</b>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
@@ -5547,7 +5547,7 @@ function billingListRows(list) {
   return list.map(s => `<div style="display:flex;align-items:center;gap:12px;padding:11px 6px;border-bottom:1px solid var(--border)">
     <div style="width:38px;height:38px;border-radius:10px;background:var(--nav-active-bg);color:var(--nav-active-color);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0">${billingIni(s.client)}</div>
     <div style="min-width:0;flex:1"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.client)}</div>
-      <div style="font-size:12px;color:var(--muted)">${esc(s.number || "-")} · ${esc(s.period)}</div></div>
+      <div style="font-size:12px;color:var(--muted)">${esc(s.number || "-")} - ${esc(s.period)}</div></div>
     <div style="text-align:right;min-width:88px"><div style="font-size:11px;color:var(--muted)">HT</div><div>${fCFA(s.HT)}</div></div>
     <div style="text-align:right;min-width:100px"><div style="font-size:11px;color:var(--muted)">TTC</div><div style="font-weight:600">${fCFA(s.TTC)}</div></div>
     <div style="min-width:78px;text-align:center">${s.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>'}</div>
@@ -5575,8 +5575,8 @@ async function billingSheetOpen(id) {
   const c = s.contract, t = s.computed.totals, open = s.status !== "validated";
   const type = (c.billingType || "MAD").toUpperCase();
   view.innerHTML = `<button class="btn ghost sm" onclick="billingView()">← Fiches</button>
-  <h1 style="margin-top:10px">Annexe - ${esc(c.clientName)} · ${esc(s.period)}
-    <small style="color:var(--muted)">${esc(s.number || "")} · ${esc(type)}</small>
+  <h1 style="margin-top:10px">Annexe - ${esc(c.clientName)} - ${esc(s.period)}
+    <small style="color:var(--muted)">${esc(s.number || "")} - ${esc(type)}</small>
     ${s.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>'}</h1>
   <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     ${open ? `<button class="btn p sm" onclick="billingSaveLines()">Enregistrer &amp; calculer</button>
@@ -5585,7 +5585,7 @@ async function billingSheetOpen(id) {
       ${type === "MAD" ? `<button class="btn ghost sm" onclick="billingImportPaie()">Importer depuis la Paie</button>` : ""}
       <button class="btn ghost sm" onclick="billingCarry()">Reprendre mois préc.</button>` : ""}
     <span style="flex:1"></span>
-    <b>HT ${fCFA(t.HT)} · TVA ${fCFA(t.TVA)}${t.IS?` · IS -${fCFA(t.IS)}`:""} · <span style="color:var(--green)">${t.IS?"À payer "+fCFA(t.totalDu):"TTC "+fCFA(t.TTC)}</span></b>
+    <b>HT ${fCFA(t.HT)} - TVA ${fCFA(t.TVA)}${t.IS?` - IS -${fCFA(t.IS)}`:""} - <span style="color:var(--green)">${t.IS?"À payer "+fCFA(t.totalDu):"TTC "+fCFA(t.TTC)}</span></b>
     ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (s.status === "validated" ? "" : `<span class="tag amber" style="align-self:center">En attente de validation CD</span>`)}
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/pdf','Annexe_${s.period}.pdf')">Annexe PDF</button>
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/excel','Annexe_${s.period}.xlsx')">Annexe Excel</button>
@@ -5743,7 +5743,7 @@ function billLineForm(i) {
   bg.innerHTML = `<div class="modal bl-form" style="width:740px">
     <style>.bl-form label{font-size:11px;color:var(--muted)}.bl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 22px}.lf-row{display:flex;flex-direction:column;gap:2px}.lf-row input{margin:0}.bl-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--nav-active-bg,#e6efe9);margin:12px 0 10px}.bl-tab{padding:6px 12px;cursor:pointer;border-radius:6px 6px 0 0;font-size:13px}.bl-tab.active{background:var(--nav-active-bg,#e6efe9);font-weight:bold}.bl-pane{display:none}.bl-pane.active{display:block}.bl-ro{display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px dashed #e3e3e3}</style>
     <h3 style="margin:0 0 2px">${esc(BILL_LINE_EDIT.name || "Nouvelle ligne")}</h3>
-    <div class="note" style="margin-bottom:8px">${esc(c.clientName || "")} · ${type} · période ${esc(period)}</div>
+    <div class="note" style="margin-bottom:8px">${esc(c.clientName || "")} - ${type} - période ${esc(period)}</div>
     <div class="scroll" style="max-height:66vh">
       <div class="bl-grid">
         <div class="lf-row"><label>Nom / ressource</label><input value="${esc(BILL_LINE_EDIT.name || "")}" oninput="billLineSetField('name','text',this.value)"></div>
@@ -5823,7 +5823,7 @@ async function billingCfgView() {
     <span style="float:right;display:flex;gap:6px">
       <button class="btn ghost sm" onclick="billingCompImport()">Importer (Odoo/CSV)</button>
       <button class="btn p sm" onclick="billingCompModal()">+ Composant</button></span>
-    <div class="note" style="margin-top:6px">Catalogue partagé : primes (dans le brut) · hors-charges (après charges) · prestation · retenues. Créez-les ici une fois, puis activez-les par client. Les codes doivent correspondre à ceux utilisés dans les formules d'annexe.</div>
+    <div class="note" style="margin-top:6px">Catalogue partagé : primes (dans le brut) - hors-charges (après charges) - prestation - retenues. Créez-les ici une fois, puis activez-les par client. Les codes doivent correspondre à ceux utilisés dans les formules d'annexe.</div>
     <table style="margin-top:6px"><tr><th>Code</th><th>Libellé</th><th>Saisie</th><th>Formule</th><th>Étape</th><th>Taux</th><th></th></tr>
     ${comps.map(c => `<tr><td><code>${esc(c.code)}</code></td><td>${esc(c.label)}</td><td>${esc(c.inputMode)}</td>
       <td>${esc(c.formula)}</td><td><span class="tag gray">${esc(c.stage)}</span></td><td>${c.taux != null ? (c.taux) : ""}</td>
@@ -5925,7 +5925,7 @@ async function billingContractModal(cid) {
         <div><label>Téléphone</label><input id="cbTel" value="${esc((c.clientBlock || {}).tel || "")}"></div>
         <div><label>Email</label><input id="cbEmail" value="${esc((c.clientBlock || {}).email || "")}"></div>
       </div>
-      <b style="font-size:12px;color:var(--muted)">COORDONNÉES BANCAIRES — « PAYABLE À » (propre à ce client, imprimé en pied de facture)</b>
+      <b style="font-size:12px;color:var(--muted)">COORDONNÉES BANCAIRES - « PAYABLE À » (propre à ce client, imprimé en pied de facture)</b>
       <div class="note" style="margin:2px 0 4px">Chaque client peut avoir un compte de règlement différent. Ces champs s'impriment dans le bloc « PAYABLE À » du pied de la facture.</div>
       <div class="grid3" style="margin-top:4px">
         <div><label>Banque</label><input id="cbBank" value="${esc((c.bankBlock || {}).banque || "")}" placeholder="ex. CBC BANK"></div>
@@ -5983,7 +5983,7 @@ function billingMapModal(p, replace) {
   const defTpl = tpls.find(t =>t.contractId === BILL_SHEET.contract.id) || null;
   if (window._IMP_TPLSEL === undefined) window._IMP_TPLSEL = defTpl ? defTpl.id : "";
   const html = `<div class="modal" style="width:640px"><h3 style="margin:0 0 4px">Import Excel - mapper les colonnes</h3>
-    <div class="note">Feuille détectée : en-tête à la ligne ${p.headerRow + 1} · ${p.rowCount} ligne(s). Choisissez le modèle d'annexe : seules ses colonnes seront proposées au mapping (les colonnes calculées sont auto-générées).</div>
+    <div class="note">Feuille détectée : en-tête à la ligne ${p.headerRow + 1} - ${p.rowCount} ligne(s). Choisissez le modèle d'annexe : seules ses colonnes seront proposées au mapping (les colonnes calculées sont auto-générées).</div>
     <div style="display:flex;gap:8px;align-items:end;margin:6px 0;flex-wrap:wrap">
       <div><label>Feuille</label><select id="imSheet" onchange="billingReparse(this.value)">${p.sheets.map(sn => `<option ${sn === p.sheet ? "selected" : ""}>${esc(sn)}</option>`).join("")}</select></div>
       <div><label>Ligne d'en-tête</label><input id="imHeader" type="number" value="${p.headerRow}" style="max-width:80px"></div>
@@ -6177,7 +6177,7 @@ async function billingTplModal(id) {
           <div style="margin-top:4px"><b>Composants du catalogue :</b> ${(_comps||[]).slice(0,60).map(c=>billTok(c.code)).join(" ") || "<i>aucun</i>"}</div>
           <div style="margin-top:4px"><b>Autres colonnes :</b>utilisez la <b>clé</b>d'une colonne définie plus haut (ex. <code>SAL_BRUT / 12</code>).</div>
           <div style="margin-top:4px"><b>Opérateurs :</b> <code>+  −  *  /  (  )</code></div>
-          <div style="margin-top:6px"><b>Exemples :</b> <code>BASE / 12</code> · <code>(SAL_BRUT + ALLOC_CONGE) * 0.162</code> · <code>TOTAL_HT * 0.022</code></div>
+          <div style="margin-top:6px"><b>Exemples :</b> <code>BASE / 12</code> - <code>(SAL_BRUT + ALLOC_CONGE) * 0.162</code> - <code>TOTAL_HT * 0.022</code></div>
         </div></details>
       <div id="tpCols"></div>
       <button class="btn ghost sm" style="margin-top:6px" onclick="billingTplAddCol()">+ Colonne</button>
@@ -6257,7 +6257,7 @@ function billTplDownload(sheetId) {
 function billStageBar(s) {
   const order = ["devis", "commande", "facture"]; const st = s.stage || "devis"; const i = order.indexOf(st);
   const lbl = { devis: "Devis", commande: "Commande", facture: "Facture" };
-  let h = `<span class="tag ${st === "facture" ? "green" : "amber"}">${lbl[st]}${s.posted ? " · Comptabilisé " : ""}${s.invoiceNumber ? " · " + esc(s.invoiceNumber) : ""}</span>`;
+  let h = `<span class="tag ${st === "facture" ? "green" : "amber"}">${lbl[st]}${s.posted ? " - Comptabilisé " : ""}${s.invoiceNumber ? " - " + esc(s.invoiceNumber) : ""}</span>`;
   if (!s.posted) {
     if (i > 0) h += `<button class="btn ghost sm" onclick="billingStage('${s.id}','back')">◀</button>`;
     if (i < 2) h += `<button class="btn p sm" onclick="billingStage('${s.id}','${order[i + 1]}')">→ ${lbl[order[i + 1]]}</button>`;
@@ -6301,7 +6301,7 @@ async function billingCompModal(id) {
       <div><label>Taux (optionnel)</label><input id="cpTaux" value="${c.taux != null ? c.taux : ""}" placeholder="ex. 1.2"></div>
       <div><label>Diviseur (HS)</label><input id="cpDiv" value="${c.diviseur != null ? c.diviseur : ""}" placeholder="ex. 173.33"></div>
     </div>
-    <div class="note" style="margin-top:6px">Étape : <b>PRIME</b>entre dans le brut · <b>HORS_CHARGE</b>après charges · <b>PRESTATION</b>composant HT direct · <b>RETENUE</b>déduit du net.</div>
+    <div class="note" style="margin-top:6px">Étape : <b>PRIME</b>entre dans le brut - <b>HORS_CHARGE</b>après charges - <b>PRESTATION</b>composant HT direct - <b>RETENUE</b>déduit du net.</div>
     <div class="err hidden" id="cpErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="billingCompSave('${id || ""}')">Enregistrer</button>
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
@@ -6459,7 +6459,7 @@ async function invLoadDue(){
       <span class="note">éch. ${esc(d.dueDate)}</span><span style="min-width:110px;text-align:right">${fCFA(d.totalDu||d.TTC)}</span>
       <span class="tag ${d.accounting==="posted"?"blue":"amber"}">${etat}</span>
       <button class="btn ghost sm" onclick="invoiceOpen('${d.id}')">Ouvrir</button></div>`; }).join("");
-  box.innerHTML=`<div class="panel" style="border-color:#fdba74;background:#fff7ed"><b style="color:#b45309">⚠ Factures à échéance / échues (${due.length}) — comptable & GPF</b>
+  box.innerHTML=`<div class="panel" style="border-color:#fdba74;background:#fff7ed"><b style="color:#b45309">⚠ Factures à échéance / échues (${due.length}) - comptable & GPF</b>
     <div style="margin-top:6px">${rows}</div></div>`;
 }
 async function invLoadAnnexes() {
@@ -6467,13 +6467,13 @@ async function invLoadAnnexes() {
   const sel = document.getElementById("niAnnexe"); if (!sel) return;
   const sheets = await api("/billing/sheets").catch(() => []);
   const mine = sheets.filter(s => !cid || s.contractId === cid);
-  sel.innerHTML = `<option value="">-</option>` + mine.map(s => `<option value="${s.id}">${esc(s.client)} · ${esc(s.period)} · HT ${fCFA(s.HT)}</option>`).join("");
+  sel.innerHTML = `<option value="">-</option>` + mine.map(s => `<option value="${s.id}">${esc(s.client)} - ${esc(s.period)} - HT ${fCFA(s.HT)}</option>`).join("");
 }
 function invoiceRows(list) {
   if (!list.length) return '<div style="color:var(--muted);padding:12px 4px">Aucune facture.</div>';
   return list.map(v => `<div style="display:flex;align-items:center;gap:12px;padding:11px 6px;border-bottom:1px solid var(--border)">
     <div style="width:36px;height:36px;border-radius:10px;background:var(--nav-active-bg);color:var(--nav-active-color);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:15px"></span></div>
-    <div style="min-width:0;flex:1"><div style="font-weight:600">${esc(v.number || "-")}</div><div style="font-size:12px;color:var(--muted)">${esc(v.client)} · ${esc(v.date || "")}${v.annexeSheetId ? " · annexe" : ""}</div></div>
+    <div style="min-width:0;flex:1"><div style="font-weight:600">${esc(v.number || "-")}</div><div style="font-size:12px;color:var(--muted)">${esc(v.client)} - ${esc(v.date || "")}${v.annexeSheetId ? " - annexe" : ""}</div></div>
     <div style="text-align:right;min-width:90px"><div style="font-size:11px;color:var(--muted)">HT</div><div>${fCFA(v.HT)}</div></div>
     <div style="text-align:right;min-width:100px"><div style="font-size:11px;color:var(--muted)">${v.IS ? "À payer" : "TTC"}</div><div style="font-weight:600">${fCFA(v.IS ? v.totalDu : v.TTC)}</div></div>
     <div style="min-width:74px;text-align:center">${v.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>'}</div>
@@ -6507,7 +6507,7 @@ async function invoiceOpen(id) {
   const sheets = await api("/billing/sheets").catch(() => []);
   const opt = (v, cur) => `<option value="${v}" ${String(cur) === String(v) ? "selected" : ""}>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="invoicesView()">← Factures</button>
-  <h1 style="margin-top:10px">Facture ${esc(INV_EDIT.number || "")} <span style="font-size:13px;color:var(--muted)">· ${esc(INV_EDIT.client || "")}</span>
+  <h1 style="margin-top:10px">Facture ${esc(INV_EDIT.number || "")} <span style="font-size:13px;color:var(--muted)">- ${esc(INV_EDIT.client || "")}</span>
     ${INV_EDIT.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>'}
     ${INV_EDIT.status === "validated" ? (INV_EDIT.accounting === "posted" ? '<span class="tag blue">Comptabilisée</span>' : '<span class="tag amber">En attente réception client</span>') : ""}
     <span style="float:right;display:flex;gap:6px">
@@ -6518,7 +6518,7 @@ async function invoiceOpen(id) {
       ${INV_EDIT.status !== "validated" ? `<button class="btn p sm" onclick="invoiceSave()">Enregistrer</button>` : ""}
       ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
       ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" && ["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn p sm" onclick="invoiceConfirmReceipt()">Confirmer réception client</button>` : ""}</span></h1>
-    ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" ? `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;color:#b45309;margin-bottom:8px">Facture validée mais <b>non comptabilisée</b>. Elle n'entrera en comptabilité qu'après confirmation que le client a reçu la copie (physique ou numérique). Échéance : <b>${esc(INV_EDIT.dueDate||"—")}</b>.</div>` : ""}
+    ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" ? `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;color:#b45309;margin-bottom:8px">Facture validée mais <b>non comptabilisée</b>. Elle n'entrera en comptabilité qu'après confirmation que le client a reçu la copie (physique ou numérique). Échéance : <b>${esc(INV_EDIT.dueDate||"-")}</b>.</div>` : ""}
     ${INV_EDIT.receiptConfirmed ? `<div class="note" style="color:var(--muted);margin-bottom:8px">Réception confirmée (${esc(INV_EDIT.receiptMode||"")}) le ${esc((INV_EDIT.receiptConfirmedAt||"").slice(0,10))} par ${esc(INV_EDIT.receiptConfirmedBy||"")}.</div>` : ""}
   <div class="panel"><b style="font-size:12px;color:var(--muted)">EN-TÊTE</b>
     <div class="grid3" style="margin-top:6px">
@@ -6526,11 +6526,11 @@ async function invoiceOpen(id) {
       <div><label>Bon de commande</label><input id="ivPO" value="${esc(INV_EDIT.bonCommande || "")}"></div>
       <div><label>Date</label><input id="ivDate" type="date" value="${esc(INV_EDIT.date || "")}"></div>
       <div><label>Jours d'échéance</label>${invTermSelect(INV_EDIT.termDays)}</div>
-      <div><label>Date d'échéance ${INV_EDIT.receiptConfirmed ? "(depuis réception)" : "(prévis. — court dès réception client)"}</label><input id="ivDue" type="date" value="${esc(INV_EDIT.dueDate || "")}" title="Calculée à partir de la date de réception/comptabilisation par le client + les jours d'échéance. L'alerte se déclenche à cette date."></div>
+      <div><label>Date d'échéance ${INV_EDIT.receiptConfirmed ? "(depuis réception)" : "(prévis. - court dès réception client)"}</label><input id="ivDue" type="date" value="${esc(INV_EDIT.dueDate || "")}" title="Calculée à partir de la date de réception/comptabilisation par le client + les jours d'échéance. L'alerte se déclenche à cette date."></div>
       <div><label>Journal</label><input id="ivJournal" value="${esc(INV_EDIT.journalId || "")}"></div>
       <div><label>Compte GL</label><input id="ivAcct" value="${esc(INV_EDIT.account || "701100")}"></div>
       <div><label>IS retenue %</label><input id="ivIS" type="number" step="0.1" value="${((INV_EDIT.isRate||0)*100)}" oninput="INV_EDIT.isRate=(Number(this.value)||0)/100;invRenderTotals()" title="0 = pas d'IS"></div>
-      <div><label>Annexe liée (comparaison)</label><select id="ivAnnexe">${`<option value="">-</option>` + sheets.filter(s =>s.contractId === INV_EDIT.contractId).map(s => `${opt(s.id, INV_EDIT.annexeSheetId)}${esc(s.period)} · HT ${fCFA(s.HT)}</option>`).join("")}</select></div>
+      <div><label>Annexe liée (comparaison)</label><select id="ivAnnexe">${`<option value="">-</option>` + sheets.filter(s =>s.contractId === INV_EDIT.contractId).map(s => `${opt(s.id, INV_EDIT.annexeSheetId)}${esc(s.period)} - HT ${fCFA(s.HT)}</option>`).join("")}</select></div>
     </div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">LIGNES DE FACTURE</b>
     <div id="invLines" style="margin-top:6px"></div>
@@ -6584,8 +6584,8 @@ async function invoiceValidate() {
   catch (e) { alert(e.message); }
 }
 async function invoiceConfirmReceipt() {
-  const mode = confirm("Le client a-t-il reçu une COPIE PHYSIQUE ?\n\nOK = physique · Annuler = numérique") ? "physique" : "numerique";
-  const ref = prompt("Référence de la preuve de réception (bordereau, email, accusé) — optionnel :") || "";
+  const mode = confirm("Le client a-t-il reçu une COPIE PHYSIQUE ?\n\nOK = physique - Annuler = numérique") ? "physique" : "numerique";
+  const ref = prompt("Référence de la preuve de réception (bordereau, email, accusé) - optionnel :") || "";
   try { await api("/billing/invoices/" + INV_EDIT.id + "/confirm-receipt", { method: "POST", body: JSON.stringify({ mode, ref }) });
     alert("Réception confirmée. La facture est maintenant comptabilisée."); INV_EDIT = await api("/billing/invoices/" + INV_EDIT.id); invoiceOpen(INV_EDIT.id); }
   catch (e) { alert(e.message); }
@@ -6675,7 +6675,7 @@ async function acctHome() {
   const tierRows=(list)=>list.length? list.map(r=>`<tr><td><code>${esc(r.code)}</code></td><td>${esc(r.name||'')}</td><td class="r">${fCFA(r.solde)}</td><td><button class="btn ghost sm" onclick="acctTiersLedger('${esc(r.code)}')">Relevé</button></td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucun.</td></tr>';
   view.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Comptabilité</h1>
-      ${d.exercice?`<span class="tag ${d.exercice.status==='open'?'green':'gray'}">Exercice ${d.exercice.year} · ${d.exercice.status==='open'?'ouvert':'clôturé'}</span>`:''}</div>
+      ${d.exercice?`<span class="tag ${d.exercice.status==='open'?'green':'gray'}">Exercice ${d.exercice.year} - ${d.exercice.status==='open'?'ouvert':'clôturé'}</span>`:''}</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px">
       ${kpiCard("Résultat (produits − charges)",k.resultat)}
       ${kpiCard("Chiffre d'affaires "+(d.exercice?d.exercice.year:''),k.ca)}
@@ -6856,7 +6856,7 @@ function acctRenderTotals() {
     <span style="color:var(--muted)">Totaux</span> <b>Débit ${fCFA(t.d)}</b> <b>Crédit ${fCFA(t.c)}</b>
     <span style="color:${ok ? 'var(--nav-active-color)' : 'var(--red)'};font-weight:600">${ok ? 'Équilibrée' : 'Solde à équilibrer : ' + fCFA(Math.abs(t.d - t.c))}</span></div>`;
 }
-function acctDLHtml(){ return `<datalist id="acctDL">${(ACCT_ACCOUNTS||[]).map(a=>`<option value="${esc(a.number)}">${esc(a.number)} — ${esc(a.label||"")}</option>`).join("")}</datalist>`; }
+function acctDLHtml(){ return `<datalist id="acctDL">${(ACCT_ACCOUNTS||[]).map(a=>`<option value="${esc(a.number)}">${esc(a.number)} - ${esc(a.label||"")}</option>`).join("")}</datalist>`; }
 async function acctEntryModal(id) {
   await acctLoadRefs();
   ACCT_ENTRY = id ? await api("/accounting/entries/" + id) : { journalCode: window._acctJournal || (ACCT_JOURNALS[0] || {}).code, period: window._acctPeriod || new Date().toISOString().slice(0, 7), date: new Date().toISOString().slice(0, 10), label: "", lines: [{ account: "", thirdParty: "", label: "", debit: 0, credit: 0 }, { account: "", thirdParty: "", label: "", debit: 0, credit: 0 }], status: "draft" };
@@ -7030,7 +7030,7 @@ async function acctCloseExercise(id,year){
 }
 async function acctCloseJournal(){
   const code=(document.getElementById("clJr")||{}).value; const per=(document.getElementById("clPer")||{}).value;
-  if(!confirm("Clôturer (verrouiller) le journal "+code+(per?" · "+per:"")+" ?")) return;
+  if(!confirm("Clôturer (verrouiller) le journal "+code+(per?" - "+per:"")+" ?")) return;
   try{ const r=await api("/accounting/journals/"+code+"/close",{method:"POST",body:JSON.stringify({period:per||undefined})}); alert(r.locked+" écriture(s) verrouillée(s)."); }
   catch(e){ alert(e.message); }
 }
@@ -7195,7 +7195,7 @@ async function acctTiersDelete(id){
 async function acctTiersLedger(tp){
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(tp)).catch(()=>({rows:[]}));
   view.innerHTML=`<button class="btn ghost sm" onclick="acctTiersView()">← Comptes tiers</button>
-    <h1 style="margin-top:10px">Relevé - ${esc(tp)}${d.name?' · '+esc(d.name):''}</h1>
+    <h1 style="margin-top:10px">Relevé - ${esc(tp)}${d.name?' - '+esc(d.name):''}</h1>
     <div class="panel"><table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
       ${d.rows&&d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td>
         <td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td>${esc(r.dueDate||"")}</td><td>${esc(r.lettre||"")}</td>
@@ -7242,7 +7242,7 @@ async function acctSearchRun(keep){
   const d=await api("/accounting/entries-search?"+qs.join("&")).catch(()=>({rows:[]}));
   box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <b>${d.count||0} ligne(s)${d.capped?' - affichage limité à 1000':''}</b>
-      <span class="note">Débit ${fCFA(d.totalDebit||0)} · Crédit ${fCFA(d.totalCredit||0)}</span></div>
+      <span class="note">Débit ${fCFA(d.totalDebit||0)} - Crédit ${fCFA(d.totalCredit||0)}</span></div>
     <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th>Statut</th><th class="r">Débit</th><th class="r">Crédit</th><th></th></tr>
     ${d.rows&&d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td>
       <td><code>${esc(r.account)}</code></td><td>${esc(r.thirdParty||"")}</td><td>${esc(r.label)}</td>
@@ -7312,7 +7312,7 @@ function acctBankRenderRecon(){
       ${ec===null?'<div class="note" style="margin-top:6px">Saisissez le solde du relevé pour calculer l\'écart.</div>':
         `<div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px;color:${ec===0?'var(--nav-active-color)':'var(--red)'}"><span>Écart de rapprochement</span><span>${ec===0?'0 (rapproché)':fCFA(ec)}</span></div>`}
     </div>
-    <div class="note" style="margin-top:6px">Banque pointée ${recon.bankPointed}/${recon.bankCount} · Comptable pointé ${recon.bookPointed}/${recon.bookCount}</div>`;
+    <div class="note" style="margin-top:6px">Banque pointée ${recon.bankPointed}/${recon.bankCount} - Comptable pointé ${recon.bookPointed}/${recon.bookCount}</div>`;
 }
 function acctBankSetClosing(v){ window._bankClosing=window._bankClosing||{}; window._bankClosing[window._BANK.acc]=v; acctBankView(); }
 function acctBankPick(side,id){ window._bankSel=window._bankSel||{}; window._bankSel[side]=(window._bankSel[side]===id?null:id); acctBankRenderPoint(); }
@@ -7472,7 +7472,7 @@ async function acctTiersGL(){
   const box=document.getElementById("etsBox");
   box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><b>Grand-livre des tiers (${d.count||0})</b>
       <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></div>
-    ${(d.groups||[]).map(g=>`<div style="margin-top:12px"><div style="font-weight:600">${esc(g.code)}${g.name?' · '+esc(g.name):''}
+    ${(d.groups||[]).map(g=>`<div style="margin-top:12px"><div style="font-weight:600">${esc(g.code)}${g.name?' - '+esc(g.name):''}
         <span class="tag gray">${esc(g.kind)}</span> <span style="float:right">Solde ${fCFA(g.solde)}</span></div>
       <table style="margin-top:4px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
       ${g.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td>
@@ -7491,7 +7491,7 @@ async function acctTiersReleveTab(){
       <button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div><div id="etsReleveRows">…</div>`;
   if(!cur){ document.getElementById("etsReleveRows").innerHTML='<div class="note">Aucun tiers.</div>'; return; }
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(cur)).catch(()=>({rows:[]}));
-  document.getElementById("etsReleveRows").innerHTML=`<b>${esc(cur)}${d.name?' · '+esc(d.name):''}</b>
+  document.getElementById("etsReleveRows").innerHTML=`<b>${esc(cur)}${d.name?' - '+esc(d.name):''}</b>
     <table style="margin-top:6px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${d.rows&&d.rows.length?d.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td>${esc(r.lettre||'')}</td>
       <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")
@@ -7509,7 +7509,7 @@ function acctPrintWindow(title, bodyHtml){
     table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #bbb;padding:3px 6px;text-align:left}
     th{background:#eee}.r{text-align:right}.tot{font-weight:700}code{font-family:monospace}
     @media print{body{margin:10mm}}</style></head><body>
-    <h1>${esc(acctPrintCompany())}</h1><div class="sub">${title} · édité le ${dt}</div>${bodyHtml}
+    <h1>${esc(acctPrintCompany())}</h1><div class="sub">${title} - édité le ${dt}</div>${bodyHtml}
     <script>window.onload=function(){window.print();}<\/script>
     </body></html>`);
   w.document.close();
@@ -7524,7 +7524,7 @@ function acctTiersPrintBalance(){
 }
 function acctTiersPrintGL(){
   const d=window._etsGL||{groups:[]};
-  const body=(d.groups||[]).map(g=>`<h2>${esc(g.code)}${g.name?' · '+esc(g.name):''} (solde ${fCFA(g.solde)})</h2>
+  const body=(d.groups||[]).map(g=>`<h2>${esc(g.code)}${g.name?' - '+esc(g.name):''} (solde ${fCFA(g.solde)})</h2>
     <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${g.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
     <tr class="tot"><td colspan="5">Total</td><td class="r">${fCFA(g.debit)}</td><td class="r">${fCFA(g.credit)}</td><td class="r">${fCFA(g.solde)}</td></tr></table>`).join("");
@@ -7532,7 +7532,7 @@ function acctTiersPrintGL(){
 }
 async function acctTiersPrintReleve(tp){
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(tp)).catch(()=>({rows:[]}));
-  const body=`<h2>Relevé de compte - ${esc(tp)}${d.name?' · '+esc(d.name):''}</h2>
+  const body=`<h2>Relevé de compte - ${esc(tp)}${d.name?' - '+esc(d.name):''}</h2>
     <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${(d.rows||[]).map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
     <tr class="tot"><td colspan="6">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td><td class="r">${fCFA(d.solde||0)}</td></tr></table>`;
@@ -7609,7 +7609,7 @@ function acctImpBuildMap(){
       <div><label>Ligne d'en-tête</label><input type="number" value="${hr}" style="max-width:70px" ${noHdr?'disabled':''} onchange="window._IMPHR=Number(this.value);acctImpBuildMap()"></div>
       <label class="chk" style="display:flex;gap:5px;align-items:center;margin:0"><input type="checkbox" ${noHdr?'checked':''} onchange="window._IMPNOHDR=this.checked;acctImpBuildMap()" style="width:auto;margin:0">Sans en-tête</label>
       ${cfg.reprise?`<div><label>Date de reprise</label><input type="date" value="${esc(window._IMPDATE||(new Date().getFullYear()+'-01-01'))}" onchange="window._IMPDATE=this.value" style="max-width:150px"></div>`:''}
-      <div class="note" style="align-self:center">${dataCount} ligne(s) de données · ${headers.length} colonne(s)</div></div>
+      <div class="note" style="align-self:center">${dataCount} ligne(s) de données - ${headers.length} colonne(s)</div></div>
     ${noHdr?'<div class="note" style="margin-bottom:6px">Mode sans en-tête : les colonnes sont numérotées, mappez-les manuellement.</div>':''}
     <div class="grid3">${cfg.fields.map(f=>`<div><label>${esc(f.l)}${cfg.required.includes(f.k)?' *':''}</label><select id="imp_${f.k}">${opt(guess(f.kw))}</select></div>`).join("")}</div>
     <div style="margin-top:8px"><button class="btn ghost sm" onclick="acctImpPreview()">Aperçu</button>
@@ -7644,9 +7644,9 @@ async function acctImpDoImport(){
   const body=type==='balance'?{rows:data,date:window._IMPDATE||""}:{rows:data};
   try{ const r=await api(ep,{method:"POST",body:JSON.stringify(body)});
     let msg;
-    if(type==='entries') msg=`${r.imported} écriture(s) importée(s) · ${r.duplicates} doublon(s) ignoré(s)`+ (r.unbalanced?` · ${r.unbalanced} non équilibrée(s) (mises en brouillon)`:'');
-    else if(type==='balance') msg=`${r.accountsCreated} compte(s) créé(s) · écriture d'à-nouveaux de ${r.lines} ligne(s) · ${r.balanced?'équilibrée ('+fCFA(r.totalDebit)+')':'DÉSÉQUILIBRÉE - écart '+fCFA(r.ecart)+' (mise en brouillon)'}`;
-    else msg=`${r.created} créé(s) · ${r.skipped} déjà présent(s)`;
+    if(type==='entries') msg=`${r.imported} écriture(s) importée(s) - ${r.duplicates} doublon(s) ignoré(s)`+ (r.unbalanced?` - ${r.unbalanced} non équilibrée(s) (mises en brouillon)`:'');
+    else if(type==='balance') msg=`${r.accountsCreated} compte(s) créé(s) - écriture d'à-nouveaux de ${r.lines} ligne(s) - ${r.balanced?'équilibrée ('+fCFA(r.totalDebit)+')':'DÉSÉQUILIBRÉE - écart '+fCFA(r.ecart)+' (mise en brouillon)'}`;
+    else msg=`${r.created} créé(s) - ${r.skipped} déjà présent(s)`;
     alert("Import terminé.\n"+msg);
     document.getElementById("impPrevBox").innerHTML=`<div class="panel"><b>Import terminé</b><div class="note" style="margin-top:4px">${esc(msg)}</div></div>`;
   }catch(e){ alert("Erreur : "+e.message); }
@@ -7939,12 +7939,12 @@ const SMQ_DOC_STATUS={brouillon:'<span class="tag gray">Brouillon</span>',verifi
 function smqProcName(id){ const p=(window._SMQ.procs||[]).find(x=>x.id===id); return p?(p.code+" - "+p.intitule):""; }
 
 /* ---------- Tableau de bord ---------- */
-/* ================= Gestion Avancée (G.A.) — listes d'extraction paie ================= */
+/* ================= Gestion Avancée (G.A.) - listes d'extraction paie ================= */
 function gaOpenEdit(id){ window._GAID=id||""; go("gaedit"); }
 function gaOpenRun(id){ window._GAID=id; go("garun"); }
 async function gaView(){
   const list=await api("/ga").catch(()=>[]);
-  view.innerHTML=`<h1>Gestion Avancée — Liste des modèles</h1>
+  view.innerHTML=`<h1>Gestion Avancée - Liste des modèles</h1>
     <div class="note" style="margin-bottom:8px">Modèles d'extraction (listes) alimentés par la paie et le personnel. Type « fixed » = fichier à colonnes de largeur fixe (ex. DIPE magnétique) ; « table » = tableau/Excel.</div>
     <div style="margin-bottom:8px">${["ADM","CD","RJ"].includes(ME.role)?`<button class="btn p" onclick="gaOpenEdit('')">+ Nouveau modèle</button>`:''}</div>
     <div class="panel"><table style="width:100%"><tr><th>Code</th><th>Intitulé</th><th>Type</th><th class="r">Éléments</th><th></th></tr>
@@ -7964,11 +7964,11 @@ async function gaEditView(){
   window._GAFIELDS=(m.fields||[]).map(f=>({label:f.label,source:f.source,taille:f.taille,decimales:f.decimales,colonne:f.colonne!==false}));
   const srcOpts=(cur)=>{
     const grp=(lbl,arr)=>`<optgroup label="${lbl}">${arr.map(x=>`<option value="${esc(x.key)}" ${cur===x.key?"selected":""}>${esc(x.label)}</option>`).join("")}</optgroup>`;
-    return `<option value="">—</option>`+grp("Champs",_GA_SRC.sources)+grp("Rubriques de paie",_GA_SRC.rubriques);
+    return `<option value="">-</option>`+grp("Champs",_GA_SRC.sources)+grp("Rubriques de paie",_GA_SRC.rubriques);
   };
   window._GA_SRCOPTS=srcOpts;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('ga')">← Liste des modèles</button>
-    <h1 style="margin-top:10px">Définition d'une liste ${id?"— GA\\"+esc(m.code):"(nouveau)"}</h1>
+    <h1 style="margin-top:10px">Définition d'une liste ${id?"- GA\\"+esc(m.code):"(nouveau)"}</h1>
     <div class="panel"><div class="grid3">
       <div><label>Code</label><input id="gaCode" value="${esc(m.code||"")}" placeholder="auto (LST000xx)" ${id?"readonly":""}></div>
       <div><label>Intitulé</label><input id="gaInt" value="${esc(m.intitule||"")}"></div>
@@ -7997,7 +7997,7 @@ function gaRenderFields(){
       <td style="text-align:center"><input type="checkbox" ${f.colonne!==false?"checked":""} onchange="window._GAFIELDS[${i}].colonne=this.checked"></td>
       <td style="white-space:nowrap"><button class="btn ghost sm" onclick="gaFieldMove(${i},-1)">↑</button><button class="btn ghost sm" onclick="gaFieldMove(${i},1)">↓</button><button class="btn ghost sm" style="color:var(--red)" onclick="window._GAFIELDS.splice(${i},1);gaRenderFields()">×</button></td></tr>`;
   }).join("");
-  const w=document.getElementById("gaWidth"); if(w) w.textContent=`Nombre d'éléments : ${(window._GAFIELDS||[]).length} · Largeur (ligne) : ${pos-1}`;
+  const w=document.getElementById("gaWidth"); if(w) w.textContent=`Nombre d'éléments : ${(window._GAFIELDS||[]).length} - Largeur (ligne) : ${pos-1}`;
 }
 function gaFieldAdd(){ window._GAFIELDS=window._GAFIELDS||[]; window._GAFIELDS.push({label:"",source:"",taille:12,decimales:0,colonne:true}); gaRenderFields(); }
 function gaFieldMove(i,d){ const a=window._GAFIELDS; const j=i+d; if(j<0||j>=a.length)return; const t=a[i];a[i]=a[j];a[j]=t; gaRenderFields(); }
@@ -8014,7 +8014,7 @@ async function gaRunView(){
   if(window._GAPER===undefined) window._GAPER=periods[0]||new Date().toISOString().slice(0,7);
   const pf=window._GAPF||"";
   view.innerHTML=`<button class="btn ghost sm" onclick="go('ga')">← Liste des modèles</button>
-    <h1 style="margin-top:10px">GA\\${esc(m.code)} — ${esc(m.intitule)}</h1>
+    <h1 style="margin-top:10px">GA\\${esc(m.code)} - ${esc(m.intitule)}</h1>
     <div class="panel"><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
       <div><label>Période</label><select id="gaPer" onchange="window._GAPER=this.value;gaRun('${id}')">${periods.length?periods.map(p=>`<option ${window._GAPER===p?"selected":""}>${p}</option>`).join(""):`<option>${window._GAPER}</option>`}</select></div>
       <div><label>Portefeuille</label><select id="gaPf" onchange="window._GAPF=this.value;gaRun('${id}')"><option value="">Tous</option>${(pfs||[]).map(p=>`<option value="${p.id}" ${pf===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></div>
@@ -8032,7 +8032,7 @@ async function gaRun(id){
   const d=await api("/ga/"+id+"/run?period="+encodeURIComponent(per)+(pf?"&portfolioId="+pf:"")).catch(e=>{if(out)out.innerHTML='<span class="err">'+esc(e.message)+'</span>';return null;});
   if(!d)return;
   const warn = (d.computedCount===0) ? `<div class="note" style="background:var(--red-bg,#fee);border:1px solid #fca5a5;border-radius:8px;padding:8px;margin-bottom:8px">Aucun bulletin calculé pour la période ${esc(d.period)} : les colonnes de paie seront vides. Calculez d'abord la paie de cette période (module Paie), puis relancez.</div>` : "";
-  out.innerHTML=warn+`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>${d.count} ligne(s)</b><span class="note">${d.computedCount||0} bulletin(s) · ${d.type==="fixed"?("Largeur ligne : "+d.largeur):"Table"} · période ${esc(d.period)}</span></div>
+  out.innerHTML=warn+`<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>${d.count} ligne(s)</b><span class="note">${d.computedCount||0} bulletin(s) - ${d.type==="fixed"?("Largeur ligne : "+d.largeur):"Table"} - période ${esc(d.period)}</span></div>
     <div style="overflow:auto"><table style="width:100%;font-size:12px"><tr>${d.columns.map(c=>`<th style="${c.numeric?'text-align:right':''}">${esc(c.label)}</th>`).join("")}</tr>
     ${d.rows.map(r=>`<tr>${r.map((v,i)=>`<td style="${d.columns[i]&&d.columns[i].numeric?'text-align:right':''}">${esc(v==null?"":v)}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${d.columns.length}" class="note">Aucune donnée pour cette période.</td></tr>`}</table></div>`;
 }
@@ -8134,12 +8134,12 @@ async function smqConformiteView(){
         const hasPlan=e.epiDetail&&e.epiDetail.length;
         const epiCell=hasPlan?`<span style="cursor:pointer;text-decoration:underline dotted" onclick="epiToggle('epid_${e.employeeId}')">${e.epiNever?'<span class="tag" style="background:#dc2626;color:#fff">non démarrée</span>':(e.epiPct>=100?flag(true):e.epiPct+'%')}</span>`:flag(true);
         const outstanding=hasPlan?e.epiDetail.filter(l=>l.remaining>0):[];
-        const detRow=outstanding.length?`<tr id="epid_${e.employeeId}" style="display:none"><td colspan="8" style="background:var(--sidebar-bg);font-size:12px"><b>EPI restants à remettre :</b> ${outstanding.map(l=>esc(l.designation)+" ("+l.issued+"/"+l.planned+", reste "+l.remaining+")").join(" · ")}</td></tr>`:"";
+        const detRow=outstanding.length?`<tr id="epid_${e.employeeId}" style="display:none"><td colspan="8" style="background:var(--sidebar-bg);font-size:12px"><b>EPI restants à remettre :</b> ${outstanding.map(l=>esc(l.designation)+" ("+l.issued+"/"+l.planned+", reste "+l.remaining+")").join(" - ")}</td></tr>`:"";
         return `<tr><td><b>${esc(e.name)}</b></td><td>${esc(smqPfName(e.portfolioId))}</td>
         <td>${(e.adminPct!=null&&e.adminPct<100)?e.adminPct+'%':flag(e.adminOk)}</td><td>${(e.medicalPct!=null&&e.medicalPct<100)?e.medicalPct+'%':flag(e.medicalOk)}</td><td>${epiCell}</td><td>${(e.docsValidPctE!=null&&e.docsValidPctE<100)?e.docsValidPctE+'%':flag(e.docsValid)}</td><td>${(e.habsPctE!=null&&e.habsPctE<100)?e.habsPctE+'%':flag(e.habsOk!==false)}</td>
-        <td style="font-size:12px;color:#b45309">${e.issues.map(esc).join(" · ")}</td></tr>${detRow}`;
+        <td style="font-size:12px;color:#b45309">${e.issues.map(esc).join(" - ")}</td></tr>${detRow}`;
       }).join("")||'<tr><td colspan="8" class="note" style="color:#16a34a">Tous les salariés sont conformes.</td></tr>'}</table></div></div>
-    ${(()=>{const ep=(d.perEmployee||[]).filter(e=>e.epiDetail&&e.epiDetail.length&&e.epiPct<100);return ep.length?`<div class="panel"><b>Suivi de la dotation EPI</b><div class="note" style="margin:2px 0 6px">Salariés dont la dotation EPI planifiée n'est pas complète. Le SMQ assure le suivi ; la remise se fait au module Stock.</div><div style="overflow:auto"><table style="width:100%"><tr><th>Salarié</th><th>Portefeuille</th><th>Avancement</th><th>EPI restants</th></tr>${ep.map(e=>`<tr${e.epiNever?' style="background:rgba(220,38,38,.06)"':''}><td><b>${esc(e.name)}</b>${e.epiNever?' <span class="tag" style="background:#dc2626;color:#fff">non démarrée</span>':''}</td><td>${esc(smqPfName(e.portfolioId))}</td><td>${bar(e.epiPct)}</td><td style="font-size:12px">${e.epiDetail.filter(l=>l.remaining>0).map(l=>esc(l.designation)+" (reste "+l.remaining+"/"+l.planned+")").join(" · ")||"—"}</td></tr>`).join("")}</table></div></div>`:"";})()}`;
+    ${(()=>{const ep=(d.perEmployee||[]).filter(e=>e.epiDetail&&e.epiDetail.length&&e.epiPct<100);return ep.length?`<div class="panel"><b>Suivi de la dotation EPI</b><div class="note" style="margin:2px 0 6px">Salariés dont la dotation EPI planifiée n'est pas complète. Le SMQ assure le suivi ; la remise se fait au module Stock.</div><div style="overflow:auto"><table style="width:100%"><tr><th>Salarié</th><th>Portefeuille</th><th>Avancement</th><th>EPI restants</th></tr>${ep.map(e=>`<tr${e.epiNever?' style="background:rgba(220,38,38,.06)"':''}><td><b>${esc(e.name)}</b>${e.epiNever?' <span class="tag" style="background:#dc2626;color:#fff">non démarrée</span>':''}</td><td>${esc(smqPfName(e.portfolioId))}</td><td>${bar(e.epiPct)}</td><td style="font-size:12px">${e.epiDetail.filter(l=>l.remaining>0).map(l=>esc(l.designation)+" (reste "+l.remaining+"/"+l.planned+")").join(" - ")||"-"}</td></tr>`).join("")}</table></div></div>`:"";})()}`;
   const okc=(d.global.conform||0), notc=(d.global.employees||0)-okc;
   if(await ensureChartJs() && window.Chart){
     const dn=document.getElementById("confDonut"); if(dn) new window.Chart(dn,{type:"doughnut",data:{labels:["Conformes","Non conformes"],datasets:[{data:[okc,notc],backgroundColor:["#16a34a","#dc2626"]}]},options:{plugins:{legend:{position:"bottom",labels:{boxWidth:12,font:{size:11}}}},maintainAspectRatio:false}});
@@ -8265,7 +8265,7 @@ async function smqLivret(pid){
     <div class="panel" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div><h1 style="margin:0">${esc(p.code)} - ${esc(p.intitule)}</h1>
-          <div class="note">${SMQ_TYPE[p.type]||""} · Pilote : ${esc(p.piloteName||"-")}${p.coPiloteName?" · Co-pilote : "+esc(p.coPiloteName):""}</div></div>
+          <div class="note">${SMQ_TYPE[p.type]||""} - Pilote : ${esc(p.piloteName||"-")}${p.coPiloteName?" - Co-pilote : "+esc(p.coPiloteName):""}</div></div>
         <button class="btn ghost sm" onclick="smqProcForm('${p.id}')">Modifier</button></div>
       ${p.finalite?`<div style="margin-top:8px"><b>Finalité</b><div>${esc(p.finalite)}</div></div>`:''}
       <div style="margin-top:10px"><b>Objectifs de performance</b>
@@ -8349,14 +8349,14 @@ async function smqDocOpen(id){
     <div class="panel" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div><h1 style="margin:0">${esc(doc.ref)}</h1><div>${esc(doc.titre)}</div>
-          <div class="note">Type ${esc(doc.typeCode)}${doc.processId?" · "+esc(smqProcName(doc.processId)):""} · Version courante ${esc(doc.versionCourante||"")} ${SMQ_DOC_STATUS[doc.statutCourant]||""}</div></div>
+          <div class="note">Type ${esc(doc.typeCode)}${doc.processId?" - "+esc(smqProcName(doc.processId)):""} - Version courante ${esc(doc.versionCourante||"")} ${SMQ_DOC_STATUS[doc.statutCourant]||""}</div></div>
         <button class="btn p sm" onclick="smqDocRevise('${doc.id}')">Nouvelle version</button>
           <button class="btn ghost sm" style="color:var(--red)" onclick="smqDocDelete('${doc.id}')">Supprimer</button></div>
     </div>
     <div class="panel" style="margin-top:10px"><b>Historique des versions</b>
       <table style="margin-top:6px;width:100%"><tr><th>Version</th><th>Réf</th><th>Statut</th><th>Rédacteur</th><th>Modif.</th><th>Résumé</th><th></th></tr>
       ${revs.map(r=>`<tr><td><b>${esc(r.version)}</b></td><td>${esc(r.ref)}</td><td>${SMQ_DOC_STATUS[r.statut]||esc(r.statut)}</td>
-        <td>${esc(r.redacteurName||"")}</td><td>${esc(r.dateModification||"")}</td><td>${esc(r.resumeModif||"")}${r.file?` · <a href="#" onclick="smqDocDownload('${r.id}');return false">${esc(r.file.name||'fichier')}</a>`:''}</td>
+        <td>${esc(r.redacteurName||"")}</td><td>${esc(r.dateModification||"")}</td><td>${esc(r.resumeModif||"")}${r.file?` - <a href="#" onclick="smqDocDownload('${r.id}');return false">${esc(r.file.name||'fichier')}</a>`:''}</td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">${wf(r)}</div></td></tr>`).join("")}</table></div>`;
 }
 async function smqRevAct(rid,act,docId){
@@ -8419,7 +8419,7 @@ async function smqAxesView(){
       <table style="margin-top:6px;width:100%"><tr><th>Code</th><th>Libellé</th><th></th></tr>
       ${axes.sort((a,b)=>(a.ordre||0)-(b.ordre||0)).map(a=>`<tr><td><b>${esc(a.code)}</b></td><td>${esc(a.libelle)}</td><td><button class="btn ghost sm" onclick="smqAxeForm('${a.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqAxeDel('${a.id}')">Suppr.</button></td></tr>`).join("")||'<tr><td colspan="3" class="note">Aucun axe.</td></tr>'}</table></div>
     <div class="panel" style="margin-top:10px"><div style="display:flex;justify-content:space-between"><b>Politique qualité ${cur?"(v"+esc(cur.version)+")":""}</b><button class="btn p sm" onclick="smqPolicyForm()">+ Nouvelle version</button></div>
-      ${cur?`<div style="margin-top:6px;white-space:pre-wrap">${esc(cur.texte||"")}</div><div class="note" style="margin-top:4px">Version ${esc(cur.version)} · ${esc(cur.date||"")}</div>`:'<div class="note" style="margin-top:6px">Aucune politique saisie.</div>'}
+      ${cur?`<div style="margin-top:6px;white-space:pre-wrap">${esc(cur.texte||"")}</div><div class="note" style="margin-top:4px">Version ${esc(cur.version)} - ${esc(cur.date||"")}</div>`:'<div class="note" style="margin-top:6px">Aucune politique saisie.</div>'}
       ${policy.length>1?`<div class="note" style="margin-top:8px">Versions : ${policy.map(p=>esc(p.version)).join(", ")}</div>`:''}</div>`;
 }
 async function smqAxeForm(id){
@@ -8456,7 +8456,7 @@ async function smqStakeholdersView(){
   view.innerHTML=`<h1>Parties intéressées (§4.2)</h1>
     <div style="margin-bottom:8px"><button class="btn p" onclick="smqStkForm()">+ Partie intéressée</button></div>
     <div class="panel"><table style="width:100%"><tr><th>Partie</th><th>Besoins & attentes</th><th>Fréquence de revue</th><th></th></tr>
-      ${rows.map(s=>`<tr><td><b>${esc(s.partie)}</b></td><td>${esc(s.besoins||"")}${s.attentes?" · "+esc(s.attentes):""}</td><td>${esc(s.frequenceRevue||"")}</td>
+      ${rows.map(s=>`<tr><td><b>${esc(s.partie)}</b></td><td>${esc(s.besoins||"")}${s.attentes?" - "+esc(s.attentes):""}</td><td>${esc(s.frequenceRevue||"")}</td>
         <td><button class="btn ghost sm" onclick="smqStkForm('${s.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqStkDel('${s.id}')">Suppr.</button></td></tr>`).join("")||'<tr><td colspan="4" class="note">Aucune partie intéressée.</td></tr>'}</table></div>`;
 }
 async function smqStkForm(id){
@@ -8562,7 +8562,7 @@ async function smqImprovementsView(){
       <table style="margin-top:6px;width:100%"><tr><th>Origine</th><th class="r">Ouverte</th><th class="r">Analyse</th><th class="r">Traitement</th><th class="r">Vérif.</th><th class="r">Clôturée</th><th class="r">Total</th></tr>
       ${sum.origines.filter(o=>sum.grid[o].total>0).map(o=>{const g=sum.grid[o];return `<tr><td>${esc(o)}</td><td class="r">${g.ouverte}</td><td class="r">${g.analyse}</td><td class="r">${g.traitement}</td><td class="r">${g.verification}</td><td class="r">${g.cloturee}</td><td class="r"><b>${g.total}</b></td></tr>`;}).join("")||'<tr><td colspan="7" class="note">Aucune fiche.</td></tr>'}
       <tr style="border-top:2px solid var(--border)"><td><b>TOTAL</b></td><td class="r"><b>${sum.totals.ouverte}</b></td><td class="r"><b>${sum.totals.analyse}</b></td><td class="r"><b>${sum.totals.traitement}</b></td><td class="r"><b>${sum.totals.verification}</b></td><td class="r"><b>${sum.totals.cloturee}</b></td><td class="r"><b>${sum.totals.total}</b></td></tr></table>
-      <div class="note" style="margin-top:4px">${sum.ouvertes} fiche(s) ouverte(s) · ${sum.enRetard} action(s) en retard</div></div>`:''}
+      <div class="note" style="margin-top:4px">${sum.ouvertes} fiche(s) ouverte(s) - ${sum.enRetard} action(s) en retard</div></div>`:''}
     <div class="panel"><table style="width:100%" id="impTable"><tr><th>Réf</th><th>Date</th><th>Origine</th><th>Processus</th><th>Gravité</th><th>Objet</th><th>Statut</th><th></th></tr>
       ${rows.map(r=>smqImpRow(r,procs)).join("")||'<tr><td colspan="8" class="note">Aucune fiche.</td></tr>'}</table></div>`;
   window._IMP_ROWS=rows;
@@ -8666,7 +8666,7 @@ async function smqImpDetail(idv){
     <div class="panel" style="margin-top:10px" id="impDoc">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div><h1 style="margin:0">Fiche d'amélioration ${esc(r.ref)}</h1>
-          <div class="note">${esc(r.date||"")} · ${esc(r.entite||"")} · ${p?esc(p.code+" - "+p.intitule):""} · ${IMP_STATUT_TAG[r.statut]||esc(r.statut)}</div></div>
+          <div class="note">${esc(r.date||"")} - ${esc(r.entite||"")} - ${p?esc(p.code+" - "+p.intitule):""} - ${IMP_STATUT_TAG[r.statut]||esc(r.statut)}</div></div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           <button class="btn ghost sm" onclick="smqImpForm('${r.id}')">Modifier</button>
           <button class="btn ghost sm" onclick="smqImpPrint('${r.id}')">Imprimer</button>
@@ -8677,7 +8677,7 @@ async function smqImpDetail(idv){
       ${sec("Analyse des causes",esc(r.analyseCauses||""))}
       <div style="margin-top:10px"><b>Traitement - plan d'actions</b>
         <table style="margin-top:4px;width:100%"><tr><th>N°</th><th>Action</th><th>Responsable</th><th>Échéance</th><th>Statut</th></tr>${actRows}</table>
-        ${r.actionsProposeesPar?`<div class="note" style="margin-top:2px">Proposées par : ${esc(r.actionsProposeesPar)}${r.visaPilote?" · Visa pilote : "+esc(r.visaPilote):""}</div>`:""}</div>
+        ${r.actionsProposeesPar?`<div class="note" style="margin-top:2px">Proposées par : ${esc(r.actionsProposeesPar)}${r.visaPilote?" - Visa pilote : "+esc(r.visaPilote):""}</div>`:""}</div>
       ${sec("Vérification de l'efficacité",(r.verifResultat?({conforme:"Conforme (efficace)",non_conforme:"Non conforme"})[r.verifResultat]:"")+(r.verifiePar?` <span class="note">- ${esc(r.verifiePar)}${r.verifDate?", "+esc(r.verifDate):""}</span>`:"")+(r.verifCommentaire?"<br>"+esc(r.verifCommentaire):""))}
       ${sec("Analyse des risques & opportunités",(r.roRecurrence?"Récurrence d'un risque identifié. ":"")+esc(r.roNouveaux||""))}
       ${(r.suivantes&&r.suivantes.length)?`<div class="note" style="margin-top:10px">Fiche(s) liée(s) : ${r.suivantes.map(x=>esc(x.ref)).join(", ")}</div>`:''}
@@ -8731,7 +8731,7 @@ async function smqAuditsView(){
       <table style="margin-top:6px;width:100%"><tr><th>Réf</th><th>Type</th><th>Périmètre</th><th>Date prévue</th><th>Statut</th><th>Constats</th><th></th></tr>
       ${byYear[y].map(a=>`<tr><td><b>${esc(a.ref)}</b></td><td>${AUD_TYPE_TAG[a.type]||esc(a.type)}</td><td>${esc(a.perimetre||"")}${a.externalBody?'<div class="note" style="font-size:11px">'+esc(a.externalBody)+'</div>':''}</td>
         <td>${esc(a.plannedDate||"")}</td><td>${AUD_STAT_TAG[a.statut]||esc(a.statut)}</td>
-        <td>${a.nbConstats||0}${a.ncMajeures?` · <span style="color:var(--red)">${a.ncMajeures} NC maj.</span>`:''}${a.ncMineures?` · ${a.ncMineures} NC min.`:''}${a.observations?` · ${a.observations} obs.`:''}</td>
+        <td>${a.nbConstats||0}${a.ncMajeures?` - <span style="color:var(--red)">${a.ncMajeures} NC maj.</span>`:''}${a.ncMineures?` - ${a.ncMineures} NC min.`:''}${a.observations?` - ${a.observations} obs.`:''}</td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap"><button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqAuditOpen('${a.id}')">Ouvrir</button>
           <button class="btn ghost sm" style="padding:2px 7px;font-size:12px" onclick="smqAuditForm('${a.id}')">Modifier</button>
           <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;color:var(--red)" onclick="smqAuditDel('${a.id}')">Suppr.</button></div></td></tr>`).join("")}</table></div>`).join("")||'<div class="panel note">Aucun audit programmé.</div>'}`;
@@ -8777,8 +8777,8 @@ async function smqAuditOpen(idv){
     <div class="panel" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div><h1 style="margin:0">${esc(a.ref)} ${AUD_TYPE_TAG[a.type]||""}</h1>
-          <div class="note">${esc(a.perimetre||"")}${procNames?" · "+esc(procNames):""} · ${esc(a.norme||"")} · ${AUD_STAT_TAG[a.statut]||esc(a.statut)}</div>
-          <div class="note">Prévu : ${esc(a.plannedDate||"-")}${a.realizedDate?" · Réalisé : "+esc(a.realizedDate):""}${a.auditeurs?" · Auditeur(s) : "+esc(a.auditeurs):""}${a.externalBody?" · "+esc(a.externalBody):""}</div></div>
+          <div class="note">${esc(a.perimetre||"")}${procNames?" - "+esc(procNames):""} - ${esc(a.norme||"")} - ${AUD_STAT_TAG[a.statut]||esc(a.statut)}</div>
+          <div class="note">Prévu : ${esc(a.plannedDate||"-")}${a.realizedDate?" - Réalisé : "+esc(a.realizedDate):""}${a.auditeurs?" - Auditeur(s) : "+esc(a.auditeurs):""}${a.externalBody?" - "+esc(a.externalBody):""}</div></div>
         <div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn ghost sm" onclick="smqAuditForm('${a.id}')">Modifier</button><button class="btn ghost sm" onclick="smqAuditPrint('${a.id}')">Rapport</button></div></div>
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <b>Check-list / constats</b>
@@ -8821,8 +8821,8 @@ function smqAuditPrint(idv){
     const w=window.open("","_blank");
     w.document.write(`<html><head><title>Rapport d'audit ${esc(a.ref)}</title><style>body{font-family:Arial;margin:22mm 14mm;font-size:12px;color:#111}table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #999;padding:4px;text-align:left;vertical-align:top}h1{font-size:18px}.note{color:#555}</style></head><body>
       <h1>Rapport d'audit ${esc(a.ref)}</h1>
-      <div class="note">${esc(a.type||"")} · ${esc(a.norme||"")} · Périmètre : ${esc(a.perimetre||"")}</div>
-      <div class="note">Date : ${esc(a.realizedDate||a.plannedDate||"")} · Auditeur(s) : ${esc(a.auditeurs||"")} · Audité(s) : ${esc(a.audites||"")}${a.externalBody?" · "+esc(a.externalBody):""}</div>
+      <div class="note">${esc(a.type||"")} - ${esc(a.norme||"")} - Périmètre : ${esc(a.perimetre||"")}</div>
+      <div class="note">Date : ${esc(a.realizedDate||a.plannedDate||"")} - Auditeur(s) : ${esc(a.auditeurs||"")} - Audité(s) : ${esc(a.audites||"")}${a.externalBody?" - "+esc(a.externalBody):""}</div>
       <table><tr><th>Clause</th><th>Exigence / question</th><th>Conf.</th><th>Preuve</th><th>Constat</th></tr>${rows}</table>
       ${a.conclusion?`<h3>Conclusion</h3><div>${esc(a.conclusion)}</div>`:""}</body></html>`);
     w.document.close(); w.focus(); setTimeout(()=>w.print(),300);
@@ -8859,7 +8859,7 @@ async function smqRisksView(){
         <tr><td></td>${[1,2,3,4].map(i=>`<td style="text-align:center;font-size:11px;color:var(--muted);padding:2px 8px">Impact ${i}</td>`).join("")}</tr>
         ${[4,3,2,1].map(v=>`<tr><td style="font-size:11px;color:var(--muted);padding:2px 8px;white-space:nowrap">Vrais. ${v}</td>${[1,2,3,4].map(i=>{const cell=(matrix.grid[v+"x"+i]||[]);return `<td title="${cell.map(x=>esc(x.ref)).join(', ')}" style="width:64px;height:44px;text-align:center;color:#fff;font-weight:600;border:1px solid #fff;background:${riskCellColor(v,i)}">${cell.length||""}</td>`;}).join("")}</tr>`).join("")}
       </table></div>
-      <div class="note" style="margin-top:4px">Vert = faible · Jaune = moyen · Orange = élevé · Rouge = critique (criticité = V×I).</div></div>
+      <div class="note" style="margin-top:4px">Vert = faible - Jaune = moyen - Orange = élevé - Rouge = critique (criticité = V×I).</div></div>
     ${Object.keys(byProc).map(pid=>{const p=procs.find(x=>x.id===pid);return `<div class="panel" style="margin-bottom:10px"><b>${p?esc(p.code+" - "+p.intitule):"Sans processus"}</b>
       <div style="overflow-x:auto"><table style="margin-top:6px;width:100%;min-width:900px"><tr><th>Réf</th><th>Événement</th><th>Cause</th><th>Effet</th><th class="r">V</th><th class="r">I</th><th class="r">Crit.</th><th class="r">Maîtrise</th><th>Traitement</th><th></th></tr>
       ${byProc[pid].map(r=>smqRiskRow(r)).join("")}</table></div></div>`;}).join("")||'<div class="panel note">Aucun '+(sens==="O"?"opportunité":"risque")+'. Ajoutez-en ou importez depuis vos fichiers « Approche Risque ».</div>'}`;
@@ -8894,7 +8894,7 @@ async function smqRiskForm(idv){
       <div><label>Effet</label><textarea id="rEffet" rows="2">${esc(r.effet||"")}</textarea></div></div>
     <h3 style="margin:10px 0 4px">Évaluation (criticité = V × I)</h3>
     <div class="grid2"><div><label>Vraisemblance</label>${sc("rV",r.vraisemblance,VL)}</div><div><label>Impact</label>${sc("rI",r.impact,IL)}</div></div>
-    <h3 style="margin:10px 0 4px">Maîtrise (Moyens · Compétences · Méthodes)</h3>
+    <h3 style="margin:10px 0 4px">Maîtrise (Moyens - Compétences - Méthodes)</h3>
     <div class="grid3"><div><label>Moyens</label>${sc("rMo",r.maitriseMoyens,ML)}</div><div><label>Compétences</label>${sc("rCo",r.maitriseCompetences,ML)}</div><div><label>Méthodes</label>${sc("rMe",r.maitriseMethodes,ML)}</div></div>
     <h3 style="margin:10px 0 4px">Traitement</h3>
     <div class="grid3"><div><label>Option</label><select id="rTr"><option value="">-</option>${["éviter","réduire","transférer","accepter","saisir"].map(t=>`<option ${r.traitement===t?"selected":""}>${t}</option>`).join("")}</select></div>
@@ -8948,7 +8948,7 @@ async function smqIndicatorsView(){
           <div class="note" style="font-size:11px">${esc(i.modeCalcul||"")}</div>
           <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px">
             <div><span style="font-size:24px;font-weight:700">${i.derniere?esc(String(i.derniere.valeur)):"-"}</span><span class="note" style="font-size:12px">${i.unite?" "+esc(i.unite):""}</span>
-              <div class="note" style="font-size:11px">Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"-")}${i.unite?" "+esc(i.unite):""} · ${esc(i.frequence||"")}${i.source==="auto"?' · <span style="color:var(--accent)">auto</span>':''}</div></div>
+              <div class="note" style="font-size:11px">Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"-")}${i.unite?" "+esc(i.unite):""} - ${esc(i.frequence||"")}${i.source==="auto"?' - <span style="color:var(--accent)">auto</span>':''}</div></div>
             <div style="display:flex;gap:2px">
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqKpiTrend('${i.id}')">Voir</button>
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqMeasureForm('${i.id}')">＋</button>
@@ -8966,7 +8966,7 @@ async function smqKpiTrend(id){
   const i=inds.find(x=>x.id===id)||{};
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:640px"><b>${esc(i.libelle||"Indicateur")}</b>
-    <div class="note">${esc(i.modeCalcul||"")} · Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"-")}${i.unite?" "+esc(i.unite):""}</div>
+    <div class="note">${esc(i.modeCalcul||"")} - Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"-")}${i.unite?" "+esc(i.unite):""}</div>
     <div style="position:relative;height:230px;margin-top:8px"><canvas id="kpiChart"></canvas></div>
     <table style="width:100%;margin-top:8px"><tr><th>Période</th><th class="r">Valeur</th><th>Commentaire</th></tr>
       ${ms.map(m=>`<tr><td>${esc(m.periode)}</td><td class="r">${esc(String(m.valeur))}${i.unite?" "+esc(i.unite):""}</td><td>${esc(m.commentaire||"")}</td></tr>`).join("")||'<tr><td colspan="3" class="note">Aucune mesure.</td></tr>'}</table>
@@ -9042,7 +9042,7 @@ async function smqIndicatorsView(){
           <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px">
             <div><span style="font-size:24px;font-weight:700">${i.derniere?esc(String(i.derniere.valeur)):"-"}</span><span class="note" style="font-size:12px">${i.unite?" "+esc(i.unite):""}</span>
               ${i.derniere&&i.derniere.num!=null&&i.derniere.den!=null?`<span class="note" style="font-size:11px"> (${i.derniere.num}/${i.derniere.den})</span>`:""}
-              <div class="note" style="font-size:11px">Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"-")}${i.unite?" "+esc(i.unite):""} · ${esc(i.frequence||"")}${i.source==="auto"?' · <span style="color:var(--accent)">auto</span>':''}</div></div>
+              <div class="note" style="font-size:11px">Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"-")}${i.unite?" "+esc(i.unite):""} - ${esc(i.frequence||"")}${i.source==="auto"?' - <span style="color:var(--accent)">auto</span>':''}</div></div>
             <div style="display:flex;gap:2px">
               ${i.source==="auto"?`<button class="btn ghost sm" style="padding:2px 6px;font-size:11px" title="Calculer" onclick="smqComputeOne('${i.id}')">Calculer</button>`:''}
               <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqKpiTrend('${i.id}')">Voir</button>
@@ -9057,7 +9057,7 @@ async function smqIndicatorsView(){
 }
 function smqKpiPeriod(){ return (document.getElementById("kpiPeriod")||{}).value||new Date().toISOString().slice(0,7); }
 async function smqComputeOne(id){ try{ const r=await api("/smq/indicators/"+id+"/compute",{method:"POST",body:JSON.stringify({period:smqKpiPeriod()})}); smqIndicatorsView(); }catch(e){ alert(e.message); } }
-async function smqComputeAll(){ try{ const r=await api("/smq/indicators/compute-all",{method:"POST",body:JSON.stringify({period:smqKpiPeriod()})}); alert(r.done+" indicateur(s) calculé(s)"+(r.errors?" · "+r.errors+" erreur(s)":"")+" pour "+r.period+"."); smqIndicatorsView(); }catch(e){ alert(e.message); } }
+async function smqComputeAll(){ try{ const r=await api("/smq/indicators/compute-all",{method:"POST",body:JSON.stringify({period:smqKpiPeriod()})}); alert(r.done+" indicateur(s) calculé(s)"+(r.errors?" - "+r.errors+" erreur(s)":"")+" pour "+r.period+"."); smqIndicatorsView(); }catch(e){ alert(e.message); } }
 async function smqIndForm(id){
   await smqLoadRefs();
   const cat=await smqMetricsCatalog();
@@ -9171,9 +9171,9 @@ async function smqClaimAssign(idv){
   bg.innerHTML=`<div class="modal" style="max-width:520px"><b>Assigner la réclamation ${esc(c.ref||"")}</b>
     <div class="note" style="margin:4px 0 8px">Choisissez le processus concerné puis le pilote responsable du traitement.</div>
     <label>Processus</label><select id="caProc" onchange="smqClaimAssignProc(this.value)">
-      <option value="">— Sélectionner —</option>${procs.map(p=>`<option value="${p.id}" data-pil="${p.piloteUserId||""}" ${c.processId===p.id?"selected":""}>${esc(p.code||"")} · ${esc(p.intitule||"")}${p.piloteName?" ("+esc(p.piloteName)+")":""}</option>`).join("")}</select>
+      <option value="">- Sélectionner -</option>${procs.map(p=>`<option value="${p.id}" data-pil="${p.piloteUserId||""}" ${c.processId===p.id?"selected":""}>${esc(p.code||"")} - ${esc(p.intitule||"")}${p.piloteName?" ("+esc(p.piloteName)+")":""}</option>`).join("")}</select>
     <label>Pilote responsable</label><select id="caPil">
-      <option value="">— Selon le processus —</option>${users.map(u=>`<option value="${u.id}" ${c.piloteUserId===u.id?"selected":""}>${esc(u.fullName||u.email||u.id)}</option>`).join("")}</select>
+      <option value="">- Selon le processus -</option>${users.map(u=>`<option value="${u.id}" ${c.piloteUserId===u.id?"selected":""}>${esc(u.fullName||u.email||u.id)}</option>`).join("")}</select>
     <div class="err hidden" id="caErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqClaimAssignSave('${idv}',this)">Assigner</button></div></div>`;
   bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
@@ -9187,7 +9187,7 @@ async function smqClaimTreat(idv){
   const rows=await api("/smq/claims").catch(()=>[]); const c=rows.find(x=>x.id===idv)||{};
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Traiter la réclamation ${esc(c.ref||"")}</b>
-    <div class="note" style="margin:4px 0 8px">${esc(c.objet||"")}${c.piloteName?" — pilote : "+esc(c.piloteName):""}</div>
+    <div class="note" style="margin:4px 0 8px">${esc(c.objet||"")}${c.piloteName?" - pilote : "+esc(c.piloteName):""}</div>
     <div style="background:var(--sidebar-bg);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;font-size:13px">${esc(c.description||"(pas de description)")}</div>
     <label>Analyse / traitement</label><textarea id="ctTrt" rows="3">${esc(c.traitement||"")}</textarea>
     <label>Réponse au client</label><textarea id="ctRep" rows="2">${esc(c.reponse||"")}</textarea>
@@ -9262,7 +9262,7 @@ async function smqEvalResults(idv){
   const bg=document.createElement("div");bg.className="modal-bg";
   const perQ=Object.keys(d.perQ||{}).map(k=>`<tr><td>${esc(d.perQ[k].label)}</td><td style="text-align:right"><b>${d.perQ[k].moyenne}</b> / ${d.form.scaleMax} <span class="note">(${d.perQ[k].n})</span></td></tr>`).join("");
   const resp=(d.responses||[]).map(r=>`<div style="border-top:1px solid var(--border);padding:8px 0">
-    <div style="display:flex;justify-content:space-between"><b>${esc(r.respondentName||"Anonyme")}</b><span class="note">${esc((r.at||"").slice(0,10))} · ${r.score!=null?r.score+"%":"—"}</span></div>
+    <div style="display:flex;justify-content:space-between"><b>${esc(r.respondentName||"Anonyme")}</b><span class="note">${esc((r.at||"").slice(0,10))} - ${r.score!=null?r.score+"%":"-"}</span></div>
     ${r.targetName?`<div class="note">${esc(r.targetName)}</div>`:""}
     ${(d.form.questions||[]).map(q=>{ const v=(r.answers||{})[q.id]; if(v==null||v==="")return""; return `<div style="font-size:13px;margin-top:3px"><span class="note">${esc(q.label)} :</span> ${q.kind==="rating"?("<b>"+esc(v)+"/"+d.form.scaleMax+"</b>"):esc(v)}</div>`; }).join("")}
     ${r.comment?`<div style="font-size:13px;margin-top:3px;font-style:italic">${esc(r.comment)}</div>`:""}</div>`).join("")||'<div class="note">Aucune réponse pour le moment.</div>';
@@ -9295,12 +9295,12 @@ async function smqActionsView(){
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
       <div class="panel" style="flex:1;min-width:280px"><b>Statut des actions</b><canvas id="acStat" height="150" style="margin-top:8px"></canvas></div>
       <div class="panel" style="flex:1;min-width:280px"><b>Efficacité des actions planifiées</b><canvas id="acEff" height="150" style="margin-top:8px"></canvas>
-        <div class="note" style="margin-top:6px">Conforme ${d.efficacite.conforme} · Non conforme ${d.efficacite.non_conforme} · En attente ${d.efficacite.en_attente}</div></div>
+        <div class="note" style="margin-top:6px">Conforme ${d.efficacite.conforme} - Non conforme ${d.efficacite.non_conforme} - En attente ${d.efficacite.en_attente}</div></div>
     </div>
-    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>Plan d'actions consolidé</b><span class="note">${d.total} action(s) · les retards apparaissent en premier</span></div>
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>Plan d'actions consolidé</b><span class="note">${d.total} action(s) - les retards apparaissent en premier</span></div>
       <div style="overflow:auto;margin-top:6px"><table style="width:100%"><tr><th>Fiche</th><th>Processus</th><th>Action</th><th>Responsable</th><th>Échéance</th><th>Statut</th><th>Efficacité fiche</th></tr>
       ${d.actions.map(a=>`<tr${a.enRetard?' style="background:rgba(220,38,38,.06)"':''}><td><button class="btn ghost sm" style="padding:1px 5px;font-size:12px" onclick="smqImpOpen('${a.ficheId}')">${esc(a.ficheRef)}</button></td>
-        <td class="note">${esc(a.process||"—")}</td><td>${esc(a.libelle)}</td><td>${esc(a.responsable||"")}</td><td>${esc(a.echeance||"")}</td><td>${stTag(a.statut)}</td><td>${effTag(a.efficacite)}</td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucune action planifiée.</td></tr>'}</table></div></div>
+        <td class="note">${esc(a.process||"-")}</td><td>${esc(a.libelle)}</td><td>${esc(a.responsable||"")}</td><td>${esc(a.echeance||"")}</td><td>${stTag(a.statut)}</td><td>${effTag(a.efficacite)}</td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucune action planifiée.</td></tr>'}</table></div></div>
     ${ap?`<h2 style="margin-top:18px">Préparation des audits</h2>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       ${kpi("Audits",ap.total)}${kpi("Planifiés",ap.planifies)}${kpi("Réalisés",ap.realises)}${kpi("NC ouvertes",ap.ncOuvertes,ap.ncOuvertes?"#dc2626":"inherit")}${kpi("NC sans fiche",ap.ncSansFiche,ap.ncSansFiche?"#f97316":"inherit")}
@@ -9308,9 +9308,9 @@ async function smqActionsView(){
     <div class="panel"><b>Programme d'audit</b>
       <div style="overflow:auto;margin-top:6px"><table style="width:100%"><tr><th>Réf</th><th>Objet</th><th>Type</th><th>Date prévue</th><th>Auditeur</th><th>Couverture</th><th>NC</th><th>Statut</th></tr>
       ${ap.audits.map(a=>`<tr><td><button class="btn ghost sm" style="padding:1px 5px;font-size:12px" onclick="go('smqaudits')">${esc(a.ref)}</button></td><td>${esc(a.titre||"")}</td><td>${esc(a.type)}</td><td>${esc(a.datePrevue||"")}</td><td>${esc(a.auditeur||"")}</td>
-        <td>${a.items?(a.couverture+"% ("+a.evalues+"/"+a.items+")"):'<span class="note">—</span>'}</td><td>${a.nc?('<b style="color:#dc2626">'+a.nc+'</b>'+(a.ncMajeures?' ('+a.ncMajeures+' maj.)':'')):"0"}</td>
+        <td>${a.items?(a.couverture+"% ("+a.evalues+"/"+a.items+")"):'<span class="note">-</span>'}</td><td>${a.nc?('<b style="color:#dc2626">'+a.nc+'</b>'+(a.ncMajeures?' ('+a.ncMajeures+' maj.)':'')):"0"}</td>
         <td>${a.statut==="planifie"?'<span class="tag blue">Planifié</span>':(a.statut==="cloture"||a.statut==="realise"?'<span class="tag green">Réalisé</span>':esc(a.statut))}</td></tr>`).join("")||'<tr><td colspan="8" class="note">Aucun audit programmé. Créez-en un dans « Audits internes ».</td></tr>'}</table></div>
-      ${ap.ncSansFiche?`<div class="note" style="margin-top:8px;color:#b45309">${ap.ncSansFiche} non-conformité(s) d'audit sans fiche d'amélioration associée — pensez à ouvrir les CAPA correspondantes.</div>`:""}</div>`:""}`;
+      ${ap.ncSansFiche?`<div class="note" style="margin-top:8px;color:#b45309">${ap.ncSansFiche} non-conformité(s) d'audit sans fiche d'amélioration associée - pensez à ouvrir les CAPA correspondantes.</div>`:""}</div>`:""}`;
   if(await ensureChartJs()&&window.Chart){
     const sc=Object.keys(d.byStatut).filter(k=>d.byStatut[k]>0);
     if(sc.length) new Chart(document.getElementById("acStat"),{type:"bar",data:{labels:sc.map(k=>stLabel[k]||k),datasets:[{data:sc.map(k=>d.byStatut[k]),backgroundColor:sc.map(k=>k==="en_retard"?"#dc2626":k==="cloturee"||k==="verifiee"||k==="faite"?"#16a34a":"#0ea5a4")}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
@@ -9436,13 +9436,13 @@ function smqRevInputsHtml(a){
   const capa=Object.keys(a.fiches.capaByOrigine||{}).filter(o=>a.fiches.capaByOrigine[o].total>0);
   const box=(t,b)=>`<div style="flex:1;min-width:220px;border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--bg)"><b style="font-size:13px">${t}</b><div style="margin-top:4px">${b}</div></div>`;
   return `<div style="display:flex;gap:10px;flex-wrap:wrap">
-    ${box("Fiches d'amélioration (CAPA)",`${a.fiches.total} au total · <b>${a.fiches.ouvertes}</b>ouvertes · ${a.fiches.actionsRetard} action(s) en retard`+
+    ${box("Fiches d'amélioration (CAPA)",`${a.fiches.total} au total - <b>${a.fiches.ouvertes}</b>ouvertes - ${a.fiches.actionsRetard} action(s) en retard`+
       (capa.length?`<table style="margin-top:4px;width:100%"><tr><th>Origine</th><th class="r">Total</th><th class="r">Clôt.</th></tr>${capa.map(o=>`<tr><td>${esc(o)}</td><td class="r">${a.fiches.capaByOrigine[o].total}</td><td class="r">${a.fiches.capaByOrigine[o].cloturee}</td></tr>`).join("")}</table>`:''))}
-    ${box("Audits",`${a.audits.total} audit(s) · ${a.audits.realises} réalisé(s)<br><span style="color:var(--red)">${a.audits.ncMajeures} NC majeures</span> · ${a.audits.ncMineures} NC mineures · ${a.audits.observations} obs.`)}
-    ${box("Risques",`${a.risques.total} risque(s) · <b>${a.risques.prioritaires}</b>prioritaires<br>Critiques ${a.risques.band.critique} · Élevés ${a.risques.band.eleve} · Moyens ${a.risques.band.moyen} · Faibles ${a.risques.band.faible}`)}
-    ${box("Indicateurs",`${a.indicateurs.total} KPI · <span style="color:#16a34a">●</span> ${a.indicateurs.feux.vert} <span style="color:#f97316">●</span> ${a.indicateurs.feux.orange} <span style="color:#dc2626">●</span> ${a.indicateurs.feux.rouge} <span style="color:#9ca3af">●</span> ${a.indicateurs.feux.gris}`)}
+    ${box("Audits",`${a.audits.total} audit(s) - ${a.audits.realises} réalisé(s)<br><span style="color:var(--red)">${a.audits.ncMajeures} NC majeures</span> - ${a.audits.ncMineures} NC mineures - ${a.audits.observations} obs.`)}
+    ${box("Risques",`${a.risques.total} risque(s) - <b>${a.risques.prioritaires}</b>prioritaires<br>Critiques ${a.risques.band.critique} - Élevés ${a.risques.band.eleve} - Moyens ${a.risques.band.moyen} - Faibles ${a.risques.band.faible}`)}
+    ${box("Indicateurs",`${a.indicateurs.total} KPI - <span style="color:#16a34a">●</span> ${a.indicateurs.feux.vert} <span style="color:#f97316">●</span> ${a.indicateurs.feux.orange} <span style="color:#dc2626">●</span> ${a.indicateurs.feux.rouge} <span style="color:#9ca3af">●</span> ${a.indicateurs.feux.gris}`)}
     ${a.satisfaction?box("Écoute client",`Satisfaction moyenne <b>${a.satisfaction.moyenne}%</b> (${a.satisfaction.total})<br>Réclamations : ${a.reclamations.ouvertes} ouverte(s) / ${a.reclamations.total}`):''}
-    ${a.competences?box("Ressources",`Compétences : ${a.competences.ecarts} écart(s) · ${a.competences.habilitationsExpirees} habilit. expirée(s)<br>Fournisseurs agréés : ${a.fournisseurs.agrees}/${a.fournisseurs.total} · Équip. à étalonner : ${a.equipements.aEtalonner}`):''}
+    ${a.competences?box("Ressources",`Compétences : ${a.competences.ecarts} écart(s) - ${a.competences.habilitationsExpirees} habilit. expirée(s)<br>Fournisseurs agréés : ${a.fournisseurs.agrees}/${a.fournisseurs.total} - Équip. à étalonner : ${a.equipements.aEtalonner}`):''}
   </div>`;
 }
 async function smqReviewsView(){
@@ -9499,7 +9499,7 @@ async function smqReviewOpen(idv){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('smqreviews')">← Revues</button>
     <div class="panel" style="margin-top:10px" id="revDoc">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div><h1 style="margin:0">${esc(r.ref)}</h1><div class="note">${r.scope==="processus"?"Revue de processus"+(p?" - "+esc(p.code+" "+p.intitule):""):"Revue de direction"} · ${esc(r.date||"")}${r.participants?" · "+esc(r.participants):""}</div></div>
+        <div><h1 style="margin:0">${esc(r.ref)}</h1><div class="note">${r.scope==="processus"?"Revue de processus"+(p?" - "+esc(p.code+" "+p.intitule):""):"Revue de direction"} - ${esc(r.date||"")}${r.participants?" - "+esc(r.participants):""}</div></div>
         <button class="btn ghost sm" onclick="smqReviewPrint()">Imprimer</button></div>
       <h3 style="margin:12px 0 6px">Données d'entrée</h3>${smqRevInputsHtml(r.inputs)}
       <h3 style="margin:14px 0 4px">Décisions</h3><ul style="margin:0">${(r.decisions||[]).map(d=>`<li>${esc(d)}</li>`).join("")||'<li class="note">-</li>'}</ul>
@@ -9664,7 +9664,7 @@ async function smqTdbOpen(idv){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('smqtdb')">← Tableaux de bord</button>
     <div class="panel" style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
-        <div><h1 style="margin:0">${esc(t.titre||'')} - ${esc(p?p.code:'')} · ${t.annee}</h1>
+        <div><h1 style="margin:0">${esc(t.titre||'')} - ${esc(p?p.code:'')} - ${t.annee}</h1>
           <div class="note">${p?esc(p.intitule):''}</div></div>
         <div style="text-align:center"><div class="note">Performance globale</div>
           <div style="font-size:26px;font-weight:700;color:${TDB_FEU[c.performanceFeu]}">${c.performance==null?'-':Math.round(c.performance*1000)/10+'%'} ${feu(c.performanceFeu)}</div></div>
@@ -9681,7 +9681,7 @@ async function smqTdbOpen(idv){
           ${i.monthly.map(v=>`<td class="r">${fmt(v)}</td>`).join("")}
           <td class="r">${i.cible!=null?fmt(i.cible):esc(i.cibleTexte||'-')}</td><td class="r"><b>${ok?fmt(i.result):'<span class="note">-</span>'}</b></td><td style="text-align:center">${feu(i.feu)}</td></tr>`;}).join("")||'<tr><td colspan="16" class="note">Aucun indicateur. '+(d.canEditDef?'Ouvrez « Définition ».':'')+'</td></tr>'}
       </table></div>
-      <div class="note" style="margin-top:6px">≥ cible · proche · loin de la cible. Le pilote saisit les données de base ; les formules ne sont pas modifiables par le pilote.</div>
+      <div class="note" style="margin-top:6px">≥ cible - proche - loin de la cible. Le pilote saisit les données de base ; les formules ne sont pas modifiables par le pilote.</div>
       <div id="tdbChartWrap" style="margin-top:12px;display:none"></div>
     </div>`;
 }
@@ -9857,7 +9857,7 @@ async function smqWorkspaceView(){
     ${d.processes.length?d.processes.map(p=>`<div class="panel" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center">
         <div><b style="font-size:16px">${esc(p.code)} - ${esc(p.intitule)}</b>
-          <div class="note">${p.piloteName?'Pilote : '+esc(p.piloteName):''}${p.coPiloteName?' · Co-pilote : '+esc(p.coPiloteName):''}${p.statut==='sommeil'?' · <span class="tag gray">En sommeil</span>':''}</div></div>
+          <div class="note">${p.piloteName?'Pilote : '+esc(p.piloteName):''}${p.coPiloteName?' - Co-pilote : '+esc(p.coPiloteName):''}${p.statut==='sommeil'?' - <span class="tag gray">En sommeil</span>':''}</div></div>
         <button class="btn ghost sm" onclick="smqLivret('${p.id}')">Livret du processus</button></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         ${tile('','Documents',p.documents,"go('smqdocs')")}
@@ -9867,7 +9867,7 @@ async function smqWorkspaceView(){
         ${tile('','Plan d amélioration',p.ameliorations,"go('smqimprovements')",'#f97316')}
         ${tile('','Tableau de bord',p.tdb,"go('smqtdb')")}
         ${tile('','Objectifs',p.objectifs,"smqLivret('"+p.id+"')")}</div>
-      ${Object.keys(p.docsByType||{}).length?`<div class="note" style="margin-top:6px">Documents : ${Object.keys(p.docsByType).map(k=>esc(k)+' ('+p.docsByType[k]+')').join(' · ')}</div>`:''}
+      ${Object.keys(p.docsByType||{}).length?`<div class="note" style="margin-top:6px">Documents : ${Object.keys(p.docsByType).map(k=>esc(k)+' ('+p.docsByType[k]+')').join(' - ')}</div>`:''}
     </div>`).join(""):'<div class="panel note">Aucun processus ne vous est attribué. Contactez le responsable SMQ ou administrateur.</div>'}`;
 }
 
@@ -9920,7 +9920,7 @@ async function epiFiche(employeeId){
 async function epiHistory(employeeId,name){
   const rows=await api("/stock/epi/issues?employeeId="+employeeId).catch(()=>[]);
   const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:600px"><b>Historique des remises — ${esc(name||"")}</b>
+  bg.innerHTML=`<div class="modal" style="max-width:600px"><b>Historique des remises - ${esc(name||"")}</b>
     <div class="note" style="margin:4px 0 8px">Corrigez ou supprimez une remise en cas d'erreur. Le stock du produit lié est réajusté automatiquement.</div>
     <div style="max-height:360px;overflow:auto"><table style="width:100%"><tr><th>Date</th><th>EPI</th><th class="r">Qté</th><th></th></tr>
       ${rows.length?rows.map(r=>`<tr><td>${esc((r.date||"").slice(0,10))}</td><td>${esc(r.productName||r.designation||"")}</td><td class="r">${r.quantity}</td>
@@ -10479,7 +10479,7 @@ function stkImpPreview(type){
 async function stkImpDo(type){
   const data=stkImpCollect(type); if(!data.length){ alert("Aucune ligne exploitable - vérifiez le mapping et les colonnes obligatoires (*)."); return; }
   try{ const r=await api(STOCK_IMP[type].ep,{method:"POST",body:JSON.stringify({rows:data})});
-    const msg=type==="produits"?`${r.created} produit(s) créé(s) · ${r.skipped} ignoré(s)`:`${r.updated} produit(s) mis à jour · ${r.unchanged||0} inchangé(s) · ${r.notfound} introuvable(s)`;
+    const msg=type==="produits"?`${r.created} produit(s) créé(s) - ${r.skipped} ignoré(s)`:`${r.updated} produit(s) mis à jour - ${r.unchanged||0} inchangé(s) - ${r.notfound} introuvable(s)`;
     alert("Import terminé.\n"+msg); document.getElementById("siPrev").innerHTML=`<div class="panel"><b>Import terminé</b><div class="note">${esc(msg)}</div></div>`; }
   catch(e){ alert("Erreur : "+e.message); }
 }
@@ -10557,7 +10557,7 @@ function plSearchRender(){
   if(!q){ box.innerHTML=""; return; }
   const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
   const sk=['so','sale','quote','salesreturn'].includes(window._PLKIND);
-  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="plAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">${fCFA(sk?(p.salePrice||0):(p.purchasePrice||0))} · stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit trouvé. <a onclick="plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._plQ)} »</a></div>`}</div>`;
+  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="plAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">${fCFA(sk?(p.salePrice||0):(p.purchasePrice||0))} - stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit trouvé. <a onclick="plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._plQ)} »</a></div>`}</div>`;
 }
 function plAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); if(!p) return;
   const sk=['so','sale','quote','salesreturn'].includes(window._PLKIND); const price=sk?(p.salePrice||0):(p.purchasePrice||0);
@@ -10726,7 +10726,7 @@ async function stockPurchaseForm(poId, editId){
       <div><label>Lieu d'affaires</label><select id="puLoc"><option value="">Veuillez sélectionner</option>${locOpt}</select></div>
       <div><label>Conditions de paiement</label><input id="puTerms"></div>
       <div><label>Joindre un document (≤5 Mo)</label><input type="file" id="puFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_puAttach')"></div>
-      <div style="grid-column:1/3"><label>Bon de commande (charger les produits)</label><select id="puPO" onchange="stockPurchaseLoadPO(this.value)"><option value="">- aucun -</option>${pos.map(po=>`<option value="${po.id}">${esc(po.ref)} - ${esc(stSupName(po.supplierId))} · reste ${po.remaining}</option>`).join("")}</select></div>
+      <div style="grid-column:1/3"><label>Bon de commande (charger les produits)</label><select id="puPO" onchange="stockPurchaseLoadPO(this.value)"><option value="">- aucun -</option>${pos.map(po=>`<option value="${po.id}">${esc(po.ref)} - ${esc(stSupName(po.supplierId))} - reste ${po.remaining}</option>`).join("")}</select></div>
     </div></div>
     <div class="panel"><div id="puLines"></div>
       <div style="text-align:right;margin-top:6px"><span class="note">Articles au total :</span> <b id="puArtQty">0</b> &nbsp; <span class="note">Montant total net :</span> <b id="puSubV">0</b></div></div>
@@ -10789,7 +10789,7 @@ function puAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); i
   window._puQ=""; puRender(); }
 function puSearchRender(){ const box=document.getElementById("puSearchRes"); if(!box) return; const q=(window._puQ||"").toLowerCase().trim(); if(!q){box.innerHTML="";return;}
   const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
-  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="puAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">achat ${fCFA(p.purchasePrice)} · stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=puAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._puQ)} »</a></div>`}</div>`; }
+  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="puAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">achat ${fCFA(p.purchasePrice)} - stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=puAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._puQ)} »</a></div>`}</div>`; }
 function puSearchAddFirst(){ const q=(window._puQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) puAddProduct(r.id); }
 function puQuickSupplier(){ const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="width:400px"><h3 style="margin:0 0 8px">Nouveau fournisseur</h3>
@@ -10960,7 +10960,7 @@ async function stockSaleForm(editId){
       <div><label>Adresse de facturation</label><input id="saAddr" disabled></div>
       <div><label>Conditions de paiement</label><input id="saTerms"></div>
       <div><label>Joindre un document (≤5 Mo)</label><input type="file" id="saFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_saAttach')"></div>
-      <div><label>Commande client (charger)</label><select id="saSO" onchange="stockSaleLoadSO(this.value)"><option value="">- aucune -</option>${sos.map(o=>`<option value="${o.id}">${esc(o.ref)} - ${esc(stCustName(o.customerId))} · reste ${o.remaining}</option>`).join("")}</select></div>
+      <div><label>Commande client (charger)</label><select id="saSO" onchange="stockSaleLoadSO(this.value)"><option value="">- aucune -</option>${sos.map(o=>`<option value="${o.id}">${esc(o.ref)} - ${esc(stCustName(o.customerId))} - reste ${o.remaining}</option>`).join("")}</select></div>
     </div></div>
     <div class="panel"><div id="suLines"></div>
       <div style="text-align:right;margin-top:6px"><span class="note">Articles au total :</span> <b id="suArtQty">0</b> &nbsp; <span class="note">Montant total net :</span> <b id="suSubV">0</b></div></div>
@@ -11027,7 +11027,7 @@ function suAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); i
   window._suQ=""; suRender(); }
 function suSearchRender(){ const box=document.getElementById("suSearchRes"); if(!box) return; const q=(window._suQ||"").toLowerCase().trim(); if(!q){box.innerHTML="";return;}
   const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
-  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="suAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">vente ${fCFA(p.salePrice)} · stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=suAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._suQ)} »</a></div>`}</div>`; }
+  box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="suAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">vente ${fCFA(p.salePrice)} - stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=suAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._suQ)} »</a></div>`}</div>`; }
 function suSearchAddFirst(){ const q=(window._suQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) suAddProduct(r.id); }
 function suQuickClient(){ const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="width:400px"><h3 style="margin:0 0 8px">Nouveau client</h3>
@@ -11137,7 +11137,7 @@ function stockPOSRender(){
     <div class="grid2" style="align-items:start">
       <div class="panel"><input placeholder="Rechercher produit / SKU…" value="${esc(window._posQ||'')}" oninput="window._posQ=this.value;stockPOSRender()" style="margin:0 0 8px;width:100%">
         <div style="display:flex;flex-wrap:wrap;gap:8px;max-height:56vh;overflow:auto">
-        ${shown.length?shown.slice(0,60).map(p=>`<button class="btn ghost" style="flex:0 0 auto;text-align:left;min-width:150px" onclick="stockPOSAdd('${p.id}')"><div style="font-weight:600;font-size:12px">${esc(p.name)}</div><div class="note">${fCFA(p.salePrice)} · stock ${stkQty(p.qty)}</div></button>`).join(""):'<span class="note">Aucun produit.</span>'}</div></div>
+        ${shown.length?shown.slice(0,60).map(p=>`<button class="btn ghost" style="flex:0 0 auto;text-align:left;min-width:150px" onclick="stockPOSAdd('${p.id}')"><div style="font-weight:600;font-size:12px">${esc(p.name)}</div><div class="note">${fCFA(p.salePrice)} - stock ${stkQty(p.qty)}</div></button>`).join(""):'<span class="note">Aucun produit.</span>'}</div></div>
       <div class="panel"><b>Panier</b>
         <div style="margin:6px 0"><select id="posCust" style="width:100%"><option value="">Client - comptant</option>${clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></div>
         <table><tr><th>Produit</th><th class="r">PU</th><th class="r">Qté</th><th class="r">Total</th><th></th></tr>

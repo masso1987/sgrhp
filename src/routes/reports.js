@@ -1,5 +1,5 @@
 /**
- * M6 — Analytics & Reporting (§7.2, §7.3).
+ * M6 - Analytics & Reporting (§7.2, §7.3).
  * KPIs, user-evaluation indicators derived from the audit/workflow logs,
  * CNPS & labour-law compliance report, all exportable to PDF and Excel.
  */
@@ -13,7 +13,7 @@ const { audit } = require("../audit");
 const { elapsedBusinessHours } = require("../businessHours");
 
 const days = (d) => Math.ceil((new Date(d) - Date.now()) / 86400e3);
-const fr = (d) => d ? new Date(d).toLocaleDateString("fr-FR") : "—";
+const fr = (d) => d ? new Date(d).toLocaleDateString("fr-FR") : "-";
 const monthsBetween = (a, b) => (new Date(b) - new Date(a)) / (30.44 * 86400e3);
 
 /* ---------------- KPI computation ---------------- */
@@ -55,9 +55,9 @@ function kpis(req) {
   const byPortfolio = mine(db.portfolios, req).map(p => ({ name: p.name,
     count: emps.filter(e => e.portfolioId === p.id).length }));
   const byContract = {};
-  for (const e of emps) { const t = e.contract?.type || "—"; byContract[t] = (byContract[t] || 0) + 1; }
+  for (const e of emps) { const t = e.contract?.type || "-"; byContract[t] = (byContract[t] || 0) + 1; }
   const byCategory = {};
-  for (const e of emps) { const c = e.contract?.category || "—"; byCategory[c] = (byCategory[c] || 0) + 1; }
+  for (const e of emps) { const c = e.contract?.category || "-"; byCategory[c] = (byCategory[c] || 0) + 1; }
 
   return { headcount, payroll, turnover, absenteeism, leaveDays, buckets, byPortfolio, byContract, byCategory,
     generatedDocs: mine(db.documents, req).filter(d => d.status === "GENERATED").length };
@@ -82,7 +82,7 @@ function evaluation(req) {
         rejected: rejectedDocs.length,
         rejectionRate: submitted ? Math.round(rejectedDocs.length / submitted * 1000) / 10 : 0,
         resubmissions: myDocs.reduce((s, d) => s + Math.max(0, (d.cycle || 1) - 1), 0),
-        topRejectReason: top ? `${top[0]} (${top[1]}×)` : "—",
+        topRejectReason: top ? `${top[0]} (${top[1]}×)` : "-",
         avgDelayH: null, breaches: null });
     }
     if (["CD", "RJ"].includes(u.role)) {
@@ -92,7 +92,7 @@ function evaluation(req) {
       const avg = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
       rows.push({ user: u.fullName, role: u.role, submitted: null, rejected: decided.filter(s => s.decision === "REJECTED").length,
         rejectionRate: decided.length ? Math.round(decided.filter(s => s.decision === "REJECTED").length / decided.length * 1000) / 10 : 0,
-        resubmissions: null, topRejectReason: "—",
+        resubmissions: null, topRejectReason: "-",
         decided: decided.length, avgDelayH: avg, breaches: steps.filter(s => s.breachedAt).length });
     }
   }
@@ -104,7 +104,7 @@ function compliance(req) {
   const issues = [];
   for (const e of mine(db.employees, req)) {
     const name = `${e.firstName} ${e.lastName}`;
-    if (!e.cnpsNumber) issues.push({ employee: name, severity: "HIGH", issue: "Numéro CNPS manquant — affiliation à régulariser" });
+    if (!e.cnpsNumber) issues.push({ employee: name, severity: "HIGH", issue: "Numéro CNPS manquant - affiliation à régulariser" });
     if (!e.cniExpiry || days(e.cniExpiry) < 0) issues.push({ employee: name, severity: "HIGH", issue: `CNI expirée (${fr(e.cniExpiry)})` });
     else if (days(e.cniExpiry) <= 60) issues.push({ employee: name, severity: "MEDIUM", issue: `CNI expire dans ${days(e.cniExpiry)} jours` });
     const pf = mine(db.portfolios, req).find(p => p.id === e.portfolioId);
@@ -114,7 +114,7 @@ function compliance(req) {
     const med = mine(db.files, req).find(f => f.employeeId === e.id && f.docType === "XVI");
     if (!med) issues.push({ employee: name, severity: "LOW", issue: "Aucune visite médicale enregistrée" });
     if (e.contract?.type && e.contract.endDate && days(e.contract.endDate) <= 30 && days(e.contract.endDate) >= 0)
-      issues.push({ employee: name, severity: "MEDIUM", issue: `Contrat à durée déterminée expirant le ${fr(e.contract.endDate)} — décision de renouvellement requise` });
+      issues.push({ employee: name, severity: "MEDIUM", issue: `Contrat à durée déterminée expirant le ${fr(e.contract.endDate)} - décision de renouvellement requise` });
     if (!e.contract?.category) issues.push({ employee: name, severity: "LOW", issue: "Catégorie conventionnelle non renseignée" });
   }
   const score = mine(db.employees, req).length
@@ -150,10 +150,10 @@ const REPORTS = {
     return mine(db.employees, req).map(e => {
       const pf = mine(db.portfolios, req).find(p => p.id === e.portfolioId);
       const cnv = mine(db.conventions, req).find(c => c.id === pf?.conventionId);
-      return { nom: `${e.firstName} ${e.lastName}`, portefeuille: pf?.name || "—",
-        convention: cnv?.name || "—", contrat: e.contract?.type || "—",
-        categorie: e.contract?.category || "—", embauche: fr(e.hireDate),
-        cnps: e.cnpsNumber || "—", cni: e.cniNumber };
+      return { nom: `${e.firstName} ${e.lastName}`, portefeuille: pf?.name || "-",
+        convention: cnv?.name || "-", contrat: e.contract?.type || "-",
+        categorie: e.contract?.category || "-", embauche: fr(e.hireDate),
+        cnps: e.cnpsNumber || "-", cni: e.cniNumber };
     });
   } },
 };
@@ -254,9 +254,9 @@ function toSheets(key, d) {
     "Anomalies": d.issues.map(i => ({ Employé: i.employee, Gravité: i.severity, Anomalie: i.issue })),
   };
   if (key === "evaluation") return { "Évaluation utilisateurs": d.map(r => ({
-    Utilisateur: r.user, Rôle: r.role, Soumis: r.submitted ?? "—", Décidés: r.decided ?? "—",
-    Rejets: r.rejected, "Taux rejet %": r.rejectionRate, Resoumissions: r.resubmissions ?? "—",
-    "Délai moyen (h)": r.avgDelayH ?? "—", "Dépassements 48h": r.breaches ?? "—",
+    Utilisateur: r.user, Rôle: r.role, Soumis: r.submitted ?? "-", Décidés: r.decided ?? "-",
+    Rejets: r.rejected, "Taux rejet %": r.rejectionRate, Resoumissions: r.resubmissions ?? "-",
+    "Délai moyen (h)": r.avgDelayH ?? "-", "Dépassements 48h": r.breaches ?? "-",
     "Motif récurrent": r.topRejectReason })) };
   if (key === "sla") return { "Délais de validation": d.map(r => ({
     Document: r.document, Étape: r.stage, Cycle: r.cycle, Assigné: r.assigned,

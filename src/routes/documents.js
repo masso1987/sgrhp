@@ -23,7 +23,7 @@ router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   res.json(list.reverse());
 });
 
-// Generated documents — visible to EVERY role once the workflow is complete (§5.2).
+// Generated documents - visible to EVERY role once the workflow is complete (§5.2).
 // Each entry is linked to its employee so any account can find it by person.
 router.get("/generated", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   const list = db.documents
@@ -77,7 +77,7 @@ router.post("/:id/reject", allow("CD", "RJ", "RQ", "ADM"), (req, res, next) => {
   try { res.json(wf.reject(req.params.id, req.user, req.body?.reason)); } catch (e) { next(e); }
 });
 
-// Print/download a generated document — every role may consult it once generated.
+// Print/download a generated document - every role may consult it once generated.
 // Still fully logged: who, when, which, print vs download (§5.2 step 4).
 router.get("/:id/download", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   const d = mine(db.documents, req).find(x => x.id === req.params.id);

@@ -1,5 +1,5 @@
 /**
- * M5 — Career & Performance (§6).
+ * M5 - Career & Performance (§6).
  * 6.1 Career plans (preferences, potential matrix, career paths, trainings) + predictive matching
  * 6.2 OKR, 360° evaluations, digital interviews with e-signature, regular check-ins
  * 6.3 Succession plans (key positions, successor readiness)
@@ -41,7 +41,7 @@ router.put("/plans/:employeeId", allow("GPF", "CD", "ADM"), (req, res) => {
   res.json(p);
 });
 
-/* Career paths (templates) — ADM */
+/* Career paths (templates) - ADM */
 router.get("/paths", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json(mine(db.careerPaths, req)));
 router.post("/paths", allow("ADM"), (req, res) => {
   const { name, stages } = req.body || {};

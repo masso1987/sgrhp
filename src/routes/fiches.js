@@ -1,5 +1,5 @@
 /**
- * §3.1 — Fiches de Poste: direct upload (PDF or Excel), automatic extraction of
+ * §3.1 - Fiches de Poste: direct upload (PDF or Excel), automatic extraction of
  * profil, missions, activités, avantages, risques & pénibilités.
  * Upload allowed to GPF, CD, ADM (and RJ for review reads).
  */
@@ -35,7 +35,7 @@ function extractSections(text) {
   const out = {}; let current = null;
   for (const line of lines) {
     const head = SECTIONS.find(([k, rx]) =>
-      line.length < 80 && rx.test(line) && line.replace(rx, "").replace(/[\s:—\-–.]/g, "").length < 25);
+      line.length < 80 && rx.test(line) && line.replace(rx, "").replace(/[\s:.\-]/g, "").length < 25);
     if (head) { current = head[0]; out[current] = out[current] || []; continue; }
     if (current) out[current].push(line);
   }
@@ -56,7 +56,7 @@ async function textOf(filePath, name) {
       const bits = [...raw.matchAll(/\(((?:[^()\\]|\\.)+)\)\s*Tj/g)].map(m =>
         m[1].replace(/\\([()\\])/g, "$1"));
       if (bits.length) return bits.join("\n");
-      throw Object.assign(new Error("Unable to read this PDF — please upload a text-based PDF or Excel"), { status: 400 });
+      throw Object.assign(new Error("Unable to read this PDF - please upload a text-based PDF or Excel"), { status: 400 });
     }
   }
   if (/\.(xlsx|xls|csv)$/i.test(name)) {

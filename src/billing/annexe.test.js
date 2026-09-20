@@ -1,5 +1,5 @@
 const { computeRow, computeAnnexe } = require("./annexe");
-// CIMPOR MAD — reproduce AZAMBO (row 1) to the franc from the real annexe PDF.
+// CIMPOR MAD - reproduce AZAMBO (row 1) to the franc from the real annexe PDF.
 const contract = { billingType: "MAD", rates: { congesDivisor: 12, chargesPatronales: 0.162, fraisGestion: 0.10, tva: 0.1925, anciennete: false } };
 const template = { groupBy: null, columns: [
   { key: "NOMS", source: "field", field: "name", label: "Noms et prénoms" },
@@ -34,5 +34,5 @@ const g2 = computeRow(l2, template, contract).cells;
 const chkT = (n, g, e) => { const ok = Math.abs(g - e) <= 1; if (!ok) f++; console.log(`${ok?"✓":"✗"} ${n}: ${g} (annexe ${e}, ±1 arrondi HS)`); };
 chkT("BIEM GROSS", g2.GROSS, 561816);
 chkT("BIEM TOTAL HT", g2.TOTAL_HT, 777956);
-console.log(`\n${f===0?"PASS":"FAIL"} — ${9-f}/9`);
+console.log(`\n${f===0?"PASS":"FAIL"} - ${9-f}/9`);
 process.exit(f?1:0);

@@ -1,5 +1,5 @@
 /**
- * SGRHP — couche « signaux qualité » (SMQ Phase 2bis).
+ * SGRHP - couche « signaux qualité » (SMQ Phase 2bis).
  * Point d'entrée unique que les modules opérationnels appellent quand une donnée
  * VALIDÉE/VERROUILLÉE est modifiée. Journalise l'événement (traçabilité) et, si le
  * module « quality » est actif et l'auto-ouverture activée, ouvre une fiche d'amélioration.
@@ -50,7 +50,7 @@ function qualityEvent(req, p = {}) {
       const fiche = stamp({
         id: id("smq"), ref, entite: "QHSE", date: new Date().toISOString().slice(0, 10),
         origine: "Non-conformité", type: "interne", gravite: p.gravite || "mineure", statut: "ouverte",
-        description: `Modification après validation — ${p.objectType || "objet"} ${p.ref || p.objectId || ""}.`
+        description: `Modification après validation - ${p.objectType || "objet"} ${p.ref || p.objectId || ""}.`
           + (p.motif ? ` Motif : ${p.motif}.` : "") + (diff ? ` Changements : ${diff}.` : ""),
         analyseCauses: "", actions: [], emetteurName: "Système (traçabilité SMQ)",
         sourceEventId: ev.id, createdAt: new Date().toISOString(),

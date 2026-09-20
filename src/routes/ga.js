@@ -1,4 +1,4 @@
-/* Gestion Avancée (GA) — moteur d'extraction de listes depuis la paie & le personnel.
+/* Gestion Avancée (GA) - moteur d'extraction de listes depuis la paie & le personnel.
    Un modèle GA = { code (LST000xx), intitule, titre, type ("fixed"|"table"), confidentialite,
                     fields:[{ n, label, source, taille, decimales, numeric, colonne }] } */
 const router = require("express").Router();
@@ -156,7 +156,7 @@ function nextCode(req) {
 router.get("/periods", allow(...RO), (req, res) => res.json(availablePeriods(req)));
 router.get("/sources", allow(...RO), (req, res) => {
   const list = Object.keys(SOURCES).map(k => ({ key: k, label: SOURCES[k].label, numeric: !!SOURCES[k].numeric }));
-  const rubs = mine(db.payRubriques, req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), "fr", { numeric: true })).map(r => ({ key: "rub:" + r.code, label: `Rubrique ${r.code} — ${r.label || ""}`, numeric: true }));
+  const rubs = mine(db.payRubriques, req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), "fr", { numeric: true })).map(r => ({ key: "rub:" + r.code, label: `Rubrique ${r.code} - ${r.label || ""}`, numeric: true }));
   res.json({ sources: list, rubriques: rubs });
 });
 router.get("/", allow(...RO), (req, res) => {

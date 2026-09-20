@@ -1,5 +1,5 @@
 /**
- * SGRHP — messagerie temps réel (WebSocket) pour messages directs entre utilisateurs.
+ * SGRHP - messagerie temps réel (WebSocket) pour messages directs entre utilisateurs.
  * Auth par JWT (?token=), routage par utilisateur, multi-onglets. Aucune entrée requise
  * du client pour la v1 : le serveur pousse les nouveaux messages.
  */
@@ -12,7 +12,7 @@ let wss = null;
 function attach(server) {
   let WebSocketServer;
   try { ({ WebSocketServer } = require("ws")); }
-  catch (e) { console.warn("[chat] module 'ws' indisponible — messagerie temps réel désactivée"); return; }
+  catch (e) { console.warn("[chat] module 'ws' indisponible - messagerie temps réel désactivée"); return; }
   wss = new WebSocketServer({ noServer: true });
   server.on("upgrade", (req, socket, head) => {
     let parsed; try { parsed = url.parse(req.url, true); } catch { socket.destroy(); return; }

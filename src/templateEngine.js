@@ -1,5 +1,5 @@
 /**
- * M3 — Template-based document generation.
+ * M3 - Template-based document generation.
  * Admin uploads a Word (.docx) template containing {{placeholders}}.
  * At generation: known placeholders auto-fill from the employee file;
  * unknown ones are collected from the GPF via a form before submission.
