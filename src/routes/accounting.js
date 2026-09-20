@@ -86,10 +86,10 @@ function crud(path, col, fields, keyField) {
     db[col].splice(db[col].indexOf(x), 1); save(); res.json({ ok: true });
   });
 }
-crud("accounts", "acctAccounts", ["number", "label", "type", "nature", "reportANouveau", "taxCode", "reportingAccount", "active"], "number");
-crud("journals", "acctJournals", ["code", "label", "type", "contraAccount", "analytic", "active"], "code");
+crud("accounts", "acctAccounts", ["number", "label", "type", "nature", "reportANouveau", "taxCode", "reportingAccount", "active", "saisirTiers", "saisirQuantite", "echeanceReglement", "lettrageAuto", "lettrageWindow", "analSaisie", "analReport"], "number");
+crud("journals", "acctJournals", ["code", "label", "type", "contraAccount", "analytic", "active", "numerotation", "masquerTotaux"], "code");
 crud("taxes", "acctTaxes", ["code", "label", "rate", "account"], "code");
-crud("third-parties", "acctThirdParties", ["code", "name", "kind", "collectiveAccount", "terms", "niu", "rccm"], "code");
+crud("third-parties", "acctThirdParties", ["code", "name", "kind", "collectiveAccount", "terms", "niu", "rccm", "abrege", "qualite", "adresse", "ville", "pays", "tel", "email", "siret", "codeNAF", "idTva", "active"], "code");
 
 /* ============================ EXERCICES ============================ */
 router.get("/exercises", allow("RC", "ADM", "CD", "RJ"), (req, res) => { seedAccounting(req.user.tenantId || "t1"); res.json(mine(db.acctExercises, req).slice().sort((a, b) => b.year - a.year)); });
@@ -127,8 +127,7 @@ router.post("/entries", allow("RC", "ADM", "CD"), (req, res) => {
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne mouvementée" });
   const period = b.period || (b.date || new Date().toISOString().slice(0, 10)).slice(0, 7);
   const yy = period.slice(0, 4);
-  const seq = mine(db.acctEntries, req).filter(e => e.journalCode === b.journalCode && (e.period || "").slice(0, 4) === yy).length + 1;
-  const pieceNo = b.pieceNo || (b.journalCode + String(seq).padStart(3, "0"));
+  const pieceNo = _nextPiece(req, jrOf(req, b.journalCode), period, b.pieceNo);
   const e = stamp({ id: id("aent"), journalCode: b.journalCode, period, pieceNo, date: b.date || new Date().toISOString().slice(0, 10),
     label: b.label || "", lines, status: "draft", source: b.source || "manual", sourceRef: b.sourceRef || "", createdAt: new Date().toISOString() }, req);
   db.acctEntries.push(e); save(); audit(req.user, "CREATED", "AcctEntry", e.id, { journal: b.journalCode, piece: pieceNo }); res.status(201).json(withTotals(e));
@@ -175,12 +174,21 @@ router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
 });
 
 /* ==================== C2 — GÉNÉRATION AUTO (Facturation & Paie) ==================== */
+// Numérotation des pièces selon le mode du journal (Sage : Manuelle / Continue par journal / Continue pour le fichier / Mensuelle).
+function _nextPiece(req, journal, period, provided) {
+  const mode = (journal && journal.numerotation) || "continue_journal";
+  if (mode === "manuelle" && provided) return provided;
+  const yy = String(period || "").slice(0, 4), ym = String(period || "").slice(0, 7);
+  let seq;
+  if (mode === "continue_fichier") seq = mine(db.acctEntries, req).filter(e => (e.period || "").slice(0, 4) === yy).length + 1;
+  else if (mode === "mensuelle") seq = mine(db.acctEntries, req).filter(e => e.journalCode === (journal && journal.code) && (e.period || "").slice(0, 7) === ym).length + 1;
+  else seq = mine(db.acctEntries, req).filter(e => e.journalCode === (journal && journal.code) && (e.period || "").slice(0, 4) === yy).length + 1;
+  return (journal && journal.code ? journal.code : "OD") + String(seq).padStart(3, "0");
+}
 function postEntry(req, e) {
   const tid = req.user.tenantId || "t1"; seedAccounting(tid);
   const period = e.period || (e.date || new Date().toISOString().slice(0, 10)).slice(0, 7);
-  const yy = period.slice(0, 4);
-  const seq = mine(db.acctEntries, req).filter(x => x.journalCode === e.journalCode && (x.period || "").slice(0, 4) === yy).length + 1;
-  const rec = stamp(Object.assign({ id: id("aent"), period, pieceNo: e.pieceNo || (e.journalCode + String(seq).padStart(3, "0")), status: "validated" }, e, { createdAt: new Date().toISOString() }), req);
+  const rec = stamp(Object.assign({ id: id("aent"), period, pieceNo: e.pieceNo || _nextPiece(req, jrOf(req, e.journalCode), period, e.pieceNo), status: "validated" }, e, { createdAt: new Date().toISOString() }), req);
   db.acctEntries.push(rec); save(); return rec;
 }
 function invTotalsQ(inv) {

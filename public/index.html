@@ -6509,8 +6509,23 @@ function acctAccountModal(id) {
       <div><label>Nature</label><select id="acNat">${["capitaux", "immobilisations", "stocks", "tiers", "financiers", "charges", "produits"].map(opt).join("")}</select></div>
       <div><label>Type</label><select id="acType">${topt("detail","Détail (mouvementé)")}${topt("total","Total (regroupement)")}</select></div>
       <div><label>Compte de taxe</label><select id="acTax">${taxopt}</select></div>
-      <div><label>Report à nouveau</label><select id="acRAN"><option value="">Non</option><option value="1" ${a.reportANouveau ? "selected" : ""}>Oui</option></select></div>
+      <div><label>Report à nouveau</label><select id="acRAN">${[['','Aucun'],['solde','Reporter le solde du compte'],['non_lettrees','Reporter les écritures non lettrées']].map(o=>`<option value="${o[0]}" ${String(a.reportANouveau===true?'solde':(a.reportANouveau||''))===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select></div>
+      <div><label>Compte reporting</label><input id="acRep" list="acctDL" value="${esc(a.reportingAccount||'')}" placeholder="n° compte"></div>
       <div><label>Statut</label><select id="acAct"><option value="1" ${a.active !== false ? "selected" : ""}>Actif</option><option value="0" ${a.active === false ? "selected" : ""}>En sommeil</option></select></div>
+    </div>
+    ${acctDLHtml()}
+    <b style="font-size:12px;color:var(--muted)">PARAMÈTRES DE SAISIE</b>
+    <div class="grid2" style="margin-top:4px">
+      <label class="chk"><input type="checkbox" id="acTiers" ${a.saisirTiers?'checked':''}><span>Saisir le compte tiers</span></label>
+      <label class="chk"><input type="checkbox" id="acQte" ${a.saisirQuantite?'checked':''}><span>Saisir une quantité</span></label>
+      <label class="chk"><input type="checkbox" id="acEch" ${a.echeanceReglement?'checked':''}><span>Saisir la date d'échéance et le mode de règlement</span></label>
+      <label class="chk"><input type="checkbox" id="acLett" ${a.lettrageAuto?'checked':''}><span>Autoriser le lettrage automatique</span></label>
+      <label class="chk"><input type="checkbox" id="acLettW" ${a.lettrageWindow?'checked':''}><span>Ouvrir la fenêtre de lettrage en saisie</span></label>
+    </div>
+    <b style="font-size:12px;color:var(--muted)">ANALYTIQUE</b>
+    <div class="grid2" style="margin-top:4px">
+      <label class="chk"><input type="checkbox" id="acAnaS" ${a.analSaisie?'checked':''}><span>Autoriser la saisie analytique</span></label>
+      <label class="chk"><input type="checkbox" id="acAnaR" ${a.analReport?'checked':''}><span>Autoriser le report analytique</span></label>
     </div>
     <div class="err hidden" id="acErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctAccountSave('${id || ""}')">Enregistrer</button>
@@ -6519,8 +6534,11 @@ function acctAccountModal(id) {
 }
 async function acctAccountSave(id) {
   const g = (x) => (document.getElementById(x) || {}).value;
+  const ck=(x)=>!!(document.getElementById(x)||{}).checked;
   const body = { number: g("acN"), label: g("acL"), nature: g("acNat"), type: g("acType") || "detail",
-    taxCode: g("acTax") || "", reportANouveau: g("acRAN") === "1", active: g("acAct") !== "0" };
+    taxCode: g("acTax") || "", reportANouveau: g("acRAN") || "", reportingAccount: g("acRep") || "", active: g("acAct") !== "0",
+    saisirTiers: ck("acTiers"), saisirQuantite: ck("acQte"), echeanceReglement: ck("acEch"), lettrageAuto: ck("acLett"), lettrageWindow: ck("acLettW"),
+    analSaisie: ck("acAnaS"), analReport: ck("acAnaR") };
   try { if (id) await api("/accounting/accounts/" + id, { method: "PUT", body: JSON.stringify(body) });
     else await api("/accounting/accounts", { method: "POST", body: JSON.stringify(body) });
     document.querySelector(".modal-bg").remove(); acctPlanView(); }
@@ -6870,15 +6888,25 @@ function acctTiersModal(code){
   const existing = code ? ref.find(x=>x.code===code) : null;
   const bg=document.createElement("div"); bg.className="modal-bg";
   const kOpt=(v,l)=>`<option value="${v}" ${t.kind===v?'selected':''}>${l}</option>`;
-  bg.innerHTML=`<div class="modal" style="width:480px"><h3 style="margin:0 0 8px">${existing?'Modifier':'Nouveau'} tiers</h3>
+  bg.innerHTML=`<div class="modal" style="width:580px"><h3 style="margin:0 0 8px">${existing?'Modifier':'Nouveau'} tiers</h3>
     <div class="grid2">
       <div><label>Code tiers</label><input id="tpCode" value="${esc(t.code||'')}" ${existing?'disabled':''} placeholder="ex. SOLEVO"></div>
       <div><label>Type</label><select id="tpKind" onchange="var c=document.getElementById('tpColl');if(c&&!c._touched)c.value=({fournisseur:'401110',client:'411100',salarie:'421000',autre:''})[this.value]||''">${kOpt('client','Client (411)')}${kOpt('fournisseur','Fournisseur (401)')}${kOpt('salarie','Salarié (42)')}${kOpt('autre','Autre')}</select></div>
       <div style="grid-column:1/3"><label>Nom / raison sociale</label><input id="tpName" value="${esc(t.name||'')}"></div>
       <div><label>Compte collectif</label><input id="tpColl" value="${esc(t.collectiveAccount|| ({fournisseur:'401110',client:'411100',salarie:'421000'})[t.kind] || '411100')}" oninput="this._touched=true"></div>
       <div><label>Conditions règlement</label><input id="tpTerms" value="${esc(t.terms||'')}" placeholder="ex. 30 j fin de mois"></div>
+      <div><label>Abrégé</label><input id="tpAbr" value="${esc(t.abrege||'')}"></div>
+      <div><label>Qualité</label><input id="tpQual" value="${esc(t.qualite||'')}"></div>
+      <div style="grid-column:1/3"><label>Adresse</label><input id="tpAddr" value="${esc(t.adresse||'')}"></div>
+      <div><label>Ville</label><input id="tpVille" value="${esc(t.ville||'')}"></div>
+      <div><label>Pays</label><input id="tpPays" value="${esc(t.pays||'CAMEROUN')}"></div>
+      <div><label>Téléphone</label><input id="tpTel" value="${esc(t.tel||'')}"></div>
+      <div><label>E-mail</label><input id="tpEmail" value="${esc(t.email||'')}"></div>
       <div><label>NIU</label><input id="tpNiu" value="${esc(t.niu||'')}"></div>
       <div><label>RCCM</label><input id="tpRccm" value="${esc(t.rccm||'')}"></div>
+      <div><label>Identifiant TVA</label><input id="tpIdTva" value="${esc(t.idTva||'')}"></div>
+      <div><label>Siret</label><input id="tpSiret" value="${esc(t.siret||'')}"></div>
+      <div><label>Code NAF</label><input id="tpNaf" value="${esc(t.codeNAF||'')}"></div>
     </div>
     <div class="err hidden" id="tpErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="acctTiersSave(${existing?JSON.stringify(existing.id):'null'})">Enregistrer</button>
@@ -6888,7 +6916,7 @@ function acctTiersModal(code){
 }
 async function acctTiersSave(id){
   const g=(x)=>(document.getElementById(x)||{}).value;
-  const body={code:g("tpCode"),name:g("tpName"),kind:g("tpKind"),collectiveAccount:g("tpColl"),terms:g("tpTerms"),niu:g("tpNiu"),rccm:g("tpRccm")};
+  const body={code:g("tpCode"),name:g("tpName"),kind:g("tpKind"),collectiveAccount:g("tpColl"),terms:g("tpTerms"),niu:g("tpNiu"),rccm:g("tpRccm"),abrege:g("tpAbr"),qualite:g("tpQual"),adresse:g("tpAddr"),ville:g("tpVille"),pays:g("tpPays"),tel:g("tpTel"),email:g("tpEmail"),idTva:g("tpIdTva"),siret:g("tpSiret"),codeNAF:g("tpNaf")};
   try{ if(id) await api("/accounting/third-parties/"+id,{method:"PUT",body:JSON.stringify(body)});
     else await api("/accounting/third-parties",{method:"POST",body:JSON.stringify(body)});
     document.querySelector(".modal-bg").remove(); acctTiersView(); }
@@ -7400,7 +7428,9 @@ function acctJournalModal(id){
       <div><label>Type du journal</label><select id="jType">${extra}${topt}</select></div>
       <div><label>Code</label><input id="jCode" value="${esc(j.code||'')}" ${id?'disabled':''} placeholder="ex. ACH" maxlength="10"></div>
       <div style="grid-column:1/3"><label>Intitulé</label><input id="jLabel" value="${esc(j.label||'')}" placeholder="ex. Journal des achats"></div>
+      <div><label>Numérotation</label><select id="jNum">${[['manuelle','Manuelle'],['continue_journal','Continue par journal'],['continue_fichier','Continue pour le fichier'],['mensuelle','Mensuelle']].map(o=>`<option value="${o[0]}" ${(j.numerotation||'continue_journal')===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>
       <div><label>Ventilation analytique</label><select id="jAna"><option value="0" ${!j.analytic?'selected':''}>Non</option><option value="1" ${j.analytic?'selected':''}>Oui</option></select></div>
+      <div><label>Masquer les totaux en saisie</label><select id="jMask"><option value="0" ${!j.masquerTotaux?'selected':''}>Non</option><option value="1" ${j.masquerTotaux?'selected':''}>Oui</option></select></div>
       <div><label>Statut</label><select id="jAct"><option value="1" ${j.active!==false?'selected':''}>Actif</option><option value="0" ${j.active===false?'selected':''}>En sommeil</option></select></div>
     </div>
     <div class="err hidden" id="jErr" style="margin-top:6px"></div>
@@ -7412,7 +7442,7 @@ async function acctJournalSave(id){
   const g=(x)=>(document.getElementById(x)||{}).value;
   const code=(g("jCode")||"").toUpperCase().trim();
   if(!id && !code){ const el=document.getElementById("jErr"); el.textContent="Le code est obligatoire"; el.classList.remove("hidden"); return; }
-  const body={ code, label:g("jLabel"), type:g("jType"), analytic:g("jAna")==="1", active:g("jAct")!=="0" };
+  const body={ code, label:g("jLabel"), type:g("jType"), analytic:g("jAna")==="1", numerotation:g("jNum"), masquerTotaux:g("jMask")==="1", active:g("jAct")!=="0" };
   try{ if(id) await api("/accounting/journals/"+id,{method:"PUT",body:JSON.stringify(body)});
     else await api("/accounting/journals",{method:"POST",body:JSON.stringify(body)});
     document.querySelector(".modal-bg").remove(); acctJournalsView(); }
