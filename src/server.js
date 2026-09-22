@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-23 - ADMIN-32 (console admin/plateforme = tableau de bord + hub: menu de gauche allege sur la console, widgets activite et a-traiter)";
+const BUILD_VERSION = "2026-09-23 - PDF-33 (exports PDF reels facon Sage pour Balance, Grand-livre, Journal et Balance agee, en plus du CSV)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

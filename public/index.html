@@ -7120,7 +7120,7 @@ async function acctBalanceView() {
   const seg=(v,l)=>`<button class="btn ${lvl===v?'p':'ghost'} sm" onclick="window._balLvl='${v}';acctBalanceView()">${l}</button>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">Balance des comptes</h1>
-    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span><button class="btn ghost sm" onclick="acctBalanceCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctBalancePrint()">Imprimer</button></div>
+    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span><button class="btn ghost sm" onclick="acctBalanceCSV()">CSV</button><button class="btn ghost sm" onclick="acctBalancePDF()">PDF</button><button class="btn ghost sm" onclick="acctBalancePrint()">Imprimer</button></div>
     <div class="d2-filters"><div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
       <div class="fld"><label>Du</label><input type="date" value="${window._acctFrom||''}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctBalanceView()"></div>
       <div class="fld"><label>Au</label><input type="date" value="${window._acctTo||''}" onchange="window._acctTo=this.value;window._acctPeriod='';acctBalanceView()"></div>
@@ -7146,6 +7146,11 @@ function _acctCSV(filename, matrix){
   const csv="\ufeff"+matrix.map(r=>r.map(q).join(";")).join("\r\n");
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=filename; a.click();
 }
+async function acctPDF(url, filename){ try{ const r=await fetch("/api"+url,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok) throw new Error("PDF indisponible ("+r.status+")"); const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=filename; a.click(); }catch(e){ alert(e.message); } }
+function acctBalancePDF(){ const d=window._balPrint||{}; const p=new URLSearchParams(); if(d.lvl)p.set("level",d.lvl); if(d.period)p.set("period",d.period); acctPDF("/accounting/balance/pdf?"+p.toString(),"Balance"+(d.period?"_"+d.period:"")+".pdf"); }
+function acctLedgerPDF(){ const d=window._glPrint||{}; const p=new URLSearchParams(); p.set("account",d.account||""); if(window._acctFrom)p.set("from",window._acctFrom); if(window._acctTo)p.set("to",window._acctTo); acctPDF("/accounting/ledger/pdf?"+p.toString(),"Grand-livre_"+(d.account||"")+".pdf"); }
+function acctJournalPDF(){ const d=window._jrPrint||{}; const p=new URLSearchParams(); p.set("journal",d.journal||""); if(window._acctFrom)p.set("from",window._acctFrom); if(window._acctTo)p.set("to",window._acctTo); if(!window._acctFrom&&!window._acctTo&&d.period)p.set("period",d.period); acctPDF("/accounting/journal-report/pdf?"+p.toString(),"Journal_"+(d.journal||"")+".pdf"); }
+function acctAgedPDF(){ const d=window._agedPrint||{}; acctPDF("/accounting/aged/pdf?kind="+(d.kind||"client"),"Balance_agee_"+(d.kind||"client")+".pdf"); }
 function acctBalanceCSV(){
   const d=window._balPrint||{rows:[]};
   const m=[["Compte","Intitulé","Débit","Crédit","Solde"]];
@@ -7217,7 +7222,7 @@ async function acctLedgerRender(){
     <div class="d2-grid"><table><thead><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde progressif</th></tr></thead><tbody>
     ${_openRow}${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="4">SOLDE À REPORTER</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td><td class="r">${fCFA(d.solde)}</td></tr></tbody></table></div>
-    <div class="d2-status"><span><span class="k">Compte :</span> <b>${esc(d.account)} ${esc(d.label||"")}</b></span><span class="sp"></span><span><span class="k">Lignes :</span> <b>${d.rows.length}</b></span><span><span class="k">Débit :</span> <b>${fCFA(d.totalDebit)}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(d.totalCredit)}</b></span><span><span class="k">Solde :</span> <b>${fCFA(d.solde)}</b></span><span style="flex:0 0 auto"><button class="btn ghost sm" onclick="acctLedgerCSV()">CSV</button> <button class="btn ghost sm" onclick="acctLedgerPrint()">Imprimer</button></span></div>`;
+    <div class="d2-status"><span><span class="k">Compte :</span> <b>${esc(d.account)} ${esc(d.label||"")}</b></span><span class="sp"></span><span><span class="k">Lignes :</span> <b>${d.rows.length}</b></span><span><span class="k">Débit :</span> <b>${fCFA(d.totalDebit)}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(d.totalCredit)}</b></span><span><span class="k">Solde :</span> <b>${fCFA(d.solde)}</b></span><span style="flex:0 0 auto"><button class="btn ghost sm" onclick="acctLedgerCSV()">CSV</button> <button class="btn ghost sm" onclick="acctLedgerPDF()">PDF</button> <button class="btn ghost sm" onclick="acctLedgerPrint()">Imprimer</button></span></div>`;
 }
 async function acctJournalRender(){
   await acctLoadRefs();
@@ -7232,14 +7237,14 @@ async function acctJournalRender(){
   const _qs="/accounting/journal-report?journal="+encodeURIComponent(jr)+((_from||_to)?((_from?"&from="+_from:"")+(_to?"&to="+_to:"")):(per?"&period="+per:""));
   const d=await api(_qs).catch(()=>({rows:[]}));
   window._jrPrint=Object.assign({journal:jr,period:per},d);
-  document.getElementById("jrRows").innerHTML=`<div style="display:flex;justify-content:flex-end;gap:6px;margin:0 0 6px"><button class="btn ghost sm" onclick="acctJournalCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctJournalPrint()">Imprimer</button></div><div class="d2-grid"><table><thead><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead><tbody>
+  document.getElementById("jrRows").innerHTML=`<div style="display:flex;justify-content:flex-end;gap:6px;margin:0 0 6px"><button class="btn ghost sm" onclick="acctJournalCSV()">CSV</button><button class="btn ghost sm" onclick="acctJournalPDF()">PDF</button><button class="btn ghost sm" onclick="acctJournalPrint()">Imprimer</button></div><div class="d2-grid"><table><thead><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead><tbody>
     ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.thirdParty||"")}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucune écriture.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="5">TOTAUX</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td></tr></tbody></table></div>`;
 }
 async function acctAgedRender(){
   const kind=window._acctAged||"client";
   const box=document.getElementById("acctEtatBox");
-  box.innerHTML=`<div class="d2-filters top"><div class="fld"><label>Type</label><select onchange="window._acctAged=this.value;acctAgedRender()"><option value="client" ${kind==='client'?'selected':''}>Clients (411)</option><option value="fournisseur" ${kind==='fournisseur'?'selected':''}>Fournisseurs (401)</option></select></div><div class="fld" style="justify-content:end;flex:1;align-items:flex-end"><span style="display:flex;gap:6px"><button class="btn ghost sm" onclick="acctAgedCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctAgedPrint()">Imprimer</button></span></div></div><div id="ageRows">…</div>`;
+  box.innerHTML=`<div class="d2-filters top"><div class="fld"><label>Type</label><select onchange="window._acctAged=this.value;acctAgedRender()"><option value="client" ${kind==='client'?'selected':''}>Clients (411)</option><option value="fournisseur" ${kind==='fournisseur'?'selected':''}>Fournisseurs (401)</option></select></div><div class="fld" style="justify-content:end;flex:1;align-items:flex-end"><span style="display:flex;gap:6px"><button class="btn ghost sm" onclick="acctAgedCSV()">CSV</button><button class="btn ghost sm" onclick="acctAgedPDF()">PDF</button><button class="btn ghost sm" onclick="acctAgedPrint()">Imprimer</button></span></div></div><div id="ageRows">…</div>`;
   const d=await api("/accounting/aged?kind="+kind).catch(()=>({rows:[],totals:{}}));
   window._agedPrint={kind,rows:d.rows||[],totals:d.totals||{}};
   const f=n=>fCFA(Math.abs(n))+(n<0?' C':'');

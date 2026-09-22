@@ -952,6 +952,142 @@ router.post("/import/balance", allow("RC", "ADM","CD"), (req,res)=>{
   res.json({ok:true, accountsCreated:accCreated, lines:lines.length, totalDebit:td, totalCredit:tc, balanced, ecart:td-tc, status:e.status, entryId:e.id});
 });
 
+
+/* ==================== EXPORTS PDF (états façon Sage) ==================== */
+const PDFDocument = require("pdfkit");
+const _pnf = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+function _companyName(req) { const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1")); return (t && t.name) || "Société"; }
+function _acctReportPDF(req, res, opts) {
+  const land = !!opts.landscape;
+  const doc = new PDFDocument({ margin: 24, size: "A4", layout: land ? "landscape" : "portrait", bufferPages: true });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${(opts.filename || "etat").replace(/[^\w\-]/g, "_")}.pdf"`);
+  doc.pipe(res);
+  const company = _companyName(req);
+  const now = new Date();
+  const dstr = now.toLocaleDateString("fr-FR"), tstr = now.toLocaleTimeString("fr-FR");
+  const mL = 24, pageW = doc.page.width, cW = pageW - mL * 2;
+  const cols = opts.columns, colX = []; let xx = mL; for (const c of cols) { colX.push(xx); xx += c.w; }
+  const tableW = xx - mL;
+  function header() {
+    let y = 24;
+    doc.lineWidth(0.8).strokeColor("#000").rect(mL, y, cW, 46).stroke();
+    doc.font("Helvetica-Bold").fontSize(11).fillColor("#000").text(company, mL + 7, y + 7, { width: cW * 0.30 - 8, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(15).text(opts.title, mL + cW * 0.30, y + 5, { width: cW * 0.42, align: "center" });
+    if (opts.subtitle) doc.font("Helvetica").fontSize(8).fillColor("#333").text(opts.subtitle, mL + cW * 0.30, y + 24, { width: cW * 0.42, align: "center" });
+    const rx = mL + cW * 0.73, rw = cW * 0.27 - 6; let ry = y + 7;
+    doc.font("Helvetica").fontSize(8).fillColor("#000");
+    if (opts.from || opts.to) { doc.text("Période du   " + (opts.from || "-"), rx, ry, { width: rw, lineBreak: false }); doc.text("au   " + (opts.to || "-"), rx, ry + 11, { width: rw, lineBreak: false }); ry += 24; }
+    else if (opts.period) { doc.text("Période   " + opts.period, rx, ry, { width: rw, lineBreak: false }); ry += 13; }
+    doc.text("Tenue de compte :", rx, ry, { width: rw, lineBreak: false });
+    y += 46;
+    doc.rect(mL, y, cW, 15).stroke();
+    doc.font("Helvetica").fontSize(7.5).fillColor("#000");
+    doc.text("© MBOKA Mon RH - Comptabilité", mL + 7, y + 4, { width: cW * 0.42, lineBreak: false });
+    doc.text("Date de tirage " + dstr + " à " + tstr, mL + cW * 0.42, y + 4, { width: cW * 0.31, align: "center", lineBreak: false });
+    y += 15 + 6;
+    return y;
+  }
+  function colHeader(y) {
+    doc.rect(mL, y, tableW, 16).fillAndStroke("#e6e6e6", "#000");
+    doc.fillColor("#000").font("Helvetica-Bold").fontSize(8);
+    cols.forEach((c, i) => doc.text(c.h, colX[i] + 3, y + 4.5, { width: c.w - 6, align: c.a === "r" ? "right" : "left", lineBreak: false }));
+    return y + 16;
+  }
+  let y = header(); y = colHeader(y);
+  const rowH = 13.5, botY = doc.page.height - 26;
+  function drawRow(cells, o) {
+    o = o || {};
+    if (y + rowH > botY) { doc.addPage(); y = header(); y = colHeader(y); }
+    if (o.fill) { doc.rect(mL, y, tableW, rowH).fill(o.fill); }
+    doc.font(o.bold ? "Helvetica-Bold" : "Helvetica").fontSize(8).fillColor("#000");
+    cols.forEach((c, i) => { const v = cells[i] == null ? "" : String(cells[i]); doc.text(v, colX[i] + 3, y + 3.2, { width: c.w - 6, align: c.a === "r" ? "right" : "left", lineBreak: false }); });
+    doc.lineWidth(0.3).strokeColor("#ccc").moveTo(mL, y + rowH).lineTo(mL + tableW, y + rowH).stroke();
+    y += rowH;
+  }
+  (opts.rows || []).forEach(r => drawRow(r.cells, r));
+  // page numbers
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) { doc.switchToPage(range.start + i); doc.font("Helvetica").fontSize(7.5).fillColor("#000").text("Page " + (i + 1) + "/" + range.count, mL + cW - 86, 24 + 46 + 4, { width: 80, align: "right", lineBreak: false }); }
+  audit(req.user, "EXPORTED", "Accounting", opts.title || "etat", { format: "pdf" });
+  doc.end();
+}
+const _OHADA_CL = { 1: "Comptes de ressources durables", 2: "Comptes d'actif immobilisé", 3: "Comptes de stocks", 4: "Comptes de tiers", 5: "Comptes de trésorerie", 6: "Comptes de charges", 7: "Comptes de produits", 8: "Autres charges et produits (H.A.O.)", 9: "Comptes analytiques" };
+
+router.get("/balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const onlyVal = req.query.all !== "1"; const _from = req.query.from || "", _to = req.query.to || "", period = req.query.period || "";
+  const lvl = req.query.level || "detail";
+  const accs = {}; for (const a of mine(db.acctAccounts, req)) accs[a.number] = a.label;
+  const agg = {};
+  for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue; if (period && (e.period || "") !== period) continue; if (_from && (e.date || "") < _from) continue; if (_to && (e.date || "") > _to) continue;
+    for (const l of (e.lines || [])) { const a = (agg[l.account] = agg[l.account] || { account: l.account, label: accs[l.account] || "", debit: 0, credit: 0 }); a.debit += R2(l.debit); a.credit += R2(l.credit); } }
+  let base = Object.values(agg).sort((x, y) => String(x.account).localeCompare(String(y.account))).map(a => Object.assign(a, { solde: a.debit - a.credit }));
+  const keyOf = (acc) => lvl === "class" ? String(acc || "0").charAt(0) : lvl === "level2" ? String(acc || "00").slice(0, 2) : String(acc || "");
+  const gmap = new Map();
+  base.forEach(r => { const k = keyOf(r.account); const g = gmap.get(k) || { key: k, account: r.account, label: r.label, debit: 0, credit: 0, solde: 0 }; g.debit += r.debit; g.credit += r.credit; g.solde += r.solde; if (lvl !== "detail") g.label = lvl === "class" ? (_OHADA_CL[Number(k)] || ("Classe " + k)) : ("Comptes " + k + "…"); gmap.set(k, g); });
+  const outRows = [...gmap.values()];
+  const rows = []; let curCl = null, cd = 0, cc = 0, cs = 0, td = 0, tc = 0, ts = 0;
+  const classRow = (cl) => rows.push({ cells: ["", "Classe " + cl + " - " + (_OHADA_CL[Number(cl)] || ""), _pnf(cd), _pnf(cc), _pnf(cs)], bold: true, fill: "#eef2f6" });
+  outRows.forEach(g => { const cl = String(g.account || "0").charAt(0); if (curCl !== null && cl !== curCl && lvl !== "class") { classRow(curCl); cd = cc = cs = 0; } if (cl !== curCl) curCl = cl;
+    const accCell = lvl === "class" ? ("Classe " + g.key) : lvl === "level2" ? (g.key + "xxxx") : g.account;
+    rows.push({ cells: [accCell, g.label || "", _pnf(g.debit), _pnf(g.credit), _pnf(g.solde)], bold: lvl !== "detail" });
+    cd += g.debit; cc += g.credit; cs += g.solde; td += g.debit; tc += g.credit; ts += g.solde; });
+  if (curCl !== null && lvl !== "class") classRow(curCl);
+  rows.push({ cells: ["", "TOTAL GÉNÉRAL", _pnf(td), _pnf(tc), _pnf(ts)], bold: true, fill: "#dfe6ec" });
+  const _lab = { detail: "Balance détaillée par compte", level2: "Balance par niveau (2 chiffres)", class: "Balance synthétique par classe" }[lvl];
+  _acctReportPDF(req, res, { filename: "Balance" + (period ? "_" + period : ""), title: "Balance des comptes", subtitle: _lab + " - rupture par classe OHADA", period: period || "Tout l'exercice", from: _from, to: _to,
+    columns: [{ h: "Compte", w: 70 }, { h: "Intitulé", w: 240 }, { h: "Débit", w: 79, a: "r" }, { h: "Crédit", w: 79, a: "r" }, { h: "Solde", w: 79, a: "r" }], rows });
+});
+
+router.get("/ledger/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const acc = req.query.account; if (!acc) return res.status(400).json({ error: "Compte requis" });
+  const onlyVal = req.query.all !== "1"; const labels = _accLabel(req); const _from = req.query.from || "", _to = req.query.to || "";
+  const list = []; let opening = 0;
+  for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
+    for (const l of (e.lines || [])) { if (l.account !== acc) continue; const d = e.date || ""; if (_from && d < _from) { opening += R2(l.debit) - R2(l.credit); continue; } if (_to && d > _to) continue;
+      list.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) }); } }
+  list.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const rows = []; let solde = R2(opening), td = 0, tc = 0;
+  if (_from && opening !== 0) rows.push({ cells: [_from, "-", "RAN", "Report à nouveau (solde d'ouverture)", opening > 0 ? _pnf(opening) : "", opening < 0 ? _pnf(-opening) : "", _pnf(opening)], bold: true });
+  for (const r of list) { solde += r.debit - r.credit; td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.journal || "", r.piece || "", r.label || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : "", _pnf(solde)] }); }
+  rows.push({ cells: ["", "", "", "SOLDE À REPORTER", _pnf(td), _pnf(tc), _pnf(solde)], bold: true, fill: "#dfe6ec" });
+  _acctReportPDF(req, res, { filename: "Grand-livre_" + acc, title: "Grand-livre", subtitle: acc + " - " + (labels[acc] || ""), from: _from, to: _to,
+    columns: [{ h: "Date", w: 58 }, { h: "Jr", w: 32 }, { h: "Pièce", w: 60 }, { h: "Libellé", w: 156 }, { h: "Débit", w: 74, a: "r" }, { h: "Crédit", w: 74, a: "r" }, { h: "Solde", w: 93, a: "r" }], rows });
+});
+
+router.get("/journal-report/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const onlyVal = req.query.all !== "1"; const jr = req.query.journal || ""; const period = req.query.period || ""; const _from = req.query.from || "", _to = req.query.to || "";
+  const list = [];
+  for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue; if (jr && e.journalCode !== jr) continue; if (period && (e.period || "") !== period) continue; if (_from && (e.date || "") < _from) continue; if (_to && (e.date || "") > _to) continue;
+    for (const l of (e.lines || [])) list.push({ date: e.date, piece: e.pieceNo, account: l.account, tp: l.thirdParty || "", label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) }); }
+  list.sort((a, b) => String(a.piece).localeCompare(String(b.piece)));
+  const rows = []; let td = 0, tc = 0;
+  for (const r of list) { td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.piece || "", r.account || "", r.tp || "", r.label || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : ""] }); }
+  rows.push({ cells: ["", "", "", "", "TOTAUX", _pnf(td), _pnf(tc)], bold: true, fill: "#dfe6ec" });
+  _acctReportPDF(req, res, { landscape: true, filename: "Journal_" + jr + (period ? "_" + period : ""), title: "Journal", subtitle: "Journal " + jr, from: _from, to: _to, period: (_from || _to) ? "" : period,
+    columns: [{ h: "Date", w: 60 }, { h: "Pièce", w: 74 }, { h: "Compte", w: 70 }, { h: "Tiers", w: 120 }, { h: "Libellé", w: 226 }, { h: "Débit", w: 106, a: "r" }, { h: "Crédit", w: 106, a: "r" }], rows });
+});
+
+router.get("/aged/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const prefix = req.query.kind === "fournisseur" ? "401" : "411"; const now = new Date(); const by = {};
+  const ref = {}; for (const t of mine(db.acctThirdParties, req)) ref[t.code] = t.name;
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue;
+    for (const l of (e.lines || [])) { if (!String(l.account).startsWith(prefix)) continue; const key = (l.thirdParty || l.account); const g = (by[key] = by[key] || { tp: key, b0: 0, b30: 0, b60: 0, b90: 0, total: 0 });
+      const mv = R2(l.debit) - R2(l.credit); g.total += mv; const due = l.dueDate ? new Date(l.dueDate) : (e.date ? new Date(e.date) : now); const days = Math.floor((now - due) / 86400000);
+      if (days <= 30) g.b0 += mv; else if (days <= 60) g.b30 += mv; else if (days <= 90) g.b60 += mv; else g.b90 += mv; } }
+  const list = Object.values(by).filter(r => Math.abs(r.total) > 0).sort((a, b) => String(a.tp).localeCompare(String(b.tp)));
+  const rows = []; const T = { b0: 0, b30: 0, b60: 0, b90: 0, total: 0 };
+  for (const r of list) { ["b0", "b30", "b60", "b90", "total"].forEach(k => T[k] += r[k]); rows.push({ cells: [r.tp, (ref[r.tp] || ""), _pnf(r.total), r.b0 ? _pnf(r.b0) : "", r.b30 ? _pnf(r.b30) : "", r.b60 ? _pnf(r.b60) : "", r.b90 ? _pnf(r.b90) : ""] }); }
+  rows.push({ cells: ["TOTAUX", "", _pnf(T.total), _pnf(T.b0), _pnf(T.b30), _pnf(T.b60), _pnf(T.b90)], bold: true, fill: "#dfe6ec" });
+  _acctReportPDF(req, res, { landscape: true, filename: "Balance_agee_" + (req.query.kind || "client"), title: "Balance Âgée", subtitle: "D'après date d'échéance - Sur la date la plus lointaine (" + (req.query.kind === "fournisseur" ? "Fournisseurs 401" : "Clients 411") + ")", to: now.toLocaleDateString("fr-FR"),
+    columns: [{ h: "Numéro de compte", w: 96 }, { h: "Intitulé", w: 200 }, { h: "Solde du compte", w: 100, a: "r" }, { h: "de 1 à 30 j", w: 99, a: "r" }, { h: "de 31 à 45 j", w: 99, a: "r" }, { h: "de 46 à 60 j", w: 100, a: "r" }, { h: "plus de 61 j", w: 100, a: "r" }], rows });
+});
+
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
