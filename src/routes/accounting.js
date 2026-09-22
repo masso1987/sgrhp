@@ -1224,6 +1224,66 @@ router.get("/aged/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
 });
 
 
+
+/* ==================== EXPORTS PDF - États tiers ==================== */
+router.get("/tiers-balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const kind = req.query.kind || "all";
+  const defined = {}; for (const t of mine(db.acctThirdParties, req)) defined[t.code] = t;
+  const agg = {};
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue;
+    for (const l of (e.lines || [])) { const tp = l.thirdParty; if (!tp) continue; const acc = String(l.account);
+      const k = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : acc.startsWith("42") ? "salarie" : "autre";
+      const g = (agg[tp] = agg[tp] || { code: tp, kind: k, debit: 0, credit: 0 }); g.debit += R2(l.debit); g.credit += R2(l.credit); } }
+  let list = Object.values(agg).map(g => Object.assign(g, { name: (defined[g.code] || {}).name || "", solde: g.debit - g.credit }));
+  if (kind !== "all") list = list.filter(r => r.kind === kind);
+  list.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  const rows = []; let td = 0, tc = 0;
+  for (const r of list) { td += r.debit; tc += r.credit; rows.push({ cells: [r.code, r.name || "", _pnf(r.debit), _pnf(r.credit), _pnf(r.solde)] }); }
+  rows.push({ cells: ["TOTAUX", "", _pnf(td), _pnf(tc), _pnf(td - tc)], bold: true, fill: "#dfe6ec" });
+  const sub = { all: "Tous les tiers", client: "Clients (411)", fournisseur: "Fournisseurs (401)", salarie: "Salariés (42)", autre: "Autres tiers" }[kind] || kind;
+  _acctReportPDF(req, res, { filename: "Balance_tiers_" + kind, title: "Balance des tiers", subtitle: sub,
+    columns: [{ h: "Code", w: 90 }, { h: "Nom", w: 220 }, { h: "Débit", w: 79, a: "r" }, { h: "Crédit", w: 79, a: "r" }, { h: "Solde", w: 79, a: "r" }], rows });
+});
+router.get("/tiers-gl/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const kind = req.query.kind || "all"; const ref = {}; for (const t of mine(db.acctThirdParties, req)) ref[t.code] = t;
+  const groups = {};
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue;
+    for (const l of (e.lines || [])) { const tp = l.thirdParty; if (!tp) continue; const acc = String(l.account);
+      const k = acc.startsWith("401") ? "fournisseur" : acc.startsWith("411") ? "client" : acc.startsWith("42") ? "salarie" : "autre";
+      if (kind !== "all" && k !== kind) continue;
+      const g = (groups[tp] = groups[tp] || { code: tp, name: (ref[tp] || {}).name || "", rows: [], debit: 0, credit: 0 });
+      g.rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, account: l.account, label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) });
+      g.debit += R2(l.debit); g.credit += R2(l.credit); } }
+  const out = Object.values(groups).map(g => { g.rows.sort((a, b) => (a.date || "").localeCompare(b.date || "")); let sd = 0; for (const r of g.rows) { sd += r.debit - r.credit; r.solde = sd; } g.solde = g.debit - g.credit; return g; }).sort((a, b) => String(a.code).localeCompare(String(b.code)));
+  const rows = []; let TD = 0, TC = 0;
+  for (const g of out) { rows.push({ cells: ["", "", "", g.code, "TIERS : " + (g.name || g.code), "", "", ""], bold: true, fill: "#e6efe9" });
+    for (const r of g.rows) rows.push({ cells: [r.date || "", r.journal || "", r.piece || "", r.account || "", r.label || "", _pnf(r.debit), _pnf(r.credit), _pnf(r.solde)] });
+    rows.push({ cells: ["", "", "", "", "Total " + g.code, _pnf(g.debit), _pnf(g.credit), _pnf(g.solde)], bold: true });
+    TD += g.debit; TC += g.credit; }
+  rows.push({ cells: ["", "", "", "", "TOTAL GÉNÉRAL", _pnf(TD), _pnf(TC), _pnf(TD - TC)], bold: true, fill: "#dfe6ec" });
+  const sub = { all: "Tous les tiers", client: "Clients (411)", fournisseur: "Fournisseurs (401)", salarie: "Salariés (42)", autre: "Autres tiers" }[kind] || kind;
+  _acctReportPDF(req, res, { landscape: true, filename: "Grand-livre_tiers_" + kind, title: "Grand-livre des tiers", subtitle: sub,
+    columns: [{ h: "Date", w: 62 }, { h: "Jr", w: 34 }, { h: "Pièce", w: 64 }, { h: "Compte", w: 60 }, { h: "Libellé", w: 240 }, { h: "Débit", w: 100, a: "r" }, { h: "Crédit", w: 100, a: "r" }, { h: "Solde", w: 100, a: "r" }], rows });
+});
+router.get("/tiers-releve/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const tp = (req.query.tp || "").toString(); if (!tp) return res.status(400).json({ error: "Tiers requis" });
+  const asOf = (req.query.asOf || "").toString(); const labels = _accLabel(req);
+  let list = [];
+  for (const e of mine(db.acctEntries, req)) { if (e.status === "draft") continue;
+    for (const l of (e.lines || [])) if ((l.thirdParty || "") === tp) list.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, account: l.account, label: l.label || e.label || "", dueDate: l.dueDate || "", lettre: l.lettre || "", debit: R2(l.debit), credit: R2(l.credit) }); }
+  list.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  if (asOf) list = list.filter(r => String(r.date || "") <= asOf);
+  const rows = []; let solde = 0, td = 0, tc = 0;
+  for (const r of list) { solde += r.debit - r.credit; td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.journal || "", r.piece || "", r.account || "", r.label || "", r.dueDate || "", r.lettre || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : "", _pnf(solde)] }); }
+  rows.push({ cells: ["", "", "", "", asOf ? ("SOLDE AU " + asOf) : "TOTAUX", "", "", _pnf(td), _pnf(tc), _pnf(td - tc)], bold: true, fill: "#dfe6ec" });
+  const t = mine(db.acctThirdParties, req).find(x => x.code === tp) || {};
+  _acctReportPDF(req, res, { landscape: true, filename: "Releve_" + tp, title: "Relevé de compte tiers", subtitle: tp + (t.name ? " - " + t.name : "") + (asOf ? " (justificatif arrêté au " + asOf + ")" : ""), to: asOf || "",
+    columns: [{ h: "Date", w: 60 }, { h: "Jr", w: 34 }, { h: "Pièce", w: 64 }, { h: "Compte", w: 60 }, { h: "Libellé", w: 190 }, { h: "Échéance", w: 66 }, { h: "Let", w: 34 }, { h: "Débit", w: 88, a: "r" }, { h: "Crédit", w: 88, a: "r" }, { h: "Solde", w: 96, a: "r" }], rows });
+});
+
 module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;

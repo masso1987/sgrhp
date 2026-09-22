@@ -7824,7 +7824,7 @@ async function acctTiersBalance(){
       :'<tr><td colspan="6" style="color:var(--muted)">Aucun tiers.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
       <td class="r">${fCFA(sum('debit')-sum('credit'))}</td><td></td></tr></tbody></table></div>
-    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${rows.length}</b></span><span class="sp"></span><span><span class="k">Débit :</span> <b>${fCFA(sum('debit'))}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(sum('credit'))}</b></span><span><span class="k">Solde :</span> <b>${fCFA(sum('debit')-sum('credit'))}</b></span><span class="sp" style="flex:0"></span><button class="btn ghost sm" onclick="acctTiersBalanceCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>`;
+    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${rows.length}</b></span><span class="sp"></span><span><span class="k">Débit :</span> <b>${fCFA(sum('debit'))}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(sum('credit'))}</b></span><span><span class="k">Solde :</span> <b>${fCFA(sum('debit')-sum('credit'))}</b></span><span class="sp" style="flex:0"></span><button class="btn ghost sm" onclick="acctTiersBalanceCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersBalancePDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>`;
   window._etsBalance=rows;
 }
 async function acctTiersGL(){
@@ -7833,7 +7833,7 @@ async function acctTiersGL(){
   window._etsGL=d;
   const box=document.getElementById("etsBox");
   box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><b>Grand-livre des tiers (${d.count||0})</b>
-      <button class="btn ghost sm" onclick="acctTiersGLCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></div>
+      <button class="btn ghost sm" onclick="acctTiersGLCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersGLPDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></div>
     ${(d.groups||[]).map(g=>`<div style="margin-top:12px"><div style="font-weight:600">${esc(g.code)}${g.name?' - '+esc(g.name):''}
         <span class="tag gray">${esc(g.kind)}</span> <span style="float:right">Solde ${fCFA(g.solde)}</span></div>
       <table style="margin-top:4px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
@@ -7851,7 +7851,7 @@ async function acctTiersReleveTab(){
   box.innerHTML=`<div class="d2-filters top">
       <div class="fld"><label>Tiers</label><select onchange="window._ets.tp=this.value;acctTiersReleveTab()" style="min-width:260px">${list.map(r=>`<option value="${esc(r.code)}" ${r.code===cur?'selected':''}>${esc(r.code)}${r.name?' - '+esc(r.name):''}</option>`).join("")}</select></div>
       <div class="fld"><label>Arrêté au (justificatif)</label><input type="date" value="${esc(window._ets.asOf||'')}" onchange="window._ets.asOf=this.value;acctTiersReleveTab()"></div>
-      <div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="acctTiersReleveCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div></div><div id="etsReleveRows">…</div>`;
+      <div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="acctTiersReleveCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersRelevePDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div></div><div id="etsReleveRows">…</div>`;
   if(!cur){ document.getElementById("etsReleveRows").innerHTML='<div class="note">Aucun tiers.</div>'; return; }
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(cur)).catch(()=>({rows:[]}));
   window._etsReleve=Object.assign({tp:cur},d);
@@ -7948,6 +7948,9 @@ function acctPrintWindow(title, bodyHtml, opts){
     </body></html>`);
   w.document.close();
 }
+function acctTiersBalancePDF(){ const k=(window._ets&&window._ets.kind)||"all"; acctPDF("/accounting/tiers-balance/pdf?kind="+k,"Balance_tiers_"+k+".pdf"); }
+function acctTiersGLPDF(){ const k=(window._ets&&window._ets.kind)||"all"; acctPDF("/accounting/tiers-gl/pdf?kind="+k,"Grand-livre_tiers_"+k+".pdf"); }
+function acctTiersRelevePDF(){ const d=window._etsReleve||{}; const tp=d.tp||""; const asOf=(window._ets&&window._ets.asOf)||""; if(!tp){ alert("Aucun tiers."); return; } acctPDF("/accounting/tiers-releve/pdf?tp="+encodeURIComponent(tp)+(asOf?("&asOf="+asOf):""),"Releve_"+tp+".pdf"); }
 function acctTiersBalanceCSV(){
   const rows=window._etsBalance||[];
   const m=[["Code","Nom","Débit","Crédit","Solde"]];
