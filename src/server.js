@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-22 - CONV-30 (conventions collectives: grille officielle Hotels-Restaurants + Hydrocarbures, Banques/Maritime en indicatif)";
+const BUILD_VERSION = "2026-09-23 - FIX-31 (passation provisoire deblocage suspense + exports CSV/PDF etats compta avec en-tete facon Sage)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

@@ -4845,7 +4845,7 @@ function payPassationModal(runId, rep){
     <div class="err hidden" id="ppErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:8px">
       ${(()=>{ let lab,dis,mode;
-        if(prov){ lab=hasProv?'Passation provisoire déjà faite ✓':'Comptabiliser la passation provisoire'; dis=hasProv||!rep.canPostProvisional; mode='provisoire'; }
+        if(prov){ lab=hasProv?'Passation provisoire déjà faite ✓':'Comptabiliser la passation provisoire'; dis=hasProv||!c.hasPayslips||rep.status==='CLOSED'; mode='provisoire'; }
         else if(hasProv){ lab=c.finalized?'Régularisation comptabilisée ✓':'Comptabiliser la régularisation (écart)'; dis=c.finalized; mode='definitive'; }
         else { lab=c.alreadyPosted?'Déjà comptabilisée ✓':'Confirmer et comptabiliser'; dis=c.alreadyPosted; mode='definitive'; }
         return `<button class="btn p" ${dis?'disabled':''} onclick="payPassationConfirm('${runId}','${mode}')">${lab}</button>`; })()}
@@ -4853,7 +4853,9 @@ function payPassationModal(runId, rep){
   document.body.appendChild(bg);
 }
 async function payPassationConfirm(runId, mode){
-  const susp=(document.getElementById("ppSusp")||{}).checked;
+  const suspEl=document.getElementById("ppSusp");
+  const susp=(suspEl||{}).checked;
+  if(suspEl && !susp){ const el=document.getElementById("ppErr"); if(el){ el.textContent="Des rubriques ne sont pas mappées : cochez « Router vers le compte d'attente » ci-dessus, ou complétez la table Rubriques -> Comptes."; el.classList.remove("hidden"); } return; }
   const url = mode==='provisoire' ? "/payroll/runs/"+runId+"/passation-provisoire" : "/payroll/runs/"+runId+"/transfer-accounting";
   try{ const e=await api(url,{method:"POST",body:JSON.stringify({allowSuspense:!!susp})});
     const bgm=document.querySelector(".modal-bg"); if(bgm) bgm.remove();
@@ -7101,7 +7103,7 @@ async function acctBalanceView() {
   const seg=(v,l)=>`<button class="btn ${lvl===v?'p':'ghost'} sm" onclick="window._balLvl='${v}';acctBalanceView()">${l}</button>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">Balance des comptes</h1>
-    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span><button class="btn ghost sm" onclick="acctBalancePrint()">Imprimer</button></div>
+    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span><button class="btn ghost sm" onclick="acctBalanceCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctBalancePrint()">Imprimer</button></div>
     <div class="d2-filters"><div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
       <div class="fld"><label>Du</label><input type="date" value="${window._acctFrom||''}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctBalanceView()"></div>
       <div class="fld"><label>Au</label><input type="date" value="${window._acctTo||''}" onchange="window._acctTo=this.value;window._acctPeriod='';acctBalanceView()"></div>
@@ -7119,7 +7121,48 @@ function acctBalancePrint(){
   const body=`<table><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${d.rows.map(g=>`<tr><td>${esc(g.account||g.key)}</td><td>${esc(g.label||"")}</td><td class="r">${F(g.debit)}</td><td class="r">${F(g.credit)}</td><td class="r">${F(g.solde)}</td></tr>`).join("")}
     <tr class="tot"><td colspan="2">TOTAL GÉNÉRAL</td><td class="r">${F(d.td)}</td><td class="r">${F(d.tc)}</td><td class="r">${F(d.ts)}</td></tr></table>`;
-  acctPrintWindow("Balance des comptes"+(d.period?" - "+d.period:""), body);
+  const _lab={detail:"Balance détaillée par compte",level2:"Balance par niveau (2 chiffres)",class:"Balance synthétique par classe"}[d.lvl||"detail"];
+  acctPrintWindow("Balance des comptes", body, {subtitle:_lab+"<br>Écritures validées - rupture par classe OHADA", period:d.period||"Tout l'exercice"});
+}
+function _acctCSV(filename, matrix){
+  const q=v=>{ v=(v==null?"":String(v)); return /[";\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  const csv="\ufeff"+matrix.map(r=>r.map(q).join(";")).join("\r\n");
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=filename; a.click();
+}
+function acctBalanceCSV(){
+  const d=window._balPrint||{rows:[]};
+  const m=[["Compte","Intitulé","Débit","Crédit","Solde"]];
+  d.rows.forEach(g=>m.push([g.account||g.key,g.label||"",Math.round(g.debit||0),Math.round(g.credit||0),Math.round(g.solde||0)]));
+  m.push(["TOTAL GENERAL","",Math.round(d.td||0),Math.round(d.tc||0),Math.round(d.ts||0)]);
+  _acctCSV("Balance"+(d.period?"_"+d.period:"")+".csv", m);
+}
+function acctLedgerCSV(){
+  const d=window._glPrint||{rows:[]};
+  const m=[["Date","Journal","Pièce","Libellé","Débit","Crédit","Solde progressif"]];
+  d.rows.forEach(r=>m.push([r.date||"",r.journal||"",r.piece||"",r.label||"",Math.round(r.debit||0),Math.round(r.credit||0),Math.round(r.solde||0)]));
+  m.push(["","","","SOLDE A REPORTER",Math.round(d.totalDebit||0),Math.round(d.totalCredit||0),Math.round(d.solde||0)]);
+  _acctCSV("Grand-livre_"+(d.account||"")+".csv", m);
+}
+function acctLedgerPrint(){
+  const d=window._glPrint||{rows:[]}; const F=fCFA;
+  const body=`<h2>${esc(d.account||"")} - ${esc(d.label||"")}</h2><table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
+    ${d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal||"")}</td><td>${esc(r.piece||"")}</td><td>${esc(r.label||"")}</td><td class="r">${F(r.debit)}</td><td class="r">${F(r.credit)}</td><td class="r">${F(r.solde)}</td></tr>`).join("")}
+    <tr class="tot"><td colspan="4">SOLDE À REPORTER</td><td class="r">${F(d.totalDebit)}</td><td class="r">${F(d.totalCredit)}</td><td class="r">${F(d.solde)}</td></tr></table>`;
+  acctPrintWindow("Grand-livre", body, {subtitle:esc(d.account||"")+" - "+esc(d.label||""), from:window._acctFrom||"", to:window._acctTo||""});
+}
+function acctJournalCSV(){
+  const d=window._jrPrint||{rows:[]};
+  const m=[["Date","Journal","Pièce","Compte","Tiers","Libellé","Débit","Crédit"]];
+  d.rows.forEach(r=>m.push([r.date||"",r.journal||"",r.piece||"",r.account||"",r.thirdParty||"",r.label||"",Math.round(r.debit||0),Math.round(r.credit||0)]));
+  m.push(["","","","","","TOTAUX",Math.round(d.totalDebit||0),Math.round(d.totalCredit||0)]);
+  _acctCSV("Journal_"+(d.journal||"")+(d.period?"_"+d.period:"")+".csv", m);
+}
+function acctJournalPrint(){
+  const d=window._jrPrint||{rows:[]}; const F=fCFA;
+  const body=`<table><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr>
+    ${d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.piece||"")}</td><td>${esc(r.account||"")}</td><td>${esc(r.thirdParty||"")}</td><td>${esc(r.label||"")}</td><td class="r">${F(r.debit)}</td><td class="r">${F(r.credit)}</td></tr>`).join("")}
+    <tr class="tot"><td colspan="5">TOTAUX</td><td class="r">${F(d.totalDebit)}</td><td class="r">${F(d.totalCredit)}</td></tr></table>`;
+  acctPrintWindow("Journal", body, {subtitle:"Journal "+esc(d.journal||""), from:window._acctFrom||"", to:window._acctTo||"", period:(window._acctFrom||window._acctTo)?"":(d.period||"")});
 }
 
 
@@ -7150,13 +7193,14 @@ async function acctLedgerRender(){
     ${(_from||_to)?`<div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="window._acctFrom='';window._acctTo='';acctLedgerRender()">Effacer</button></div>`:''}</div><div id="glRows">…</div>`;
   const _qs="/accounting/ledger?account="+encodeURIComponent(acc)+(_from?"&from="+_from:"")+(_to?"&to="+_to:"");
   const d=await api(_qs).catch(()=>({rows:[]}));
+  window._glPrint=d;
   const _op=Number(d.opening||0);
   const _openRow=(window._acctFrom&&_op!==0)?`<tr style="background:#fff;font-weight:600"><td>${esc(window._acctFrom)}</td><td>-</td><td><code>RAN</code></td><td>Report à nouveau (solde d'ouverture)</td><td class="r">${_op>0?fCFA(_op):'-'}</td><td class="r">${_op<0?fCFA(-_op):'-'}</td><td class="r">${fCFA(_op)}</td></tr>`:'';
   document.getElementById("glRows").innerHTML=`
     <div class="d2-grid"><table><thead><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde progressif</th></tr></thead><tbody>
     ${_openRow}${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="4">SOLDE À REPORTER</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td><td class="r">${fCFA(d.solde)}</td></tr></tbody></table></div>
-    <div class="d2-status"><span><span class="k">Compte :</span> <b>${esc(d.account)} ${esc(d.label||"")}</b></span><span class="sp"></span><span><span class="k">Lignes :</span> <b>${d.rows.length}</b></span><span><span class="k">Débit :</span> <b>${fCFA(d.totalDebit)}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(d.totalCredit)}</b></span><span><span class="k">Solde :</span> <b>${fCFA(d.solde)}</b></span></div>`;
+    <div class="d2-status"><span><span class="k">Compte :</span> <b>${esc(d.account)} ${esc(d.label||"")}</b></span><span class="sp"></span><span><span class="k">Lignes :</span> <b>${d.rows.length}</b></span><span><span class="k">Débit :</span> <b>${fCFA(d.totalDebit)}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(d.totalCredit)}</b></span><span><span class="k">Solde :</span> <b>${fCFA(d.solde)}</b></span><span style="flex:0 0 auto"><button class="btn ghost sm" onclick="acctLedgerCSV()">CSV</button> <button class="btn ghost sm" onclick="acctLedgerPrint()">Imprimer</button></span></div>`;
 }
 async function acctJournalRender(){
   await acctLoadRefs();
@@ -7170,15 +7214,17 @@ async function acctJournalRender(){
     <div class="fld"><label>Au</label><input type="date" value="${_to}" onchange="window._acctTo=this.value;window._acctPeriod='';acctJournalRender()"></div></div><div id="jrRows">…</div>`;
   const _qs="/accounting/journal-report?journal="+encodeURIComponent(jr)+((_from||_to)?((_from?"&from="+_from:"")+(_to?"&to="+_to:"")):(per?"&period="+per:""));
   const d=await api(_qs).catch(()=>({rows:[]}));
-  document.getElementById("jrRows").innerHTML=`<div class="d2-grid"><table><thead><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead><tbody>
+  window._jrPrint=Object.assign({journal:jr,period:per},d);
+  document.getElementById("jrRows").innerHTML=`<div style="display:flex;justify-content:flex-end;gap:6px;margin:0 0 6px"><button class="btn ghost sm" onclick="acctJournalCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctJournalPrint()">Imprimer</button></div><div class="d2-grid"><table><thead><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead><tbody>
     ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.thirdParty||"")}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucune écriture.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="5">TOTAUX</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td></tr></tbody></table></div>`;
 }
 async function acctAgedRender(){
   const kind=window._acctAged||"client";
   const box=document.getElementById("acctEtatBox");
-  box.innerHTML=`<div class="d2-filters top"><div class="fld"><label>Type</label><select onchange="window._acctAged=this.value;acctAgedRender()"><option value="client" ${kind==='client'?'selected':''}>Clients (411)</option><option value="fournisseur" ${kind==='fournisseur'?'selected':''}>Fournisseurs (401)</option></select></div></div><div id="ageRows">…</div>`;
+  box.innerHTML=`<div class="d2-filters top"><div class="fld"><label>Type</label><select onchange="window._acctAged=this.value;acctAgedRender()"><option value="client" ${kind==='client'?'selected':''}>Clients (411)</option><option value="fournisseur" ${kind==='fournisseur'?'selected':''}>Fournisseurs (401)</option></select></div><div class="fld" style="justify-content:end;flex:1;align-items:flex-end"><span style="display:flex;gap:6px"><button class="btn ghost sm" onclick="acctAgedCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctAgedPrint()">Imprimer</button></span></div></div><div id="ageRows">…</div>`;
   const d=await api("/accounting/aged?kind="+kind).catch(()=>({rows:[],totals:{}}));
+  window._agedPrint={kind,rows:d.rows||[],totals:d.totals||{}};
   const f=n=>fCFA(Math.abs(n))+(n<0?' C':'');
   document.getElementById("ageRows").innerHTML=`<div class="d2-grid"><table><thead><tr><th>Tiers</th><th class="r">0-30 j</th><th class="r">31-60</th><th class="r">61-90</th><th class="r">&gt; 90</th><th class="r">Total</th></tr></thead><tbody>
     ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.tp)}</td><td class="r">${f(r.b0)}</td><td class="r">${f(r.b30)}</td><td class="r">${f(r.b60)}</td><td class="r">${f(r.b90)}</td><td class="r"><b>${f(r.total)}</b></td></tr>`).join("") : '<tr><td colspan="6" style="color:var(--muted)">Aucun solde.</td></tr>'}
@@ -7689,7 +7735,7 @@ async function acctTiersBalance(){
       :'<tr><td colspan="6" style="color:var(--muted)">Aucun tiers.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
       <td class="r">${fCFA(sum('debit')-sum('credit'))}</td><td></td></tr></tbody></table></div>
-    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${rows.length}</b></span><span class="sp"></span><span><span class="k">Débit :</span> <b>${fCFA(sum('debit'))}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(sum('credit'))}</b></span><span><span class="k">Solde :</span> <b>${fCFA(sum('debit')-sum('credit'))}</b></span><span class="sp" style="flex:0"></span><button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>`;
+    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${rows.length}</b></span><span class="sp"></span><span><span class="k">Débit :</span> <b>${fCFA(sum('debit'))}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(sum('credit'))}</b></span><span><span class="k">Solde :</span> <b>${fCFA(sum('debit')-sum('credit'))}</b></span><span class="sp" style="flex:0"></span><button class="btn ghost sm" onclick="acctTiersBalanceCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>`;
   window._etsBalance=rows;
 }
 async function acctTiersGL(){
@@ -7730,20 +7776,73 @@ async function acctTiersReleveTab(){
       <td class="r">${fCFA(_asOf?(_rd-_rc):(d.solde||0))}</td></tr></tbody></table></div>
     <div class="d2-status"><span><span class="k">Tiers :</span> <b>${esc(cur)}${d.name?' - '+esc(d.name):''}</b></span>${_asOf?`<span class="k">justificatif arrêté au ${_asOf}</span>`:''}<span class="sp"></span><span><span class="k">Solde :</span> <b>${fCFA(_asOf?(_rd-_rc):(d.solde||0))}</b></span></div>`;
 }
+function acctAgedCSV(){
+  const d=window._agedPrint||{rows:[]}; const t=d.totals||{};
+  const m=[["Tiers","0-30 j","31-60","61-90",">90","Total"]];
+  d.rows.forEach(r=>m.push([r.tp,Math.round(r.b0||0),Math.round(r.b30||0),Math.round(r.b60||0),Math.round(r.b90||0),Math.round(r.total||0)]));
+  m.push(["TOTAUX",Math.round(t.b0||0),Math.round(t.b30||0),Math.round(t.b60||0),Math.round(t.b90||0),Math.round(t.total||0)]);
+  _acctCSV("Balance_agee_"+(d.kind||"")+".csv", m);
+}
+function acctAgedPrint(){
+  const d=window._agedPrint||{rows:[]}; const t=d.totals||{}; const F=fCFA;
+  const body=`<table><tr><th>Numéro de compte</th><th class="r">Solde du compte</th><th class="r">de 1 à 30 jours</th><th class="r">de 31 à 45 jours</th><th class="r">de 46 à 60 jours</th><th class="r">plus de 61 jours</th></tr>
+    ${d.rows.map(r=>`<tr><td>${esc(r.tp||"")}</td><td class="r">${F(r.total)}</td><td class="r">${r.b0?F(r.b0):""}</td><td class="r">${r.b30?F(r.b30):""}</td><td class="r">${r.b60?F(r.b60):""}</td><td class="r">${r.b90?F(r.b90):""}</td></tr>`).join("")}
+    <tr class="tot"><td>TOTAUX</td><td class="r">${F(t.total)}</td><td class="r">${F(t.b0)}</td><td class="r">${F(t.b30)}</td><td class="r">${F(t.b60)}</td><td class="r">${F(t.b90)}</td></tr></table>`;
+  const now=new Date().toLocaleDateString("fr-FR");
+  acctPrintWindow("Balance Âgée", body, {subtitle:"D'après date d'échéance<br>Sur la date la plus lointaine ("+(d.kind==="fournisseur"?"Fournisseurs 401":"Clients 411")+")", to:now});
+}
 function acctPrintCompany(){ try{ return (window.ME&&ME.tenantName)|| (window.SETTINGS&&SETTINGS.companyName) || document.title || "Société"; }catch(e){ return "Société"; } }
-function acctPrintWindow(title, bodyHtml){
+function acctPrintWindow(title, bodyHtml, opts){
+  opts = opts || {};
   const w=window.open("","_blank"); if(!w){ alert("Autorisez les fenêtres pop-up pour imprimer."); return; }
-  const dt=new Date().toLocaleDateString("fr-FR");
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
-    <style>body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:24px}
-    h1{font-size:16px;margin:0 0 2px}h2{font-size:13px;margin:14px 0 4px}.sub{color:#555;font-size:11px;margin-bottom:12px}
-    table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #bbb;padding:3px 6px;text-align:left}
-    th{background:#eee}.r{text-align:right}.tot{font-weight:700}code{font-family:monospace}
-    @media print{body{margin:10mm}}</style></head><body>
-    <h1>${esc(acctPrintCompany())}</h1><div class="sub">${title} - édité le ${dt}</div>${bodyHtml}
-    <script>window.onload=function(){window.print();}<\/script>
+  const now=new Date();
+  const dt=now.toLocaleDateString("fr-FR"), tm=now.toLocaleTimeString("fr-FR");
+  const company=acctPrintCompany();
+  const app=(window.BRANDING&&BRANDING.appName)||"MBOKA Mon RH";
+  const build=(window.BRANDING&&BRANDING.build)||"";
+  const sub=opts.subtitle||"";
+  const per=(opts.from||opts.to)
+    ? `<div><span class="k">Période du</span>&nbsp;&nbsp;<b>${esc(opts.from||'-')}</b></div><div><span class="k">au</span>&nbsp;&nbsp;<b>${esc(opts.to||'-')}</b></div>`
+    : (opts.period?`<div><span class="k">Période</span>&nbsp;&nbsp;<b>${esc(opts.period)}</b></div>`:"");
+  const tenue=opts.tenue?`<div style="margin-top:5px">Tenue de compte&nbsp;: ${esc(opts.tenue)}</div>`:`<div style="margin-top:5px">Tenue de compte&nbsp;:</div>`;
+  const header=`
+    <table class="rpt-hdr"><tr>
+      <td style="width:30%;vertical-align:top"><b style="font-size:13px">${esc(company)}</b></td>
+      <td style="text-align:center;vertical-align:top"><div class="rpt-title">${esc(title)}</div>${sub?`<div class="rpt-sub">${sub}</div>`:""}</td>
+      <td style="width:28%;vertical-align:top;font-size:11px">${per}${tenue}</td>
+    </tr></table>
+    <table class="rpt-hdr2"><tr>
+      <td style="width:42%">© ${esc(app)} - Comptabilité${build?(" "+esc(build)):""}</td>
+      <td style="text-align:center">Date de tirage ${dt} à ${tm}</td>
+      <td style="text-align:right;width:16%">Page&nbsp;: <span class="pg"></span></td>
+    </tr></table>`;
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+    <style>body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:14mm 10mm}
+    .rpt-hdr{width:100%;border:1px solid #000;border-collapse:collapse}
+    .rpt-hdr td{padding:7px 9px}
+    .rpt-title{font-size:19px;font-weight:700;letter-spacing:.3px}
+    .rpt-sub{font-size:11px;color:#333;margin-top:2px;line-height:1.35}
+    .rpt-hdr2{width:100%;border:1px solid #000;border-top:none;border-collapse:collapse;font-size:11px;margin-bottom:12px}
+    .rpt-hdr2 td{padding:3px 9px}
+    .k{color:#333}
+    table.data{width:100%;border-collapse:collapse;margin-top:2px}
+    table.data th,table.data td{border:1px solid #bbb;padding:3px 6px;text-align:left}
+    table.data th{background:#eee}
+    table.data thead{display:table-header-group}
+    .r{text-align:right}.tot{font-weight:700;background:#f3f3f3}code{font-family:monospace}
+    @media print{body{margin:12mm 10mm}}
+    </style></head><body>${header}${bodyHtml.replace(/<table(?![^>]*class=)/g,'<table class="data"')}
+    <script>window.onload=function(){var p=document.querySelector(".pg"); if(p)p.textContent="1"; window.print();}<\/script>
     </body></html>`);
   w.document.close();
+}
+function acctTiersBalanceCSV(){
+  const rows=window._etsBalance||[];
+  const m=[["Code","Nom","Débit","Crédit","Solde"]];
+  rows.forEach(r=>m.push([r.code,r.name||"",Math.round(r.debit||0),Math.round(r.credit||0),Math.round(r.solde||0)]));
+  const sum=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
+  m.push(["TOTAUX","",Math.round(sum("debit")),Math.round(sum("credit")),Math.round(sum("debit")-sum("credit"))]);
+  _acctCSV("Balance_tiers.csv", m);
 }
 function acctTiersPrintBalance(){
   const rows=window._etsBalance||[]; const kind=window._ets.kind;
@@ -7751,7 +7850,7 @@ function acctTiersPrintBalance(){
   const body=`<table><tr><th>Code</th><th>Nom</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${rows.map(r=>`<tr><td>${esc(r.code)}</td><td>${esc(r.name||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
     <tr class="tot"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td><td class="r">${fCFA(sum('debit')-sum('credit'))}</td></tr></table>`;
-  acctPrintWindow("Balance des tiers - "+(kind==='all'?'tous':kind), body);
+  acctPrintWindow("Balance des tiers", body, {subtitle:({all:"Tous les tiers",client:"Clients (411)",fournisseur:"Fournisseurs (401)",salarie:"Salariés (42)",autre:"Autres tiers"})[kind]||kind});
 }
 function acctTiersPrintGL(){
   const d=window._etsGL||{groups:[]};
@@ -7759,7 +7858,7 @@ function acctTiersPrintGL(){
     <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${g.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
     <tr class="tot"><td colspan="5">Total</td><td class="r">${fCFA(g.debit)}</td><td class="r">${fCFA(g.credit)}</td><td class="r">${fCFA(g.solde)}</td></tr></table>`).join("");
-  acctPrintWindow("Grand-livre des tiers", body||"<p>Aucun mouvement.</p>");
+  acctPrintWindow("Grand-livre des tiers", body||"<p>Aucun mouvement.</p>", {subtitle:"Détail des mouvements par tiers"});
 }
 async function acctTiersPrintReleve(tp){
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(tp)).catch(()=>({rows:[]}));
@@ -7767,7 +7866,7 @@ async function acctTiersPrintReleve(tp){
     <table><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${(d.rows||[]).map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td>${esc(r.piece)}</td><td>${esc(r.account)}</td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")}
     <tr class="tot"><td colspan="6">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td><td class="r">${fCFA(d.solde||0)}</td></tr></table>`;
-  acctPrintWindow("Relevé de compte tiers", body);
+  acctPrintWindow("Relevé de compte tiers", body, {subtitle:"Justificatif de compte"});
 }
 
 /* ---- Comptabilité : Import Sage / FEC ---- */
