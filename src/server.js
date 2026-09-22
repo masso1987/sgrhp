@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-23 - LOCK-36 (cloture paie irreversible + cloture partielle/periode/totale des journaux avec verrou de periode)";
+const BUILD_VERSION = "2026-09-23 - JRCLO-37 (cloture d un journal: complete ou partielle jusqu au mois)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

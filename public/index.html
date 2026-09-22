@@ -7320,6 +7320,15 @@ async function acctClotureView(){
           <div id="clJrWrap" style="display:none"><label>Journaux</label><select id="clJr" multiple size="4" style="min-width:200px">${jrs.map(j=>`<option value="${j.code}">${esc(j.code)} - ${esc(j.label)}</option>`).join("")}</select></div>
           <button class="btn p sm" onclick="acctCloseJournals()">Clôturer</button></div>
         <div class="note" style="margin-top:6px">Verrouille les écritures validées du périmètre (<b>irréversible</b>) et empêche toute saisie back-datée dans une période clôturée. « Totale » précède la clôture d'exercice.</div></div>
+      <div class="panel"><b>Clôture d'un journal</b>
+        <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:6px">
+          <div><label>Journal</label><select id="cljJr">${jrs.map(j=>`<option value="${j.code}">${esc(j.code)} - ${esc(j.label)}</option>`).join("")}</select></div>
+          <div><label>Étendue</label><select id="cljMode" onchange="acctCloseJrModeChange()">
+            <option value="complete">Complète (tout le journal)</option>
+            <option value="partielle">Partielle (jusqu'au mois)</option></select></div>
+          <div id="cljPerWrap" style="display:none"><label>Jusqu'au mois inclus</label><input id="cljPer" type="month"></div>
+          <button class="btn p sm" onclick="acctCloseOneJournal()">Clôturer le journal</button></div>
+        <div class="note" style="margin-top:6px">Verrouille les écritures validées du journal choisi. <b>Complète</b> = tout le journal ; <b>Partielle</b> = jusqu'au mois inclus. Irréversible.</div></div>
       <div class="panel"><b>Export fiscal (DGI)</b>
         <div style="display:flex;gap:8px;align-items:end;margin-top:6px">
           <div><label>Année</label><input id="fecY" type="number" value="${cur.year||new Date().getFullYear()}" style="max-width:100px"></div>
@@ -7377,6 +7386,16 @@ async function acctCloseJournals(){
   const doClose=async(force)=>{ const r=await api("/accounting/close-journals",{method:"POST",body:JSON.stringify({mode,period,journals,force:!!force})}); alert(r.locked+" écriture(s) verrouillée(s)."+(r.periodLock?("\nVerrou de période : jusqu'à "+r.periodLock+" inclus."):"")); acctClotureView(); };
   try{ await doClose(false); }
   catch(e){ if(/brouillon/i.test(e.message)&&confirm(e.message+"\n\nForcer la clôture (les brouillons resteront non clôturés) ?")){ try{ await doClose(true); }catch(e2){ alert(e2.message); } } else alert(e.message); }
+}
+function acctCloseJrModeChange(){ const m=(document.getElementById("cljMode")||{}).value; const w=document.getElementById("cljPerWrap"); if(w)w.style.display=(m==="partielle")?"":"none"; }
+async function acctCloseOneJournal(){
+  const code=(document.getElementById("cljJr")||{}).value; const m=(document.getElementById("cljMode")||{}).value||"complete";
+  const period=m==="partielle"?((document.getElementById("cljPer")||{}).value||""):"";
+  if(m==="partielle"&&!period){ alert("Indiquez le mois (jusqu'au mois inclus)."); return; }
+  if(!confirm("Clôturer le journal "+code+" - "+(m==="partielle"?("jusqu'à "+period+" inclus"):"complet (tout le journal)")+" ?\nAction IRRÉVERSIBLE : les écritures validées seront verrouillées.")) return;
+  const doClose=async(force)=>{ const r=await api("/accounting/close-journals",{method:"POST",body:JSON.stringify({mode:"partielle",journals:[code],period,force:!!force})}); alert(r.locked+" écriture(s) verrouillée(s) sur le journal "+code+"."); acctClotureView(); };
+  try{ await doClose(false); }
+  catch(e){ if(/brouillon/i.test(e.message)&&confirm(e.message+"\n\nForcer ?")){ try{ await doClose(true); }catch(e2){ alert(e2.message); } } else alert(e.message); }
 }
 function acctFec(){ const y=(document.getElementById("fecY")||{}).value||new Date().getFullYear(); payDownload("/accounting/fec?year="+y,"FEC_"+y+".txt"); }
 

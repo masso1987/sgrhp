@@ -506,7 +506,7 @@ router.get("/period-lock", allow("RC", "ADM", "CD", "RJ"), (req, res) => { seedA
 router.post("/close-journals", allow("RC", "ADM"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const b = req.body || {}; const mode = b.mode || "periode"; const period = b.period || ""; const journals = Array.isArray(b.journals) ? b.journals : [];
-  if ((mode === "periode" || mode === "partielle") && !period) return res.status(400).json({ error: "Période (mois) obligatoire." });
+  if (mode === "periode" && !period) return res.status(400).json({ error: "Période (mois) obligatoire." });
   if (mode === "partielle" && !journals.length) return res.status(400).json({ error: "Sélectionnez au moins un journal." });
   // Contrôle : pas d'écriture en brouillon dans le périmètre (SYSCOHADA : ne clôturer que des écritures validées)
   const drafts = mine(db.acctEntries, req).filter(e => {
