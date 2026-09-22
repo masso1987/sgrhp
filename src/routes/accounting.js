@@ -1006,6 +1006,54 @@ router.post("/import/balance", allow("RC", "ADM","CD"), (req,res)=>{
 });
 
 
+function _legalData(req, period) {
+  const agg = aggByAccount(req, period); const labels = _accLabel(req);
+  let coll = 0, ded = 0, prod = 0, charge = 0;
+  let immobA = 0, circA = 0, tresoA = 0, capP = 0, dettesP = 0, tresoP = 0;
+  for (const [acc, v] of Object.entries(agg)) { const solde = v.debit - v.credit; const cl = acc[0];
+    if (acc.startsWith("443")) coll += (v.credit - v.debit);
+    if (acc.startsWith("445")) ded += (v.debit - v.credit);
+    if (cl === "7") { prod += -solde; }
+    else if (cl === "6") { charge += solde; }
+    else if (cl === "2") immobA += solde;
+    else if (cl === "3") circA += solde;
+    else if (cl === "4") { if (solde >= 0) circA += solde; else dettesP += -solde; }
+    else if (cl === "5") { if (solde >= 0) tresoA += solde; else tresoP += -solde; }
+    else if (cl === "1") { if (solde <= 0) capP += -solde; else dettesP += solde; } }
+  const resultat = R2(prod - charge); capP += resultat;
+  const tvaNet = R2(coll) - R2(ded);
+  return { coll: R2(coll), ded: R2(ded), tvaAPayer: tvaNet > 0 ? tvaNet : 0, tvaCredit: tvaNet < 0 ? -tvaNet : 0,
+    produits: R2(prod), charges: R2(charge), resultat,
+    actif: { immob: R2(immobA), circ: R2(circA), treso: R2(tresoA), total: R2(immobA) + R2(circA) + R2(tresoA) },
+    passif: { cap: R2(capP), dettes: R2(dettesP), treso: R2(tresoP), total: R2(capP) + R2(dettesP) + R2(tresoP) } };
+}
+router.get("/legal/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1"); const period = req.query.period || "";
+  const d = _legalData(req, period);
+  const rows = []; const sec = t => rows.push({ cells: [t, ""], bold: true, fill: "#e6efe9" }); const kv = (k, v, b) => rows.push({ cells: [k, v], bold: !!b });
+  sec("Déclaration de TVA (OHADA)");
+  kv("TVA collectée (443)", _pnf(d.coll));
+  kv("TVA déductible (445)", _pnf(d.ded));
+  kv(d.tvaCredit > 0 ? "Crédit de TVA" : "TVA à payer", _pnf(d.tvaCredit > 0 ? d.tvaCredit : d.tvaAPayer), true);
+  sec("Compte de résultat");
+  kv("Total produits (classe 7)", _pnf(d.produits));
+  kv("Total charges (classe 6)", _pnf(d.charges));
+  kv(d.resultat >= 0 ? "Résultat (bénéfice)" : "Résultat (perte)", _pnf(d.resultat), true);
+  sec("Bilan - grandes masses : ACTIF");
+  kv("Actif immobilisé", _pnf(d.actif.immob));
+  kv("Actif circulant", _pnf(d.actif.circ));
+  kv("Trésorerie-Actif", _pnf(d.actif.treso));
+  kv("TOTAL ACTIF", _pnf(d.actif.total), true);
+  sec("Bilan - grandes masses : PASSIF");
+  kv("Capitaux propres (dont résultat)", _pnf(d.passif.cap));
+  kv("Dettes", _pnf(d.passif.dettes));
+  kv("Trésorerie-Passif", _pnf(d.passif.treso));
+  kv("TOTAL PASSIF", _pnf(d.passif.total), true);
+  kv("Équilibre du bilan", d.actif.total === d.passif.total ? "Équilibré" : "Écart " + _pnf(Math.abs(d.actif.total - d.passif.total)), true);
+  _acctReportPDF(req, res, { filename: "Etats_legaux" + (period ? "_" + period : ""), title: "États légaux (OHADA)", subtitle: "TVA, compte de résultat et bilan", period: period || "Tout l'exercice",
+    columns: [{ h: "Poste", w: 360 }, { h: "Montant (FCFA)", w: 187, a: "r" }], rows });
+});
+
 /* ==================== EXPORTS PDF (états façon Sage) ==================== */
 const PDFDocument = require("pdfkit");
 const _pnf = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");

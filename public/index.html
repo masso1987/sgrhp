@@ -7263,9 +7263,10 @@ async function acctLegalView(){
     api("/accounting/income-statement"+(per?"?period="+per:"")).catch(()=>({produits:[],charges:[]})),
     api("/accounting/balance-sheet"+(per?"?period="+per:"")).catch(()=>({actif:{},passif:{}}))]);
   const f=n=>fCFA(n||0);
+  window._legalX={per,vat,is,bs};
   view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">États légaux (OHADA)</h1>
-    <div class="panel"><label>Période (vide = tout)</label><input type="month" value="${per}" onchange="window._acctPeriod=this.value;acctLegalView()" style="max-width:160px"></div>
+    <div class="d2-toolbar" style="margin-bottom:8px"><input type="month" value="${per}" onchange="window._acctPeriod=this.value;acctLegalView()" style="max-width:150px;margin:0"><span class="sp"></span><button class="btn ghost sm" onclick="acctLegalCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctPDF('/accounting/legal/pdf'+(window._acctPeriod?('?period='+window._acctPeriod):''),'Etats_legaux'+(window._acctPeriod?'_'+window._acctPeriod:'')+'.pdf')">PDF</button></div>
     <div class="grid2">
       <div class="panel"><b>Déclaration de TVA</b>
         <table style="margin-top:6px"><tr><td>TVA collectée (443)</td><td class="r">${f(vat.collectee)}</td></tr>
@@ -7800,7 +7801,7 @@ async function acctTiersGL(){
   window._etsGL=d;
   const box=document.getElementById("etsBox");
   box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><b>Grand-livre des tiers (${d.count||0})</b>
-      <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></div>
+      <button class="btn ghost sm" onclick="acctTiersGLCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></div>
     ${(d.groups||[]).map(g=>`<div style="margin-top:12px"><div style="font-weight:600">${esc(g.code)}${g.name?' - '+esc(g.name):''}
         <span class="tag gray">${esc(g.kind)}</span> <span style="float:right">Solde ${fCFA(g.solde)}</span></div>
       <table style="margin-top:4px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
@@ -7818,9 +7819,10 @@ async function acctTiersReleveTab(){
   box.innerHTML=`<div class="d2-filters top">
       <div class="fld"><label>Tiers</label><select onchange="window._ets.tp=this.value;acctTiersReleveTab()" style="min-width:260px">${list.map(r=>`<option value="${esc(r.code)}" ${r.code===cur?'selected':''}>${esc(r.code)}${r.name?' - '+esc(r.name):''}</option>`).join("")}</select></div>
       <div class="fld"><label>Arrêté au (justificatif)</label><input type="date" value="${esc(window._ets.asOf||'')}" onchange="window._ets.asOf=this.value;acctTiersReleveTab()"></div>
-      <div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div></div><div id="etsReleveRows">…</div>`;
+      <div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="acctTiersReleveCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div></div><div id="etsReleveRows">…</div>`;
   if(!cur){ document.getElementById("etsReleveRows").innerHTML='<div class="note">Aucun tiers.</div>'; return; }
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(cur)).catch(()=>({rows:[]}));
+  window._etsReleve=Object.assign({tp:cur},d);
   const _asOf=window._ets.asOf||"";
   let _rows=(d.rows||[]); if(_asOf) _rows=_rows.filter(r=>String(r.date||"")<=_asOf);
   let _rd=0,_rc=0; _rows.forEach(r=>{_rd+=r.debit||0;_rc+=r.credit||0;});
@@ -7831,6 +7833,28 @@ async function acctTiersReleveTab(){
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="7">${_asOf?('SOLDE AU '+_asOf):'TOTAUX'}</td><td class="r">${fCFA(_asOf?_rd:(d.totalDebit||0))}</td><td class="r">${fCFA(_asOf?_rc:(d.totalCredit||0))}</td>
       <td class="r">${fCFA(_asOf?(_rd-_rc):(d.solde||0))}</td></tr></tbody></table></div>
     <div class="d2-status"><span><span class="k">Tiers :</span> <b>${esc(cur)}${d.name?' - '+esc(d.name):''}</b></span>${_asOf?`<span class="k">justificatif arrêté au ${_asOf}</span>`:''}<span class="sp"></span><span><span class="k">Solde :</span> <b>${fCFA(_asOf?(_rd-_rc):(d.solde||0))}</b></span></div>`;
+}
+function acctLegalCSV(){
+  const x=window._legalX||{}; const v=x.vat||{}, is=x.is||{}, bs=x.bs||{}; const R=n=>Math.round(n||0);
+  const tvaNet=(v.credit||0)>0?("Crédit "+R(v.credit)):("À payer "+R(v.aPayer));
+  const m=[["Poste","Montant"],
+    ["TVA collectée (443)",R(v.collectee)],["TVA déductible (445)",R(v.deductible)],["TVA "+((v.credit||0)>0?"crédit":"à payer"),R((v.credit||0)>0?v.credit:v.aPayer)],
+    ["Total produits (7)",R(is.totalProduits)],["Total charges (6)",R(is.totalCharges)],["Résultat",R(is.resultat)],
+    ["Actif immobilisé",R((bs.actif||{}).immobilise)],["Actif circulant",R((bs.actif||{}).circulant)],["Trésorerie-Actif",R((bs.actif||{}).tresorerie)],["TOTAL ACTIF",R((bs.actif||{}).total)],
+    ["Capitaux propres",R((bs.passif||{}).capitauxPropres)],["Dettes",R((bs.passif||{}).dettes)],["Trésorerie-Passif",R((bs.passif||{}).tresorerie)],["TOTAL PASSIF",R((bs.passif||{}).total)]];
+  _acctCSV("Etats_legaux"+(x.per?"_"+x.per:"")+".csv", m);
+}
+function acctTiersGLCSV(){
+  const d=window._etsGL||{groups:[]};
+  const m=[["Tiers","Nom","Date","Journal","Pièce","Compte","Libellé","Débit","Crédit","Solde"]];
+  (d.groups||[]).forEach(g=>{ (g.rows||[]).forEach(r=>m.push([g.code,g.name||"",r.date||"",r.journal||"",r.piece||"",r.account||"",r.label||"",Math.round(r.debit||0),Math.round(r.credit||0),Math.round(r.solde||0)])); m.push([g.code,"TOTAL "+g.code,"","","","","",Math.round(g.debit||0),Math.round(g.credit||0),Math.round(g.solde||0)]); });
+  _acctCSV("Grand-livre_tiers.csv", m);
+}
+function acctTiersReleveCSV(){
+  const d=window._etsReleve||{rows:[]};
+  const m=[["Date","Journal","Pièce","Compte","Libellé","Échéance","Lettrage","Débit","Crédit","Solde"]];
+  (d.rows||[]).forEach(r=>m.push([r.date||"",r.journal||"",r.piece||"",r.account||"",r.label||"",r.dueDate||"",r.lettre||"",Math.round(r.debit||0),Math.round(r.credit||0),Math.round(r.solde||0)]));
+  _acctCSV("Releve_"+(d.tp||"tiers")+".csv", m);
 }
 function acctAgedCSV(){
   const d=window._agedPrint||{rows:[]}; const t=d.totals||{};
