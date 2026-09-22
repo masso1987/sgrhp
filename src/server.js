@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-22 - COMPTA-25 (passation provisoire + definitive avec regularisation du delta - Option A)";
+const BUILD_VERSION = "2026-09-22 - ADMIN-26 (consoles Admin const BUILD_VERSION = "2026-09-22 - COMPTA-25 (passation provisoire + definitive avec regularisation du delta - Option A)"; Plateforme: vue d ensemble, KPI, acces rapides, responsive)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

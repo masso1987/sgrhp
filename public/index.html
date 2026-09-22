@@ -73,6 +73,28 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px}
 .card .kpi{font-size:24px;font-weight:700}
 .card .lbl{color:var(--muted);font-size:12px;margin-top:2px}
+.adm-wrap{max-width:1180px}
+.adm-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:4px 0 6px}
+.adm-kc{background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 15px;cursor:default}
+.adm-kc.clk{cursor:pointer;transition:.15s}
+.adm-kc.clk:hover{border-color:var(--accent);box-shadow:0 3px 12px rgba(0,0,0,.06)}
+.adm-kc .l{font-size:12px;color:var(--muted)}
+.adm-kc .v{font-size:23px;font-weight:700;margin-top:2px;line-height:1.1}
+.adm-kc .s{font-size:11px;color:var(--muted);margin-top:4px}
+.adm-sec{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:20px 0 9px}
+.adm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:12px}
+.adm-tile{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px 14px;cursor:pointer;transition:.15s}
+.adm-tile:hover{border-color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.07);transform:translateY(-1px)}
+.adm-ico{width:38px;height:38px;flex:none;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.adm-ico svg{width:20px;height:20px}
+.adm-t{font-weight:600;font-size:14px}
+.adm-d{color:var(--muted);font-size:12px;margin-top:2px;line-height:1.35}
+.adm-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;font-size:12px;border:1px solid var(--border);margin:0 6px 6px 0}
+.adm-chip.on{background:var(--nav-active-bg);border-color:var(--accent);color:var(--nav-active-color);font-weight:600}
+.adm-chip.off{color:var(--muted)}
+.adm-bar{height:8px;border-radius:5px;background:#eef2f0;overflow:hidden}
+.adm-bar>i{display:block;height:100%;background:var(--accent);border-radius:5px}
+@media(max-width:640px){.adm-grid{grid-template-columns:1fr}}
 
 .menu-btn{display:none;background:none;border:none;color:#fff;font-size:22px;cursor:pointer;margin-right:12px;line-height:1;padding:0}
 .sb-backdrop{display:none;position:fixed;inset:54px 0 0 0;background:rgba(15,23,42,.45);z-index:40}
@@ -1089,6 +1111,7 @@ async function confirm2fa() {
 function logout() { sessionStorage.clear(); localStorage.removeItem("t"); localStorage.removeItem("me"); TOKEN = null; ME = null; location.href = "/"; }
 
 const NAV = [
+  { k: "plathome", label: "Console plateforme", roles: ["SADM"], grp: "plateforme" },
   { k: "tenants", label: "Tenants (plateforme)", roles: ["SADM"], grp: "plateforme" },
   { k: "subs", label: "Abonnements & licences", roles: ["SADM"], grp: "plateforme" },
   { k: "pricing", label: "Tarifs & paiements", roles: ["SADM"], grp: "plateforme" },
@@ -1199,6 +1222,7 @@ const NAV = [
   { k: "smqaudits", label: "Audits internes", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
   { k: "smqactions", label: "Suivi des actions & audits", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
   { k: "discussion", label: "Messages", sec: "Messagerie", roles: ["RQ","GPF","CD","RJ","UI","ADM","SADM"], grp: "discussion" },
+  { k: "adminhome", label: "Console", sec: "Vue d'ensemble", roles: ["ADM"], grp: "admin" },
   { k: "account", label: "Mon compte", sec: "Mon espace", roles: ["RQ","GPF","CD","RJ","UI","ADM","SADM"], grp: "admin" },
   { k: "params", label: "Paramètres", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "settings", label: "Référentiels", sec: "Configuration", roles: ["ADM"], grp: "admin" },
@@ -1380,7 +1404,7 @@ function go(k) {
   const _it = NAV.find(n =>n.k === k);
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -3763,6 +3787,122 @@ async function impCommit() {
   } catch (e) { alert(e.message); }
 }
 
+
+/* ================= Consoles Admin & Plateforme ================= */
+const _ADM_ROLE_LABELS = { GPF:"Gestionnaire GPF", CD:"Chef de département", RJ:"Responsable juridique", UI:"Utilisateur interface", RQ:"Responsable qualité", RC:"Comptable", RS:"Gestion stock", RP:"Gestion paie", ADM:"Administrateur" };
+const _admTile = (svg, col, title, desc, key) => `<div class="adm-tile" onclick="go('${key}')"><div class="adm-ico" style="background:${col}">${svg}</div><div><div class="adm-t">${title}</div><div class="adm-d">${desc}</div></div></div>`;
+
+async function adminHomeView(){
+  view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console d'administration</h1>
+    <div class="note" style="margin-bottom:12px">Utilisateurs, accès, configuration et données de ${esc(ME.tenantName||"votre organisation")}.</div>
+    <div class="panel">Chargement…</div></div>`;
+  let users=[]; try{ users=await api("/users"); }catch(e){}
+  let pfs=window.PFS||[]; try{ pfs=await api("/portfolios"); window.PFS=pfs; }catch(e){}
+  const MODLAB={ payroll:"Paie", invoicing:"Facturation", accounting:"Comptabilité", stock:"Stock", quality:"Qualité" };
+  const ALLMODS=Object.keys(MODLAB);
+  const mods = (ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]));
+  const activeU = users.filter(u=>u.active!==false).length;
+  const byRole={}; users.forEach(u=>{ byRole[u.role]=(byRole[u.role]||0)+1; });
+  const rolesLine = Object.keys(byRole).sort((a,b)=>byRole[b]-byRole[a]).map(r=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>${esc(r)} <span class="note" style="margin:0">- ${esc(_ADM_ROLE_LABELS[r]||"")}</span></span><b>${byRole[r]}</b></div>`).join("") || '<div class="note">Aucun utilisateur.</div>';
+  const modChips = ALLMODS.map(m=>{ const on=mods.includes(m); return `<span class="adm-chip ${on?'on':'off'}">${on?'✓':'○'} ${esc(MODLAB[m])}</span>`; }).join("");
+  const kc=(l,v,s,dest)=>`<div class="adm-kc ${dest?'clk':''}" ${dest?`onclick="go('${dest}')"`:''}><div class="l">${l}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+  const I=(p)=>_SVG(p);
+  view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console d'administration</h1>
+    <div class="note" style="margin-bottom:12px">Utilisateurs, accès, configuration et données de <b>${esc(ME.tenantName||"votre organisation")}</b>.</div>
+    <div class="adm-kpi">
+      ${kc("Utilisateurs", users.length, activeU+" actif(s)", "users")}
+      ${kc("Portefeuilles", pfs.length, "unités / directions", "portfolios")}
+      ${kc("Modules activés", mods.length+" / "+ALLMODS.length, mods.map(m=>MODLAB[m]||m).join(", ")||"-")}
+      ${kc("Rôles utilisés", Object.keys(byRole).length, "profils distincts", "users")}
+    </div>
+    <div class="grid2">
+      <div class="panel"><b>Modules de l'organisation</b>
+        <div class="note" style="margin:4px 0 10px">Activés par le super-administrateur de la plateforme.</div>
+        <div>${modChips}</div></div>
+      <div class="panel"><b>Utilisateurs par rôle</b><div style="margin-top:8px">${rolesLine}</div></div>
+    </div>
+    <div class="adm-sec">Sécurité & accès</div>
+    <div class="adm-grid">
+      ${_admTile(I('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.2"/><path d="M16 14.2c2.4.3 4 2.4 4 4.8"/>'),"#0ea5e9","Utilisateurs & rôles","Créer des comptes, attribuer rôles et modules, réinitialiser les accès.","users")}
+      ${_admTile(I('<path d="M4 7l8-4 8 4v5c0 4.4-3.4 8.2-8 9-4.6-.8-8-4.6-8-9z"/><path d="M9 12l2 2 4-4"/>'),"#16a34a","Circuits de validation","Paramétrer les niveaux de validation (CD, juridique, direction).","workflows")}
+      ${_admTile(I('<path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/><circle cx="12" cy="12" r="3.2"/>'),"#64748b","Journal d'audit","Historique des actions et connexions des utilisateurs.","audit")}
+    </div>
+    <div class="adm-sec">Configuration</div>
+    <div class="adm-grid">
+      ${_admTile(I('<circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'),"#6366f1","Paramètres","Société, logo, couleurs, sauvegarde et préférences générales.","params")}
+      ${_admTile(I('<path d="M4 6h16M4 12h16M4 18h10"/>'),"#a855f7","Référentiels","Listes de référence : postes, catégories, natures, etc.","settings")}
+      ${_admTile(I('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>'),"#0891b2","Config. portefeuilles","Unités / directions rattachées aux dossiers du personnel.","portfolios")}
+      ${_admTile(I('<path d="M7 3h9l4 4v14H7z"/><path d="M16 3v4h4"/><path d="M10 12h7M10 16h7"/>'),"#f97316","Conventions collectives","Grilles salariales et catégories des conventions.","conventions")}
+      ${_admTile(I('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'),"#0d9488","Modèles de documents","Contrats, attestations et courriers types.","templates")}
+      ${_admTile(I('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'),"#e11d48","Notifications email","Modèles d'e-mails envoyés automatiquement.","mailtpl")}
+    </div>
+    <div class="adm-sec">Données & espace personnel</div>
+    <div class="adm-grid">
+      ${_admTile(I('<path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v3h16v-3"/>'),"#2563eb","Import / Export","Importer et exporter les données de l'organisation.","dataio")}
+      ${_admTile(I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>'),"#7c3aed","Mon compte","Profil, mot de passe et double authentification.","account")}
+    </div></div>`;
+}
+
+async function platformHomeView(){
+  view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console plateforme</h1>
+    <div class="note" style="margin-bottom:12px">Pilotage SaaS : entreprises clientes, abonnements et facturation.</div>
+    <div class="panel">Chargement…</div></div>`;
+  const [ov, subs, sadms] = await Promise.all([
+    api("/tenants/stats/overview").catch(()=>null),
+    api("/tenants/subscriptions/overview").catch(()=>null),
+    api("/tenants/superadmins/list").catch(()=>[]),
+  ]);
+  if(!ov){ view.innerHTML='<div class="adm-wrap"><h1>Console plateforme</h1><div class="panel">Impossible de charger les statistiques.</div></div>'; return; }
+  const cur = (subs&&subs.currency)||"XAF";
+  const rev = (subs&&subs.revenue)||{ monthlyRecurringXAF:0, annualizedXAF:0, unpaidXAF:0 };
+  const lc = (subs&&subs.counts)||{ active:0, expiring:0, expired:0, none:0 };
+  const kc=(l,v,s,dest,col)=>`<div class="adm-kc ${dest?'clk':''}" ${dest?`onclick="go('${dest}')"`:''}><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:''}>${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+  const I=(p)=>_SVG(p);
+  // Alertes licences (<=30 j ou expirées)
+  const alerts=((subs&&subs.rows)||[]).filter(r=>r.state==="expired"||(r.state==="expiring")||(r.daysLeft!=null&&r.daysLeft<=30)).slice(0,8);
+  const alertRows = alerts.length ? alerts.map(r=>{
+    const col=r.state==="expired"?"var(--red,#dc2626)":"#d97706";
+    const dl=r.daysLeft==null?"-":(r.daysLeft<0?`en retard ${-r.daysLeft} j`:`${r.daysLeft} j`);
+    return `<div onclick="go('subs')" style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)"><span>${esc(r.tenantName)} <span class="note" style="margin:0">- ${esc(r.moduleLabel)}</span></span><b style="color:${col}">${dl}</b></div>`;
+  }).join("") : '<div class="note">Aucune licence à échéance proche.</div>';
+  // Adoption modules
+  const maxAdopt = Math.max(1, ...(ov.moduleAdoption||[]).map(m=>m.count));
+  const adoptRows=(ov.moduleAdoption||[]).map(m=>`<div style="margin:7px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>${esc(m.label)}</span><b>${m.count}/${ov.tenants}</b></div><div class="adm-bar" style="margin-top:3px"><i style="width:${Math.round(100*m.count/maxAdopt)}%"></i></div></div>`).join("");
+  // Table entreprises
+  const st=(s)=>s==="ACTIVE"?'<span class="tag green">Active</span>':s==="SUSPENDED"?'<span class="tag" style="background:#dc2626;color:#fff">Suspendue</span>':`<span class="tag gray">${esc(s||"-")}</span>`;
+  const tRows=(ov.perTenant||[]).map(t=>`<tr style="cursor:pointer" onclick="go('tenants')"><td><b>${esc(t.name)}</b></td><td>${st(t.status)}</td><td class="r">${t.users}</td><td class="r">${t.employees}</td><td class="r">${t.modules}</td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucune entreprise.</td></tr>';
+  view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console plateforme</h1>
+    <div class="note" style="margin-bottom:12px">Pilotage SaaS : entreprises clientes, abonnements et facturation.</div>
+    <div class="adm-kpi">
+      ${kc("Entreprises", ov.tenants, ov.active+" active(s) - "+ov.suspended+" suspendue(s)", "tenants")}
+      ${kc("Utilisateurs", ov.totalUsers, "hors super-admins")}
+      ${kc("Employés gérés", ov.totalEmployees, "sur la plateforme")}
+      ${kc("Revenu mensuel", fCFA(rev.monthlyRecurringXAF)+" "+cur, "MRR récurrent", "subs")}
+      ${kc("Annualisé", fCFA(rev.annualizedXAF)+" "+cur, "MRR×12 + contrats annuels", "subs")}
+      ${kc("Impayés", fCFA(rev.unpaidXAF)+" "+cur, "à recouvrer", "subs", rev.unpaidXAF>0?"var(--red,#dc2626)":"")}
+    </div>
+    <div class="adm-kpi">
+      ${kc("Licences actives", lc.active||0, "", "subs")}
+      ${kc("Expirent bientôt", lc.expiring||0, "≤ 30 jours", "subs", (lc.expiring||0)>0?"#d97706":"")}
+      ${kc("Expirées", lc.expired||0, "à renouveler", "subs", (lc.expired||0)>0?"var(--red,#dc2626)":"")}
+      ${kc("Admins plateforme", (sadms||[]).length, "comptes SADM", "superadmins")}
+    </div>
+    <div class="grid2">
+      <div class="panel"><b>Alertes licences</b><div class="note" style="margin:4px 0 8px">Échéances (paiement CNPS/IRPP côté client indépendant).</div><div style="margin-top:2px">${alertRows}</div></div>
+      <div class="panel"><b>Adoption par module</b><div style="margin-top:6px">${adoptRows||'<div class="note">-</div>'}</div></div>
+    </div>
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>Entreprises</b><button class="btn ghost sm" onclick="go('tenants')">Gérer</button></div>
+      <table style="margin-top:8px"><tr><th>Entreprise</th><th>Statut</th><th class="r">Utilisateurs</th><th class="r">Employés</th><th class="r">Modules</th></tr>${tRows}</table></div>
+    <div class="adm-sec">Gestion de la plateforme</div>
+    <div class="adm-grid">
+      ${_admTile(I('<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M10.5 21v-3h3v3"/>'),"#0f172a","Entreprises (tenants)","Créer, configurer et suspendre les entreprises clientes.","tenants")}
+      ${_admTile(I('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>'),"#6366f1","Abonnements & licences","Suivi des licences par module, échéances et paiements.","subs")}
+      ${_admTile(I('<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),"#16a34a","Tarifs & paiements","Grille tarifaire des modules et moyens de paiement.","pricing")}
+      ${_admTile(I('<path d="M7 3h9l4 4v14H7z"/><path d="M16 3v4h4"/><path d="M10 12h7M10 16h5"/>'),"#a855f7","Mentions légales","CGU, confidentialité et documents légaux plateforme.","legal")}
+      ${_admTile(I('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 8h5M18.5 5.5v5"/>'),"#0ea5e9","Admins plateforme","Comptes super-administrateur et leurs accès.","superadmins")}
+      ${_admTile(I('<path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/><circle cx="12" cy="12" r="3.2"/>'),"#64748b","Journal d'audit","Traçabilité des actions sur la plateforme.","audit")}
+    </div></div>`;
+}
 
 /* ================= Plateforme : administrateurs (SADM) ================= */
 async function superadminsView(){
