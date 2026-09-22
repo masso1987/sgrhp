@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-22 - ADMIN-26 (consoles Admin & Plateforme: vue d ensemble, KPI, acces rapides, responsive)";
+const BUILD_VERSION = "2026-09-22 - DESIGN-27 (Direction 2 dense ERP/Sage: alignement numerique global, grilles denses en comptabilite)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
