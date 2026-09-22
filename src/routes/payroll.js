@@ -1506,42 +1506,72 @@ router.get("/runs/:id/livre/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Livre_de_paie_${run.period}.pdf"`);
   doc.pipe(res);
-  const PER = 8, groups = [];
+  const _now=new Date(), _d=_now.toLocaleDateString("fr-FR"), _t=_now.toLocaleTimeString("fr-FR");
+  const _fmtD=(p)=>{const a=String(p||"").split("-");return a.length>=2?("01/"+a[1]+"/"+String(a[0]).slice(2)):p;};
+  const _from=_fmtD(run.period), _to=(()=>{const a=String(run.period).split("-");const y=+a[0],m=+a[1];const dd=new Date(y,m,0).getDate();return String(dd).padStart(2,"0")+"/"+a[1]+"/"+String(y).slice(2);})();
+  const x0=20, labelW=150, colW=78;
+  const totFn=(fn)=>D.cols.reduce((a,c)=>a+fn(c.slip),0);
+  const PER = 7, groups = [];
   for (let i = 0; i < D.cols.length; i += PER) groups.push(D.cols.slice(i, i + PER));
   if (!groups.length) groups.push([]);
+  function band(page, nBody, hasTotal){
+    let y=20; const bandW=doc.page.width-2*x0;
+    doc.save(); doc.rect(x0,y,bandW,50).fill("#d7e6cf"); doc.restore();
+    doc.lineWidth(0.8).strokeColor("#000").rect(x0,y,bandW,50).stroke();
+    doc.fillColor("#000").font("Helvetica").fontSize(7.5);
+    doc.text("Date du jour : "+_d, x0+6, y+6,{lineBreak:false});
+    doc.text("Heure : "+_t, x0+6, y+18,{lineBreak:false});
+    doc.text("Edition en : Francs", x0+6, y+34,{lineBreak:false});
+    doc.font("Helvetica-Bold").fontSize(14).text("Livre de paie  /  P E R I O D E", x0, y+8,{width:bandW,align:"center"});
+    doc.font("Helvetica").fontSize(8).text("Période du "+_from+" au "+_to, x0, y+28,{width:bandW,align:"center"});
+    doc.fontSize(7.5).text("Page : "+page+"/"+groups.length, x0, y+6,{width:bandW-6,align:"right"});
+    y+=50;
+    doc.rect(x0,y,bandW,14).stroke(); doc.font("Helvetica").fontSize(8);
+    doc.text("Société : "+(tenant.name||""), x0+6, y+3,{lineBreak:false});
+    doc.text("© MBOKA Mon RH   V 1.0", x0, y+3,{width:bandW-6,align:"right"});
+    y+=14;
+    doc.rect(x0,y,bandW,13).stroke();
+    doc.font("Helvetica").fontSize(7.5).text("Ventilation par Salarié", x0+6, y+3,{lineBreak:false});
+    y+=13;
+    return y;
+  }
   groups.forEach((grp, gi) => {
     if (gi > 0) doc.addPage();
-    const labelW = 150, colW = 78, x0 = 20; let y = 20;
-    doc.font("Helvetica-Bold").fontSize(13).fillColor("#000").text(`Livre de paie  -  ${run.period}`, x0, y);
-    doc.font("Helvetica").fontSize(8).text(`${tenant.name || ""}   -   Page ${gi + 1}/${groups.length}`, x0, y + 16);
-    y = 46;
+    const isLast = gi === groups.length - 1;
+    const nBody = grp.length;
+    let y = band(gi+1, nBody, isLast);
+    const headTop = y;
     const colX = (i) => x0 + labelW + i * colW;
+    const totX = colX(nBody);
+    const fullW = labelW + nBody*colW + (isLast?colW:0);
     const T = (x, yy, txt, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 7).fillColor(o.c || "#000").text(txt == null ? "" : String(txt), x, yy, { width: o.w, align: o.a, lineBreak: false }); };
-    // header
-    doc.rect(x0, y, labelW + grp.length * colW, 22).fillAndStroke("#e6efe9", "#000");
+    doc.rect(x0, y, fullW, 22).fillAndStroke("#e6efe9", "#000");
     T(x0 + 3, y + 2, "Rubriques", { b: 1, s: 8 });
     grp.forEach((c, i) => { T(colX(i) + 2, y + 2, c.matricule, { b: 1, s: 6.5, w: colW - 4 }); T(colX(i) + 2, y + 11, `${c.civ} ${c.name}`.trim(), { s: 5.5, w: colW - 4 }); });
+    if (isLast) T(totX + 2, y + 2, "Total", { b: 1, s: 8, w: colW - 4 });
     y += 22;
     const rowH = 10;
-    const row = (code, label, vals, hl) => {
-      if (hl) doc.rect(x0, y, labelW + grp.length * colW, rowH).fill("#fdf6c8");
+    const row = (code, label, vals, hl, totVal) => {
+      if (hl) doc.rect(x0, y, fullW, rowH).fill("#fdf6c8");
       doc.fillColor("#000");
       if (code) T(x0 + 2, y + 1.5, code, { s: 6.5, w: 26 });
       T(x0 + 30, y + 1.5, label, { b: !!hl, s: hl ? 7 : 6.5, w: labelW - 32 });
       vals.forEach((v, i) => T(colX(i), y + 1.5, v === 0 || v === "" ? "" : _NF(v), { b: !!hl, s: 6.5, w: colW - 3, a: "right" }));
+      if (isLast) T(totX, y + 1.5, (totVal === 0 || totVal === "" || totVal == null) ? "" : _NF(totVal), { b: true, s: 6.5, w: colW - 3, a: "right" });
       y += rowH;
     };
-    for (const code of D.gainCodes) row(code, D.gLbl[code], grp.map(c => D.gainOf(c.slip, code)));
-    row("", "Total Brut", grp.map(c => D.brut(c.slip)), true);
-    for (const code of D.cotisCodes) row(code, D.cLbl[code], grp.map(c => D.cotisOf(c.slip, code)));
-    row("", "Total Cotisation", grp.map(c => D.totCot(c.slip)), true);
+    for (const code of D.gainCodes) row(code, D.gLbl[code], grp.map(c => D.gainOf(c.slip, code)), false, totFn(s => D.gainOf(s, code)));
+    row("", "Total Brut", grp.map(c => D.brut(c.slip)), true, totFn(s => D.brut(s)));
+    for (const code of D.cotisCodes) row(code, D.cLbl[code], grp.map(c => D.cotisOf(c.slip, code)), false, totFn(s => D.cotisOf(s, code)));
+    row("", "Total Cotisation", grp.map(c => D.totCot(c.slip)), true, totFn(s => D.totCot(s)));
     y += 4;
-    for (const [lbl, fn] of _SUMMARY) row("", lbl, grp.map(c => fn(c.slip)));
-    // grid verticals
+    for (const [lbl, fn] of _SUMMARY) row("", lbl, grp.map(c => fn(c.slip)), false, totFn(s => fn(s)));
+    if (isLast) { y += 2; row("", "Nombre de salariés", grp.map(() => ""), false, D.cols.length); }
     doc.lineWidth(0.4).strokeColor("#999");
-    for (let i = 0; i <= grp.length; i++) doc.moveTo(colX(i - 1) + labelW + colW - (i === 0 ? colW : 0), 46).lineTo(colX(i - 1) + labelW + colW - (i === 0 ? colW : 0), y).stroke();
-    doc.moveTo(x0, 46).lineTo(x0, y).stroke(); doc.moveTo(x0 + labelW, 46).lineTo(x0 + labelW, y).stroke();
-    doc.rect(x0, 46, labelW + grp.length * colW, y - 46).stroke();
+    const nAll = nBody + (isLast ? 1 : 0);
+    for (let i = 0; i <= nAll; i++) { const vx = x0 + labelW + i * colW; doc.moveTo(vx, headTop).lineTo(vx, y).stroke(); }
+    doc.moveTo(x0, headTop).lineTo(x0, y).stroke();
+    doc.rect(x0, headTop, fullW, y - headTop).stroke();
   });
   audit(req.user, "EXPORTED", "PayRun", run.id, { doc: "livre", format: "pdf" });
   doc.end();
@@ -1892,6 +1922,7 @@ router.get("/reports/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =
   const eid = req.query.employeeId; if (!eid) return res.status(400).json({ error: "employeeId requis" });
   const { slips, lo, hi, empById } = _rangeSlips(req, Object.assign({}, req.query, { employeeId: eid }));
   const e = empById[eid] || {}; const pfn = _pfNameMap(req);
+  if (String(req.query.format || "").toLowerCase() === "pdf") return _ficheSagePDF(req, res, { emp: e, slips, lo, hi });
   const rows = slips.map(s => { const t = s.result.totals; return { periode: s.period, brut: t.brutTotal, netImposable: t.netImposable,
       retenues: t.totalRetenues, net: t.netAPayer, patronal: t.chargesPatronales, cout: t.coutTotalEmployeur }; })
     .sort((a,b)=>a.periode.localeCompare(b.periode));
@@ -1900,6 +1931,118 @@ router.get("/reports/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =
   const nm = `${e.firstName||""} ${e.lastName||""}`.trim();
   _sendReport(req, res, { format: req.query.format, name: `Fiche_${(e.matricule||nm||eid)}_${lo}_${hi}`, title: `Fiche individuelle - ${nm} (${e.matricule||""})`, meta: `${pfn[e.portfolioId]||""} - ${lo} à ${hi}`, columns, rows });
 });
+
+
+/* ==================== Fiche individuelle façon Sage (rubriques x mois + Total) ==================== */
+const _MOISFR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+function _moisLabel(p){ const a=String(p||"").split("-"); const m=Number(a[1])||1; return _MOISFR[m-1]+" "+String(a[0]||"").slice(2); }
+function _ficheSagePDF(req, res, opts){
+  const emp = opts.emp||{}, slips=(opts.slips||[]).slice().sort((a,b)=>String(a.period).localeCompare(String(b.period)));
+  const tenant = (db.tenants||[]).find(t=>t.id===(req.user.tenantId||"t1"))||{name:"Société"};
+  const app = "MBOKA Mon RH";
+  // union des rubriques
+  const gainCodes=[], cotisCodes=[], gLbl={}, cLbl={}, gAdv={};
+  for(const s of slips) for(const l of (s.result.lines||[])){
+    if(l.kind==="GAIN"||l.kind==="AVANTAGE"){ if(!(l.code in gLbl)){ gLbl[l.code]=l.label; gainCodes.push(l.code); gAdv[l.code]=(l.kind==="AVANTAGE"); } }
+    else if((l.kind==="COTIS"||l.kind==="IMPOT")&&(l.retenue||0)>0){ if(!(l.code in cLbl)){ cLbl[l.code]=l.label; cotisCodes.push(l.code); } }
+  }
+  gainCodes.sort(); cotisCodes.sort();
+  const gainOf=(s,c)=>{const l=(s.result.lines||[]).find(x=>x.code===c&&(x.kind==="GAIN"||x.kind==="AVANTAGE"));return l?Math.round(l.gain||0):0;};
+  const cotisOf=(s,c)=>{const l=(s.result.lines||[]).find(x=>x.code===c&&(x.kind==="COTIS"||x.kind==="IMPOT"));return l?Math.round(l.retenue||0):0;};
+  const T=(s)=>s.result.totals||{}; const Mmeta=(s)=>s.result.meta||{};
+  const brutOf=(s)=>Math.round(T(s).brutTotal||0), cotOf=(s)=>Math.round((T(s).cnpsSalarie||0)+(T(s).totalImpots||0));
+  const SUM=[
+    ["Présence",(s)=>((Mmeta(s).workedDays!=null)?Mmeta(s).workedDays:30),false],
+    ["Brut",(s)=>brutOf(s),true],
+    ["Cotisations salariales",(s)=>cotOf(s),true],
+    ["Cotisations patronales",(s)=>Math.round(T(s).chargesPatronales||0),true],
+    ["Net à payer",(s)=>Math.round(T(s).netAPayer||0),true],
+    ["Net imposable",(s)=>Math.round(T(s).netImposable||0),true],
+    ["Avantages en nature",(s)=>Math.round(T(s).avantagesNature||0),true],
+    ["Total des heures travaillées",(s)=>((Mmeta(s).workedDays!=null)?Mmeta(s).workedDays:30),false],
+    ["Total des heures d'absence",(s)=>Math.round(Mmeta(s).absenceDays||0),false],
+    ["Absence",(s)=>Math.round(Mmeta(s).absenceDays||0),false],
+    ["Coût total",(s)=>Math.round(T(s).coutTotalEmployeur||0),true],
+  ];
+  const doc=new PDFDocument({margin:20,size:"A4",layout:"portrait",bufferPages:true});
+  res.setHeader("Content-Type","application/pdf");
+  res.setHeader("Content-Disposition",`attachment; filename="${("Fiche_"+(emp.matricule||emp.id||"")).replace(/[^\w\-]/g,"_")}.pdf"`);
+  doc.pipe(res);
+  const now=new Date(), dstr=now.toLocaleDateString("fr-FR"), tstr=now.toLocaleTimeString("fr-FR");
+  const mL=20, cW=555;
+  const salarie = (emp.matricule||"")+"   "+(emp.civility||"M")+"   "+String(((emp.lastName||"")+" "+(emp.firstName||"")).trim().toUpperCase());
+  const fmtDate=(p)=>{ const a=String(p||"").split("-"); return a.length>=2?("01/"+a[1]+"/"+String(a[0]).slice(2)):p; };
+  const from=slips.length?fmtDate(slips[0].period):opts.lo, to=slips.length?fmtDate(slips[slips.length-1].period):opts.hi;
+  function header(pageNum,totalPages){
+    let y=20;
+    doc.save(); doc.rect(mL,y,cW,58).fill("#d7e6cf"); doc.restore();
+    doc.lineWidth(0.8).strokeColor("#000").rect(mL,y,cW,58).stroke();
+    doc.fillColor("#000").font("Helvetica").fontSize(7.5);
+    doc.text("Date du jour  :  "+dstr, mL+6, y+7,{lineBreak:false});
+    doc.text("Heure           :  "+tstr, mL+6, y+20,{lineBreak:false});
+    doc.text("Edition en    :  Francs", mL+6, y+42,{lineBreak:false});
+    doc.font("Helvetica-Bold").fontSize(16).text("Fiche  individuelle", mL, y+8,{width:cW,align:"center"});
+    doc.font("Helvetica").fontSize(8.5).text("Période  du "+from+"  au "+to, mL, y+30,{width:cW,align:"center"});
+    doc.fontSize(7.5).text("Page :   "+pageNum, mL, y+7,{width:cW-6,align:"right"});
+    y+=58;
+    doc.rect(mL,y,cW,15).stroke(); doc.font("Helvetica").fontSize(8);
+    doc.text("Société  :  "+esc0(tenant.name), mL+6, y+4,{lineBreak:false});
+    doc.text("© "+app+"     V 1.0", mL, y+4,{width:cW-6,align:"right"});
+    y+=15;
+    doc.rect(mL,y,cW,15).stroke();
+    doc.font("Helvetica").fontSize(8).text("Salarié :   "+salarie, mL+6, y+4,{lineBreak:false});
+    y+=15+6;
+    return y;
+  }
+  function esc0(s){return String(s==null?"":s);}
+  // colonnes: label + mois (6) + total
+  const codeW=26, labelW=124, monW=59, totW=cW-(codeW+labelW)-6*monW; // ~59
+  // pagination par blocs de 6 mois
+  const blocks=[]; for(let i=0;i<slips.length;i+=6) blocks.push(slips.slice(i,i+6));
+  if(!blocks.length) blocks.push([]);
+  blocks.forEach((blk,bi)=>{
+    if(bi>0) doc.addPage({margin:20,size:"A4",layout:"portrait"});
+    let y=header(bi+1,blocks.length);
+    const cols=blk; const nC=cols.length;
+    const xLabel=mL, xCode=mL, xFirst=mL+codeW+labelW; const xTot=xFirst+nC*monW;
+    const rowH=10.6;
+    const NF=_NF;
+    function line(yy){ doc.lineWidth(0.3).strokeColor("#c9c9c9").moveTo(mL,yy).lineTo(mL+cW,yy).stroke(); }
+    function colHeader(){
+      doc.rect(mL,y,cW,14).fillAndStroke("#eef2ea","#000"); doc.fillColor("#000").font("Helvetica-Bold").fontSize(7.5);
+      doc.text("Rubriques", xCode+3, y+3.5,{width:codeW+labelW-6,lineBreak:false});
+      cols.forEach((s,i)=>doc.text(_moisLabel(s.period), xFirst+i*monW, y+3.5,{width:monW-3,align:"right",lineBreak:false}));
+      doc.text("Total", xTot, y+3.5,{width:totW-3,align:"right",lineBreak:false});
+      y+=14;
+    }
+    colHeader();
+    function drawRow(code,label,vals,o){ o=o||{};
+      if(o.fill){ doc.rect(mL,y,cW,rowH).fill(o.fill); }
+      doc.fillColor("#000").font(o.bold?"Helvetica-Bold":"Helvetica").fontSize(o.bold?7:6.8);
+      if(o.star) doc.text("*", mL+1, y+2.4,{width:8,lineBreak:false});
+      if(code) doc.text(code, xCode+9, y+2.4,{width:codeW-6,lineBreak:false});
+      doc.text(label, xCode+codeW, y+2.4,{width:labelW-4,lineBreak:false});
+      let tot=0;
+      cols.forEach((s,i)=>{ const v=vals(s); if(o.money!==false) tot+=v; else tot+=v; doc.text(v?( o.money===false?String(v):NF(v)):"", xFirst+i*monW, y+2.4,{width:monW-3,align:"right",lineBreak:false}); });
+      doc.text(tot?(o.money===false?String(tot):NF(tot)):"", xTot, y+2.4,{width:totW-3,align:"right",lineBreak:false});
+      line(y+rowH); y+=rowH;
+    }
+    // gains
+    for(const c of gainCodes) drawRow(c, gLbl[c]||"", (s)=>gainOf(s,c), {star:gAdv[c]});
+    drawRow("", "Total Brut", (s)=>brutOf(s), {bold:true, fill:"#f5f0b0"});
+    for(const c of cotisCodes) drawRow(c, cLbl[c]||"", (s)=>cotisOf(s,c), {});
+    drawRow("", "Total Cotisation", (s)=>cotOf(s), {bold:true, fill:"#f5f0b0"});
+    y+=3;
+    for(const r of SUM) drawRow("", r[0], r[1], { money:r[2] });
+    // cadre extérieur
+    doc.lineWidth(0.6).strokeColor("#000");
+    // verticals
+    const vx=[xFirst]; for(let i=1;i<=nC;i++) vx.push(xFirst+i*monW); vx.push(xTot+totW);
+  });
+  // page numbers already in header; also add totalPages fix
+  const range=doc.bufferedPageRange();
+  doc.end();
+}
 
 module.exports = router;
 

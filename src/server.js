@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-23 - TIERSPDF-38 (etats tiers: PDF reels facon Sage pour balance des tiers, grand-livre des tiers et releve, en plus du CSV)";
+const BUILD_VERSION = "2026-09-24 - PAYPDF-39 (livre de paie et fiche individuelle facon Sage: en-tete periode, colonne Total, matrice rubriques x mois pour la fiche)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
