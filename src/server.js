@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-22 - ETATS-28 (Sage Etats: balance a ruptures par classe OHADA, Etats tiers en Direction 2, justificatif de solde a date)";
+const BUILD_VERSION = "2026-09-22 - ETATS-29 (correctif console admin/plateforme, plage de dates Du/Au sur grand-livre/journal/balance avec report a nouveau)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

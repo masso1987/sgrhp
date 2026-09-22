@@ -3813,30 +3813,31 @@ const _admTile = (svg, col, title, desc, key) => `<div class="adm-tile" onclick=
 
 async function adminHomeView(){
   view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console d'administration</h1>
-    <div class="note" style="margin-bottom:12px">Utilisateurs, accès, configuration et données de ${esc(ME.tenantName||"votre organisation")}.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Utilisateurs, accès, configuration et données de ${esc(ME.tenantName||"votre organisation")}.</div>
     <div class="panel">Chargement…</div></div>`;
   let users=[]; try{ users=await api("/users"); }catch(e){}
   let pfs=window.PFS||[]; try{ pfs=await api("/portfolios"); window.PFS=pfs; }catch(e){}
-  const MODLAB={ payroll:"Paie", invoicing:"Facturation", accounting:"Comptabilité", stock:"Stock", quality:"Qualité" };
+  const MODLAB={ hr:"RH", careers:"Carrière", payroll:"Paie", invoicing:"Facturation", accounting:"Comptabilité", stock:"Stock", quality:"Qualité" };
   const ALLMODS=Object.keys(MODLAB);
   const mods = (ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]));
+  const enabled = mods.filter(m=>ALLMODS.includes(m));
   const activeU = users.filter(u=>u.active!==false).length;
   const byRole={}; users.forEach(u=>{ byRole[u.role]=(byRole[u.role]||0)+1; });
-  const rolesLine = Object.keys(byRole).sort((a,b)=>byRole[b]-byRole[a]).map(r=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>${esc(r)} <span class="note" style="margin:0">- ${esc(_ADM_ROLE_LABELS[r]||"")}</span></span><b>${byRole[r]}</b></div>`).join("") || '<div class="note">Aucun utilisateur.</div>';
+  const rolesLine = Object.keys(byRole).sort((a,b)=>byRole[b]-byRole[a]).map(r=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>${esc(r)} <span style="color:var(--muted);font-weight:400">- ${esc(_ADM_ROLE_LABELS[r]||"")}</span></span><b>${byRole[r]}</b></div>`).join("") || '<div style="color:var(--muted)">Aucun utilisateur.</div>';
   const modChips = ALLMODS.map(m=>{ const on=mods.includes(m); return `<span class="adm-chip ${on?'on':'off'}">${on?'✓':'○'} ${esc(MODLAB[m])}</span>`; }).join("");
   const kc=(l,v,s,dest)=>`<div class="adm-kc ${dest?'clk':''}" ${dest?`onclick="go('${dest}')"`:''}><div class="l">${l}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
   const I=(p)=>_SVG(p);
   view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console d'administration</h1>
-    <div class="note" style="margin-bottom:12px">Utilisateurs, accès, configuration et données de <b>${esc(ME.tenantName||"votre organisation")}</b>.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Utilisateurs, accès, configuration et données de <b style="color:var(--text)">${esc(ME.tenantName||"votre organisation")}</b>.</div>
     <div class="adm-kpi">
       ${kc("Utilisateurs", users.length, activeU+" actif(s)", "users")}
       ${kc("Portefeuilles", pfs.length, "unités / directions", "portfolios")}
-      ${kc("Modules activés", mods.length+" / "+ALLMODS.length, mods.map(m=>MODLAB[m]||m).join(", ")||"-")}
+      ${kc("Modules activés", enabled.length+" / "+ALLMODS.length, enabled.map(m=>MODLAB[m]).join(", ")||"-")}
       ${kc("Rôles utilisés", Object.keys(byRole).length, "profils distincts", "users")}
     </div>
     <div class="grid2">
       <div class="panel"><b>Modules de l'organisation</b>
-        <div class="note" style="margin:4px 0 10px">Activés par le super-administrateur de la plateforme.</div>
+        <div style="color:var(--muted);font-size:12px;margin:4px 0 10px">Activés par le super-administrateur de la plateforme.</div>
         <div>${modChips}</div></div>
       <div class="panel"><b>Utilisateurs par rôle</b><div style="margin-top:8px">${rolesLine}</div></div>
     </div>
@@ -3864,7 +3865,7 @@ async function adminHomeView(){
 
 async function platformHomeView(){
   view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console plateforme</h1>
-    <div class="note" style="margin-bottom:12px">Pilotage SaaS : entreprises clientes, abonnements et facturation.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Pilotage SaaS : entreprises clientes, abonnements et facturation.</div>
     <div class="panel">Chargement…</div></div>`;
   const [ov, subs, sadms] = await Promise.all([
     api("/tenants/stats/overview").catch(()=>null),
@@ -3882,16 +3883,16 @@ async function platformHomeView(){
   const alertRows = alerts.length ? alerts.map(r=>{
     const col=r.state==="expired"?"var(--red,#dc2626)":"#d97706";
     const dl=r.daysLeft==null?"-":(r.daysLeft<0?`en retard ${-r.daysLeft} j`:`${r.daysLeft} j`);
-    return `<div onclick="go('subs')" style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)"><span>${esc(r.tenantName)} <span class="note" style="margin:0">- ${esc(r.moduleLabel)}</span></span><b style="color:${col}">${dl}</b></div>`;
-  }).join("") : '<div class="note">Aucune licence à échéance proche.</div>';
+    return `<div onclick="go('subs')" style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)"><span>${esc(r.tenantName)} <span style="color:var(--muted)">- ${esc(r.moduleLabel)}</span></span><b style="color:${col}">${dl}</b></div>`;
+  }).join("") : '<div style="color:var(--muted)">Aucune licence à échéance proche.</div>';
   // Adoption modules
   const maxAdopt = Math.max(1, ...(ov.moduleAdoption||[]).map(m=>m.count));
   const adoptRows=(ov.moduleAdoption||[]).map(m=>`<div style="margin:7px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>${esc(m.label)}</span><b>${m.count}/${ov.tenants}</b></div><div class="adm-bar" style="margin-top:3px"><i style="width:${Math.round(100*m.count/maxAdopt)}%"></i></div></div>`).join("");
   // Table entreprises
   const st=(s)=>s==="ACTIVE"?'<span class="tag green">Active</span>':s==="SUSPENDED"?'<span class="tag" style="background:#dc2626;color:#fff">Suspendue</span>':`<span class="tag gray">${esc(s||"-")}</span>`;
-  const tRows=(ov.perTenant||[]).map(t=>`<tr style="cursor:pointer" onclick="go('tenants')"><td><b>${esc(t.name)}</b></td><td>${st(t.status)}</td><td class="r">${t.users}</td><td class="r">${t.employees}</td><td class="r">${t.modules}</td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucune entreprise.</td></tr>';
+  const tRows=(ov.perTenant||[]).map(t=>`<tr style="cursor:pointer" onclick="go('tenants')"><td><b>${esc(t.name)}</b></td><td>${st(t.status)}</td><td class="r">${t.users}</td><td class="r">${t.employees}</td><td class="r">${t.modules}</td></tr>`).join("")||'<tr><td colspan="5" style="color:var(--muted)">Aucune entreprise.</td></tr>';
   view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console plateforme</h1>
-    <div class="note" style="margin-bottom:12px">Pilotage SaaS : entreprises clientes, abonnements et facturation.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Pilotage SaaS : entreprises clientes, abonnements et facturation.</div>
     <div class="adm-kpi">
       ${kc("Entreprises", ov.tenants, ov.active+" active(s) - "+ov.suspended+" suspendue(s)", "tenants")}
       ${kc("Utilisateurs", ov.totalUsers, "hors super-admins")}
@@ -3907,8 +3908,8 @@ async function platformHomeView(){
       ${kc("Admins plateforme", (sadms||[]).length, "comptes SADM", "superadmins")}
     </div>
     <div class="grid2">
-      <div class="panel"><b>Alertes licences</b><div class="note" style="margin:4px 0 8px">Échéances (paiement CNPS/IRPP côté client indépendant).</div><div style="margin-top:2px">${alertRows}</div></div>
-      <div class="panel"><b>Adoption par module</b><div style="margin-top:6px">${adoptRows||'<div class="note">-</div>'}</div></div>
+      <div class="panel"><b>Alertes licences</b><div style="color:var(--muted);font-size:12px;margin:4px 0 8px">Échéances (paiement CNPS/IRPP côté client indépendant).</div><div style="margin-top:2px">${alertRows}</div></div>
+      <div class="panel"><b>Adoption par module</b><div style="margin-top:6px">${adoptRows||'<div style="color:var(--muted)">-</div>'}</div></div>
     </div>
     <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>Entreprises</b><button class="btn ghost sm" onclick="go('tenants')">Gérer</button></div>
       <table style="margin-top:8px"><tr><th>Entreprise</th><th>Statut</th><th class="r">Utilisateurs</th><th class="r">Employés</th><th class="r">Modules</th></tr>${tRows}</table></div>
@@ -7070,7 +7071,9 @@ const OHADA_CLASSES={1:"Comptes de ressources durables",2:"Comptes d'actif immob
 async function acctBalanceView() {
   const period = window._acctPeriod || "";
   const lvl = window._balLvl || "detail";
-  const bal = await api("/accounting/balance" + (period ? "?period=" + period : "")).catch(() => ({ rows: [], totalDebit: 0, totalCredit: 0, balanced: true }));
+  const _bf=window._acctFrom||"", _bt=window._acctTo||"";
+  const _bq=(_bf||_bt)?("?"+[_bf?"from="+_bf:"",_bt?"to="+_bt:""].filter(Boolean).join("&")):(period?"?period="+period:"");
+  const bal = await api("/accounting/balance"+_bq).catch(() => ({ rows: [], totalDebit: 0, totalCredit: 0, balanced: true }));
   const rows = (bal.rows || []).slice().sort((a,b)=>String(a.account).localeCompare(String(b.account)));
   const F=fCFA;
   const classOf=(acc)=>String(acc||"0").charAt(0);
@@ -7099,7 +7102,9 @@ async function acctBalanceView() {
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">Balance des comptes</h1>
     <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span><button class="btn ghost sm" onclick="acctBalancePrint()">Imprimer</button></div>
-    <div class="d2-filters"><div class="fld"><label>Période (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;acctBalanceView()"></div>
+    <div class="d2-filters"><div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
+      <div class="fld"><label>Du</label><input type="date" value="${window._acctFrom||''}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctBalanceView()"></div>
+      <div class="fld"><label>Au</label><input type="date" value="${window._acctTo||''}" onchange="window._acctTo=this.value;window._acctPeriod='';acctBalanceView()"></div>
       <div class="fld" style="justify-content:end"><span style="font-size:11px;color:var(--muted)">Écritures validées - rupture par classe OHADA.</span></div></div>
     <div class="d2-grid"><table><thead><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr></thead><tbody>
       ${outRows.length ? html : '<tr><td colspan="5" style="color:var(--muted)">Aucune écriture validée.</td></tr>'}
@@ -7137,12 +7142,19 @@ async function acctLedgerRender(){
   await acctLoadRefs();
   const acc = window._acctLedgerAcc || (ACCT_ACCOUNTS[0]||{}).number || "";
   const box=document.getElementById("acctEtatBox");
+  const _from=window._acctFrom||"", _to=window._acctTo||"";
   box.innerHTML=`<div class="d2-filters top"><div class="fld"><label>Compte</label>
-    <select onchange="window._acctLedgerAcc=this.value;acctLedgerRender()" style="min-width:260px">${ACCT_ACCOUNTS.map(a=>`<option value="${a.number}" ${a.number===acc?'selected':''}>${esc(a.number)} ${esc(a.label)}</option>`).join("")}</select></div></div><div id="glRows">…</div>`;
-  const d=await api("/accounting/ledger?account="+encodeURIComponent(acc)).catch(()=>({rows:[]}));
+    <select onchange="window._acctLedgerAcc=this.value;acctLedgerRender()" style="min-width:260px">${ACCT_ACCOUNTS.map(a=>`<option value="${a.number}" ${a.number===acc?'selected':''}>${esc(a.number)} ${esc(a.label)}</option>`).join("")}</select></div>
+    <div class="fld"><label>Du</label><input type="date" value="${_from}" onchange="window._acctFrom=this.value;acctLedgerRender()"></div>
+    <div class="fld"><label>Au</label><input type="date" value="${_to}" onchange="window._acctTo=this.value;acctLedgerRender()"></div>
+    ${(_from||_to)?`<div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="window._acctFrom='';window._acctTo='';acctLedgerRender()">Effacer</button></div>`:''}</div><div id="glRows">…</div>`;
+  const _qs="/accounting/ledger?account="+encodeURIComponent(acc)+(_from?"&from="+_from:"")+(_to?"&to="+_to:"");
+  const d=await api(_qs).catch(()=>({rows:[]}));
+  const _op=Number(d.opening||0);
+  const _openRow=(window._acctFrom&&_op!==0)?`<tr style="background:#fff;font-weight:600"><td>${esc(window._acctFrom)}</td><td>-</td><td><code>RAN</code></td><td>Report à nouveau (solde d'ouverture)</td><td class="r">${_op>0?fCFA(_op):'-'}</td><td class="r">${_op<0?fCFA(-_op):'-'}</td><td class="r">${fCFA(_op)}</td></tr>`:'';
   document.getElementById("glRows").innerHTML=`
     <div class="d2-grid"><table><thead><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde progressif</th></tr></thead><tbody>
-    ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
+    ${_openRow}${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="4">SOLDE À REPORTER</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td><td class="r">${fCFA(d.solde)}</td></tr></tbody></table></div>
     <div class="d2-status"><span><span class="k">Compte :</span> <b>${esc(d.account)} ${esc(d.label||"")}</b></span><span class="sp"></span><span><span class="k">Lignes :</span> <b>${d.rows.length}</b></span><span><span class="k">Débit :</span> <b>${fCFA(d.totalDebit)}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(d.totalCredit)}</b></span><span><span class="k">Solde :</span> <b>${fCFA(d.solde)}</b></span></div>`;
 }
@@ -7150,10 +7162,14 @@ async function acctJournalRender(){
   await acctLoadRefs();
   const jr=window._acctJournal||(ACCT_JOURNALS[0]||{}).code||""; const per=window._acctPeriod||"";
   const box=document.getElementById("acctEtatBox");
+  const _from=window._acctFrom||"", _to=window._acctTo||"";
   box.innerHTML=`<div class="d2-filters top">
     <div class="fld"><label>Journal</label><select onchange="window._acctJournal=this.value;acctJournalRender()">${ACCT_JOURNALS.map(j=>`<option value="${j.code}" ${j.code===jr?'selected':''}>${esc(j.code)} - ${esc(j.label)}</option>`).join("")}</select></div>
-    <div class="fld"><label>Période</label><input type="month" value="${per}" onchange="window._acctPeriod=this.value;acctJournalRender()"></div></div><div id="jrRows">…</div>`;
-  const d=await api("/accounting/journal-report?journal="+encodeURIComponent(jr)+(per?"&period="+per:"")).catch(()=>({rows:[]}));
+    <div class="fld"><label>Mois</label><input type="month" value="${per}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctJournalRender()"></div>
+    <div class="fld"><label>Du</label><input type="date" value="${_from}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctJournalRender()"></div>
+    <div class="fld"><label>Au</label><input type="date" value="${_to}" onchange="window._acctTo=this.value;window._acctPeriod='';acctJournalRender()"></div></div><div id="jrRows">…</div>`;
+  const _qs="/accounting/journal-report?journal="+encodeURIComponent(jr)+((_from||_to)?((_from?"&from="+_from:"")+(_to?"&to="+_to:"")):(per?"&period="+per:""));
+  const d=await api(_qs).catch(()=>({rows:[]}));
   document.getElementById("jrRows").innerHTML=`<div class="d2-grid"><table><thead><tr><th>Date</th><th>Pièce</th><th>Compte</th><th>Tiers</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead><tbody>
     ${d.rows.length? d.rows.map(r=>`<tr><td>${esc(r.date||"")}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.thirdParty||"")}</td><td>${esc(r.label)}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td></tr>`).join("") : '<tr><td colspan="7" style="color:var(--muted)">Aucune écriture.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="5">TOTAUX</td><td class="r">${fCFA(d.totalDebit)}</td><td class="r">${fCFA(d.totalCredit)}</td></tr></tbody></table></div>`;

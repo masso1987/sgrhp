@@ -158,11 +158,14 @@ router.delete("/entries/:id", allow("RC", "ADM", "CD"), (req, res) => {
 router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const onlyValidated = req.query.all !== "1";
+  const _from = req.query.from || "", _to = req.query.to || "";
   const accs = {}; for (const a of mine(db.acctAccounts, req)) accs[a.number] = a.label;
   const agg = {};
   for (const e of mine(db.acctEntries, req)) {
     if (onlyValidated && e.status === "draft") continue;
     if (req.query.period && (e.period || "") !== req.query.period) continue;
+    if (_from && (e.date || "") < _from) continue;
+    if (_to && (e.date || "") > _to) continue;
     for (const l of (e.lines || [])) {
       const a = (agg[l.account] = agg[l.account] || { account: l.account, label: accs[l.account] || "", debit: 0, credit: 0 });
       a.debit += R2(l.debit); a.credit += R2(l.credit);
@@ -398,18 +401,26 @@ router.get("/ledger", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const acc = req.query.account; if (!acc) return res.status(400).json({ error: "Compte requis" });
   const onlyVal = req.query.all !== "1"; const labels = _accLabel(req);
-  const rows = [];
+  const _from = req.query.from || "", _to = req.query.to || "";
+  const rows = []; let opening = 0;
   for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
-    for (const l of (e.lines || [])) if (l.account === acc) rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, thirdParty: l.thirdParty || "", label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) }); }
+    for (const l of (e.lines || [])) { if (l.account !== acc) continue;
+      const d = e.date || "";
+      if (_from && d < _from) { opening += R2(l.debit) - R2(l.credit); continue; }
+      if (_to && d > _to) continue;
+      rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, thirdParty: l.thirdParty || "", label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) }); } }
   rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  let solde = 0, td = 0, tc = 0; for (const r of rows) { solde += r.debit - r.credit; r.solde = solde; td += r.debit; tc += r.credit; }
-  res.json({ account: acc, label: labels[acc] || "", rows, totalDebit: td, totalCredit: tc, solde });
+  opening = R2(opening);
+  let solde = opening, td = 0, tc = 0; for (const r of rows) { solde += r.debit - r.credit; r.solde = solde; td += r.debit; tc += r.credit; }
+  res.json({ account: acc, label: labels[acc] || "", rows, opening, from: _from, to: _to, totalDebit: td, totalCredit: tc, solde });
 });
 router.get("/journal-report", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const onlyVal = req.query.all !== "1"; const rows = [];
+  const _from = req.query.from || "", _to = req.query.to || "";
   for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue;
     if (req.query.journal && e.journalCode !== req.query.journal) continue; if (req.query.period && (e.period || "") !== req.query.period) continue;
+    if (_from && (e.date || "") < _from) continue; if (_to && (e.date || "") > _to) continue;
     for (const l of (e.lines || [])) rows.push({ date: e.date, journal: e.journalCode, piece: e.pieceNo, account: l.account, thirdParty: l.thirdParty || "", label: l.label || e.label || "", debit: R2(l.debit), credit: R2(l.credit) }); }
   rows.sort((a, b) => (a.journal + a.piece).localeCompare(b.journal + b.piece));
   const td = rows.reduce((s, r) => s + r.debit, 0), tc = rows.reduce((s, r) => s + r.credit, 0);
