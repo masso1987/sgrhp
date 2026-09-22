@@ -153,6 +153,8 @@ const CMR_CONVENTIONS = [
   "Convention Collective des Cliniques et Établissements de Santé Privés",
   "Convention Collective des Auxiliaires Médicaux",
   "Convention Collective des Professions de l'Enseignement Privé Laïc",
+  "Convention Collective Nationale des Hydrocarbures (Exploration, Production, Raffinage)",
+  "Convention Collective Nationale des Transporteurs Maritimes, Transitaires et Auxiliaires de Transports",
 ];
 /* Barème indicatif : grille catégorie (I-XII) x échelon (A-E), ancrée sur des points réels
  * (Commerce 6D=173 573, 12A~442 225 issus des fiches réelles) et des fourchettes sectorielles
@@ -198,9 +200,66 @@ function commerceGrid2024() {
     rows.push({ category: c + e, label: "Catégorie " + c + " échelon " + e, baseSalary: COMMERCE_2024[c][i], pct: COMMERCE_PCT[c] }));
   return rows;
 }
+/* Grille officielle CCN Hydrocarbures (Exploration/Production/Raffinage), GRILLE 2018 MAJOREE
+ * (CAT I-VI +8%, VII-IX +7%, X-XII +6%). Catégories 1..12 x échelons A..F.
+ * Source: annexe II de la convention (déposée 07/2023). Catégories 3 et 4 issues d'un OCR à
+ * revérifier avec l'annexe papier. */
+const HYDRO_2018 = {
+  1:  [65936, 69017, 72100, 75125, 78214, 81289],
+  2:  [81289, 84350, 87431, 90478, 93545, 96310],
+  3:  [94917, 101555, 108177, 114808, 121424, 128056],
+  4:  [121552, 132225, 142878, 153551, 164231, 174891],
+  5:  [165744, 176503, 187283, 198048, 208806, 219573],
+  6:  [211952, 226959, 241916, 256916, 271907, 286830],
+  7:  [220217, 239936, 259641, 279346, 299051, 318762],
+  8:  [318756, 336163, 353522, 370922, 388321, 405708],
+  9:  [384303, 417240, 450163, 483101, 516051, 548988],
+  10: [404291, 432589, 460881, 489178, 517502, 545787],
+  11: [545787, 570058, 594291, 618563, 642827, 667075],
+  12: [667075, 691339, 715599, 739839, 764103, 788343],
+};
+function hydroGrid() {
+  const rows = [];
+  for (let c = 1; c <= 12; c++) ECHELONS.forEach((e, i) =>
+    rows.push({ category: c + e, label: "Catégorie " + c + " échelon " + e, baseSalary: HYDRO_2018[c][i] }));
+  return rows;
+}
+const isHydro = (name) => /hydrocarbure|exploration|raffinage/i.test(String(name || ""));
+/* Grille officielle CCN Hôtels, Restaurants, Cafés, Bars, Dancings et Activités Annexes
+ * (Secteur Tertiaire II, Annexe I - grille de salaire de base harmonisée). Catégories 1..12 x échelons A..F.
+ * Source: annexe I de la convention (grille harmonisée transcrite fidèlement du texte officiel). */
+const HOTELS_2025 = {
+  1:  [60000, 61500, 63000, 64500, 66000, 67500],
+  2:  [69500, 71500, 73500, 75500, 77500, 79500],
+  3:  [81880, 84260, 86640, 89020, 91400, 93780],
+  4:  [97495, 101210, 104925, 108640, 112355, 118070],
+  5:  [119695, 123320, 126945, 130570, 134195, 137820],
+  6:  [142183, 146546, 150909, 155272, 159635, 163998],
+  7:  [167198, 170398, 173598, 176798, 179998, 183198],
+  8:  [192833, 202468, 212103, 221738, 231373, 241008],
+  9:  [253258, 265508, 277758, 290008, 302258, 314508],
+  10: [319508, 324508, 329508, 334508, 339508, 344508],
+  11: [351658, 358788, 365928, 373068, 380208, 387348],
+  12: [399068, 410788, 422508, 434228, 445948, 457668],
+};
+function hotelsGrid() {
+  const rows = [];
+  for (let c = 1; c <= 12; c++) ECHELONS.forEach((e, i) =>
+    rows.push({ category: c + e, label: "Catégorie " + c + " échelon " + e, baseSalary: HOTELS_2025[c][i] }));
+  return rows;
+}
+const isHotels = (name) => /h[oô]tel|restaurant|dancing|caf[eé]s? |\bbars?\b/i.test(String(name || ""));
+function gridSourceFor(name) {
+  if (isCommerce(name)) return "officiel 2024";
+  if (isHotels(name)) return "officiel (annexe I harmonisée)";
+  if (isHydro(name)) return "officiel 2018 majoré (cat. 3-4 à vérifier)";
+  return "indicatif";
+}
 const isCommerce = (name) => /commerce/i.test(String(name || ""));
 function genGridForName(name) {
   if (isCommerce(name)) return commerceGrid2024();
+  if (isHydro(name)) return hydroGrid();
+  if (isHotels(name)) return hotelsGrid();
   const mult = sectorMultiplier(name); const rows = [];
   for (let c = 1; c <= 12; c++) for (const e of ECHELONS)
     rows.push({ category: c + e, label: "Catégorie " + c + " échelon " + e, baseSalary: Math.round(COMMERCE_2024[c][0] * ECH_FACTOR[e] * mult / 10) * 10 });
@@ -211,7 +270,7 @@ const isDefaultGrid = (grid) => Array.isArray(grid) && grid.length > 0 && grid.e
 router.post("/conventions/:id/prefill-grid", allow("ADM"), (req, res) => {
   const cnv = mine(db.conventions, req).find(c => c.id === req.params.id);
   if (!cnv) return res.status(404).json({ error: "Not found" });
-  cnv.grid = genGridForName(cnv.name); cnv.gridSource = isCommerce(cnv.name) ? "officiel 2024" : "indicatif"; save();
+  cnv.grid = genGridForName(cnv.name); cnv.gridSource = gridSourceFor(cnv.name); save();
   audit(req.user, "CONFIG_CHANGED", "Convention", cnv.id, { prefillGrid: cnv.name });
   res.json(cnv);
 });
@@ -219,7 +278,7 @@ router.post("/conventions/prefill-all", allow("ADM"), (req, res) => {
   const force = !!(req.body || {}).force; let filled = 0;
   for (const c of mine(db.conventions, req)) {
     if (force || !Array.isArray(c.grid) || !c.grid.length || isDefaultGrid(c.grid)) {
-      c.grid = genGridForName(c.name); c.gridSource = isCommerce(c.name) ? "officiel 2024" : "indicatif"; filled++;
+      c.grid = genGridForName(c.name); c.gridSource = gridSourceFor(c.name); filled++;
     }
   }
   if (filled) save();

@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-22 - ETATS-29 (correctif console admin/plateforme, plage de dates Du/Au sur grand-livre/journal/balance avec report a nouveau)";
+const BUILD_VERSION = "2026-09-22 - CONV-30 (conventions collectives: grille officielle Hotels-Restaurants + Hydrocarbures, Banques/Maritime en indicatif)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
