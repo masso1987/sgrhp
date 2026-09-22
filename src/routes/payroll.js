@@ -1545,19 +1545,28 @@ router.get("/runs/:id/livre/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (
     const totX = colX(nBody);
     const fullW = labelW + nBody*colW + (isLast?colW:0);
     const T = (x, yy, txt, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica").fontSize(o.s || 7).fillColor(o.c || "#000").text(txt == null ? "" : String(txt), x, yy, { width: o.w, align: o.a, lineBreak: false }); };
-    doc.rect(x0, y, fullW, 22).fillAndStroke("#e6efe9", "#000");
-    T(x0 + 3, y + 2, "Rubriques", { b: 1, s: 8 });
-    grp.forEach((c, i) => { T(colX(i) + 2, y + 2, c.matricule, { b: 1, s: 6.5, w: colW - 4 }); T(colX(i) + 2, y + 11, `${c.civ} ${c.name}`.trim(), { s: 5.5, w: colW - 4 }); });
-    if (isLast) T(totX + 2, y + 2, "Total", { b: 1, s: 8, w: colW - 4 });
-    y += 22;
-    const rowH = 10;
+    const HH = 30;
+    doc.rect(x0, y, fullW, HH).fillAndStroke("#e6efe9", "#000");
+    doc.fillColor("#000").font("Helvetica-Bold").fontSize(8).text("Rubriques", x0 + 3, y + 3, { lineBreak: false });
+    grp.forEach((c, i) => {
+      doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#000").text(String(c.matricule || ""), colX(i) + 2, y + 2.5, { width: colW - 4, lineBreak: false, ellipsis: true });
+      doc.font("Helvetica").fontSize(5.6).text(`${c.civ || ""} ${c.name || ""}`.trim(), colX(i) + 2, y + 10.5, { width: colW - 4, height: 17, lineBreak: true, ellipsis: true });
+    });
+    if (isLast) doc.font("Helvetica-Bold").fontSize(8).fillColor("#000").text("Total", totX + 2, y + 3, { width: colW - 4, lineBreak: false });
+    // séparateurs verticaux d'en-tête
+    doc.lineWidth(0.4).strokeColor("#000");
+    for (let i = 0; i <= nBody + (isLast?1:0); i++) { const vx = x0 + labelW + i * colW; doc.moveTo(vx, y).lineTo(vx, y + HH).stroke(); }
+    doc.moveTo(x0 + labelW, y).lineTo(x0 + labelW, y + HH).stroke();
+    y += HH;
+    const rowH = 11;
     const row = (code, label, vals, hl, totVal) => {
-      if (hl) doc.rect(x0, y, fullW, rowH).fill("#fdf6c8");
+      if (hl) doc.rect(x0, y, fullW, rowH).fillAndStroke("#fdf6c8", "#e5c200");
       doc.fillColor("#000");
-      if (code) T(x0 + 2, y + 1.5, code, { s: 6.5, w: 26 });
-      T(x0 + 30, y + 1.5, label, { b: !!hl, s: hl ? 7 : 6.5, w: labelW - 32 });
-      vals.forEach((v, i) => T(colX(i), y + 1.5, v === 0 || v === "" ? "" : _NF(v), { b: !!hl, s: 6.5, w: colW - 3, a: "right" }));
-      if (isLast) T(totX, y + 1.5, (totVal === 0 || totVal === "" || totVal == null) ? "" : _NF(totVal), { b: true, s: 6.5, w: colW - 3, a: "right" });
+      if (code) T(x0 + 3, y + 2, code, { s: 6.3, w: 26 });
+      T(x0 + 31, y + 2, label, { b: !!hl, s: hl ? 7 : 6.6, w: labelW - 34 });
+      vals.forEach((v, i) => T(colX(i), y + 2, v === 0 || v === "" ? "" : _NF(v), { b: !!hl, s: 6.6, w: colW - 4, a: "right" }));
+      if (isLast) T(totX, y + 2, (totVal === 0 || totVal === "" || totVal == null) ? "" : _NF(totVal), { b: true, s: 6.6, w: colW - 4, a: "right" });
+      if (!hl) { doc.lineWidth(0.25).strokeColor("#e3e3e3").moveTo(x0, y + rowH).lineTo(x0 + fullW, y + rowH).stroke(); }
       y += rowH;
     };
     for (const code of D.gainCodes) row(code, D.gLbl[code], grp.map(c => D.gainOf(c.slip, code)), false, totFn(s => D.gainOf(s, code)));

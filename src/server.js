@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - PAYPDF-39 (livre de paie et fiche individuelle facon Sage: en-tete periode, colonne Total, matrice rubriques x mois pour la fiche)";
+const BUILD_VERSION = "2026-09-24 - PAYPDF-40 (livre de paie: en-tetes salaries plus lisibles sans debordement, lignes de separation, mise en page affinee)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
