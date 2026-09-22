@@ -1324,7 +1324,9 @@ function buildNav() {
   renderSubnav();
 }
 function renderSubnav() {
-  const items = NAV_VISIBLE.filter(n => (n.grp || "admin") === window.CURRENT_GROUP);
+  let items = NAV_VISIBLE.filter(n => (n.grp || "admin") === window.CURRENT_GROUP);
+  if (window.CURRENT_VIEW === "adminhome") items = items.filter(n => n.k === "adminhome" || n.k === "account");
+  else if (window.CURRENT_VIEW === "plathome") items = items.filter(n => n.k === "plathome");
   const label = (NAV_GROUPS.find(G =>G.g === window.CURRENT_GROUP) || {}).label || "";
   const mobileBar = `<div class="modbar-m">${NAV_PRESENT.map(G => `<div class="modtab-m ${G.g === window.CURRENT_GROUP ? "active" : ""}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("")}</div>`;
   let _lastSec = null;
@@ -1421,7 +1423,8 @@ function go(k) {
   closeSidebar();
   applySectionColor(k);
   const _it = NAV.find(n =>n.k === k);
-  if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) { window.CURRENT_GROUP = _it.grp || "admin"; renderSubnav(); }
+  if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
+  renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
   ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
@@ -3817,6 +3820,7 @@ async function adminHomeView(){
     <div class="panel">Chargement…</div></div>`;
   let users=[]; try{ users=await api("/users"); }catch(e){}
   let pfs=window.PFS||[]; try{ pfs=await api("/portfolios"); window.PFS=pfs; }catch(e){}
+  let auditLog=[]; try{ auditLog=await api("/audit"); }catch(e){}
   const MODLAB={ hr:"RH", careers:"Carrière", payroll:"Paie", invoicing:"Facturation", accounting:"Comptabilité", stock:"Stock", quality:"Qualité" };
   const ALLMODS=Object.keys(MODLAB);
   const mods = (ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]));
@@ -3825,6 +3829,14 @@ async function adminHomeView(){
   const byRole={}; users.forEach(u=>{ byRole[u.role]=(byRole[u.role]||0)+1; });
   const rolesLine = Object.keys(byRole).sort((a,b)=>byRole[b]-byRole[a]).map(r=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>${esc(r)} <span style="color:var(--muted);font-weight:400">- ${esc(_ADM_ROLE_LABELS[r]||"")}</span></span><b>${byRole[r]}</b></div>`).join("") || '<div style="color:var(--muted)">Aucun utilisateur.</div>';
   const modChips = ALLMODS.map(m=>{ const on=mods.includes(m); return `<span class="adm-chip ${on?'on':'off'}">${on?'✓':'○'} ${esc(MODLAB[m])}</span>`; }).join("");
+  const _ago=(iso)=>{ if(!iso) return ""; const d=new Date(iso); const s=Math.floor((Date.now()-d)/1000); if(s<60)return "à l'instant"; if(s<3600)return Math.floor(s/60)+" min"; if(s<86400)return Math.floor(s/3600)+" h"; if(s<172800)return "hier"; return d.toLocaleDateString("fr-FR"); };
+  const _ACTLAB={CREATED:"a créé",UPDATED:"a modifié",DELETED:"a supprimé",POSTED:"a comptabilisé",VALIDATED:"a validé",CONFIG_CHANGED:"a configuré",LOGIN:"connexion",COMPUTED:"a calculé",CLOSED:"a clôturé",FINALIZED:"a finalisé"};
+  const _OBJLAB={PayRun:"paie",AcctEntry:"écriture",Convention:"convention",User:"utilisateur",Employee:"employé",Invoice:"facture"};
+  const actRows = (auditLog||[]).slice(0,6).map(a=>`<div class="rowl"><span><b style="font-weight:600">${esc(a.userName||'-')}</b> <span style="color:var(--muted)">${esc(_ACTLAB[a.action]||a.action||'')}${a.objectType?(' '+esc(_OBJLAB[a.objectType]||a.objectType)):''}</span></span><span style="color:var(--muted);font-size:11px;white-space:nowrap">${_ago(a.at)}</span></div>`).join("") || '<div style="color:var(--muted);font-size:12px;padding:6px 0">Aucune activité récente.</div>';
+  const no2fa = users.filter(u=>!u.totpEnabled).length;
+  const disabledU = users.filter(u=>u.active===false).length;
+  const todo=(label,n,warn,dest)=>`<div class="rowl" ${dest?`onclick="go('${dest}')" style="cursor:pointer"`:''}><span>${label}</span><b style="color:${n>0?(warn?'#b91c1c':'#166534'):'var(--muted)'}">${n}</b></div>`;
+  const todoCard = todo("Utilisateurs sans 2FA", no2fa, true, "users")+todo("Comptes désactivés", disabledU, disabledU>0, "users")+`<div class="rowl" style="border:none"><span>Dernière activité</span><b style="color:var(--muted)">${auditLog[0]?_ago(auditLog[0].at):'-'}</b></div>`;
   const kc=(l,v,s,dest)=>`<div class="adm-kc ${dest?'clk':''}" ${dest?`onclick="go('${dest}')"`:''}><div class="l">${l}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
   const I=(p)=>_SVG(p);
   view.innerHTML = `<div class="adm-wrap"><h1 style="margin:0 0 2px">Console d'administration</h1>
@@ -3834,6 +3846,11 @@ async function adminHomeView(){
       ${kc("Portefeuilles", pfs.length, "unités / directions", "portfolios")}
       ${kc("Modules activés", enabled.length+" / "+ALLMODS.length, enabled.map(m=>MODLAB[m]).join(", ")||"-")}
       ${kc("Rôles utilisés", Object.keys(byRole).length, "profils distincts", "users")}
+    </div>
+    <div class="grid2">
+      <div class="panel"><b>Activité récente</b><div style="margin-top:6px">${actRows}</div>
+        <div style="margin-top:6px"><button class="btn ghost sm" onclick="go('audit')">Voir le journal d'audit</button></div></div>
+      <div class="panel"><b>À traiter &amp; sécurité</b><div style="margin-top:6px">${todoCard}</div></div>
     </div>
     <div class="grid2">
       <div class="panel"><b>Modules de l'organisation</b>
