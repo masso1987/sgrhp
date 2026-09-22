@@ -4617,7 +4617,8 @@ async function payRunView(id) {
     ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">Clôturer la période</button>` : ""}
     ${run.status === "CLOSED" && ME.role === "ADM" ? `<button class="btn" style="background:var(--amber,#f59e0b);color:#fff" onclick="payReopen('${run.id}')">Rouvrir la période</button>` : ""}
-    ${run.status === "CLOSED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#1b2a4a;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.acctEntryId ? "Écriture comptable générée ✓" : "Transférer en comptabilité"}</button>` : ""}
+    ${run.status === "CALCULATED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#b45309;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.provisional ? "Passation provisoire faite ✓" : "Passation provisoire (avant clôture)"}</button>` : ""}
+    ${run.status === "CLOSED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#1b2a4a;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.finalized ? "Comptabilité bouclée ✓" : (run.provisional ? "Régulariser & comptabiliser (définitif)" : "Transférer en comptabilité")}</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">Ordre de virement</button>` : ""}
     ${open && canRunPay() ? `<button class="btn ghost" onclick="tsImportOpen('${run.id}','${run.period}')">Importer pointage</button>` : ""}
     ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
@@ -4647,11 +4648,13 @@ function payPassationModal(runId, rep){
   const recRows=(rep.reconciliation||[]).map(r=>`<tr><td>${esc(r.label)}</td><td class="r">${fCFA(r.paie)}</td><td class="r">${fCFA(r.compta)}</td><td class="r" style="color:${r.ok?'#16a34a':'#dc2626'};font-weight:600">${r.ok?'OK':fCFA(r.ecart)}</td></tr>`).join("");
   const lineRows=(rep.lines||[]).map(l=>`<tr><td><code>${esc(l.account)}</code></td><td>${esc(l.label||'')}</td><td class="r">${l.debit?fCFA(l.debit):''}</td><td class="r">${l.credit?fCFA(l.credit):''}</td></tr>`).join("");
   const bg=document.createElement("div"); bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="width:780px;max-height:88vh;overflow:auto"><h3 style="margin:0 0 6px">Contrôle de passation - Paie ${esc(rep.period||'')}</h3>
+  const prov = rep.status !== "CLOSED"; const hasProv = !!c.hasProvisional;
+  bg.innerHTML=`<div class="modal" style="width:820px;max-height:88vh;overflow:auto"><h3 style="margin:0 0 6px">${prov?'Passation PROVISOIRE':'Contrôle de passation (définitif)'} - Paie ${esc(rep.period||'')}</h3>
+    ${prov?'<div class="note" style="background:#fff7ed;border:1px solid #fdba74;color:#b45309;margin-bottom:6px">Passation <b>provisoire</b> avant clôture : permet de déclarer et payer CNPS &amp; IRPP dans les délais (le 15). L\'écart sera régularisé à la clôture.</div>':''}
     <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">CONTRÔLES</b>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px">
-        <div>${chk(c.clotured)} Période clôturée</div>
-        <div>${chk(!c.alreadyPosted)} Non déjà comptabilisée</div>
+        <div>${prov?'<span class="tag amber">Provisoire (avant clôture)</span>':chk(c.clotured)+' Période clôturée'}</div>
+        <div>${prov?(chk(!hasProv)+' Passation provisoire non encore faite'):(chk(!c.finalized)+' Comptabilité non encore bouclée')}</div>
         <div>${chk(c.balanced)} Écriture équilibrée (${fCFA(rep.totalDebit)} = ${fCFA(rep.totalCredit)})</div>
         <div>${chk(unmapped.length===0)} Toutes les rubriques mappées${unmapped.length?` <span class="tag" style="background:#dc2626;color:#fff">${unmapped.length}</span>`:''}</div>
         <div>${chk(rep.reconOk)} Réconciliation paie ↔ écriture</div>
@@ -4668,20 +4671,33 @@ function payPassationModal(runId, rep){
       <table style="margin-top:8px"><tr><th>Impôts (DIPE)</th><th class="r">Montant</th></tr>
         ${rep.declarations.dipe.map(d=>`<tr><td>${esc(d.label)}</td><td class="r">${fCFA(d.montant)}</td></tr>`).join("")}
         <tr style="font-weight:600;border-top:2px solid #999"><td>TOTAL DIPE</td><td class="r">${fCFA(rep.declarations.dipeTotal)}</td></tr></table></div>`:''}
-    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">ÉCRITURE PROPOSÉE (${(rep.lines||[]).length} lignes)</b>
+    ${rep.provisional?`<div class="panel" style="margin:6px 0;border-color:#fdba74;background:#fff7ed"><b style="font-size:12px;color:#b45309">PROVISOIRE ↔ DÉFINITIF (régularisation de l'écart)</b>
+      <div class="note">Provisoire comptabilisée le ${esc((rep.provisional.at||'').slice(0,10))} par ${esc(rep.provisional.by||'')} - effectif ${rep.provisional.effectif} - débit ${fCFA(rep.provisional.totalDebit)}.</div>
+      ${rep.ecart?`<div style="margin-top:6px"><b>Écart à régulariser : ${fCFA(rep.ecart.total)}</b> ${rep.ecart.isZero?'<span class="tag green">aucun écart</span>':''} ${rep.ecart.finalized?'<span class="tag blue">régularisé</span>':''}</div>
+        ${(rep.ecart.added.length||rep.ecart.changed.length||rep.ecart.removed.length)?`<table style="margin-top:4px"><tr><th>Salarié</th><th>Type</th><th class="r">Net</th><th class="r">Δ Net</th></tr>
+          ${rep.ecart.added.map(e=>`<tr><td>${esc(e.name||'')} ${esc(e.matricule||'')}</td><td><span class="tag" style="background:#0d9488;color:#fff">ajouté</span></td><td class="r">${fCFA(e.net)}</td><td class="r">+${fCFA(e.net)}</td></tr>`).join("")}
+          ${rep.ecart.changed.map(e=>`<tr><td>${esc(e.name||'')} ${esc(e.matricule||'')}</td><td><span class="tag amber">modifié</span></td><td class="r">${fCFA(e.net)}</td><td class="r">${e.deltaNet>0?'+':''}${fCFA(e.deltaNet)}</td></tr>`).join("")}
+          ${rep.ecart.removed.map(e=>`<tr><td>${esc(e.name||'')} ${esc(e.matricule||'')}</td><td><span class="tag" style="background:#6b7280;color:#fff">retiré</span></td><td class="r">${fCFA(e.net)}</td><td class="r">-${fCFA(e.net)}</td></tr>`).join("")}
+        </table>`:'<div class="note">Les bulletins définitifs sont identiques au provisoire.</div>'}`:''}
+    </div>`:''}
+    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">${prov?'ÉCRITURE PROVISOIRE PROPOSÉE':(hasProv?'ÉCRITURE DÉFINITIVE (base, avant régularisation)':'ÉCRITURE PROPOSÉE')} (${(rep.lines||[]).length} lignes)</b>
       <table style="margin-top:6px"><tr><th>Compte</th><th>Libellé</th><th class="r">Débit</th><th class="r">Crédit</th></tr>${lineRows}</table></div>
     <div class="err hidden" id="ppErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn p" ${c.alreadyPosted?'disabled':''} onclick="payPassationConfirm('${runId}')">Confirmer et comptabiliser</button>
-      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button>
-      ${c.alreadyPosted?'<span class="tag blue" style="align-self:center">Déjà comptabilisée</span>':''}</div></div>`;
+      ${(()=>{ let lab,dis,mode;
+        if(prov){ lab=hasProv?'Passation provisoire déjà faite ✓':'Comptabiliser la passation provisoire'; dis=hasProv||!rep.canPostProvisional; mode='provisoire'; }
+        else if(hasProv){ lab=c.finalized?'Régularisation comptabilisée ✓':'Comptabiliser la régularisation (écart)'; dis=c.finalized; mode='definitive'; }
+        else { lab=c.alreadyPosted?'Déjà comptabilisée ✓':'Confirmer et comptabiliser'; dis=c.alreadyPosted; mode='definitive'; }
+        return `<button class="btn p" ${dis?'disabled':''} onclick="payPassationConfirm('${runId}','${mode}')">${lab}</button>`; })()}
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
   document.body.appendChild(bg);
 }
-async function payPassationConfirm(runId){
+async function payPassationConfirm(runId, mode){
   const susp=(document.getElementById("ppSusp")||{}).checked;
-  try{ const e=await api("/payroll/runs/"+runId+"/transfer-accounting",{method:"POST",body:JSON.stringify({allowSuspense:!!susp})});
+  const url = mode==='provisoire' ? "/payroll/runs/"+runId+"/passation-provisoire" : "/payroll/runs/"+runId+"/transfer-accounting";
+  try{ const e=await api(url,{method:"POST",body:JSON.stringify({allowSuspense:!!susp})});
     const bgm=document.querySelector(".modal-bg"); if(bgm) bgm.remove();
-    alert("Comptabilisé.\nÉcriture "+(e.pieceNo||e.entryId)+" - "+(e.lines||0)+" lignes.\nDébit "+fCFA(e.debit)+" = Crédit "+fCFA(e.credit)+(e.balanced?" (équilibrée)":" (⚠)"));
+    alert((mode==='provisoire'?"Passation PROVISOIRE comptabilisée (pour déclarer CNPS/IRPP).":"Comptabilisation définitive effectuée.")+"\nÉcriture "+(e.pieceNo||e.entryId)+" - "+(e.lines||0)+" ligne(s).");
     payRunView(runId);
   }catch(err){ const el=document.getElementById("ppErr"); if(el){ el.textContent=err.message; el.classList.remove("hidden"); } else alert(err.message); }
 }

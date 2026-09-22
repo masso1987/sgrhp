@@ -268,8 +268,10 @@ function _buildPayrollPassation(req, run, allowSuspense) {
     rc("Rémunération due (net à payer)", reg.net, C[remDue] || 0),
     rc("Retenues & cotisations salariales", reg.retSal, sumP(C, ["43","44"]) - comptaChargesPat),
   ];
+  const signed = {}; lines.forEach(l => signed[l.account] = R2((l.debit || 0) - (l.credit || 0)));
+  const emps = {}; for (const s of slips) { const t = (s.result && s.result.totals) || {}; emps[s.employeeId] = { net: R2(t.netAPayer), brut: R2(t.brutTotal), name: s.employeeName || "", matricule: s.matricule || "" }; }
   return { lines, unmapped: Object.entries(unmapped).map(([code, amount]) => ({ code, amount: R2(amount) })), suspense: R2(suspense),
-    missingAccounts, totalDebit: R2(totalD), totalCredit: R2(totalC), balanced: R2(totalD) === R2(totalC), reconciliation, attente };
+    missingAccounts, totalDebit: R2(totalD), totalCredit: R2(totalC), balanced: R2(totalD) === R2(totalC), reconciliation, attente, signed, emps };
 }
 // Rapport de contrôle de passation (sans comptabiliser)
 function payrollPassationCheck(req, runId) {
@@ -291,25 +293,70 @@ function payrollPassationCheck(req, runId) {
     ],
     dipeTotal: R2(dec.irpp + dec.cac + dec.cfc + dec.rav + dec.tdl + dec.fne),
   };
-  const checks = { clotured: run.status === "CLOSED", hasPayslips: slips.length > 0, alreadyPosted: !!run.acctEntryId, balanced: b.balanced, unmapped: b.unmapped, missingAccounts: b.missingAccounts };
+  const hasProvisional = !!(run.provisional && run.provisional.acctEntryId);
+  const checks = { clotured: run.status === "CLOSED", hasPayslips: slips.length > 0, alreadyPosted: !!run.acctEntryId, finalized: !!run.finalized, hasProvisional, balanced: b.balanced, unmapped: b.unmapped, missingAccounts: b.missingAccounts };
+  // Écart provisoire -> définitif (Option A : régularisation du delta)
+  let provisional = null, ecart = null;
+  if (hasProvisional) {
+    provisional = { at: run.provisional.at, by: run.provisional.by, effectif: run.provisional.effectif, totalDebit: run.provisional.totalDebit };
+    const def = b.signed || {}, prov = run.provisional.signed || {};
+    const labelFor = (a) => (acctMapOf(req).find(x => String(x.account) === String(a)) || {}).label || "";
+    const accs = new Set([...Object.keys(def), ...Object.keys(prov)]);
+    const ecartLines = [...accs].sort().map(a => ({ account: a, label: labelFor(a), ecart: R2((def[a] || 0) - (prov[a] || 0)) })).filter(x => x.ecart);
+    const ecartTotal = R2(ecartLines.reduce((s, x) => s + Math.abs(x.ecart), 0) / 2);
+    const cur = b.emps || {}, pe = run.provisional.emps || {}; const added = [], changed = [], removed = [];
+    for (const idk in cur) { if (!pe[idk]) added.push(cur[idk]); else if (R2(cur[idk].net) !== R2(pe[idk].net)) changed.push({ ...cur[idk], deltaNet: R2(cur[idk].net - pe[idk].net) }); }
+    for (const idk in pe) { if (!cur[idk]) removed.push(pe[idk]); }
+    ecart = { lines: ecartLines, total: ecartTotal, added, changed, removed, finalized: !!run.finalized, isZero: ecartLines.length === 0 };
+  }
   const blocking = !checks.clotured || !checks.hasPayslips || checks.unmapped.length > 0 || !checks.balanced;
+  const blockingProvisional = !checks.hasPayslips || checks.unmapped.length > 0 || !checks.balanced;
   return { runId, period: run.period, status: run.status, checks, reconciliation: b.reconciliation, reconOk: b.reconciliation.every(r => r.ok),
-    totalDebit: b.totalDebit, totalCredit: b.totalCredit, lines: b.lines, suspenseAccount: b.attente, declarations, blocking, canPost: !blocking && !checks.alreadyPosted };
+    totalDebit: b.totalDebit, totalCredit: b.totalCredit, lines: b.lines, suspenseAccount: b.attente, declarations, provisional, ecart,
+    blocking, canPost: !blocking && !checks.alreadyPosted,
+    canPostProvisional: !blockingProvisional && !hasProvisional && run.status !== "CLOSED" };
 }
-// Comptabilisation effective (après contrôle). opts.allowSuspense route les rubriques non mappées vers le compte d'attente.
+// Passation PROVISOIRE (avant clôture) — pour payer CNPS/IRPP dans les délais (le 15). Prend un instantané des bulletins inclus.
+function generateProvisionalPayrollEntry(req, runId, opts) {
+  opts = opts || {};
+  const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
+  if (run.status === "CLOSED") { const e = new Error("Paie déjà clôturée : utilisez la passation définitive."); e.status = 409; throw e; }
+  if (run.provisional && run.provisional.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === run.provisional.acctEntryId); if (ex) return ex; }
+  const b = _buildPayrollPassation(req, run, !!opts.allowSuspense);
+  if (b.unmapped.length && !opts.allowSuspense) { const e = new Error("Rubriques sans compte comptable : " + b.unmapped.map(u => u.code).join(", ") + "."); e.status = 422; e.report = payrollPassationCheck(req, runId); throw e; }
+  if (!b.lines.length) return null;
+  if (!b.balanced) { const e = new Error("Écriture déséquilibrée."); e.status = 422; throw e; }
+  const tid = req.user.tenantId || "t1"; for (const l of b.lines) _ensureAccount(req, tid, l.account, l.label);
+  const e = postEntry(req, { journalCode: "PAIE", date: (run.period || "") + "-15", period: run.period, label: "Passation paie PROVISOIRE " + run.period, lines: b.lines, source: "paie-provisoire", sourceRef: run.id, provisoire: true });
+  run.provisional = { acctEntryId: e.id, at: new Date().toISOString(), by: (req.user.fullName || req.user.email || ""), effectif: Object.keys(b.emps).length, signed: b.signed, emps: b.emps, totalDebit: b.totalDebit, totalCredit: b.totalCredit };
+  save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll-provisoire", period: run.period, lines: b.lines.length }); return e;
+}
+// Comptabilisation DÉFINITIVE (après clôture). Si une passation provisoire existe : ne poste QUE l'écart (régularisation, Option A).
 function generatePayrollEntry(req, runId, opts) {
   opts = opts || {};
   const run = mine(db.payRuns, req).find(r => r.id === runId); if (!run) return null;
   if (run.status !== "CLOSED") { const e = new Error("Transfert impossible : la paie du mois doit d'abord être CLÔTURÉE."); e.status = 409; throw e; }
-  if (run.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === run.acctEntryId); if (ex) return ex; }
+  if (run.finalized && run.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === run.acctEntryId); if (ex) return ex; }
   const b = _buildPayrollPassation(req, run, !!opts.allowSuspense);
   if (b.unmapped.length && !opts.allowSuspense) { const e = new Error("Rubriques sans compte comptable : " + b.unmapped.map(u => u.code).join(", ") + ". Corrigez la table Rubriques -> Comptes, ou routez en compte d'attente."); e.status = 422; e.report = payrollPassationCheck(req, runId); throw e; }
   if (!b.lines.length) return null;
   if (!b.balanced) { const e = new Error("Écriture déséquilibrée (Débit " + b.totalDebit + " != Crédit " + b.totalCredit + ")."); e.status = 422; throw e; }
-  const tid = req.user.tenantId || "t1";
-  for (const l of b.lines) _ensureAccount(req, tid, l.account, l.label); // crée les comptes absents du plan
-  const e = postEntry(req, { journalCode: "PAIE", date: (run.period||"")+"-28", period: run.period, label: "Passation paie "+run.period, lines: b.lines, source: "paie", sourceRef: run.id });
-  run.acctEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period, lines: b.lines.length, suspense: b.suspense }); return e;
+  const tid = req.user.tenantId || "t1"; for (const l of b.lines) _ensureAccount(req, tid, l.account, l.label);
+  const labelFor = (a) => (acctMapOf(req).find(x => String(x.account) === String(a)) || {}).label || "";
+  if (run.provisional && run.provisional.acctEntryId) {
+    // La définitive = provisoire + régularisation (delta uniquement).
+    const prov = run.provisional.signed || {}, def = b.signed || {};
+    const accs = new Set([...Object.keys(prov), ...Object.keys(def)]);
+    const regLines = [...accs].sort().map(a => { const d = R2((def[a] || 0) - (prov[a] || 0)); if (!d) return null;
+      return d > 0 ? { account: a, label: labelFor(a) || ("Charge " + a), debit: d, credit: 0 } : { account: a, label: labelFor(a) || ("Dette " + a), debit: 0, credit: -d }; }).filter(Boolean);
+    run.acctEntryId = run.provisional.acctEntryId; run.finalized = true;
+    if (!regLines.length) { run.regulEntryId = null; save(); audit(req.user, "FINALIZED", "PayRun", run.id, { ecart: 0 }); return mine(db.acctEntries, req).find(x => x.id === run.provisional.acctEntryId); }
+    for (const l of regLines) _ensureAccount(req, tid, l.account, l.label);
+    const e = postEntry(req, { journalCode: "PAIE", date: (run.period || "") + "-28", period: run.period, label: "Régularisation paie " + run.period, lines: regLines, source: "paie-regul", sourceRef: run.id, regularisation: true });
+    run.regulEntryId = e.id; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll-regul", period: run.period, lines: regLines.length }); return e;
+  }
+  const e = postEntry(req, { journalCode: "PAIE", date: (run.period || "") + "-28", period: run.period, label: "Passation paie " + run.period, lines: b.lines, source: "paie", sourceRef: run.id });
+  run.acctEntryId = e.id; run.finalized = true; save(); audit(req.user, "POSTED", "AcctEntry", e.id, { from: "payroll", period: run.period, lines: b.lines.length, suspense: b.suspense }); return e;
 }
 /* ---- Table rubrique -> compte (ADM uniquement) ---- */
 router.get("/rubrique-map", allow("RC", "ADM", "CD"), (req, res) => res.json(acctMapOf(req).slice().sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }))));
@@ -898,4 +945,5 @@ module.exports = router;
 module.exports.seedAccounting = seedAccounting;
 module.exports.generateInvoiceEntry = generateInvoiceEntry;
 module.exports.generatePayrollEntry = generatePayrollEntry;
+module.exports.generateProvisionalPayrollEntry = generateProvisionalPayrollEntry;
 module.exports.payrollPassationCheck = payrollPassationCheck;

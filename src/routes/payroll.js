@@ -725,6 +725,16 @@ router.get("/runs/:id/passation-check", allow("RP", "ADM", "CD", "GPF"), (req, r
   if (!rep) return res.status(404).json({ error: "Paie introuvable" });
   res.json(rep);
 });
+router.post("/runs/:id/passation-provisoire", allow("RP", "ADM", "CD", "GPF"), (req, res) => {
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  try {
+    const e = require("./accounting").generateProvisionalPayrollEntry(req, run.id, { allowSuspense: !!(req.body && req.body.allowSuspense) });
+    if (!e) return res.status(400).json({ error: "Paie vide." });
+    const debit = (e.lines || []).reduce((a, l) => a + (l.debit || 0), 0);
+    res.json({ ok: true, provisoire: true, entryId: e.id, pieceNo: e.pieceNo || "", lines: (e.lines || []).length, debit });
+  } catch (err) { res.status(err.status || 500).json({ error: err.message, report: err.report || null }); }
+});
 router.post("/runs/:id/transfer-accounting", allow("RP", "ADM", "CD", "GPF"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });

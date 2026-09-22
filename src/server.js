@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-20 - BUILD-24 (retrait des tirets cadratins et points medians, remplaces par des traits d union)";
+const BUILD_VERSION = "2026-09-22 - COMPTA-25 (passation provisoire + definitive avec regularisation du delta - Option A)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
