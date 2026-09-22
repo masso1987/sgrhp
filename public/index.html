@@ -7066,20 +7066,55 @@ async function acctEntrySave(validate) {
     document.querySelector(".modal-bg").remove(); acctSaisieView();
   } catch (err) { const el = document.getElementById("aeErr"); el.textContent = err.message; el.classList.remove("hidden"); }
 }
+const OHADA_CLASSES={1:"Comptes de ressources durables",2:"Comptes d'actif immobilisé",3:"Comptes de stocks",4:"Comptes de tiers",5:"Comptes de trésorerie",6:"Comptes de charges",7:"Comptes de produits",8:"Autres charges et produits (H.A.O.)",9:"Comptes analytiques"};
 async function acctBalanceView() {
   const period = window._acctPeriod || "";
+  const lvl = window._balLvl || "detail";
   const bal = await api("/accounting/balance" + (period ? "?period=" + period : "")).catch(() => ({ rows: [], totalDebit: 0, totalCredit: 0, balanced: true }));
+  const rows = (bal.rows || []).slice().sort((a,b)=>String(a.account).localeCompare(String(b.account)));
+  const F=fCFA;
+  const classOf=(acc)=>String(acc||"0").charAt(0);
+  const keyOf=(acc)=> lvl==="class" ? String(acc||"0").charAt(0) : lvl==="level2" ? String(acc||"00").slice(0,2) : String(acc||"");
+  // Aggregate to the requested granularity
+  const agg=new Map();
+  rows.forEach(r=>{ const k=keyOf(r.account); const g=agg.get(k)||{key:k,account:r.account,label:r.label||"",debit:0,credit:0,solde:0,n:0};
+    g.debit+=r.debit||0; g.credit+=r.credit||0; g.solde+=r.solde||0; g.n++; if(lvl!=="detail"){ g.label = lvl==="class"?(OHADA_CLASSES[Number(k)]||("Classe "+k)) : ("Comptes "+k+"…"); } agg.set(k,g); });
+  const outRows=[...agg.values()];
+  // Build HTML with class subtotals (Sage: rupture par classe)
+  let html=""; let curClass=null; let cd=0,cc=0,cs=0; let td=0,tc=0,ts=0;
+  const classRow=(cl)=>`<tr style="background:var(--grid-head);font-weight:600"><td colspan="2">Classe ${cl} - ${esc(OHADA_CLASSES[Number(cl)]||"")}</td><td class="r">${F(cd)}</td><td class="r">${F(cc)}</td><td class="r">${F(cs)}</td></tr>`;
+  outRows.forEach(g=>{
+    const cl=classOf(g.account);
+    if(curClass!==null && cl!==curClass && lvl!=="class"){ html+=classRow(curClass); cd=cc=cs=0; }
+    if(cl!==curClass){ curClass=cl; }
+    const isSynthetic = lvl!=="detail";
+    const accCell = lvl==="class" ? `Classe ${g.key}` : lvl==="level2" ? `${esc(g.key)}xxxx` : esc(g.account);
+    const labCell = lvl==="class" ? esc(OHADA_CLASSES[Number(g.key)]||"") : esc(g.label);
+    html+=`<tr${isSynthetic?' style="font-weight:600"':''}><td><code>${accCell}</code></td><td>${labCell}</td><td class="r">${F(g.debit)}</td><td class="r">${F(g.credit)}</td><td class="r">${F(g.solde)}</td></tr>`;
+    cd+=g.debit; cc+=g.credit; cs+=g.solde; td+=g.debit; tc+=g.credit; ts+=g.solde;
+  });
+  if(curClass!==null && lvl!=="class") html+=classRow(curClass);
+  const balanced = Math.round(td)===Math.round(tc) || bal.balanced;
+  const seg=(v,l)=>`<button class="btn ${lvl===v?'p':'ghost'} sm" onclick="window._balLvl='${v}';acctBalanceView()">${l}</button>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">Balance des comptes</h1>
-    <div class="d2-filters top"><div class="fld"><label>Période (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;acctBalanceView()"></div>
-      <div class="fld" style="justify-content:end"><span style="font-size:11px;color:var(--muted)">Écritures validées uniquement.</span></div></div>
+    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span><button class="btn ghost sm" onclick="acctBalancePrint()">Imprimer</button></div>
+    <div class="d2-filters"><div class="fld"><label>Période (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;acctBalanceView()"></div>
+      <div class="fld" style="justify-content:end"><span style="font-size:11px;color:var(--muted)">Écritures validées - rupture par classe OHADA.</span></div></div>
     <div class="d2-grid"><table><thead><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr></thead><tbody>
-      ${bal.rows.length ? bal.rows.map(r => `<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label || "")}</td><td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")
-        : '<tr><td colspan="5" style="color:var(--muted)">Aucune écriture validée.</td></tr>'}
-      <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAUX</td><td class="r">${fCFA(bal.totalDebit)}</td><td class="r">${fCFA(bal.totalCredit)}</td>
-        <td class="r" style="color:${bal.balanced ? 'var(--nav-active-color)' : 'var(--red)'}">${bal.balanced ? 'équilibrée' : 'écart ' + fCFA(Math.abs(bal.totalDebit - bal.totalCredit))}</td></tr>
+      ${outRows.length ? html : '<tr><td colspan="5" style="color:var(--muted)">Aucune écriture validée.</td></tr>'}
+      <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAL GÉNÉRAL</td><td class="r">${F(td)}</td><td class="r">${F(tc)}</td>
+        <td class="r" style="color:${balanced ? 'var(--nav-active-color)' : 'var(--red)'}">${balanced ? 'équilibrée' : 'écart ' + F(Math.abs(td - tc))}</td></tr>
     </tbody></table></div>
-    <div class="d2-status"><span><span class="k">Comptes :</span> <b>${bal.rows.length}</b></span><span class="sp"></span><span><span class="k">Total débit :</span> <b>${fCFA(bal.totalDebit)}</b></span><span><span class="k">Total crédit :</span> <b>${fCFA(bal.totalCredit)}</b></span><span style="color:${bal.balanced?'var(--nav-active-color)':'var(--red)'}"><b>${bal.balanced?'Balance équilibrée':'Écart '+fCFA(Math.abs(bal.totalDebit-bal.totalCredit))}</b></span></div>`;
+    <div class="d2-status"><span><span class="k">Lignes :</span> <b>${outRows.length}</b></span><span class="sp"></span><span><span class="k">Total débit :</span> <b>${F(td)}</b></span><span><span class="k">Total crédit :</span> <b>${F(tc)}</b></span><span style="color:${balanced?'var(--nav-active-color)':'var(--red)'}"><b>${balanced?'Balance équilibrée':'Écart '+F(Math.abs(td-tc))}</b></span></div>`;
+  window._balPrint={rows:outRows,lvl,td,tc,ts,period};
+}
+function acctBalancePrint(){
+  const d=window._balPrint||{rows:[]}; const F=fCFA;
+  const body=`<table><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
+    ${d.rows.map(g=>`<tr><td>${esc(g.account||g.key)}</td><td>${esc(g.label||"")}</td><td class="r">${F(g.debit)}</td><td class="r">${F(g.credit)}</td><td class="r">${F(g.solde)}</td></tr>`).join("")}
+    <tr class="tot"><td colspan="2">TOTAL GÉNÉRAL</td><td class="r">${F(d.td)}</td><td class="r">${F(d.tc)}</td><td class="r">${F(d.ts)}</td></tr></table>`;
+  acctPrintWindow("Balance des comptes"+(d.period?" - "+d.period:""), body);
 }
 
 
@@ -7619,9 +7654,9 @@ async function acctTiersStatesView(){
   const kseg=(v,l)=>`<button class="btn ${st.kind===v?'p':'ghost'} sm" onclick="window._ets.kind='${v}';acctTiersStatesView()">${l}</button>`;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">États tiers</h1>
-    <div style="display:flex;gap:6px;margin-bottom:8px">${seg('balance','Balance des tiers')}${seg('gl','Grand-livre des tiers')}${seg('releve','Relevé')}</div>
-    <div style="display:flex;gap:6px;margin-bottom:10px">${kseg('client','Clients (411)')}${kseg('fournisseur','Fournisseurs (401)')}${kseg('salarie','Salariés (42)')}${kseg('autre','Autres')}${kseg('all','Tous')}</div>
-    <div id="etsBox" class="panel"><small style="color:var(--muted)">Chargement…</small></div>`;
+    <div class="d2-toolbar" style="margin-bottom:0">${seg('balance','Balance des tiers')}${seg('gl','Grand-livre des tiers')}${seg('releve','Relevé / justificatif')}</div>
+    <div class="d2-filters">${kseg('client','Clients (411)')}${kseg('fournisseur','Fournisseurs (401)')}${kseg('salarie','Salariés (42)')}${kseg('autre','Autres')}${kseg('all','Tous')}</div>
+    <div id="etsBox"><small style="color:var(--muted)">Chargement…</small></div>`;
   if(st.tab==='balance') acctTiersBalance();
   else if(st.tab==='gl') acctTiersGL();
   else acctTiersReleveTab();
@@ -7631,15 +7666,14 @@ async function acctTiersBalance(){
   const rows=(await api("/accounting/third-parties-usage").catch(()=>[])).filter(r=>kind==='all'||r.kind===kind);
   const box=document.getElementById("etsBox");
   const sum=(k)=>rows.reduce((a,r)=>a+(r[k]||0),0);
-  box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><b>Balance des tiers - ${({all:'tous',client:'clients',fournisseur:'fournisseurs',salarie:'salariés',autre:'autres'})[kind]||kind} (${rows.length})</b>
-      <button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>
-    <table style="margin-top:8px"><tr><th>Code</th><th>Nom</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th><th></th></tr>
+  box.innerHTML=`<div class="d2-grid"><table><thead><tr><th>Code</th><th>Nom</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th><th></th></tr></thead><tbody>
     ${rows.length?rows.map(r=>`<tr><td><code>${esc(r.code)}</code></td><td>${esc(r.name||'')}</td>
       <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r"><b>${fCFA(r.solde)}</b></td>
       <td><button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(r.code)}')">Relevé</button></td></tr>`).join("")
       :'<tr><td colspan="6" style="color:var(--muted)">Aucun tiers.</td></tr>'}
-    <tr style="font-weight:600;border-top:2px solid #999"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
-      <td class="r">${fCFA(sum('debit')-sum('credit'))}</td><td></td></tr></table>`;
+    <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
+      <td class="r">${fCFA(sum('debit')-sum('credit'))}</td><td></td></tr></tbody></table></div>
+    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${rows.length}</b></span><span class="sp"></span><span><span class="k">Débit :</span> <b>${fCFA(sum('debit'))}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(sum('credit'))}</b></span><span><span class="k">Solde :</span> <b>${fCFA(sum('debit')-sum('credit'))}</b></span><span class="sp" style="flex:0"></span><button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>`;
   window._etsBalance=rows;
 }
 async function acctTiersGL(){
@@ -7663,18 +7697,22 @@ async function acctTiersReleveTab(){
   const cur=window._ets.tp||(list[0]||{}).code||"";
   window._ets.tp=cur;
   const box=document.getElementById("etsBox");
-  box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;margin-bottom:8px">
-      <div><label>Tiers</label><select onchange="window._ets.tp=this.value;acctTiersReleveTab()" style="min-width:240px">${list.map(r=>`<option value="${esc(r.code)}" ${r.code===cur?'selected':''}>${esc(r.code)}${r.name?' - '+esc(r.name):''}</option>`).join("")}</select></div>
-      <button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div><div id="etsReleveRows">…</div>`;
+  box.innerHTML=`<div class="d2-filters top">
+      <div class="fld"><label>Tiers</label><select onchange="window._ets.tp=this.value;acctTiersReleveTab()" style="min-width:260px">${list.map(r=>`<option value="${esc(r.code)}" ${r.code===cur?'selected':''}>${esc(r.code)}${r.name?' - '+esc(r.name):''}</option>`).join("")}</select></div>
+      <div class="fld"><label>Arrêté au (justificatif)</label><input type="date" value="${esc(window._ets.asOf||'')}" onchange="window._ets.asOf=this.value;acctTiersReleveTab()"></div>
+      <div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div></div><div id="etsReleveRows">…</div>`;
   if(!cur){ document.getElementById("etsReleveRows").innerHTML='<div class="note">Aucun tiers.</div>'; return; }
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(cur)).catch(()=>({rows:[]}));
-  document.getElementById("etsReleveRows").innerHTML=`<b>${esc(cur)}${d.name?' - '+esc(d.name):''}</b>
-    <table style="margin-top:6px"><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-    ${d.rows&&d.rows.length?d.rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td>${esc(r.lettre||'')}</td>
+  const _asOf=window._ets.asOf||"";
+  let _rows=(d.rows||[]); if(_asOf) _rows=_rows.filter(r=>String(r.date||"")<=_asOf);
+  let _rd=0,_rc=0; _rows.forEach(r=>{_rd+=r.debit||0;_rc+=r.credit||0;});
+  document.getElementById("etsReleveRows").innerHTML=`<div class="d2-grid"><table><thead><tr><th>Date</th><th>Jrnl</th><th>Pièce</th><th>Compte</th><th>Libellé</th><th>Échéance</th><th>Let.</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr></thead><tbody>
+    ${_rows.length?_rows.map(r=>`<tr><td>${esc(r.date||'')}</td><td>${esc(r.journal)}</td><td><code>${esc(r.piece)}</code></td><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td>${esc(r.dueDate||'')}</td><td>${esc(r.lettre||'')}</td>
       <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fCFA(r.solde)}</td></tr>`).join("")
       :'<tr><td colspan="10" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
-    <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td>
-      <td class="r">${fCFA(d.solde||0)}</td></tr></table>`;
+    <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="7">${_asOf?('SOLDE AU '+_asOf):'TOTAUX'}</td><td class="r">${fCFA(_asOf?_rd:(d.totalDebit||0))}</td><td class="r">${fCFA(_asOf?_rc:(d.totalCredit||0))}</td>
+      <td class="r">${fCFA(_asOf?(_rd-_rc):(d.solde||0))}</td></tr></tbody></table></div>
+    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${esc(cur)}${d.name?' - '+esc(d.name):''}</b></span>${_asOf?`<span class="k">justificatif arrêté au ${_asOf}</span>`:''}<span class="sp"></span><span><span class="k">Solde :</span> <b>${fCFA(_asOf?(_rd-_rc):(d.solde||0))}</b></span></div>`;
 }
 function acctPrintCompany(){ try{ return (window.ME&&ME.tenantName)|| (window.SETTINGS&&SETTINGS.companyName) || document.title || "Société"; }catch(e){ return "Société"; } }
 function acctPrintWindow(title, bodyHtml){
