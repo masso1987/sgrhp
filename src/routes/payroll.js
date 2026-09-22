@@ -747,6 +747,36 @@ router.post("/runs/:id/transfer-accounting", allow("RP", "ADM", "CD", "GPF"), (r
     res.json({ ok: true, entryId: e.id, pieceNo: e.pieceNo || "", lines: (e.lines || []).length, debit, credit, balanced: debit === credit });
   } catch (err) { res.status(err.status || 500).json({ error: err.message, report: err.report || null }); }
 });
+router.get("/runs/:id/cloture-report.pdf", allow("RP", "ADM", "CD", "GPF"), (req, res) => {
+  const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
+  if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const slips = mine(db.payslips, req).filter(s => s.runId === run.id);
+  const T = {}; const add = (k, v) => T[k] = (T[k] || 0) + (Number(v) || 0);
+  for (const s of slips) { const t = (s.result && s.result.totals) || {};
+    add("brut", t.brutTotal); add("net", t.netAPayer); add("cnpsSal", t.cnpsSalarie); add("cnpsPat", t.cnpsPatronal);
+    add("irpp", t.irpp); add("cac", t.cac); add("cfc", (t.cfcSalarie || 0) + (t.cfcPatronal || 0)); add("rav", t.rav); add("tdl", t.tdl); add("fne", t.fnePatronal); }
+  const P = n => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const rows = []; const sec = t => rows.push({ cells: [t, ""], bold: true, fill: "#e6efe9" }); const kv = (k, v, b) => rows.push({ cells: [k, v], bold: !!b });
+  sec("Période de paie");
+  kv("Statut de la période", run.status === "CLOSED" ? "CLÔTURÉE" : run.status);
+  kv("Effectif (bulletins)", String(slips.length));
+  sec("Masse salariale");
+  kv("Total brut", P(T.brut));
+  kv("Total charges patronales", P(T.chgPat));
+  kv("Total net à payer", P(T.net), true);
+  sec("Cotisations sociales & impôts sur salaires");
+  kv("CNPS part salariale (PVID)", P(T.cnpsSal));
+  kv("CNPS part patronale", P(T.cnpsPat));
+  kv("IRPP", P(T.irpp)); kv("CAC (10 % IRPP)", P(T.cac)); kv("Crédit foncier (CFC)", P(T.cfc)); kv("Redevance audiovisuelle (RAV)", P(T.rav)); kv("Taxe communale (TDL)", P(T.tdl)); kv("FNE", P(T.fne));
+  sec("Déclarations à effectuer (échéance le 15 du mois suivant)");
+  kv("Total CNPS à déclarer", P((T.cnpsSal || 0) + (T.cnpsPat || 0)), true);
+  kv("Total DIPE (impôts) à déclarer", P((T.irpp || 0) + (T.cac || 0) + (T.cfc || 0) + (T.rav || 0) + (T.tdl || 0) + (T.fne || 0)), true);
+  sec("Passation comptable");
+  kv("Passation provisoire", run.provisional ? ("faite le " + String(run.provisional.at || "").slice(0, 10)) : "non");
+  kv("Comptabilisation définitive", (run.finalized || run.acctEntryId) ? "oui" : "non");
+  require("./accounting").reportPDF(req, res, { filename: "Rapport_cloture_paie_" + run.period, title: "Rapport de clôture de paie", subtitle: "Période " + run.period, period: run.period,
+    columns: [{ h: "Élément", w: 360 }, { h: "Montant (FCFA)", w: 187, a: "r" }], rows });
+});
 
 /* Rouvrir une période clôturée (ADM) : annule les cumuls de la période, déverrouille les
  * bulletins pour permettre un recalcul (ex. correction de barème), puis re-clôture ensuite. */

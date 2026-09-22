@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-23 - PDF-33 (exports PDF reels facon Sage pour Balance, Grand-livre, Journal et Balance agee, en plus du CSV)";
+const BUILD_VERSION = "2026-09-23 - CLOTURE-34 (cloture d exercice guidee avec controles SYSCOHADA + rapports de cloture PDF comptabilite et paie)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

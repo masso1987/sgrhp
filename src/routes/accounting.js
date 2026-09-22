@@ -512,6 +512,8 @@ router.post("/lettrage", allow("RC", "ADM", "CD"), (req, res) => {
 function closeExercise(req, exId) {
   const ex = mine(db.acctExercises, req).find(e => e.id === exId); if (!ex) return { error: "Exercice introuvable" };
   if (ex.status === "closed") return { error: "Exercice déjà clôturé" };
+  const _chk = exerciseCloseCheck(req, exId);
+  if (_chk && _chk.blocking) return { error: (_chk.checks.drafts > 0 ? ("Écritures en brouillon à valider : " + _chk.checks.drafts + ". ") : "") + (!_chk.checks.balanced ? "Balance déséquilibrée (Débit ≠ Crédit)." : ""), blocking: true };
   const yy = String(ex.year);
   const entries = mine(db.acctEntries, req).filter(e => (e.period || "").slice(0, 4) === yy);
   entries.forEach(e => { if (e.status === "validated") e.status = "locked"; });
@@ -537,6 +539,57 @@ function closeExercise(req, exId) {
   audit(req.user, "CLOSED_EXERCISE", "AcctExercise", ex.id, { year: ex.year, resultat }); return { ok: true, resultat, exercise: ex, next };
 }
 router.post("/exercises/:id/close", allow("RC", "ADM"), (req, res) => { const r = closeExercise(req, req.params.id); if (r.error) return res.status(400).json(r); res.json(r); });
+function exerciseCloseCheck(req, exId) {
+  const ex = mine(db.acctExercises, req).find(e => e.id === exId); if (!ex) return null;
+  const yy = String(ex.year); const labels = _accLabel(req);
+  const entries = mine(db.acctEntries, req).filter(e => ((e.period || "").slice(0, 4) === yy) || ((e.date || "").slice(0, 4) === yy));
+  const drafts = entries.filter(e => e.status === "draft").length;
+  let gd = 0, gc = 0, prod = 0, charge = 0; const bilan = {};
+  for (const e of entries) { if (e.status === "draft") continue; for (const l of (e.lines || [])) { const dc = R2(l.debit), cc = R2(l.credit); gd += dc; gc += cc; const cl = String(l.account)[0]; const s = dc - cc;
+    if (cl === "7") prod += -s; else if (cl === "6") charge += s; else if (cl >= "1" && cl <= "5") bilan[l.account] = (bilan[l.account] || 0) + s; } }
+  const resultat = R2(prod - charge); const balanced = R2(gd) === R2(gc);
+  const invNonCompta = mine(db.billingInvoices || [], req).filter(i => i.status === "validated" && !i.acctEntryId).length;
+  const payNonCompta = mine(db.payRuns || [], req).filter(r => (r.status === "closed" || r.closed) && !r.acctEntryId).length;
+  const matchedBank = new Set(mine(db.acctBankMatches, req).map(m => m.bankLineId));
+  const bankUnpointed = mine(db.acctBankLines, req).filter(b => !matchedBank.has(b.id)).length;
+  const anLines = []; let td = 0, tc = 0;
+  for (const [acc, s] of Object.entries(bilan)) { const sv = R2(s); if (!sv) continue; anLines.push({ account: acc, label: labels[acc] || "", debit: sv > 0 ? sv : 0, credit: sv < 0 ? -sv : 0 }); if (sv > 0) td += sv; else tc += -sv; }
+  const diff = R2(td - tc); if (diff) anLines.push({ account: "130100", label: "Résultat de l'exercice (report)", debit: diff < 0 ? -diff : 0, credit: diff > 0 ? diff : 0 });
+  anLines.sort((a, b) => String(a.account).localeCompare(String(b.account)));
+  const anTD = anLines.reduce((s, l) => s + l.debit, 0), anTC = anLines.reduce((s, l) => s + l.credit, 0);
+  const checks = { noDraft: drafts === 0, drafts, balanced, gd: R2(gd), gc: R2(gc), invNonCompta, payNonCompta, bankUnpointed, entries: entries.length };
+  const blocking = drafts > 0 || !balanced;
+  return { exId, year: ex.year, status: ex.status, period: (ex.start || "") + " au " + (ex.end || ""), checks, resultat, produits: R2(prod), charges: R2(charge),
+    anLines, anTotalDebit: R2(anTD), anTotalCredit: R2(anTC), blocking, warnings: (invNonCompta + payNonCompta + bankUnpointed) > 0, canClose: !blocking && ex.status !== "closed" };
+}
+router.get("/exercises/:id/close-check", allow("RC", "ADM", "CD", "RJ"), (req, res) => { const r = exerciseCloseCheck(req, req.params.id); if (!r) return res.status(404).json({ error: "Exercice introuvable" }); res.json(r); });
+
+router.get("/exercises/:id/cloture-report.pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  const c = exerciseCloseCheck(req, req.params.id); if (!c) return res.status(404).json({ error: "Exercice introuvable" });
+  const ok = (b) => b ? "OK" : "À corriger";
+  const rows = [];
+  const sec = (t) => rows.push({ cells: [t, ""], bold: true, fill: "#e6efe9" });
+  const kv = (k, v, b) => rows.push({ cells: [k, v], bold: !!b });
+  sec("Contrôles préalables (SYSCOHADA)");
+  kv("Aucune écriture en brouillon", ok(c.checks.noDraft) + (c.checks.drafts ? " (" + c.checks.drafts + ")" : ""));
+  kv("Balance équilibrée (Débit = Crédit)", ok(c.checks.balanced) + "  (" + _pnf(c.checks.gd) + " / " + _pnf(c.checks.gc) + ")");
+  kv("Factures validées non comptabilisées", c.checks.invNonCompta === 0 ? "Aucune" : String(c.checks.invNonCompta) + " (recommandé)");
+  kv("Paies clôturées non comptabilisées", c.checks.payNonCompta === 0 ? "Aucune" : String(c.checks.payNonCompta) + " (recommandé)");
+  kv("Lignes bancaires non pointées", c.checks.bankUnpointed === 0 ? "Aucune" : String(c.checks.bankUnpointed) + " (recommandé)");
+  sec("Détermination du résultat");
+  kv("Total produits (classe 7)", _pnf(c.produits));
+  kv("Total charges (classe 6)", _pnf(c.charges));
+  kv(c.resultat >= 0 ? "RÉSULTAT (bénéfice)" : "RÉSULTAT (perte)", _pnf(c.resultat), true);
+  sec("À-nouveaux " + (c.year + 1) + " (report des soldes de bilan, classes 1 à 5)");
+  kv("Nombre de comptes reportés", String(c.anLines.length));
+  kv("Total à-nouveaux (Débit / Crédit)", _pnf(c.anTotalDebit) + " / " + _pnf(c.anTotalCredit), true);
+  sec("Statut");
+  kv("Exercice", String(c.year) + " - " + (c.status === "closed" ? "CLÔTURÉ" : "ouvert"));
+  kv("Clôture autorisée", c.blocking ? "NON - contrôles bloquants" : "Oui");
+  _acctReportPDF(req, res, { filename: "Rapport_cloture_" + c.year, title: "Rapport de clôture d'exercice", subtitle: "Exercice " + c.year + " - " + c.period,
+    columns: [{ h: "Élément", w: 360 }, { h: "Valeur / Statut", w: 187, a: "r" }], rows });
+});
+
 router.get("/fec", allow("RC", "ADM", "CD"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1"); const labels = _accLabel(req); const jr = {}; for (const j of mine(db.acctJournals, req)) jr[j.code] = j.label;
   const yy = req.query.year || String(new Date().getFullYear()); const fd = d => String(d || "").replace(/-/g, "");
@@ -1094,3 +1147,5 @@ module.exports.generateInvoiceEntry = generateInvoiceEntry;
 module.exports.generatePayrollEntry = generatePayrollEntry;
 module.exports.generateProvisionalPayrollEntry = generateProvisionalPayrollEntry;
 module.exports.payrollPassationCheck = payrollPassationCheck;
+module.exports.reportPDF = _acctReportPDF;
+module.exports.exerciseCloseCheck = exerciseCloseCheck;

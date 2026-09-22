@@ -4796,6 +4796,7 @@ async function payRunView(id) {
     ${run.status === "CLOSED" && ME.role === "ADM" ? `<button class="btn" style="background:var(--amber,#f59e0b);color:#fff" onclick="payReopen('${run.id}')">Rouvrir la période</button>` : ""}
     ${run.status === "CALCULATED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#b45309;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.provisional ? "Passation provisoire faite ✓" : "Passation provisoire (avant clôture)"}</button>` : ""}
     ${run.status === "CLOSED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#1b2a4a;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.finalized ? "Comptabilité bouclée ✓" : (run.provisional ? "Régulariser & comptabiliser (définitif)" : "Transférer en comptabilité")}</button>` : ""}
+    ${(run.status === "CLOSED" || run.status === "CALCULATED") && ["ADM","CD","GPF","RP"].includes(ME.role) ? `<button class="btn ghost" onclick="acctPDF('/payroll/runs/${run.id}/cloture-report.pdf','Rapport_cloture_paie_${run.period}.pdf')">Rapport de clôture (PDF)</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">Ordre de virement</button>` : ""}
     ${open && canRunPay() ? `<button class="btn ghost" onclick="tsImportOpen('${run.id}','${run.period}')">Importer pointage</button>` : ""}
     ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
@@ -7302,7 +7303,7 @@ async function acctClotureView(){
       <table style="margin-top:6px"><tr><th>Année</th><th>Période</th><th>Statut</th><th></th></tr>
       ${exs.map(e=>`<tr><td><b>${e.year}</b>${e.current?' <span class="tag green">courant</span>':''}</td><td>${esc(e.start)} → ${esc(e.end)}</td>
         <td>${e.status==='closed'?'<span class="tag gray">Clôturé</span>':'<span class="tag amber">Ouvert</span>'}</td>
-        <td>${e.status!=='closed'?`<button class="btn ghost sm" onclick="acctCloseExercise('${e.id}',${e.year})">Clôturer</button>`:''}</td></tr>`).join("")}
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="acctPDF('/accounting/exercises/${e.id}/cloture-report.pdf','Rapport_cloture_${e.year}.pdf')">Rapport PDF</button>${e.status!=='closed'?` <button class="btn p sm" onclick="acctCloseExercise('${e.id}',${e.year})">Clôturer…</button>`:''}</td></tr>`).join("")}
       </table>
       <div class="note" style="margin-top:6px">La clôture verrouille les écritures, solde les comptes de gestion (6/7) sur le résultat (130) et génère les à-nouveaux (journal AN) de l'exercice suivant.</div></div>
     <div class="grid2">
@@ -7320,9 +7321,42 @@ async function acctClotureView(){
     </div>`;
 }
 async function acctCloseExercise(id,year){
-  if(!confirm("Clôturer l'exercice "+year+" ?\nLes écritures seront verrouillées et les à-nouveaux "+(year+1)+" générés.")) return;
-  try{ const r=await api("/accounting/exercises/"+id+"/close",{method:"POST"}); alert("Exercice "+year+" clôturé. Résultat : "+fCFA(r.resultat)+" FCFA."); acctClotureView(); }
-  catch(e){ alert(e.message); }
+  let c; try{ c=await api("/accounting/exercises/"+id+"/close-check"); }catch(e){ alert(e.message); return; }
+  const chk=(ok)=>ok?'<span style="color:#16a34a;font-weight:700">✓</span>':'<span style="color:#dc2626;font-weight:700">✗</span>';
+  const warn=(n)=>n>0?'<span style="color:#d97706;font-weight:700">⚠ '+n+'</span>':'<span style="color:#16a34a;font-weight:700">✓</span>';
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:720px;max-height:88vh;overflow:auto">
+    <h3 style="margin:0 0 6px">Clôture de l'exercice ${year}</h3>
+    <div class="note">Contrôles SYSCOHADA avant clôture. La clôture solde les comptes de gestion (6/7) sur le résultat, génère les à-nouveaux ${year+1} (classes 1 à 5) et verrouille les écritures. <b>Action irréversible.</b></div>
+    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">CONTRÔLES BLOQUANTS</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px">
+        <div>${chk(c.checks.noDraft)} Aucune écriture en brouillon ${c.checks.drafts?('<span class="tag" style="background:#dc2626;color:#fff">'+c.checks.drafts+'</span>'):''}</div>
+        <div>${chk(c.checks.balanced)} Balance équilibrée</div>
+      </div>
+      <div class="note" style="margin-top:6px">Débit ${fCFA(c.checks.gd)} = Crédit ${fCFA(c.checks.gc)}</div></div>
+    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">CONTRÔLES RECOMMANDÉS (non bloquants)</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px">
+        <div>${warn(c.checks.invNonCompta)} Factures validées non comptabilisées</div>
+        <div>${warn(c.checks.payNonCompta)} Paies clôturées non comptabilisées</div>
+        <div>${warn(c.checks.bankUnpointed)} Lignes bancaires non pointées</div>
+      </div></div>
+    <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">RÉSULTAT &amp; À-NOUVEAUX ${year+1}</b>
+      <table style="margin-top:6px"><tr><td>Total produits (classe 7)</td><td class="r">${fCFA(c.produits)}</td></tr>
+        <tr><td>Total charges (classe 6)</td><td class="r">${fCFA(c.charges)}</td></tr>
+        <tr style="font-weight:700;border-top:1px solid var(--border)"><td>Résultat ${c.resultat>=0?'(bénéfice)':'(perte)'}</td><td class="r" style="color:${c.resultat>=0?'var(--nav-active-color)':'var(--red)'}">${fCFA(c.resultat)}</td></tr>
+        <tr><td>À-nouveaux (comptes 1 à 5)</td><td class="r">${c.anLines.length} compte(s) - report ${fCFA(c.anTotalDebit)}</td></tr></table></div>
+    <div class="err hidden" id="cloErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <button class="btn ghost sm" onclick="acctPDF('/accounting/exercises/${id}/cloture-report.pdf','Rapport_cloture_${year}.pdf')">Rapport de clôture (PDF)</button>
+      <span style="flex:1"></span>
+      <button class="btn p" ${c.blocking?'disabled':''} onclick="acctCloseConfirm('${id}',${year})">${c.blocking?'Clôture bloquée (corrigez les contrôles)':'Clôturer définitivement'}</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function acctCloseConfirm(id,year){
+  if(!confirm("Clôturer DÉFINITIVEMENT l'exercice "+year+" ? Cette action est irréversible : les écritures seront verrouillées.")) return;
+  try{ const r=await api("/accounting/exercises/"+id+"/close",{method:"POST"}); const bgm=document.querySelector(".modal-bg"); if(bgm)bgm.remove(); alert("Exercice "+year+" clôturé.\nRésultat : "+fCFA(r.resultat)+" FCFA.\nÀ-nouveaux "+(year+1)+" générés."); acctClotureView(); }
+  catch(e){ const el=document.getElementById("cloErr"); if(el){ el.textContent=e.message; el.classList.remove("hidden"); } else alert(e.message); }
 }
 async function acctCloseJournal(){
   const code=(document.getElementById("clJr")||{}).value; const per=(document.getElementById("clPer")||{}).value;
