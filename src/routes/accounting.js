@@ -126,6 +126,8 @@ router.post("/entries", allow("RC", "ADM", "CD"), (req, res) => {
     .map(l => ({ id: l.id || id("aln"), account: String(l.account), thirdParty: l.thirdParty || "", label: l.label || "", dueDate: l.dueDate || "", debit: R2(l.debit), credit: R2(l.credit), analytic: l.analytic || "" }));
   if (!lines.length) return res.status(400).json({ error: "Au moins une ligne mouvementée" });
   const period = b.period || (b.date || new Date().toISOString().slice(0, 10)).slice(0, 7);
+  const _lock = _periodLock(req);
+  if (_lock && period <= _lock) return res.status(409).json({ error: "Période " + period + " clôturée (verrouillée jusqu'à " + _lock + " inclus). Saisie interdite dans une période clôturée." });
   const yy = period.slice(0, 4);
   const pieceNo = _nextPiece(req, jrOf(req, b.journalCode), period, b.pieceNo);
   const e = stamp({ id: id("aent"), journalCode: b.journalCode, period, pieceNo, date: b.date || new Date().toISOString().slice(0, 10),
@@ -135,6 +137,9 @@ router.post("/entries", allow("RC", "ADM", "CD"), (req, res) => {
 router.put("/entries/:id", allow("RC", "ADM", "CD"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Écriture introuvable" });
   if (e.status === "locked") return res.status(409).json({ error: "Écriture clôturée - verrouillée" });
+  const _lk = _periodLock(req);
+  if (_lk && (e.period || "") <= _lk) return res.status(409).json({ error: "Période clôturée (verrouillée jusqu'à " + _lk + "). Modification interdite." });
+  if (_lk && req.body.period !== undefined && String(req.body.period) <= _lk) return res.status(409).json({ error: "Impossible de déplacer l'écriture dans une période clôturée (" + _lk + ")." });
   for (const k of ["date", "label", "pieceNo", "period"]) if (req.body[k] !== undefined) e[k] = req.body[k];
   if (Array.isArray(req.body.lines)) e.lines = req.body.lines.filter(l => l && l.account && (R2(l.debit) || R2(l.credit)))
     .map(l => ({ id: l.id || id("aln"), account: String(l.account), thirdParty: l.thirdParty || "", label: l.label || "", dueDate: l.dueDate || "", debit: R2(l.debit), credit: R2(l.credit), analytic: l.analytic || "" }));
@@ -494,6 +499,36 @@ router.post("/entries/:id/lock", allow("RC", "ADM"), (req, res) => {
   if (e.status !== "validated") return res.status(400).json({ error: "Validez d'abord l'écriture" });
   e.status = "locked"; save(); res.json(withTotals(e));
 });
+/* ---- Clôture partielle / périodique / totale des journaux (façon Sage) + verrou de période ---- */
+function _periodLock(req) { const tid = req.user.tenantId || "t1"; const r = (db.acctPeriodLocks || []).find(x => (x.tenantId || "t1") === tid); return r ? (r.period || "") : ""; }
+function _setPeriodLock(req, period) { const tid = req.user.tenantId || "t1"; db.acctPeriodLocks = db.acctPeriodLocks || []; let r = db.acctPeriodLocks.find(x => (x.tenantId || "t1") === tid); if (!r) { r = { tenantId: tid, period: "" }; db.acctPeriodLocks.push(r); } if (!r.period || String(period) > r.period) r.period = String(period); }
+router.get("/period-lock", allow("RC", "ADM", "CD", "RJ"), (req, res) => { seedAccounting(req.user.tenantId || "t1"); res.json({ period: _periodLock(req) }); });
+router.post("/close-journals", allow("RC", "ADM"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const b = req.body || {}; const mode = b.mode || "periode"; const period = b.period || ""; const journals = Array.isArray(b.journals) ? b.journals : [];
+  if ((mode === "periode" || mode === "partielle") && !period) return res.status(400).json({ error: "Période (mois) obligatoire." });
+  if (mode === "partielle" && !journals.length) return res.status(400).json({ error: "Sélectionnez au moins un journal." });
+  // Contrôle : pas d'écriture en brouillon dans le périmètre (SYSCOHADA : ne clôturer que des écritures validées)
+  const drafts = mine(db.acctEntries, req).filter(e => {
+    if (e.status !== "draft") return false;
+    if (mode === "partielle") { if (journals.length && !journals.includes(e.journalCode)) return false; if (period && (e.period || "") > period) return false; }
+    else if (mode === "periode") { if (period && (e.period || "") > period) return false; }
+    return true;
+  });
+  if (drafts.length && !b.force) return res.status(422).json({ error: drafts.length + " écriture(s) en brouillon dans le périmètre. Validez-les d'abord (ou forcez).", drafts: drafts.length });
+  let n = 0;
+  for (const e of mine(db.acctEntries, req)) {
+    if (e.status !== "validated") continue;
+    if (mode === "partielle") { if (journals.length && !journals.includes(e.journalCode)) continue; if (period && (e.period || "") > period) continue; }
+    else if (mode === "periode") { if (period && (e.period || "") > period) continue; }
+    e.status = "locked"; n++;
+  }
+  if (mode === "periode" && period) _setPeriodLock(req, period);
+  if (mode === "totale") { const ps = mine(db.acctEntries, req).map(e => e.period || "").filter(Boolean).sort(); if (ps.length) _setPeriodLock(req, ps[ps.length - 1]); }
+  save(); audit(req.user, "CLOSED", "AcctJournal", mode, { period, journals, locked: n });
+  res.json({ ok: true, mode, period, journals, locked: n, periodLock: _periodLock(req) });
+});
+
 router.post("/journals/:code/close", allow("RC", "ADM"), (req, res) => {
   const period = (req.body || {}).period; let n = 0;
   for (const e of mine(db.acctEntries, req)) { if (e.journalCode !== req.params.code) continue; if (period && (e.period || "") !== period) continue; if (e.status === "validated") { e.status = "locked"; n++; } }

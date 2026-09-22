@@ -4793,7 +4793,6 @@ async function payRunView(id) {
   <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
     ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">Clôturer la période</button>` : ""}
-    ${run.status === "CLOSED" && ME.role === "ADM" ? `<button class="btn" style="background:var(--amber,#f59e0b);color:#fff" onclick="payReopen('${run.id}')">Rouvrir la période</button>` : ""}
     ${run.status === "CALCULATED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#b45309;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.provisional ? "Passation provisoire faite ✓" : "Passation provisoire (avant clôture)"}</button>` : ""}
     ${run.status === "CLOSED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#1b2a4a;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.finalized ? "Comptabilité bouclée ✓" : (run.provisional ? "Régulariser & comptabiliser (définitif)" : "Transférer en comptabilité")}</button>` : ""}
     ${(run.status === "CLOSED" || run.status === "CALCULATED") && ["ADM","CD","GPF","RP"].includes(ME.role) ? `<button class="btn ghost" onclick="acctPDF('/payroll/runs/${run.id}/cloture-report.pdf','Rapport_cloture_paie_${run.period}.pdf')">Rapport de clôture (PDF)</button>` : ""}
@@ -7296,8 +7295,10 @@ async function acctLegalView(){
 
 /* ---- Comptabilité C5 : Clôture & fiscal ---- */
 async function acctClotureView(){
-  const [exs,jrs]=await Promise.all([api("/accounting/exercises"),api("/accounting/journals")]);
+  const [exs,jrs,plock]=await Promise.all([api("/accounting/exercises"),api("/accounting/journals"),api("/accounting/period-lock").catch(()=>({period:""}))]);
   const cur=(exs.find(e=>e.current)||exs[0]||{});
+  const _lock=(plock&&plock.period)||"";
+  const _lockTxt=_lock?('<b style="color:#b45309">Période verrouillée jusqu\'à '+esc(_lock)+' inclus</b> - aucune saisie possible avant cette date.'):'Aucune période verrouillée.';
   view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">Clôture &amp; fiscal</h1>
     <div class="panel"><b>Exercices</b>
@@ -7308,12 +7309,17 @@ async function acctClotureView(){
       </table>
       <div class="note" style="margin-top:6px">La clôture verrouille les écritures, solde les comptes de gestion (6/7) sur le résultat (130) et génère les à-nouveaux (journal AN) de l'exercice suivant.</div></div>
     <div class="grid2">
-      <div class="panel"><b>Clôturer un journal</b>
-        <div style="display:flex;gap:8px;align-items:end;margin-top:6px">
-          <div><label>Journal</label><select id="clJr">${jrs.map(j=>`<option value="${j.code}">${esc(j.code)} - ${esc(j.label)}</option>`).join("")}</select></div>
-          <div><label>Période</label><input id="clPer" type="month"></div>
-          <button class="btn ghost sm" onclick="acctCloseJournal()">Clôturer</button></div>
-        <div class="note" style="margin-top:6px">Verrouille les écritures validées du journal (période optionnelle).</div></div>
+      <div class="panel"><b>Clôture des journaux</b>
+        <div class="note" style="margin:4px 0">${_lockTxt}</div>
+        <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:6px">
+          <div><label>Type de clôture</label><select id="clMode" onchange="acctCloseModeChange()">
+            <option value="periode">Par période (tous les journaux jusqu'au mois)</option>
+            <option value="partielle">Partielle (journaux + période choisis)</option>
+            <option value="totale">Totale (tous les journaux)</option></select></div>
+          <div id="clPerWrap"><label>Jusqu'au mois inclus</label><input id="clPer" type="month"></div>
+          <div id="clJrWrap" style="display:none"><label>Journaux</label><select id="clJr" multiple size="4" style="min-width:200px">${jrs.map(j=>`<option value="${j.code}">${esc(j.code)} - ${esc(j.label)}</option>`).join("")}</select></div>
+          <button class="btn p sm" onclick="acctCloseJournals()">Clôturer</button></div>
+        <div class="note" style="margin-top:6px">Verrouille les écritures validées du périmètre (<b>irréversible</b>) et empêche toute saisie back-datée dans une période clôturée. « Totale » précède la clôture d'exercice.</div></div>
       <div class="panel"><b>Export fiscal (DGI)</b>
         <div style="display:flex;gap:8px;align-items:end;margin-top:6px">
           <div><label>Année</label><input id="fecY" type="number" value="${cur.year||new Date().getFullYear()}" style="max-width:100px"></div>
@@ -7359,11 +7365,18 @@ async function acctCloseConfirm(id,year){
   try{ const r=await api("/accounting/exercises/"+id+"/close",{method:"POST"}); const bgm=document.querySelector(".modal-bg"); if(bgm)bgm.remove(); alert("Exercice "+year+" clôturé.\nRésultat : "+fCFA(r.resultat)+" FCFA.\nÀ-nouveaux "+(year+1)+" générés."); acctClotureView(); }
   catch(e){ const el=document.getElementById("cloErr"); if(el){ el.textContent=e.message; el.classList.remove("hidden"); } else alert(e.message); }
 }
-async function acctCloseJournal(){
-  const code=(document.getElementById("clJr")||{}).value; const per=(document.getElementById("clPer")||{}).value;
-  if(!confirm("Clôturer (verrouiller) le journal "+code+(per?" - "+per:"")+" ?")) return;
-  try{ const r=await api("/accounting/journals/"+code+"/close",{method:"POST",body:JSON.stringify({period:per||undefined})}); alert(r.locked+" écriture(s) verrouillée(s)."); }
-  catch(e){ alert(e.message); }
+function acctCloseModeChange(){ const m=(document.getElementById("clMode")||{}).value; const jw=document.getElementById("clJrWrap"); const pw=document.getElementById("clPerWrap"); if(jw)jw.style.display=(m==="partielle")?"":"none"; if(pw)pw.style.display=(m==="totale")?"none":""; }
+async function acctCloseJournals(){
+  const mode=(document.getElementById("clMode")||{}).value||"periode";
+  const period=(document.getElementById("clPer")||{}).value||"";
+  const jrSel=document.getElementById("clJr"); const journals=(jrSel&&mode==="partielle")?[...jrSel.selectedOptions].map(o=>o.value):[];
+  if((mode==="periode"||mode==="partielle")&&!period){ alert("Indiquez le mois (jusqu'au mois inclus)."); return; }
+  if(mode==="partielle"&&!journals.length){ alert("Sélectionnez au moins un journal."); return; }
+  let msg="Clôturer - "+({periode:"par période",partielle:"partielle",totale:"totale"}[mode])+(period?(" jusqu'à "+period+" inclus"):"")+(mode==="partielle"?(" - journaux : "+journals.join(", ")):"")+" ?\nAction IRRÉVERSIBLE : les écritures validées du périmètre seront verrouillées.";
+  if(!confirm(msg)) return;
+  const doClose=async(force)=>{ const r=await api("/accounting/close-journals",{method:"POST",body:JSON.stringify({mode,period,journals,force:!!force})}); alert(r.locked+" écriture(s) verrouillée(s)."+(r.periodLock?("\nVerrou de période : jusqu'à "+r.periodLock+" inclus."):"")); acctClotureView(); };
+  try{ await doClose(false); }
+  catch(e){ if(/brouillon/i.test(e.message)&&confirm(e.message+"\n\nForcer la clôture (les brouillons resteront non clôturés) ?")){ try{ await doClose(true); }catch(e2){ alert(e2.message); } } else alert(e.message); }
 }
 function acctFec(){ const y=(document.getElementById("fecY")||{}).value||new Date().getFullYear(); payDownload("/accounting/fec?year="+y,"FEC_"+y+".txt"); }
 

@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-23 - EXPORTS-35 (CSV+PDF etendus: etats legaux TVA-resultat-bilan, grand-livre des tiers, releve)";
+const BUILD_VERSION = "2026-09-23 - LOCK-36 (cloture paie irreversible + cloture partielle/periode/totale des journaux avec verrou de periode)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

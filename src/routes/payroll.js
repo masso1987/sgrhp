@@ -781,6 +781,10 @@ router.get("/runs/:id/cloture-report.pdf", allow("RP", "ADM", "CD", "GPF"), (req
 /* Rouvrir une période clôturée (ADM) : annule les cumuls de la période, déverrouille les
  * bulletins pour permettre un recalcul (ex. correction de barème), puis re-clôture ensuite. */
 router.post("/runs/:id/reopen", allow("RP", "ADM"), (req, res) => {
+  // Clôture de paie DÉFINITIVE : une période clôturée ne peut plus être rouverte
+  // (déclarations CNPS/DIPE et cumuls figés). Toute correction se fait par régularisation
+  // sur la période suivante. Réouverture désactivée volontairement.
+  return res.status(403).json({ error: "Clôture de paie définitive : la réouverture d'une période clôturée n'est pas autorisée. Corrigez par une régularisation sur la période suivante." });
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
