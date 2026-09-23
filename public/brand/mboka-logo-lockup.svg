@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="176" viewBox="0 0 388 90" role="img" aria-label="MBOKA Mon RH">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#065f46"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(8,11) scale(0.70)">
+    <rect width="96" height="96" rx="22" fill="url(#g)"/>
+    <g fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 74 V38"/><path d="M12 40 L34 58 L48 46 L64 58 L84 34"/><path d="M84 74 V34"/>
+    </g>
+    <circle cx="34" cy="34" r="7" fill="#ffffff"/><circle cx="64" cy="34" r="7" fill="#ffffff" opacity=".82"/>
+  </g>
+  <text x="86" y="42" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="27" font-weight="800" fill="#0f172a" letter-spacing="-.3">MBOKA</text>
+  <text x="182" y="42" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="27" font-weight="800" fill="#10b981" letter-spacing="-.3">Mon RH</text>
+  <text x="87" y="62" font-family="Inter, 'Segoe UI', Arial, sans-serif" font-size="10.5" font-weight="500" fill="#64748b" letter-spacing=".3">RH &#183; Paie &#183; Facturation &#183; Compta OHADA &#183; Stock &#183; Qualit&#233;</text>
+</svg>

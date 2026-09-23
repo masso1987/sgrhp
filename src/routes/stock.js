@@ -228,16 +228,44 @@ router.get("/movements", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
 router.get("/dashboard", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
   const prods = mine(db.stockProducts, req).map(p => prodOut(p, req));
+  const active = prods.filter(p => p.active !== false);
   const stockValue = prods.reduce((s, p) => s + p.stockValue, 0);
+  const saleValue = prods.reduce((s, p) => s + R2(p.qty * (Number(p.salePrice) || 0)), 0);
+  const marge = saleValue - stockValue;
+  const totalUnits = prods.reduce((s, p) => s + (Number(p.qty) || 0), 0);
   const low = prods.filter(p => p.low && !p.out);
   const out = prods.filter(p => p.out);
-  const recent = mine(db.stockMovements, req).slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 8)
+  const movs = mine(db.stockMovements, req);
+  // --- trend on 8 months: entrees vs sorties (valorised) ---
+  const IN_TYPES = new Set(["achat", "initial"]);
+  const months = [];
+  const now = new Date();
+  for (let m = 7; m >= 0; m--) { const dt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - m, 1)); months.push(dt.toISOString().slice(0, 7)); }
+  const trendMap = {}; months.forEach(mm => trendMap[mm] = { periode: mm, entrees: 0, sorties: 0 });
+  const monthLabel = (mm) => { const [y, mo] = mm.split("-"); return ["janv", "f\u00e9vr", "mars", "avr", "mai", "juin", "juil", "ao\u00fbt", "sept", "oct", "nov", "d\u00e9c"][Number(mo) - 1] + " " + y.slice(2); };
+  let inMonth = 0, outMonth = 0; const curM = now.toISOString().slice(0, 7);
+  for (const mv of movs) {
+    const mm = String(mv.date || mv.createdAt || "").slice(0, 7);
+    const val = Math.abs(Q(mv.qty) * (Number(mv.unitCost) || 0));
+    const isIn = IN_TYPES.has(mv.type) || (mv.type === "ajustement" && Q(mv.qty) > 0);
+    if (trendMap[mm]) { if (isIn) trendMap[mm].entrees += val; else trendMap[mm].sorties += val; }
+    if (mm === curM) { if (isIn) inMonth++; else outMonth++; }
+  }
+  const trend = months.map(mm => ({ periode: monthLabel(mm), entrees: R2(trendMap[mm].entrees), sorties: R2(trendMap[mm].sorties) }));
+  // --- value by category (top 6) ---
+  const catMap = {};
+  for (const p of prods) { const c = p.categoryName || "Sans cat\u00e9gorie"; catMap[c] = (catMap[c] || 0) + p.stockValue; }
+  const byCategory = Object.keys(catMap).map(c => ({ name: c, value: R2(catMap[c]) })).sort((a, b) => b.value - a.value).slice(0, 6);
+  const recent = movs.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 8)
     .map(m => { const p = mine(db.stockProducts, req).find(x => x.id === m.productId) || {}; return { date: m.date, type: m.type, productName: p.name || "", qty: m.qty }; });
-  const topValue = prods.slice().sort((a, b) => b.stockValue - a.stockValue).slice(0, 5).map(p => ({ name: p.name, qty: p.qty, unitName: p.unitName, stockValue: p.stockValue }));
+  const topValue = prods.slice().sort((a, b) => b.stockValue - a.stockValue).slice(0, 6).map(p => ({ name: p.name, qty: p.qty, unitName: p.unitName, stockValue: p.stockValue }));
   res.json({
-    kpi: { products: prods.length, stockValue: R2(stockValue), lowStock: low.length, outOfStock: out.length },
-    lowList: low.sort((a, b) => a.qty - b.qty).slice(0, 10).map(p => ({ id: p.id, name: p.name, qty: p.qty, alertQty: p.alertQty, unitName: p.unitName })),
-    recent, topValue
+    kpi: {
+      products: prods.length, active: active.length, stockValue: R2(stockValue), saleValue: R2(saleValue), marge: R2(marge),
+      totalUnits: R2(totalUnits), lowStock: low.length, outOfStock: out.length, inMonth, outMonth
+    },
+    lowList: low.concat(out).sort((a, b) => a.qty - b.qty).slice(0, 12).map(p => ({ id: p.id, name: p.name, qty: p.qty, alertQty: p.alertQty, unitName: p.unitName, out: p.out })),
+    trend, byCategory, recent, topValue
   });
 });
 

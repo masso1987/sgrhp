@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MBOKA Mon RH - Gestion RH, Paie et Entreprise</title>
-<link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23065f46%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2718%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Arial,sans-serif%27%3ES%3C/text%3E%3C/svg%3E">
+<link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%23065f46%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23ffffff%27%20stroke-width%3D%272.4%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M5%2025%20V13.5%27%2F%3E%3Cpath%20d%3D%27M5%2014%20L11.5%2019.5%20L16%2015.8%20L20.5%2019.5%20L27%2012%27%2F%3E%3Cpath%20d%3D%27M27%2025%20V12%27%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%2711.5%27%20cy%3D%2712%27%20r%3D%272.4%27%20fill%3D%27%23ffffff%27%2F%3E%3Ccircle%20cx%3D%2720.5%27%20cy%3D%2712%27%20r%3D%272.4%27%20fill%3D%27%23ffffff%27%20opacity%3D%27.82%27%2F%3E%3C%2Fsvg%3E">
 <meta name="description" content="SGRHP, la plateforme de gestion des ressources humaines, paie, facturation, comptabilite OHADA, stock et qualite ISO 9001 de Cible RH Emploi S.A. (Cameroun).">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://sgrhp.ciblerh-emploi.com/">
@@ -925,7 +925,20 @@ function appMonogram(name){
   const svg="<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='"+p+"'/><stop offset='1' stop-color='"+a+"'/></linearGradient></defs><rect width='96' height='96' rx='22' fill='url(#g)'/><text x='48' y='52' font-family='Inter,Segoe UI,Arial,sans-serif' font-size='"+(ini.length>2?30:38)+"' font-weight='700' fill='#ffffff' text-anchor='middle' dominant-baseline='middle'>"+ini+"</text></svg>";
   return "data:image/svg+xml,"+encodeURIComponent(svg);
 }
-function appLogoSrc(b){ b=b||BRANDING||{}; return b.appLogo || appMonogram(b.appName||"MBOKA Mon RH"); }
+function appLogoMark(){
+  const cs=getComputedStyle(document.documentElement);
+  const p=(cs.getPropertyValue('--primary')||'').trim()||'#065f46';
+  const a=(cs.getPropertyValue('--accent')||'').trim()||'#10b981';
+  const svg="<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'>"
+    +"<defs><linearGradient id='mg' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='"+p+"'/><stop offset='1' stop-color='"+a+"'/></linearGradient></defs>"
+    +"<rect width='96' height='96' rx='22' fill='url(#mg)'/>"
+    +"<g fill='none' stroke='#ffffff' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'>"
+    +"<path d='M12 74 V38'/><path d='M12 40 L34 58 L48 46 L64 58 L84 34'/><path d='M84 74 V34'/></g>"
+    +"<circle cx='34' cy='34' r='7' fill='#ffffff'/><circle cx='64' cy='34' r='7' fill='#ffffff' opacity='.82'/>"
+    +"</svg>";
+  return "data:image/svg+xml,"+encodeURIComponent(svg);
+}
+function appLogoSrc(b){ b=b||BRANDING||{}; return b.appLogo || appLogoMark(); }
 // Logo affiché DANS l'app (barre, lanceur) : logo société pour un tenant, logo appli pour le super-admin ou à défaut.
 function contextLogoSrc(b){ b=b||BRANDING||{}; return (window.ME && ME.role!=="SADM" && b.logo) ? b.logo : appLogoSrc(b); }
 function applyBranding(b) {
@@ -10637,29 +10650,61 @@ async function epiDel(idv,employeeId,name){
 async function stockHome(){
   const d=await api("/stock/dashboard").catch(()=>null);
   if(!d){ view.innerHTML='<h1>Gestion de stock</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
-  const k=d.kpi;
-  const kpi=(l,v,dest,warn)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:150px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px;${warn&&v>0?'color:var(--red)':''}">${v}</div></div>`;
-  const typeTag=(t)=>({achat:'<span class="tag green">Entrée</span>',initial:'<span class="tag gray">Initial</span>',vente:'<span class="tag" style="background:#b45309;color:#fff">Sortie</span>',ajustement:'<span class="tag" style="background:#7c3aed;color:#fff">Ajust.</span>',retour:'<span class="tag" style="background:#b45309;color:#fff">Retour</span>'})[t]||esc(t);
-  view.innerHTML=`<h1>Gestion de stock</h1>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px">
-      ${kpi("Produits référencés",k.products,'stockproducts')}
-      ${kpi("Valeur du stock (FCFA)",fCFA(k.stockValue))}
-      ${kpi("Alertes (stock bas)",k.lowStock,'stockproducts',true)}
-      ${kpi("Ruptures",k.outOfStock,'stockproducts',true)}</div>
+  const k=d.kpi||{}; const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR")+" FCFA";
+  const kc=(l,v,ss,dest,col)=>`<div class="adm-kc ${dest?'clk':''}" ${dest?`onclick="go('${dest}')"`:''}><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:''}>${v}</div>${ss?`<div class="s">${ss}</div>`:''}</div>`;
+  const typeTag=(t)=>({achat:'<span class="tag green">Entr&eacute;e</span>',initial:'<span class="tag gray">Initial</span>',vente:'<span class="tag" style="background:#b45309;color:#fff">Sortie</span>',ajustement:'<span class="tag" style="background:#7c3aed;color:#fff">Ajust.</span>',retour:'<span class="tag" style="background:#0891b2;color:#fff">Retour</span>',retourv:'<span class="tag" style="background:#0891b2;color:#fff">Retour v.</span>',transfert:'<span class="tag" style="background:#475569;color:#fff">Transfert</span>',dotation:'<span class="tag" style="background:#b45309;color:#fff">Dotation</span>'})[t]||esc(t);
+  const alertRow=(label,n,warn,extra)=>`<div onclick="go('stockproducts')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)"><span>${label}${extra?` <span class="note-inline">${extra}</span>`:''}</span><b style="color:${n>0?(warn?'var(--red)':'#d97706'):'var(--muted)'}">${n}</b></div>`;
+  const margePct = k.stockValue>0 ? Math.round((k.marge||0)/k.stockValue*100) : null;
+  view.innerHTML=`<div class="adm-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Gestion de stock</h1>
+      <span style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="go('stockin')">+ Entr&eacute;e</button>
+        <button class="btn ghost sm" onclick="go('stockout')">&minus; Sortie</button>
+        <button class="btn ghost sm" onclick="go('stockadjust')">Ajustement</button>
+        <button class="btn ghost sm" onclick="go('stockreports')">Rapports</button></span></div>
+    <div class="adm-kpi">
+      ${kc("Valeur du stock",money(k.stockValue),`prix d'achat &middot; ${k.active||0} r&eacute;f. actives`,"stockproducts")}
+      ${kc("Valeur potentielle (vente)",money(k.saleValue),margePct!=null?`marge estim&eacute;e <b style="color:var(--nav-active-color)">${money(k.marge)}</b> (${margePct}%)`:"prix de vente")}
+      ${kc("Unit&eacute;s en stock",Number(k.totalUnits||0).toLocaleString("fr-FR"),`${k.products||0} produit(s) r&eacute;f&eacute;renc&eacute;(s)`,"stockproducts")}
+      ${kc("Mouvements du mois",(k.inMonth||0)+(k.outMonth||0),`<span style="color:var(--nav-active-color)">&#9650; ${k.inMonth||0} entr&eacute;e(s)</span> &middot; <span style="color:#b45309">&#9660; ${k.outMonth||0} sortie(s)</span>`,"stockmoves")}
+      ${kc("Alertes (stock bas)",k.lowStock||0,"&agrave; r&eacute;approvisionner","stockproducts",(k.lowStock>0)?'#d97706':'')}
+      ${kc("Ruptures",k.outOfStock||0,"stock &eacute;puis&eacute;","stockproducts",(k.outOfStock>0)?'var(--red)':'')}
+    </div>
     <div class="grid2">
-      <div class="panel"><b>Réapprovisionnement (stock ≤ seuil)</b>
-        <table style="margin-top:6px"><tr><th>Produit</th><th class="r">Stock</th><th class="r">Seuil</th><th></th></tr>
-        ${d.lowList.length?d.lowList.map(p=>`<tr><td>${esc(p.name)}</td><td class="r"><b style="color:var(--red)">${stkQty(p.qty)}</b> ${esc(p.unitName)}</td><td class="r">${stkQty(p.alertQty)}</td><td><button class="btn ghost sm" onclick="go('stockpo')">Réappro.</button></td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">Aucune alerte </td></tr>'}</table></div>
-      <div class="panel"><b>Top valeur en stock</b><div style="height:200px;margin-top:6px"><canvas id="stkTop"></canvas></div></div></div>
-    <div class="panel"><b>Derniers mouvements</b> <button class="btn ghost sm" style="float:right" onclick="go('stockmoves')">Tout voir →</button>
-      <table style="margin-top:6px"><tr><th>Date</th><th>Type</th><th>Produit</th><th class="r">Qté</th></tr>
-      ${d.recent.length?d.recent.map(m=>`<tr><td>${esc(m.date||'')}</td><td>${typeTag(m.type)}</td><td>${esc(m.productName)}</td><td class="r" style="color:${m.qty<0?'var(--red)':'var(--nav-active-color)'}">${m.qty>0?'+':''}${stkQty(m.qty)}</td></tr>`).join(""):'<tr><td colspan="4" style="color:var(--muted)">Aucun mouvement.</td></tr>'}</table></div>`;
+      <div class="panel"><b>Flux du stock <span class="note-inline">(entr&eacute;es vs sorties valoris&eacute;es &middot; 8 mois)</span></b><div style="position:relative;height:220px;margin-top:8px"><canvas id="stkFlow"></canvas></div></div>
+      <div class="panel"><b>&Agrave; traiter &amp; alertes</b><div style="margin-top:6px">
+        ${alertRow("Produits en rupture",k.outOfStock||0,true)}
+        ${alertRow("Produits sous le seuil d'alerte",k.lowStock||0,false)}
+        ${alertRow("Sorties enregistr&eacute;es ce mois",k.outMonth||0,false)}
+        <div onclick="go('stockpo')" style="cursor:pointer;display:flex;justify-content:space-between;padding:7px 0"><span>Commandes fournisseurs</span><b style="color:var(--nav-active-color)">Ouvrir &rarr;</b></div>
+      </div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>R&eacute;approvisionnement <span class="note-inline">(stock &le; seuil)</span></b><button class="btn ghost sm" onclick="go('stockpo')">Commander</button></div>
+        <table style="margin-top:6px;width:100%"><tr><th>Produit</th><th class="r">Stock</th><th class="r">Seuil</th><th></th></tr>
+        ${(d.lowList||[]).length?d.lowList.map(p=>`<tr><td>${esc(p.name)}${p.out?' <span class="tag" style="background:var(--red);color:#fff">rupture</span>':''}</td><td class="r"><b style="color:${p.out?'var(--red)':'#d97706'}">${stkQty(p.qty)}</b> ${esc(p.unitName||'')}</td><td class="r">${p.alertQty!=null&&p.alertQty!==''?stkQty(p.alertQty):'&ndash;'}</td><td><button class="btn ghost sm" onclick="go('stockpo')">R&eacute;appro.</button></td></tr>`).join(""):'<tr><td colspan="4" class="note-inline">Aucune alerte, tout est au-dessus du seuil. &#10003;</td></tr>'}</table></div>
+      <div class="panel"><b>R&eacute;partition de la valeur <span class="note-inline">par cat&eacute;gorie</span></b><div style="position:relative;height:210px;margin-top:8px"><canvas id="stkCat"></canvas></div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><b>Top valeur en stock</b><div style="position:relative;height:210px;margin-top:8px"><canvas id="stkTop"></canvas></div></div>
+      <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>Derniers mouvements</b><button class="btn ghost sm" onclick="go('stockmoves')">Tout voir &rarr;</button></div>
+        <table style="margin-top:6px;width:100%"><tr><th>Date</th><th>Type</th><th>Produit</th><th class="r">Qt&eacute;</th></tr>
+        ${(d.recent||[]).length?d.recent.map(m=>`<tr><td>${esc(m.date||'')}</td><td>${typeTag(m.type)}</td><td>${esc(m.productName)}</td><td class="r" style="color:${m.qty<0?'var(--red)':'var(--nav-active-color)'}">${m.qty>0?'+':''}${stkQty(m.qty)}</td></tr>`).join(""):'<tr><td colspan="4" class="note-inline">Aucun mouvement.</td></tr>'}</table></div>
+    </div>
+  </div>`;
   if(await ensureChartJs() && window.Chart){ try{
-    new Chart(document.getElementById("stkTop").getContext("2d"),{type:"bar",data:{labels:d.topValue.map(t=>t.name),datasets:[{label:"Valeur",data:d.topValue.map(t=>t.stockValue),backgroundColor:"#2563eb"}]},
-      options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>Number(v).toLocaleString("fr-FR")}}}}});
-  }catch(e){} }
+    const tr=d.trend||[];
+    if(tr.length){ new Chart(document.getElementById("stkFlow"),{type:"bar",data:{labels:tr.map(t=>t.periode),datasets:[
+      {label:"Entrées",data:tr.map(t=>t.entrees),backgroundColor:"#22c55e",borderRadius:4},
+      {label:"Sorties",data:tr.map(t=>t.sorties),backgroundColor:"#f59e0b",borderRadius:4}]},
+      options:{plugins:{legend:{display:true,position:"bottom"}},scales:{y:{ticks:{callback:v=>(v>=1e6?(v/1e6)+"M":(v/1e3)+"k")}}},maintainAspectRatio:false}}); }
+    const cats=d.byCategory||[];
+    if(cats.length){ new Chart(document.getElementById("stkCat"),{type:"doughnut",data:{labels:cats.map(c=>c.name),datasets:[{data:cats.map(c=>c.value),backgroundColor:["#6366f1","#22c55e","#f59e0b","#ef4444","#14b8a6","#a855f7"]}]},options:{plugins:{legend:{display:true,position:"right",labels:{boxWidth:10,font:{size:10}}}},maintainAspectRatio:false}}); }
+    const tv=d.topValue||[];
+    if(tv.length){ new Chart(document.getElementById("stkTop").getContext("2d"),{type:"bar",data:{labels:tv.map(t=>t.name),datasets:[{label:"Valeur",data:tv.map(t=>t.stockValue),backgroundColor:"#2563eb",borderRadius:4}]},
+      options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>(v>=1e6?(v/1e6)+"M":Number(v).toLocaleString("fr-FR"))}}}}}); }
+  }catch(e){ console.warn("stock charts",e); } }
 }
-
 async function stockProductsView(){
   await stockLoadRefs();
   const q=(window._stkQ||"").toLowerCase();
