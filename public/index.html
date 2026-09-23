@@ -4876,6 +4876,7 @@ async function payAcomptesView(){
   let url="/payroll/acomptes?period="+period; if(pfFilter) url+="&portfolioId="+pfFilter;
   const list = await api(url).catch(()=>[]);
   const canEdit = ["ADM","GPF","CD"].includes(ME.role) || canRunPay();
+  const canValidate = ["CD","ADM","RJ"].includes(ME.role);
   const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
   const total=list.reduce((a,x)=>a+(x.amount||0),0);
   const clientOpts=(PFS||[]).map(p=>`<option value="${p.id}" ${pfFilter===p.id?'selected':''}>${esc(p.name)}</option>`).join("");
@@ -4895,14 +4896,26 @@ async function payAcomptesView(){
     <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
         <b style="margin-right:auto">Acomptes</b>
         <label class="note-inline" style="margin:0">Client</label><select onchange="window._acoPf=this.value;payAcomptesView()" style="margin:0"><option value="">Tous</option>${clientOpts}</select>
-        <label class="note-inline" style="margin:0">Période</label><input type="month" value="${period}" onchange="window._acoPeriod=this.value;payAcomptesView()" style="margin:0;max-width:150px"></div>
-      <table style="width:100%"><tr><th>Client</th><th>Employé</th><th>N° OM/MOMO</th><th class="r">Montant</th><th>Saisi par</th><th></th></tr>
-      ${list.length?list.map(a=>`<tr>
+        <label class="note-inline" style="margin:0">Période</label><input type="month" value="${period}" onchange="window._acoPeriod=this.value;payAcomptesView()" style="margin:0;max-width:150px">
+        ${canValidate&&list.some(a=>a.status!=="VALIDE")?`<button class="btn ghost sm" onclick="acoValidateBatch('${pfFilter}','${period}')">Valider tous</button>`:""}
+        <span class="note-inline">Export</span>
+        <button class="btn ghost sm" onclick="acoExport('pdf')">PDF</button>
+        <button class="btn ghost sm" onclick="acoExport('xlsx')">Excel</button>
+        <button class="btn ghost sm" onclick="acoExport('csv')">CSV</button></div>
+      <table style="width:100%"><tr><th>Client</th><th>Employé</th><th>N° OM/MOMO</th><th class="r">Montant</th><th>Statut</th><th>Saisi / validé par</th><th></th></tr>
+      ${list.length?list.map(a=>{const val=a.status==="VALIDE";return `<tr>
         <td>${esc(a.portfolioName||"")}</td><td><b>${esc(a.employeeName||"")}</b> <span class="note-inline">${esc(a.matricule||"")}</span></td>
-        <td>${esc(a.momo||"—")}</td><td class="r"><b>${money(a.amount)}</b></td><td class="note-inline">${esc(a.createdByName||"")}</td>
-        <td style="white-space:nowrap">${canEdit?`<button class="btn ghost sm" onclick="acoEdit('${a.id}',${a.amount},'${esc(a.momo||"")}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="acoDelete('${a.id}')">Suppr.</button>`:""}</td></tr>`).join(""):'<tr><td colspan="6" class="note-inline">Aucun acompte pour ce filtre.</td></tr>'}
-      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="3">TOTAL (${list.length})</td><td class="r">${money(total)}</td><td colspan="2"></td></tr>
-      </table></div>
+        <td>${esc(a.momo||"—")}</td><td class="r"><b>${money(a.amount)}</b></td>
+        <td>${val?'<span class="tag green">Validé</span>':'<span class="tag amber">Brouillon</span>'}</td>
+        <td class="note-inline">${esc(a.createdByName||"")}${a.validatedByName?` &rarr; ${esc(a.validatedByName)}`:""}</td>
+        <td style="white-space:nowrap">
+          ${(!val&&canEdit)?`<button class="btn ghost sm" onclick="acoEdit('${a.id}',${a.amount},'${esc(a.momo||"")}')">Modifier</button> `:""}
+          ${(!val&&canValidate)?`<button class="btn ghost sm" onclick="acoValidate('${a.id}')">Valider</button> `:""}
+          ${(val&&canValidate)?`<button class="btn ghost sm" onclick="acoUnvalidate('${a.id}')">Dévalider</button> `:""}
+          ${(!val&&canEdit)?`<button class="btn ghost sm" style="color:var(--red)" onclick="acoDelete('${a.id}')">Suppr.</button>`:""}
+        </td></tr>`;}).join(""):'<tr><td colspan="7" class="note-inline">Aucun acompte pour ce filtre.</td></tr>'}
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="3">TOTAL (${list.length}) &middot; validés : ${money(list.filter(a=>a.status==="VALIDE").reduce((s2,a)=>s2+(a.amount||0),0))}</td><td class="r">${money(total)}</td><td colspan="3"></td></tr>
+      </table><div class="note-inline" style="margin-top:6px">Seuls les acomptes <b>validés</b> sont retenus sur la paie et pris en compte dans le contrôle.</div></div>
   </div>`;
   window._acoEmpsCache={};
 }
@@ -4931,6 +4944,10 @@ async function acoDelete(id){
   if(!confirm("Supprimer cet acompte ?")) return;
   try{ await api("/payroll/acomptes/"+id,{method:"DELETE"}); payAcomptesView(); }catch(e){ alert(e.message); }
 }
+async function acoValidate(id){ try{ await api("/payroll/acomptes/"+id+"/validate",{method:"POST"}); payAcomptesView(); }catch(e){ alert(e.message); } }
+async function acoUnvalidate(id){ try{ await api("/payroll/acomptes/"+id+"/unvalidate",{method:"POST"}); payAcomptesView(); }catch(e){ alert(e.message); } }
+async function acoValidateBatch(pf,per){ if(!confirm("Valider tous les acomptes en brouillon de ce filtre ?")) return; try{ const r=await api("/payroll/acomptes/validate-batch",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf||undefined})}); alert(r.validated+" acompte(s) validé(s)."); payAcomptesView(); }catch(e){ alert(e.message); } }
+async function acoExport(fmt){ const per=window._acoPeriod||new Date().toISOString().slice(0,7); const pf=window._acoPf||""; let url="/api/payroll/acomptes/export?format="+fmt+"&period="+per+(pf?("&portfolioId="+pf):""); try{ const r=await fetch(url,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok){ let j={};try{j=await r.json();}catch(_){}; throw new Error(j.error||"Erreur export"); } const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); if(fmt==="pdf"){a.target="_blank";}else{a.download="acomptes."+(fmt==="xlsx"?"xlsx":"csv");} a.click(); }catch(e){ alert(e.message); } }
 
 /* ===================== BORDEREAUX D'ÉLÉMENTS & CONTRÔLE (GPF <-> Paie) ===================== */
 function bordStatusTag(s, ctrl){
@@ -5027,7 +5044,9 @@ async function payBordereauView(id){
         ${editable&&isGpf?`<button class="btn p sm" onclick="bordSave('${s.id}')">Enregistrer</button>
           <button class="btn sm" onclick="bordSubmit('${s.id}')">Soumettre &amp; signer (GPF)</button>`:""}
         ${(!editable&&isGpf&&s.status!=="BON_A_PAYER")?`<button class="btn ghost sm" onclick="bordReopen('${s.id}')">Rouvrir (brouillon)</button>`:""}
-        <button class="btn ghost sm" onclick="bordPdf('${s.id}')">Générer le PDF</button>
+        <button class="btn ghost sm" onclick="bordPdf('${s.id}')">PDF</button>
+        <button class="btn ghost sm" onclick="bordExport('${s.id}','xlsx')">Excel</button>
+        <button class="btn ghost sm" onclick="bordExport('${s.id}','csv')">CSV</button>
         <button class="btn ghost sm" onclick="bordAudit('${s.id}')">Journal d'audit</button>
       </div>
       ${editable?'<div class="note-inline" style="margin-top:6px">Astuce : Prés. = jours de présence (par défaut le mois standard). Les primes qui varient (rotation, rappel, 13ᵉ…) s\'ajoutent via « Primes ».</div>':''}
@@ -5065,7 +5084,7 @@ async function bordPrimes(empId){
       <td><button class="btn ghost sm" style="color:var(--red)" onclick="window._BORD.__pr.splice(${i},1);bordPrimesRender()">×</button></td></tr>`).join("")||'<tr><td colspan="3" class="note-inline">Aucune ligne.</td></tr>';
   };
   window.bordPrimePick=function(i,code){ const r=(window._BORD.__rubs||[]).find(x=>String(x.code)===String(code)); const p=window._BORD.__pr[i]; if(!p) return; p.code=code; if(r){ p.label=r.label; p.cnps=!!r.cnps; p.impo=!!r.impo; } };
-  window.bordPrimesSave=function(){ const l2=(window._BORD.lines||[]).find(x=>x.employeeId===window._BORD.__prEmp); if(l2) l2.primes=(window._BORD.__pr||[]).filter(p=>p.code&&p.label&&Number(p.amount)>0); document.querySelector(".modal-bg").remove(); payBordereauView(window._BORD.id); };
+  window.bordPrimesSave=async function(){ const l2=(window._BORD.lines||[]).find(x=>x.employeeId===window._BORD.__prEmp); if(l2) l2.primes=(window._BORD.__pr||[]).filter(p=>p.code&&p.label&&Number(p.amount)>0); const bid=window._BORD.id; try{ await api("/payroll/bordereaux/"+bid+"/lines",{method:"PUT",body:JSON.stringify({lines:window._BORD.lines})}); }catch(e){ alert(e.message); return; } const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); payBordereauView(bid); };
   bordPrimesRender();
 }
 async function bordSave(id){
@@ -5113,6 +5132,9 @@ async function bordBAP(id){
 }
 async function bordPdf(id){
   try{ const r=await fetch("/api/payroll/bordereaux/"+id+"/pdf",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok){ let j={};try{j=await r.json();}catch(_){}; throw new Error(j.error||"Erreur PDF"); } const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.target="_blank"; a.click(); }catch(e){ alert(e.message); }
+}
+async function bordExport(id,fmt){
+  try{ const r=await fetch("/api/payroll/bordereaux/"+id+"/export?format="+fmt,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok){ let j={};try{j=await r.json();}catch(_){}; throw new Error(j.error||"Erreur export"); } const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="bordereau."+(fmt==="xlsx"?"xlsx":"csv"); a.click(); }catch(e){ alert(e.message); }
 }
 async function bordAudit(id){
   const a=await api("/payroll/bordereaux/"+id+"/audit").catch(()=>null); if(!a) return;

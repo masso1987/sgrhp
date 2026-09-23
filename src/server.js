@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - CTRL-47 (bordereau: acces GPF sans droit paie; acomptes registre dedie OM/MOMO; primes depuis rubriques; PDF avec elements de salaire; edit/suppr bordereau)";
+const BUILD_VERSION = "2026-09-24 - CTRL-48 (fix primes/elements persistance bordereau; exports bordereau + acomptes PDF/Excel/CSV; acomptes workflow validation - seuls validés retenus)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

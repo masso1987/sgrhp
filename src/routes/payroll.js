@@ -265,7 +265,7 @@ function elementsToInput(emp, period, req, opts) {
       otherDeductions.push({ code: "7010", label: `${ln.label || "Prêt"} (${diff + 1}/${ln.installments})`, amount: Number(ln.monthlyAmount) });
   }
   // Acomptes sur salaire (registre dédié) : retenus à 100% sur le mois concerné.
-  for (const ac of mine(db.payAcomptes, req).filter(a => a.employeeId === emp.id && a.period === period)) {
+  for (const ac of mine(db.payAcomptes, req).filter(a => a.employeeId === emp.id && a.period === period && a.status === "VALIDE")) {
     if (Number(ac.amount) > 0) otherDeductions.push({ code: "7000", label: "Acompte sur salaire", amount: Number(ac.amount) });
   }
   const cfg = configOf(req);
@@ -913,7 +913,7 @@ router.post("/acomptes", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const a=stamp({ id:id("aco"), period, portfolioId:b.portfolioId||(e&&e.portfolioId)||"", employeeId:b.employeeId,
     employeeName:e?`${e.firstName||""} ${e.lastName||""}`.trim():"", matricule:e?(e.matricule||""):"",
     momo:String(b.momo||"").slice(0,30), amount:Math.round(Number(b.amount)), note:String(b.note||"").slice(0,120),
-    createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
+    status:"BROUILLON", createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
   db.payAcomptes.push(a); save();
   audit(req.user, "CREATED", "PayAcompte", a.id, { period, employeeId:a.employeeId, amount:a.amount });
   res.status(201).json(acompteOut(a, req));
@@ -921,6 +921,7 @@ router.post("/acomptes", allow("RP","ADM","GPF","CD"), (req,res)=>{
 router.put("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
   if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(a.status==="VALIDE") return res.status(409).json({error:"Acompte validé - dévalidez-le avant de le modifier."});
   const b=req.body||{};
   if(b.amount!=null){ if(!(Number(b.amount)>0)) return res.status(400).json({error:"Montant invalide"}); a.amount=Math.round(Number(b.amount)); }
   if(b.momo!=null) a.momo=String(b.momo).slice(0,30);
@@ -931,14 +932,124 @@ router.put("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
 router.delete("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
   if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(a.status==="VALIDE") return res.status(409).json({error:"Acompte validé - dévalidez-le avant de le supprimer."});
   db.payAcomptes.splice(db.payAcomptes.indexOf(a),1); save();
   audit(req.user, "DELETED", "PayAcompte", a.id, { period:a.period, employeeId:a.employeeId });
   res.json({ ok:true });
 });
 /* Acompte total d'un employé sur une période (utilisé par le contrôle du bordereau). */
 function acompteTotal(empId, period, req){
-  return mine(db.payAcomptes, req).filter(a=>a.employeeId===empId && a.period===period).reduce((s,a)=>s+(Number(a.amount)||0),0);
+  return mine(db.payAcomptes, req).filter(a=>a.employeeId===empId && a.period===period && a.status==="VALIDE").reduce((s,a)=>s+(Number(a.amount)||0),0);
 }
+/* --- Acompte : validation workflow (BROUILLON -> VALIDE) --- */
+router.post("/acomptes/:id/validate", allow("CD","ADM","RJ"), (req,res)=>{
+  const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
+  if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(a.status==="VALIDE") return res.status(409).json({error:"Déjà validé"});
+  a.status="VALIDE"; a.validatedBy=req.user.id; a.validatedByName=req.user.fullName||""; a.validatedAt=new Date().toISOString();
+  save(); audit(req.user, "VALIDATED", "PayAcompte", a.id, { period:a.period, employeeId:a.employeeId, amount:a.amount });
+  res.json(acompteOut(a, req));
+});
+router.post("/acomptes/:id/unvalidate", allow("CD","ADM"), (req,res)=>{
+  const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
+  if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  a.status="BROUILLON"; delete a.validatedBy; delete a.validatedByName; delete a.validatedAt;
+  save(); audit(req.user, "UNVALIDATED", "PayAcompte", a.id, { period:a.period });
+  res.json(acompteOut(a, req));
+});
+/* Valider en lot tous les brouillons d'un client/période. */
+router.post("/acomptes/validate-batch", allow("CD","ADM","RJ"), (req,res)=>{
+  const { period, portfolioId } = req.body||{};
+  let list=mine(db.payAcomptes, req).filter(a=>a.status!=="VALIDE");
+  if(period) list=list.filter(a=>a.period===period);
+  if(portfolioId) list=list.filter(a=>a.portfolioId===portfolioId);
+  let n=0; for(const a of list){ if(runLocked(a.period, req)) continue; a.status="VALIDE"; a.validatedBy=req.user.id; a.validatedByName=req.user.fullName||""; a.validatedAt=new Date().toISOString(); n++; }
+  save(); audit(req.user, "VALIDATED_BATCH", "PayAcompte", "", { period, portfolioId, count:n });
+  res.json({ ok:true, validated:n });
+});
+
+/* --- Export des acomptes (pdf / xlsx / csv) --- */
+function acompteRows(req, period, portfolioId){
+  let list=mine(db.payAcomptes, req);
+  if(period) list=list.filter(a=>a.period===period);
+  if(portfolioId) list=list.filter(a=>a.portfolioId===portfolioId);
+  return list.map(a=>acompteOut(a, req)).sort((x,y)=>String(x.portfolioName||"").localeCompare(String(y.portfolioName||""))||String(x.employeeName||"").localeCompare(String(y.employeeName||"")));
+}
+router.get("/acomptes/export", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const { period, portfolioId, format } = req.query;
+  const rows=acompteRows(req, period, portfolioId);
+  const fmt=(format||"pdf").toLowerCase();
+  const head=["Client","Employé","Matricule","N° OM/MOMO","Montant","Statut"];
+  const data=rows.map(a=>[a.portfolioName||"", a.employeeName||"", a.matricule||"", a.momo||"", a.amount||0, a.status==="VALIDE"?"Validé":"Brouillon"]);
+  const total=rows.reduce((s,a)=>s+(Number(a.amount)||0),0);
+  const fname=`Acomptes_${period||"tous"}`;
+  if(fmt==="csv"){ return sendCSV(res, fname+".csv", [head, ...data, ["","","","TOTAL",total,""]]); }
+  if(fmt==="xlsx"){
+    let XLSX; try{ XLSX=require("xlsx"); }catch(e){ return res.status(500).json({error:"Module Excel indisponible"}); }
+    if(!(XLSX&&XLSX.utils&&typeof XLSX.utils.aoa_to_sheet==="function")) return res.status(500).json({error:"Export Excel indisponible sur ce serveur"});
+    const aoa=[["ACOMPTES SUR SALAIRE — "+(period||"toutes périodes")],[],head,...data,["","","","TOTAL",total,""]];
+    const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=[{wch:20},{wch:26},{wch:12},{wch:16},{wch:12},{wch:12}];
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Acomptes");
+    res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition",`attachment; filename="${fname}.xlsx"`);
+    return res.send(XLSX.write(wb, { type:"buffer", bookType:"xlsx" }));
+  }
+  // PDF
+  const F=(n)=>String(Math.round(Number(n)||0)).replace(/\B(?=(\d{3})+(?!\d))/g," ");
+  const tenant=(db.tenants||[]).find(t=>(t.id)===(req.user.tenantId||"t1"))||{name:""};
+  const doc=new PDFDocument({ size:"A4", margin:36 });
+  const chunks=[]; doc.on("data",d=>chunks.push(d));
+  doc.on("end",()=>{ res.setHeader("Content-Type","application/pdf"); res.setHeader("Content-Disposition",`inline; filename="${fname}.pdf"`); res.end(Buffer.concat(chunks)); });
+  const green="#0b7a4b", ink="#111827", line="#d1d5db"; const W=doc.page.width, M=36; let y=40;
+  doc.fillColor(green).font("Helvetica-Bold").fontSize(15).text("Acomptes sur salaire", M, y);
+  doc.fillColor(ink).font("Helvetica").fontSize(10).text(tenant.name||"", M, y+2, {align:"right", width:W-2*M}); y+=22;
+  doc.fontSize(10).text(`Période : ${period||"toutes"}     Nombre : ${rows.length}`, M, y); y+=16;
+  const cols=[{h:"Client",w:120,a:"l"},{h:"Employé",w:150,a:"l"},{h:"N° OM/MOMO",w:90,a:"l"},{h:"Montant",w:75,a:"r"},{h:"Statut",w:0,a:"l"}];
+  let used=cols.reduce((a,c)=>a+c.w,0); cols[cols.length-1].w=W-2*M-used;
+  const row=(cells,o)=>{ o=o||{}; let x=M; const h=o.h||16; if(o.fill){ doc.rect(M,y,W-2*M,h).fill(o.fill); }
+    doc.font(o.bold?"Helvetica-Bold":"Helvetica").fontSize(o.size||9);
+    for(let i=0;i<cols.length;i++){ doc.fillColor(o.color||ink).text(String(cells[i]==null?"":cells[i]),x+3,y+4,{width:cols[i].w-6,align:cols[i].a,ellipsis:true,lineBreak:false}); x+=cols[i].w; }
+    doc.moveTo(M,y+h).lineTo(W-M,y+h).strokeColor(line).lineWidth(0.5).stroke(); y+=h; };
+  row(["Client","Employé","N° OM/MOMO","Montant","Statut"], {fill:"#e6f2ec",bold:true,color:green,h:18});
+  for(const a of rows){ if(y>doc.page.height-70){ doc.addPage(); y=40; row(["Client","Employé","N° OM/MOMO","Montant","Statut"], {fill:"#e6f2ec",bold:true,color:green,h:18}); }
+    row([a.portfolioName||"", a.employeeName||"", a.momo||"", F(a.amount), a.status==="VALIDE"?"Validé":"Brouillon"]); }
+  row(["","","TOTAL", F(total), ""], {bold:true, fill:"#f3f4f6", h:18});
+  doc.end();
+});
+
+/* --- Export du bordereau (xlsx / csv) : matrice éléments de salaire + variables --- */
+router.get("/bordereaux/:id/export", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  const fmt=(req.query.format||"csv").toLowerCase();
+  const pf=mine(db.portfolios, req).find(p=>p.id===s.portfolioId);
+  const empById={}; mine(db.employees, req).forEach(e=>{ empById[e.id]=e; });
+  const gainLabels=[]; const struct={};
+  for(const l of s.lines){ const e=empById[l.employeeId]; const st=e?structureToInput(e, req):{baseSalary:0,gains:[],transport:null};
+    const gains=(st.gains||[]).map(g=>({label:g.label||g.code,amount:Number(g.amount)||0}));
+    for(const g of gains) if(!gainLabels.includes(g.label)) gainLabels.push(g.label);
+    struct[l.employeeId]={base:Number(st.baseSalary)||0, gains, transport:(st.transport&&Number(st.transport.amount))||0};
+  }
+  const head=["N°","Nom","Contrat","Cat","Salaire base",...gainLabels,"Transport","Brut contractuel","Présences","HS120","HS130","HS140","Nuit","Primes variables","Acompte","Échéance prêt"];
+  const data=[]; let n=0;
+  for(const l of s.lines){ n++; const stc=struct[l.employeeId]||{base:0,gains:[],transport:0};
+    const gv=(lbl)=>{ const g=(stc.gains||[]).find(x=>x.label===lbl); return g?g.amount:0; };
+    const brut=stc.base+(stc.gains||[]).reduce((a,g)=>a+g.amount,0)+stc.transport;
+    const primesv=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
+    data.push([n, l.name, l.contrat||"", l.category||"", stc.base, ...gainLabels.map(gv), stc.transport, brut, l.joursPresence||0, l.hs120||0, l.hs130||0, l.hs140||0, l.hsNuit||0, primesv, acompteTotal(l.employeeId, s.period, req), loanEcheance(l.employeeId, s.period, req).total]);
+  }
+  const fname=`Bordereau_${(pf?pf.name:"client").replace(/[^\w]/g,"_")}_${s.period}`;
+  if(fmt==="csv"){ return sendCSV(res, fname+".csv", [head, ...data]); }
+  let XLSX; try{ XLSX=require("xlsx"); }catch(e){ return res.status(500).json({error:"Module Excel indisponible"}); }
+  if(!(XLSX&&XLSX.utils&&typeof XLSX.utils.aoa_to_sheet==="function")) return res.status(500).json({error:"Export Excel indisponible sur ce serveur"});
+  const aoa=[[`BORDEREAU D'ÉLÉMENTS — ${pf?pf.name:""} — ${s.period} (${s.status})`],[],head,...data];
+  const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=head.map((h,i)=>({wch:i===1?26:12}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Bordereau");
+  res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition",`attachment; filename="${fname}.xlsx"`);
+  bEvent(s, req, "BORDEREAU_EXPORT", { format:fmt }); save();
+  res.send(XLSX.write(wb, { type:"buffer", bookType:"xlsx" }));
+});
+
 
 
 
