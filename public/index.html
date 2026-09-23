@@ -1184,6 +1184,7 @@ const NAV = [
 
   { k: "payhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payroll", label: "Bulletins & traitements", sec: "Traitement", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
+  { k: "bordereaux", label: "Bordereaux & contrôle", sec: "Traitement", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payconfig", label: "Paramètres paie", sec: "Paramétrage", roles: ["ADM"], module: "payroll", grp: "paie" },
   { k: "payfiche", label: "Fiche individuelle", sec: "États", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
   { k: "payetats", label: "Livre & états de paie", sec: "États", roles: ["ADM","CD","RJ","GPF"], module: "payroll", grp: "paie" },
@@ -1448,7 +1449,7 @@ function startAccessPolling() {
 }
 function toggleSidebar(){var n=document.getElementById('nav'),b=document.getElementById('sbBackdrop');var o=n.classList.toggle('open');if(b)b.classList.toggle('show',o);}
 function closeSidebar(){var n=document.getElementById('nav'),b=document.getElementById('sbBackdrop');if(n)n.classList.remove('open');if(b)b.classList.remove('show');}
-function go(k) {
+function go(k, arg) {
   window.CURRENT_VIEW = k;
   closeSidebar();
   applySectionColor(k);
@@ -1456,7 +1457,7 @@ function go(k) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)(arg);
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -4864,6 +4865,191 @@ function payStatusTag(s) {
 
 /* ---- Runs list ---- */
 /* ---- Tableau de bord Paie ---- */
+
+/* ===================== BORDEREAUX D'ÉLÉMENTS & CONTRÔLE (GPF <-> Paie) ===================== */
+function bordStatusTag(s, ctrl){
+  if(s==="BROUILLON") return '<span class="tag amber">Brouillon</span>';
+  if(s==="SOUMIS") return '<span class="tag blue">Soumis &amp; signé</span>';
+  if(s==="CONTROLE"){ const c=(ctrl&&ctrl.status)||""; return c==="CONFORME"?'<span class="tag green">Contrôlé &middot; conforme</span>':(c==="ECARTS"?'<span class="tag" style="background:#b45309;color:#fff">Contrôlé &middot; écarts</span>':'<span class="tag blue">Contrôlé</span>'); }
+  if(s==="BON_A_PAYER") return '<span class="tag green">Bon à payer &#10003;</span>';
+  return esc(s||"");
+}
+function prettyMois(p){ if(!p) return ""; const [y,m]=p.split("-"); const N=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"]; return (N[Number(m)-1]||p)+" "+y; }
+
+async function payBordereauxView(){
+  if(!PFS||!PFS.length){ try{ PFS=await api("/portfolios"); }catch(e){ PFS=[]; } }
+  const period = window._bordPeriod || new Date().toISOString().slice(0,7);
+  const list = await api("/payroll/bordereaux"+(period?("?period="+period):"")).catch(()=>[]);
+  const canCreate = ["ADM","GPF"].includes(ME.role) || canRunPay();
+  const clientOpts = (PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  view.innerHTML = `<div class="adm-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Bordereaux d'éléments &amp; contrôle</h1>
+      <span class="note-inline">Saisie GPF &rarr; contrôle automatique &rarr; Bon à payer</span></div>
+    <div class="note">Le GPF saisit les éléments variables par client, l'app génère le bordereau à signer, la paie calcule, puis le système rapproche automatiquement la paie avec le bordereau signé. L'ordre de virement n'est édité qu'après « Bon à payer » (CD / Audit).</div>
+    ${canCreate?`<div class="panel"><b>Nouveau bordereau</b>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:8px">
+        <div><label>Client (portefeuille)</label><select id="bNewPf" style="margin:0;min-width:200px">${clientOpts||'<option value="">- aucun -</option>'}</select></div>
+        <div><label>Période</label><input id="bNewPer" type="month" value="${period}" style="margin:0"></div>
+        <button class="btn p sm" onclick="bordCreate()">+ Créer le bordereau</button></div>
+      <div class="err hidden" id="bNewErr" style="margin-top:6px"></div></div>`:""}
+    <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <b style="margin-right:auto">Bordereaux</b>
+        <label style="margin:0" class="note-inline">Période</label><input type="month" value="${period}" onchange="window._bordPeriod=this.value;payBordereauxView()" style="margin:0;max-width:150px"></div>
+      <table style="width:100%"><tr><th>Client</th><th>Période</th><th>Employés</th><th>Statut</th><th>Contrôle</th><th>Soumis par</th><th>Bon à payer</th><th></th></tr>
+      ${list.length?list.map(s=>`<tr>
+        <td><b>${esc(s.portfolioName||"")}</b></td><td>${esc(s.period)}</td><td>${s.lineCount||0}</td>
+        <td>${bordStatusTag(s.status,{status:s.controlStatus})}</td>
+        <td>${s.controlStatus?(s.controlStatus==="CONFORME"?'<span class="tag green">Conforme</span>':(s.controlStatus==="ECARTS"?'<span class="tag" style="background:#b45309;color:#fff">Écarts</span>':esc(s.controlStatus))):'<span class="note-inline">—</span>'}</td>
+        <td>${s.submittedBy?esc(s.submittedBy):'<span class="note-inline">—</span>'}</td>
+        <td>${s.bapBy?esc(s.bapBy):'<span class="note-inline">—</span>'}</td>
+        <td><button class="btn ghost sm" onclick="go('bordereau','${s.id}')">Ouvrir</button></td></tr>`).join(""):'<tr><td colspan="8" class="note-inline">Aucun bordereau pour cette période.</td></tr>'}
+      </table></div>
+  </div>`;
+}
+async function bordCreate(){
+  const pf=document.getElementById("bNewPf").value, per=document.getElementById("bNewPer").value;
+  const err=document.getElementById("bNewErr");
+  if(!pf){ err.textContent="Choisissez un client."; err.classList.remove("hidden"); return; }
+  try{ const s=await api("/payroll/bordereaux",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf})}); go('bordereau',s.id); }
+  catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
+}
+
+async function payBordereauView(id){
+  const s = await api("/payroll/bordereaux/"+id).catch(()=>null);
+  if(!s){ view.innerHTML='<div class="panel">Bordereau introuvable.</div>'; return; }
+  window._BORD = s;
+  const editable = s.status==="BROUILLON";
+  const isGpf = ["ADM","GPF"].includes(ME.role) || canRunPay();
+  const canBAP = ["CD","ADM","RJ"].includes(ME.role);
+  const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
+  const numInput=(l,f,step)=>`<input type="number" ${editable?'':'disabled'} value="${l[f]||0}" step="${step||1}" min="0" style="width:58px;margin:0;padding:3px 5px;text-align:right" oninput="bordSet('${l.employeeId}','${f}',this.value)">`;
+  const rows = (s.lines||[]).map((l,i)=>{
+    const primesTxt=(l.primes||[]).map(p=>`${esc(p.label)}: ${money(p.amount)}`).join(", ");
+    const loan=l.loan&&l.loan.total?money(l.loan.total):"—";
+    return `<tr>
+      <td>${i+1}</td><td style="white-space:nowrap">${esc(l.name)}<div class="note-inline">${esc(l.matricule||"")}${l.category?" &middot; "+esc(l.category):""}</div></td>
+      <td class="r">${numInput(l,'joursPresence')}</td>
+      <td class="r">${numInput(l,'absence')}</td>
+      <td class="r">${numInput(l,'hs120')}</td><td class="r">${numInput(l,'hs130')}</td><td class="r">${numInput(l,'hs140')}</td><td class="r">${numInput(l,'hsNuit')}</td>
+      <td class="r">${numInput(l,'acompte',500)}</td>
+      <td class="r" title="Échéance de prêt du mois (auto, lecture seule)">${loan}</td>
+      <td style="max-width:210px"><span style="font-size:12px">${primesTxt||'<span class="note-inline">—</span>'}</span>
+        ${editable?` <button class="btn ghost sm" style="padding:1px 6px" onclick="bordPrimes('${l.employeeId}')">Primes</button>`:""}</td>
+    </tr>`;
+  }).join("");
+  const ctrl = s.control;
+  let controlPanel="";
+  if(s.status!=="BROUILLON"){
+    controlPanel = `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <b>Rapprochement (bordereau signé vs paie calculée)</b>
+        <button class="btn ghost sm" onclick="bordControl('${s.id}')">Rafraîchir le contrôle</button></div>
+      ${ctrl?bordControlTable(ctrl,s,canBAP):'<div class="note" style="margin-top:6px">Lancez le contrôle (la paie de la période doit être calculée).</div>'}</div>`;
+  }
+  view.innerHTML = `<div class="adm-wrap">
+    <button class="btn ghost sm" onclick="go('bordereaux')">&larr; Bordereaux</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px">
+      <h1 style="margin:0">Bordereau &middot; ${esc(s.portfolioName||"")}</h1>${bordStatusTag(s.status,ctrl)}</div>
+    <div class="note">Client : <b>${esc(s.portfolioName||"")}</b> &middot; Période : <b>${esc(prettyMois(s.period))}</b> &middot; ${(s.lines||[]).length} employé(s)${s.submittedByName?` &middot; soumis par <b>${esc(s.submittedByName)}</b>`:""}${s.bapByName?` &middot; Bon à payer : <b>${esc(s.bapByName)}</b>`:""}</div>
+    <div class="panel"><div style="overflow:auto"><table style="width:100%;min-width:820px"><tr>
+      <th>#</th><th>Employé</th><th class="r">Prés.</th><th class="r">Abs.</th><th class="r">HS120</th><th class="r">HS130</th><th class="r">HS140</th><th class="r">Nuit</th><th class="r">Acompte</th><th class="r">Éch. prêt</th><th>Primes variables</th></tr>
+      ${rows||'<tr><td colspan="11" class="note-inline">Aucun employé.</td></tr>'}</table></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        ${editable&&isGpf?`<button class="btn p sm" onclick="bordSave('${s.id}')">Enregistrer</button>
+          <button class="btn sm" onclick="bordSubmit('${s.id}')">Soumettre &amp; signer (GPF)</button>`:""}
+        ${(!editable&&isGpf&&s.status!=="BON_A_PAYER")?`<button class="btn ghost sm" onclick="bordReopen('${s.id}')">Rouvrir (brouillon)</button>`:""}
+        <button class="btn ghost sm" onclick="bordPdf('${s.id}')">Générer le PDF</button>
+        <button class="btn ghost sm" onclick="bordAudit('${s.id}')">Journal d'audit</button>
+      </div>
+      ${editable?'<div class="note-inline" style="margin-top:6px">Astuce : Prés. = jours de présence (par défaut le mois standard). Les primes qui varient (rotation, rappel, 13ᵉ…) s\'ajoutent via « Primes ».</div>':''}
+    </div>
+    ${controlPanel}
+  </div>`;
+}
+function bordSet(empId,field,val){
+  const b=window._BORD; if(!b) return; const l=(b.lines||[]).find(x=>x.employeeId===empId); if(l) l[field]=Number(val)||0;
+}
+function bordPrimes(empId){
+  const b=window._BORD; const l=(b.lines||[]).find(x=>x.employeeId===empId); if(!l) return;
+  l.primes=l.primes||[];
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const kinds=[["PRIME","Prime (imposable/cotisable)"],["INDEMNITE","Indemnité (non imposable)"],["RAPPEL","Rappel de salaire"],["TREIZE","13ᵉ mois"]];
+  const rowHtml=(p,i)=>`<tr><td><input value="${esc(p.label||'')}" oninput="window._BORD.__pr[${i}].label=this.value" style="margin:0;min-width:150px"></td>
+    <td><input type="number" value="${p.amount||0}" oninput="window._BORD.__pr[${i}].amount=Number(this.value)||0" style="margin:0;width:110px;text-align:right"></td>
+    <td><select onchange="window._BORD.__pr[${i}].kind=this.value" style="margin:0">${kinds.map(k=>`<option value="${k[0]}" ${((p.kind||'PRIME')===k[0])?'selected':''}>${k[1]}</option>`).join("")}</select></td>
+    <td><button class="btn ghost sm" style="color:var(--red)" onclick="window._BORD.__pr.splice(${i},1);bordPrimesRender()">×</button></td></tr>`;
+  window._BORD.__pr = JSON.parse(JSON.stringify(l.primes));
+  window._BORD.__prEmp = empId;
+  bg.innerHTML=`<div class="modal" style="width:560px"><h3 style="margin:0 0 8px">Primes variables — ${esc(l.name)}</h3>
+    <table style="width:100%"><thead><tr><th>Libellé</th><th class="r">Montant</th><th>Type</th><th></th></tr></thead><tbody id="prBody"></tbody></table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="window._BORD.__pr.push({label:'',amount:0,kind:'PRIME'});bordPrimesRender()">+ Ajouter une prime</button>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn p" onclick="bordPrimesSave()">Valider</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+  window.bordPrimesRender=function(){ document.getElementById("prBody").innerHTML=(window._BORD.__pr||[]).map((p,i)=>rowHtml(p,i)).join("")||'<tr><td colspan="4" class="note-inline">Aucune prime.</td></tr>'; };
+  window.bordPrimesSave=function(){ const l2=(window._BORD.lines||[]).find(x=>x.employeeId===window._BORD.__prEmp); if(l2) l2.primes=(window._BORD.__pr||[]).filter(p=>p.label&&Number(p.amount)>0); document.querySelector(".modal-bg").remove(); payBordereauView(window._BORD.id); };
+  bordPrimesRender();
+}
+async function bordSave(id){
+  try{ const s=await api("/payroll/bordereaux/"+id+"/lines",{method:"PUT",body:JSON.stringify({lines:window._BORD.lines})}); window._BORD=s; alert("Bordereau enregistré."); }
+  catch(e){ alert(e.message); }
+}
+async function bordSubmit(id){
+  if(!confirm("Soumettre et signer électroniquement ce bordereau ? Il sera figé (snapshot) et servira de référence au contrôle.")) return;
+  try{ await bordSave(id).catch(()=>{}); await api("/payroll/bordereaux/"+id+"/submit",{method:"POST"}); payBordereauView(id); }
+  catch(e){ alert(e.message); }
+}
+async function bordReopen(id){
+  if(!confirm("Rouvrir le bordereau en brouillon ? Le contrôle sera réinitialisé.")) return;
+  try{ await api("/payroll/bordereaux/"+id+"/reopen",{method:"POST",body:JSON.stringify({reason:""})}); payBordereauView(id); }catch(e){ alert(e.message); }
+}
+async function bordControl(id){
+  try{ await api("/payroll/bordereaux/"+id+"/control",{method:"POST"}); payBordereauView(id); }catch(e){ alert(e.message); }
+}
+function bordControlTable(ctrl,s,canBAP){
+  if(ctrl.status==="NON_CALCULE") return '<div class="note" style="margin-top:6px;color:#b45309">La paie de la période n\'est pas encore calculée. Calculez la paie puis relancez le contrôle.</div>';
+  const cell=(c)=>{ const col=c.status==="OK"?"#16a34a":(c.status==="ACK"?"#b45309":"var(--red)"); const ic=c.status==="OK"?"&#10003;":(c.status==="ACK"?"justifié":"écart"); const dl=c.status!=="OK"?` (${c.calcule>c.soumis?'+':''}${(c.calcule-c.soumis).toLocaleString('fr-FR')})`:""; return `<span style="color:${col}" title="soumis ${c.soumis} / calculé ${c.calcule}${c.reason?' — '+esc(c.reason):''}">${ic}${dl}</span>`; };
+  const bapBtn = (canBAP && s.status!=="BON_A_PAYER" && ctrl.computed) ? `<button class="btn p sm" onclick="bordBAP('${s.id}')">Signer « Bon à payer »</button>` : (s.status==="BON_A_PAYER"?'<span class="tag green">Bon à payer signé &#10003;</span>':'');
+  const head=`<tr><th>Employé</th><th>Présence</th><th>HS120</th><th>HS130</th><th>HS140</th><th>Nuit</th><th>Acompte</th><th>Prêt</th><th>Primes</th><th></th></tr>`;
+  const body=(ctrl.lines||[]).map(ln=>{
+    if(ln.status==="NON_CALCULE") return `<tr><td>${esc(ln.name)}</td><td colspan="9" style="color:var(--red)">non calculé (aucun bulletin)</td></tr>`;
+    const by=(f)=>ln.checks.find(c=>c.field===f)||{status:"OK",soumis:0,calcule:0};
+    const jbtn=(c)=>c.status==="ECART"&&canBAP?` <button class="btn ghost sm" style="padding:0 5px" onclick="bordAck('${s.id}','${ln.employeeId}','${c.field}')">justifier</button>`:"";
+    const C=(f)=>{ const c=by(f); return `<td class="r">${cell(c)}${jbtn(c)}</td>`; };
+    return `<tr><td>${esc(ln.name)}</td>${C('jours')}${C('hs120')}${C('hs130')}${C('hs140')}${C('nuit')}${C('acompte')}${C('pret')}${C('primes')}<td class="r">${money0(ln.net)}</td></tr>`;
+  }).join("");
+  const sumTag = ctrl.status==="CONFORME"?'<span class="tag green">Conforme</span>':'<span class="tag" style="background:#b45309;color:#fff">'+ctrl.counts.ecarts+' écart(s)</span>';
+  return `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span>${sumTag} <span class="note-inline">contrôlé le ${(ctrl.at||'').slice(0,16).replace('T',' ')}</span></span>${bapBtn}</div>
+    <div style="overflow:auto;margin-top:6px"><table style="width:100%;min-width:760px"><thead>${head}</thead><tbody>${body}</tbody>
+    <tfoot><tr><td colspan="10" class="note-inline">✓ conforme &middot; « écart » = différence entre le bordereau signé et la paie calculée &middot; « justifié » = écart validé avec motif</td></tr></tfoot></table></div>`;
+}
+function money0(n){ return Number(Math.round(n||0)).toLocaleString("fr-FR"); }
+async function bordAck(id,empId,field){
+  const reason=prompt("Motif de l'écart (obligatoire) :"); if(!reason||!reason.trim()) return;
+  try{ await api("/payroll/bordereaux/"+id+"/ack",{method:"POST",body:JSON.stringify({employeeId:empId,field,reason})}); payBordereauView(id); }catch(e){ alert(e.message); }
+}
+async function bordBAP(id){
+  if(!confirm("Signer électroniquement le « Bon à payer » ? Cette signature autorise l'édition de l'ordre de virement.")) return;
+  try{ await api("/payroll/bordereaux/"+id+"/bon-a-payer",{method:"POST"}); payBordereauView(id); }
+  catch(e){ alert(e.message); }
+}
+async function bordPdf(id){
+  try{ const r=await fetch("/api/payroll/bordereaux/"+id+"/pdf",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok){ let j={};try{j=await r.json();}catch(_){}; throw new Error(j.error||"Erreur PDF"); } const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.target="_blank"; a.click(); }catch(e){ alert(e.message); }
+}
+async function bordAudit(id){
+  const a=await api("/payroll/bordereaux/"+id+"/audit").catch(()=>null); if(!a) return;
+  const lbl={BORDEREAU_CREE:"Bordereau créé",BORDEREAU_LIGNES_MAJ:"Lignes modifiées",BORDEREAU_SOUMIS_SIGNE:"Soumis & signé (GPF)",BORDEREAU_ROUVERT:"Rouvert en brouillon",CONTROLE_EXECUTE:"Contrôle exécuté",ECART_JUSTIFIE:"Écart justifié",BON_A_PAYER_SIGNE:"Bon à payer signé",BORDEREAU_PDF_GENERE:"PDF généré"};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  const evs=(a.events||[]).map(e=>`<div style="padding:7px 0;border-bottom:1px solid var(--border)">
+    <div><b>${esc(lbl[e.action]||e.action)}</b> <span class="note-inline">${(e.at||'').slice(0,16).replace('T',' ')}</span></div>
+    <div class="note-inline">par ${esc(e.userName||'')} (${esc(e.role||'')})${e.ip?' &middot; IP '+esc(e.ip):''}${e.browser?' &middot; '+esc(e.browser)+' / '+esc(e.os):''}${e.detail&&e.detail.motif?' &middot; motif : '+esc(e.detail.motif):''}</div></div>`).join("");
+  const sigs=(a.signatures||[]).map(sg=>`<div style="padding:5px 0"><b>${sg.kind==="SOUMISSION"?"Soumission (GPF)":"Bon à payer"}</b> — ${esc(sg.name)} (${esc(sg.role)}) le ${(sg.at||'').slice(0,16).replace('T',' ')}<div class="note-inline">empreinte SHA-256 : ${esc((sg.sha256||'').slice(0,32))}…</div></div>`).join("")||'<div class="note-inline">Aucune signature.</div>';
+  bg.innerHTML=`<div class="modal" style="width:640px;max-height:80vh;overflow:auto"><h3 style="margin:0 0 8px">Journal d'audit du bordereau</h3>
+    <div style="margin-bottom:10px"><b>Signatures électroniques</b>${sigs}</div>
+    <div><b>Évènements</b>${evs||'<div class="note-inline">Aucun évènement.</div>'}</div>
+    <div style="margin-top:12px"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+
 /* ================= Paie : Livre & états (par période) ================= */
 async function payEtatsView(){
   const runs=await api("/payroll/runs").catch(()=>[]);

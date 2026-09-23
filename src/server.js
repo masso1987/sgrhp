@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - PAY-45 (paie sequentielle: ouverture mois par mois, un nouveau mois exige la cloture du precedent)";
+const BUILD_VERSION = "2026-09-24 - CTRL-46 (bordereau d-elements GPF: saisie in-app, snapshot signe, e-signature, rapprochement auto vs paie, Bon a payer CD/Audit, gate virement, audit strict)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

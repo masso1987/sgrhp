@@ -314,4 +314,4 @@ function totpDisable(req, res) {
 }
 
 module.exports = { login, logout, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive, newConfirmToken, confirmAccount,
-  totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor };
+  totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor, clientIp, parseUA };

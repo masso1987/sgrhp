@@ -51,7 +51,7 @@ function payslipSig(s) {
 }
 
 /* Ensure collections exist (defensive for older stores). */
-for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans"])
+for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans", "payElementSheets"])
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
@@ -504,6 +504,337 @@ router.delete("/elements/:id", allow("RP", "ADM", "GPF"), (req, res) => {
 function runLocked(period, req) {
   return mine(db.payRuns, req).some(r => r.period === period && r.status === "CLOSED");
 }
+
+/* =================================================================== *
+ *  BORDEREAU D'ÉLÉMENTS DE PAIE  (contrôle GPF <-> Paie)              *
+ *  - Un bordereau par client (portefeuille) et par période.          *
+ *  - Le GPF saisit dans l'app (aucun import Excel) : jours de         *
+ *    présence, heures supp., primes variables, acomptes.             *
+ *  - À la soumission : snapshot figé + signature électronique (GPF)   *
+ *    + injection des éléments variables de la période.                *
+ *  - Journal d'audit strict, en annexe (append-only).                 *
+ * =================================================================== */
+const _cryptoB = require("crypto");
+function _sheetIp(req){ try { return require("../auth").clientIp(req); } catch(e){ return ""; } }
+function _sheetUA(req){ try { return require("../auth").parseUA(req.headers["user-agent"]||""); } catch(e){ return {browser:"",os:"",device:""}; } }
+function _sha(obj){ return _cryptoB.createHash("sha256").update(typeof obj==="string"?obj:JSON.stringify(obj)).digest("hex"); }
+/** Journalise un évènement dans le flux d'audit du bordereau (append-only) + audit global. */
+function bEvent(sheet, req, action, detail){
+  const ua=_sheetUA(req);
+  const ev={ id:id("bev"), at:new Date().toISOString(), userId:req.user.id, userName:req.user.fullName||"", role:req.user.role,
+    action, detail:detail||null, ip:_sheetIp(req), browser:ua.browser, os:ua.os, device:ua.device };
+  sheet.events = sheet.events || []; sheet.events.push(ev);
+  try { audit(req.user, action, "PayElementSheet", sheet.id, Object.assign({ period:sheet.period, portfolioId:sheet.portfolioId }, detail||{})); } catch(e){}
+  return ev;
+}
+/** Signature électronique (légère mais vérifiable) : nom, rôle, horodatage, empreinte SHA-256. */
+function esign(sheet, req, kind, payloadHash){
+  const seq=(sheet.signatures||[]).length+1;
+  const sig={ kind, seq, userId:req.user.id, name:req.user.fullName||"", role:req.user.role,
+    at:new Date().toISOString(), sha256:payloadHash, ip:_sheetIp(req) };
+  sheet.signatures=sheet.signatures||[]; sheet.signatures.push(sig); return sig;
+}
+const B_STD_DAYS = (req)=> (configOf(req).standardMonthlyDays || 30);
+function empName(e){ return `${e.firstName||""} ${e.lastName||""}`.trim(); }
+/** Ligne vierge pour un employé. */
+function blankLine(e, req){
+  return { employeeId:e.id, matricule:e.matricule||e.id.slice(-6), name:empName(e),
+    category:(e.contract&&e.contract.category)||"", contrat:(e.contract&&e.contract.type)||"",
+    joursPresence:B_STD_DAYS(req), absence:0, hs120:0, hs130:0, hs140:0, hsNuit:0,
+    acompte:0, primes:[] /* {label,amount,kind:PRIME|INDEMNITE|RAPPEL|TREIZE} */ };
+}
+/** Échéance de prêt du mois pour un employé (lecture seule, depuis payLoans). */
+function loanEcheance(empId, period, req){
+  let tot=0; const detail=[];
+  for (const ln of mine(db.payLoans, req).filter(l => l.employeeId===empId && l.active!==false)){
+    const diff=periodDiff(ln.startPeriod, period);
+    if (diff>=0 && diff<ln.installments){ tot+=Number(ln.monthlyAmount)||0; detail.push({label:ln.label||"Prêt", n:diff+1, of:ln.installments, amount:Number(ln.monthlyAmount)||0}); }
+  }
+  return { total:tot, detail };
+}
+function sheetOut(sheet, req){
+  const out=Object.assign({}, sheet);
+  out.lines=(sheet.lines||[]).map(l => Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req) }));
+  const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
+  out.portfolioName=pf?pf.name:"(tous)";
+  return out;
+}
+function findSheet(req, sid){ return mine(db.payElementSheets, req).find(s=>s.id===sid); }
+function canSignBAP(req){ return ["CD","ADM","RJ"].includes(req.user.role); } // Bon à payer : CD, ADM (audit) ou RJ
+
+/* --- Liste --- */
+router.get("/bordereaux", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const { period, portfolioId } = req.query;
+  let list=mine(db.payElementSheets, req);
+  if(period) list=list.filter(s=>s.period===period);
+  if(portfolioId) list=list.filter(s=>s.portfolioId===portfolioId);
+  const pfs=mine(db.portfolios, req);
+  res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"")).map(s=>({
+    id:s.id, period:s.period, portfolioId:s.portfolioId, portfolioName:(pfs.find(p=>p.id===s.portfolioId)||{}).name||"(tous)",
+    status:s.status, lineCount:(s.lines||[]).length, submittedBy:s.submittedByName||null, submittedAt:s.submittedAt||null,
+    bapBy:s.bapByName||null, bapAt:s.bapAt||null, controlStatus:(s.control&&s.control.status)||null })));
+});
+
+/* --- Détail --- */
+router.get("/bordereaux/:id", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  res.json(sheetOut(s, req));
+});
+
+/* --- Création (un par client/période) : amorce les lignes depuis le roster du portefeuille --- */
+router.post("/bordereaux", allow("RP","ADM","GPF"), (req,res)=>{
+  const b=req.body||{}; const period=(b.period||"").trim(); const portfolioId=(b.portfolioId||"").trim();
+  if(!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({error:"Période attendue au format AAAA-MM"});
+  if(!portfolioId) return res.status(400).json({error:"Client (portefeuille) obligatoire"});
+  if(runLocked(period, req)) return res.status(409).json({error:"Période clôturée - création impossible"});
+  if(mine(db.payElementSheets, req).some(s=>s.period===period && s.portfolioId===portfolioId))
+    return res.status(409).json({error:"Un bordereau existe déjà pour ce client et cette période."});
+  const emps=mine(db.employees, req).filter(e=>(e.status||"").toUpperCase()!=="ARCHIVED" && e.portfolioId===portfolioId);
+  const s=stamp({ id:id("bord"), period, portfolioId, status:"BROUILLON",
+    lines:emps.map(e=>blankLine(e, req)), signatures:[], events:[], control:null,
+    createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
+  db.payElementSheets.push(s);
+  bEvent(s, req, "BORDEREAU_CREE", { employes:emps.length });
+  save(); res.status(201).json(sheetOut(s, req));
+});
+
+/* --- Enregistrer les lignes (brouillon) --- */
+router.put("/bordereaux/:id/lines", allow("RP","ADM","GPF"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  if(s.status!=="BROUILLON") return res.status(409).json({error:"Bordereau déjà soumis - modification impossible. Il faut le rouvrir."});
+  if(runLocked(s.period, req)) return res.status(409).json({error:"Période clôturée"});
+  const incoming=Array.isArray(req.body&&req.body.lines)?req.body.lines:[];
+  const byId={}; incoming.forEach(l=>{ if(l&&l.employeeId) byId[l.employeeId]=l; });
+  const D=B_STD_DAYS(req); const clean=(n,min,max)=>{ n=Number(n)||0; if(n<min)n=min; if(max!=null&&n>max)n=max; return n; };
+  let changes=0;
+  for(const line of s.lines){
+    const nu=byId[line.employeeId]; if(!nu) continue;
+    const before=JSON.stringify(line);
+    line.joursPresence=clean(nu.joursPresence, 0, 31);
+    line.absence=clean(nu.absence, 0, 31);
+    line.hs120=clean(nu.hs120,0,null); line.hs130=clean(nu.hs130,0,null); line.hs140=clean(nu.hs140,0,null); line.hsNuit=clean(nu.hsNuit,0,null);
+    line.acompte=clean(nu.acompte,0,null);
+    line.primes=Array.isArray(nu.primes)?nu.primes.filter(p=>p&&p.label&&Number(p.amount)>0).map(p=>({label:String(p.label).slice(0,40), amount:Math.round(Number(p.amount)), kind:["PRIME","INDEMNITE","RAPPEL","TREIZE","ROTATION"].includes(p.kind)?p.kind:"PRIME"})):[];
+    if(JSON.stringify(line)!==before) changes++;
+  }
+  bEvent(s, req, "BORDEREAU_LIGNES_MAJ", { lignesModifiees:changes });
+  save(); res.json(sheetOut(s, req));
+});
+
+/* --- Rouvrir un brouillon soumis (avant contrôle) — GPF/ADM --- */
+router.post("/bordereaux/:id/reopen", allow("GPF","ADM"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  if(s.status==="BON_A_PAYER") return res.status(409).json({error:"Bordereau validé Bon à payer - réouverture interdite."});
+  if(s.status==="BROUILLON") return res.json(sheetOut(s, req));
+  if(runLocked(s.period, req)) return res.status(409).json({error:"Période clôturée"});
+  s.status="BROUILLON"; s.control=null;
+  bEvent(s, req, "BORDEREAU_ROUVERT", { motif:(req.body&&req.body.reason)||"" });
+  save(); res.json(sheetOut(s, req));
+});
+
+/** Injecte les éléments variables de la période pour les employés du bordereau (remplace les précédents issus du bordereau). */
+function pushElementsFromSheet(s, req){
+  const empIds=new Set(s.lines.map(l=>l.employeeId));
+  db.payElements=db.payElements.filter(e=>!(empIds.has(e.employeeId) && e.period===s.period && (e.tenantId||"t1")===(s.tenantId||"t1") && e.fromBordereau));
+  const add=(rec)=>{ db.payElements.push(stamp(Object.assign({id:id("pe"), period:s.period, fromBordereau:true, bordereauId:s.id, createdBy:req.user.id, createdAt:new Date().toISOString()}, rec), req)); };
+  for(const l of s.lines){
+    add({ employeeId:l.employeeId, type:"JOURS", days:Number(l.joursPresence)||0, label:"Jours de présence" });
+    if(Number(l.absence)>0) add({ employeeId:l.employeeId, type:"ABSENCE", days:Number(l.absence), label:"Absence" });
+    if(Number(l.hs120)>0) add({ employeeId:l.employeeId, type:"HS20", hours:Number(l.hs120), label:"HS 120%" });
+    if(Number(l.hs130)>0) add({ employeeId:l.employeeId, type:"HS30", hours:Number(l.hs130), label:"HS 130%" });
+    if(Number(l.hs140)>0) add({ employeeId:l.employeeId, type:"HS40", hours:Number(l.hs140), label:"HS 140%" });
+    if(Number(l.hsNuit)>0) add({ employeeId:l.employeeId, type:"NUIT", hours:Number(l.hsNuit), label:"Heures de nuit" });
+    if(Number(l.acompte)>0) add({ employeeId:l.employeeId, type:"ACOMPTE", amount:Number(l.acompte), label:"Acompte sur salaire" });
+    for(const p of (l.primes||[])){
+      const kind=p.kind||"PRIME";
+      const type= kind==="RAPPEL"?"RAPPEL" : kind==="TREIZE"?"TREIZE" : kind==="INDEMNITE"?"INDEMNITE" : "PRIME";
+      add({ employeeId:l.employeeId, type, amount:Math.round(Number(p.amount)), label:p.label });
+    }
+  }
+}
+
+/* --- Soumettre & signer (GPF) : fige le snapshot + signe + injecte les éléments --- */
+router.post("/bordereaux/:id/submit", allow("RP","ADM","GPF"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  if(s.status!=="BROUILLON") return res.status(409).json({error:"Bordereau déjà soumis."});
+  if(runLocked(s.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(!(s.lines||[]).length) return res.status(400).json({error:"Bordereau vide - aucun employé."});
+  // snapshot figé (référence du contrôle)
+  s.snapshot=JSON.parse(JSON.stringify(s.lines));
+  s.snapshotHash=_sha(s.snapshot);
+  s.status="SOUMIS";
+  s.submittedBy=req.user.id; s.submittedByName=req.user.fullName||""; s.submittedAt=new Date().toISOString();
+  const sig=esign(s, req, "SOUMISSION", s.snapshotHash);
+  pushElementsFromSheet(s, req);
+  bEvent(s, req, "BORDEREAU_SOUMIS_SIGNE", { empreinte:s.snapshotHash.slice(0,16), signature:sig.seq, employes:s.lines.length });
+  save(); res.json(sheetOut(s, req));
+});
+
+/* --- Journal d'audit (timeline) --- */
+router.get("/bordereaux/:id/audit", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  res.json({ events:(s.events||[]).slice().reverse(), signatures:s.signatures||[], snapshotHash:s.snapshotHash||null });
+});
+/* --- PDF du bordereau (mise en page proche de l'Excel) + signatures/traçabilité --- */
+router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  const tenant=(db.tenants||[]).find(t=>(t.id)===(s.tenantId||"t1"))||{name:"Entreprise"};
+  const pf=mine(db.portfolios, req).find(p=>p.id===s.portfolioId);
+  const F=(n)=>String(Math.round(Number(n)||0)).replace(/\B(?=(\d{3})+(?!\d))/g," ");
+  const doc=new PDFDocument({ size:"A4", layout:"landscape", margin:24 });
+  const chunks=[]; doc.on("data",d=>chunks.push(d));
+  doc.on("end",()=>{ const buf=Buffer.concat(chunks);
+    res.setHeader("Content-Type","application/pdf");
+    res.setHeader("Content-Disposition",`inline; filename="Bordereau_${(pf?pf.name:"client").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
+    res.end(buf);
+  });
+  const green="#0b7a4b", ink="#111827", grey="#6b7280", line="#d1d5db";
+  const W=doc.page.width, M=24; let y=28;
+  doc.fillColor(green).font("Helvetica-Bold").fontSize(15).text(`Bordereau d'éléments de paie`, M, y);
+  doc.fillColor(ink).font("Helvetica").fontSize(10).text(tenant.name||"", M, y+2, {align:"right", width:W-2*M});
+  y+=22;
+  doc.fontSize(10).fillColor(ink)
+    .text(`Client : ${pf?pf.name:"(tous)"}     Période : ${s.period}     Statut : ${s.status}`, M, y);
+  y+=16;
+  // columns
+  const cols=[
+    {h:"N°",w:26,a:"l"},{h:"Nom",w:150,a:"l"},{h:"Contrat",w:44,a:"l"},{h:"Cat",w:30,a:"l"},
+    {h:"Prés.",w:34,a:"r"},{h:"Abs.",w:30,a:"r"},{h:"HS120",w:36,a:"r"},{h:"HS130",w:36,a:"r"},{h:"HS140",w:36,a:"r"},{h:"Nuit",w:30,a:"r"},
+    {h:"Acompte",w:56,a:"r"},{h:"Éch. prêt",w:56,a:"r"},{h:"Primes variables",w:0,a:"l"}
+  ];
+  let used=cols.reduce((a,c)=>a+c.w,0); cols[cols.length-1].w=Math.max(120, W-2*M-used);
+  const drawRow=(cells,opts)=>{
+    opts=opts||{}; let x=M; const h=opts.h||16;
+    if(opts.fill){ doc.rect(M,y,W-2*M,h).fill(opts.fill); }
+    doc.fillColor(opts.color||ink).font(opts.bold?"Helvetica-Bold":"Helvetica").fontSize(opts.size||8);
+    for(let i=0;i<cols.length;i++){ const c=cols[i];
+      doc.fillColor(opts.color||ink).text(String(cells[i]==null?"":cells[i]), x+3, y+4, {width:c.w-6, align:c.a, ellipsis:true, lineBreak:false});
+      x+=c.w;
+    }
+    doc.moveTo(M,y+h).lineTo(W-M,y+h).strokeColor(line).lineWidth(0.5).stroke();
+    y+=h;
+  };
+  drawRow(cols.map(c=>c.h), {fill:"#e6f2ec", bold:true, color:green, h:18, size:8});
+  let n=0; const tot={pres:0,acompte:0,loan:0};
+  for(const l of s.lines){ n++;
+    const loan=loanEcheance(l.employeeId, s.period, req);
+    tot.pres+=Number(l.joursPresence)||0; tot.acompte+=Number(l.acompte)||0; tot.loan+=loan.total;
+    const primes=(l.primes||[]).map(p=>`${p.label}: ${F(p.amount)}`).join("  ·  ");
+    if(y>doc.page.height-70){ doc.addPage(); y=28; drawRow(cols.map(c=>c.h), {fill:"#e6f2ec", bold:true, color:green, h:18, size:8}); }
+    drawRow([n, l.name, l.contrat||"", l.category||"", F(l.joursPresence), l.absence?F(l.absence):"", l.hs120||"", l.hs130||"", l.hs140||"", l.hsNuit||"", l.acompte?F(l.acompte):"", loan.total?F(loan.total):"", primes], {size:8});
+  }
+  drawRow(["","TOTAUX ("+n+")","","",F(tot.pres),"","","","","",F(tot.acompte),F(tot.loan),""], {bold:true, fill:"#f3f4f6", h:18});
+  y+=10;
+  // traçabilité + signatures
+  const sigSoum=(s.signatures||[]).find(x=>x.kind==="SOUMISSION");
+  const sigBap=(s.signatures||[]).find(x=>x.kind==="BON_A_PAYER");
+  doc.font("Helvetica").fontSize(8).fillColor(grey);
+  doc.text(`Créé par : ${s.createdByName||"-"}  ·  Généré/imprimé par : ${req.user.fullName||""} le ${new Date().toISOString().slice(0,16).replace("T"," ")}`, M, y); y+=12;
+  doc.fillColor(ink).font("Helvetica-Bold").fontSize(9).text("Signatures électroniques", M, y); y+=13;
+  doc.font("Helvetica").fontSize(8).fillColor(ink);
+  if(sigSoum) doc.text(`Soumis & signé (GPF) : ${sigSoum.name} (${sigSoum.role}) le ${sigSoum.at.slice(0,16).replace("T"," ")} — empreinte SHA-256 : ${(sigSoum.sha256||"").slice(0,24)}…`, M, y, {width:W-2*M});
+  else doc.fillColor(grey).text("Soumis & signé (GPF) : en attente", M, y);
+  y+=12;
+  if(sigBap) doc.fillColor(ink).text(`Bon à payer (${sigBap.role}) : ${sigBap.name} le ${sigBap.at.slice(0,16).replace("T"," ")} — empreinte SHA-256 : ${(sigBap.sha256||"").slice(0,24)}…`, M, y, {width:W-2*M});
+  else doc.fillColor(grey).text("Bon à payer : en attente (CD / Audit)", M, y);
+  y+=16;
+  doc.fillColor(grey).fontSize(7).text("Document généré par SGRHP — MBOKA Mon RH. Toute modification postérieure à la signature est tracée dans le journal d'audit.", M, y, {width:W-2*M});
+  // trace de génération
+  bEvent(s, req, "BORDEREAU_PDF_GENERE", {}); save();
+  doc.end();
+});
+/* --- Rapprochement automatique : snapshot signé (GPF) vs paie calculée --- */
+function buildControl(s, req){
+  const run=mine(db.payRuns, req).slice().sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")).find(r=>r.period===s.period);
+  const slips = run ? mine(db.payslips, req).filter(x=>x.runId===run.id) : [];
+  const slipByEmp={}; slips.forEach(x=>{ slipByEmp[x.employeeId]=x; });
+  const ref = s.snapshot || s.lines || [];
+  const acks = (s.control&&s.control.acks) || [];
+  const ackOf=(emp,field)=> acks.find(a=>a.employeeId===emp&&a.field===field);
+  const cmp=(emp,field,label,soumis,calcule)=>{
+    soumis=Math.round(Number(soumis)||0); calcule=Math.round(Number(calcule)||0);
+    const st = soumis===calcule ? "OK" : "ECART";
+    const a = st==="ECART" ? ackOf(emp,field) : null;
+    return { field, label, soumis, calcule, delta:calcule-soumis, status:(st==="ECART"&&a)?"ACK":st, reason:a?a.reason:null };
+  };
+  let ecarts=0, nonCalcule=0; const lines=[];
+  for(const l of ref){
+    const sl=slipByEmp[l.employeeId];
+    if(!sl){ nonCalcule++; lines.push({ employeeId:l.employeeId, name:l.name, status:"NON_CALCULE", checks:[] }); continue; }
+    const inp=sl.input||{}; const ot=inp.overtime||{};
+    const od=(inp.otherDeductions||[]);
+    const sumOD=(code)=> od.filter(d=>String(d.code)===code).reduce((a,d)=>a+(Number(d.amount)||0),0);
+    const loan=loanEcheance(l.employeeId, s.period, req).total;
+    const primesSoumis=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
+    // Primes calculées = éléments variables réellement injectés (fromBordereau) pour cet employé/période.
+    const primeTypes=new Set(["PRIME","RAPPEL","TREIZE","INDEMNITE"]);
+    const gainsFromEls=mine(db.payElements, req)
+      .filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && primeTypes.has(e.type))
+      .reduce((a,e)=>a+(Number(e.amount)||0),0);
+    const checks=[
+      cmp(l.employeeId,"jours","Jours de présence", l.joursPresence, inp.workedDays),
+      cmp(l.employeeId,"hs120","HS 120%", l.hs120, ot.tier1),
+      cmp(l.employeeId,"hs130","HS 130%", l.hs130, ot.tier2),
+      cmp(l.employeeId,"hs140","HS 140%", l.hs140, ot.tier3),
+      cmp(l.employeeId,"nuit","Heures de nuit", l.hsNuit, ot.night),
+      cmp(l.employeeId,"acompte","Acompte", l.acompte, sumOD("7000")),
+      cmp(l.employeeId,"pret","Échéance prêt", loan, sumOD("7010")),
+      cmp(l.employeeId,"primes","Primes variables (total)", primesSoumis, gainsFromEls),
+    ];
+    const lineEcarts=checks.filter(c=>c.status==="ECART").length;
+    ecarts+=lineEcarts;
+    lines.push({ employeeId:l.employeeId, name:l.name, net:sl.result&&sl.result.totals?sl.result.totals.netAPayer:0,
+      status: lineEcarts>0?"ECART":(checks.some(c=>c.status==="ACK")?"ACK":"OK"), checks });
+  }
+  const openEcarts=lines.reduce((a,ln)=>a+ln.checks.filter(c=>c.status==="ECART").length,0);
+  return { at:new Date().toISOString(), runId:run?run.id:null, computed:!!run&&slips.length>0,
+    status: (!run||!slips.length)?"NON_CALCULE" : (openEcarts>0?"ECARTS":"CONFORME"),
+    counts:{ lignes:lines.length, ecarts:openEcarts, nonCalcule }, acks, lines };
+}
+
+router.post("/bordereaux/:id/control", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  if(s.status==="BROUILLON") return res.status(409).json({error:"Bordereau non soumis - rien à contrôler."});
+  const prevAcks=(s.control&&s.control.acks)||[];
+  s.control=buildControl(s, req); s.control.acks=prevAcks;
+  s.control=buildControl(s, req); // rebuild with acks applied
+  if(s.status==="SOUMIS") s.status="CONTROLE";
+  bEvent(s, req, "CONTROLE_EXECUTE", { statut:s.control.status, ecarts:s.control.counts.ecarts, nonCalcule:s.control.counts.nonCalcule });
+  save(); res.json(sheetOut(s, req));
+});
+
+/* --- Justifier un écart (motif obligatoire) --- */
+router.post("/bordereaux/:id/ack", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  const { employeeId, field, reason } = req.body||{};
+  if(!employeeId||!field||!String(reason||"").trim()) return res.status(400).json({error:"employeeId, field et motif obligatoires"});
+  s.control=s.control||buildControl(s, req); s.control.acks=s.control.acks||[];
+  s.control.acks=s.control.acks.filter(a=>!(a.employeeId===employeeId&&a.field===field));
+  s.control.acks.push({ employeeId, field, reason:String(reason).slice(0,240), by:req.user.fullName||"", role:req.user.role, at:new Date().toISOString() });
+  s.control=buildControl(s, req);
+  bEvent(s, req, "ECART_JUSTIFIE", { employeeId, field, motif:String(reason).slice(0,120) });
+  save(); res.json(sheetOut(s, req));
+});
+
+/* --- Bon à payer (CD / Audit) : signature + contrôle de séparation des tâches --- */
+router.post("/bordereaux/:id/bon-a-payer", allow("CD","ADM","RJ"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  if(s.status==="BROUILLON") return res.status(409).json({error:"Bordereau non soumis."});
+  if(s.status==="BON_A_PAYER") return res.status(409).json({error:"Déjà validé Bon à payer."});
+  if(s.submittedBy===req.user.id) return res.status(403).json({error:"Séparation des tâches : le signataire du Bon à payer doit être différent du GPF qui a soumis le bordereau."});
+  s.control=buildControl(s, req);
+  if(!s.control.computed) return res.status(409).json({error:"La paie n'est pas encore calculée pour cette période."});
+  const unjustified=[];
+  for(const ln of s.control.lines) for(const c of ln.checks) if(c.status==="ECART") unjustified.push(`${ln.name} · ${c.label}`);
+  if(unjustified.length) return res.status(409).json({error:`Écarts non justifiés (${unjustified.length}) : ${unjustified.slice(0,5).join(" ; ")}${unjustified.length>5?" …":""}. Justifiez chaque écart avant de signer.`, unjustified});
+  const payload=_sha({snapshot:s.snapshot, control:s.control.lines});
+  s.status="BON_A_PAYER"; s.bapBy=req.user.id; s.bapByName=req.user.fullName||""; s.bapAt=new Date().toISOString();
+  const sig=esign(s, req, "BON_A_PAYER", payload);
+  bEvent(s, req, "BON_A_PAYER_SIGNE", { signataire:req.user.fullName||"", role:req.user.role, signature:sig.seq, empreinte:payload.slice(0,16) });
+  save(); res.json(sheetOut(s, req));
+});
+
+
 
 /* ============================ RUNS ============================= */
 router.get("/runs", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
@@ -1685,6 +2016,14 @@ router.get("/runs/:id/virement", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, re
   if (!canRunPayroll(req)) return res.status(403).json({ error: "Non autorisé" });
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  // Contrôle GPF <-> Paie : si des bordereaux existent pour la période, ils doivent tous être « Bon à payer ».
+  const periodSheets = mine(db.payElementSheets, req).filter(sh => sh.period === run.period);
+  const pending = periodSheets.filter(sh => sh.status !== "BON_A_PAYER");
+  if (periodSheets.length && pending.length) {
+    const pfs = mine(db.portfolios, req);
+    const names = pending.map(sh => (pfs.find(p => p.id === sh.portfolioId) || {}).name || "(client)");
+    return res.status(409).json({ error: `Ordre de virement bloqué : ${pending.length} bordereau(x) en attente de « Bon à payer » (${names.slice(0,5).join(", ")}${names.length>5?"…":""}). Faites signer le Bon à payer (CD/Audit) avant d'éditer le virement.` });
+  }
   const rows = [["Matricule", "Bénéficiaire", "Nom banque", "Code banque", "Code guichet", "N° de compte", "Clé RIB", "RIB complet", "Montant net", "Devise", "Motif"]];
   let total = 0;
   for (const s2 of mine(db.payslips, req).filter(x => x.runId === run.id)) {
