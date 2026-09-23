@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - TPL-41 (Studio de modeles: correctif upload EACCES, refonte UI, +6 modeles fournis AVI/STC/Avenant/Certificat/Avertissement/Conge)";
+const BUILD_VERSION = "2026-09-24 - SEC-42 (inactivite 2h + configurable SADM, historique connexions ADM/SADM avec appareil-IP-localisation, modeles: edition + apercu)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -157,6 +157,7 @@ app.get("/health", (req, res) => {
 app.use("/api", apiLimiter);
 app.use("/api", authenticate);
 app.get("/api/me", require("./auth").me);
+app.post("/api/logout", authenticate, require("./auth").logout);
 app.post("/api/me/password", require("./auth").changePassword);
 app.post("/api/me/2fa/disable", require("./auth").totpDisable);
 app.use("/api/employees", require("./routes/employees"));

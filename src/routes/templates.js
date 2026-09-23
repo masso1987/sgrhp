@@ -35,6 +35,17 @@ router.post("/", allow("ADM"), upload.single("file"), (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ADM edits a template's name / process type
+router.put("/:id", allow("ADM"), (req, res) => {
+  const t = mine(db.templates, req).find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Modèle introuvable" });
+  const b = req.body || {};
+  if (b.name !== undefined && String(b.name).trim()) t.name = String(b.name).trim();
+  if (b.docType !== undefined && String(b.docType).trim()) t.docType = String(b.docType).trim();
+  save(); audit(req.user, "UPDATED", "Template", t.id, { name: t.name, docType: t.docType });
+  res.json(t);
+});
+
 // ADM deletes a template (removes the uploaded file; bundled seed files are left on disk)
 router.delete("/:id", allow("ADM"), (req, res) => {
   const t = mine(db.templates, req).find(x => x.id === req.params.id);
@@ -64,6 +75,18 @@ module.exports = router;
  */
 const fs = require("fs");
 const PizZip = require("pizzip");
+
+router.get("/:id/preview", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  const t = mine(db.templates, req).find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Modèle introuvable" });
+  try {
+    const zip = new PizZip(fs.readFileSync(engine.tplPath(t.storedAs)));
+    const xml = zip.file("word/document.xml").asText();
+    const paras = (xml.match(/<w:p\b[\s\S]*?<\/w:p>/g) || []).map(p =>
+      [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).join("")).filter(x => x.trim());
+    res.json({ name: t.name, docType: t.docType, tags: t.tags, text: paras.join("\n").slice(0, 14000) });
+  } catch (e) { res.status(500).json({ error: "Aperçu indisponible (" + e.message + ")" }); }
+});
 
 router.post("/raw", allow("ADM"), upload.single("file"), (req, res, next) => {
   try {

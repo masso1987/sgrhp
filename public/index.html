@@ -1029,7 +1029,7 @@ function watchI18n() {
 let TOKEN = sessionStorage.getItem("t") || localStorage.getItem("t"), ME = JSON.parse(sessionStorage.getItem("me") || localStorage.getItem("me") || "null");
 
 /* ================= Auto-déconnexion pour inactivité ================= */
-let IDLE_MIN = 30, _idleTimer = null;
+let IDLE_MIN = 120, _idleTimer = null;
 function armIdle(mins) {
   IDLE_MIN = mins || IDLE_MIN;
   const reset = () => {
@@ -1142,7 +1142,7 @@ async function confirm2fa() {
     lTotp.focus();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
 }
-function logout() { sessionStorage.clear(); localStorage.removeItem("t"); localStorage.removeItem("me"); TOKEN = null; ME = null; location.href = "/"; }
+function logout() { try { if (TOKEN) fetch("/api/logout", { method: "POST", headers: { Authorization: "Bearer " + TOKEN }, keepalive: true }); } catch (e) {} sessionStorage.clear(); localStorage.removeItem("t"); localStorage.removeItem("me"); TOKEN = null; ME = null; setTimeout(function(){ location.href = "/"; }, 120); }
 
 const NAV = [
   { k: "plathome", label: "Console plateforme", roles: ["SADM"], grp: "plateforme" },
@@ -1151,6 +1151,7 @@ const NAV = [
   { k: "pricing", label: "Tarifs & paiements", roles: ["SADM"], grp: "plateforme" },
   { k: "legal", label: "Mentions légales", roles: ["SADM"], grp: "plateforme" },
   { k: "superadmins", label: "Admins plateforme", roles: ["SADM"], grp: "plateforme" },
+  { k: "logins", label: "Connexions plateforme", roles: ["SADM"], grp: "plateforme" },
 
   { k: "dash", label: "Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "employees", label: "Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
@@ -1265,6 +1266,7 @@ const NAV = [
   { k: "mailtpl", label: "Notifications email", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "workflows", label: "Circuits de validation", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "users", label: "Utilisateurs", sec: "Sécurité & accès", roles: ["ADM"], grp: "admin" },
+  { k: "logins", label: "Connexions & sécurité", sec: "Sécurité & accès", roles: ["ADM"], grp: "admin" },
 ];
 const NAV_GROUPS = [
   { g: "principal", label: "Principal" },
@@ -1295,8 +1297,8 @@ async function boot() {
     ME.smqManager = !!meFull.smqManager;
     ME.tenantName = meFull.tenantName || "";
     sessionStorage.setItem("me", JSON.stringify(ME));
-    armIdle(meFull.idleMinutes || 30);
-  } catch { armIdle(30); }
+    armIdle(meFull.idleMinutes || 120);
+  } catch { armIdle(120); }
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} - ${ME.role}`;
   // Le sous-titre de la barre reflète le contexte connecté : société du tenant, ou « Plateforme » pour le super-admin.
@@ -1441,7 +1443,7 @@ function go(k) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
+  ({ employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none }[k] || none)();
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -2525,7 +2527,7 @@ async function templatesView() {
       <td><span class="tag" style="background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-size:11px">${esc(({ATTESTATION:'Attestation',CERTIFICAT:'Certificat',AVENANT:'Avenant',SOLDE_TOUT_COMPTE:'Solde de tout compte',DECISION_CONGE:'Décision de congé',AVERTISSEMENT:'Avertissement',CONTRACT:'Contrat',OTHER:'Autre'})[t.docType]||t.docType||'-')}</span></td>
       <td style="max-width:380px">${(t.tags||[]).map(x=>`<span class="tpl-chip">${esc(x)}</span>`).join(" ")}</td>
       <td style="white-space:nowrap">${(t.uploadedAt||'').slice(0,10)}</td>
-      <td><button class="btn ghost sm" onclick="tplDelete('${t.id}')">Supprimer</button></td></tr>`).join("")||'<tr><td colspan="5" class="note-inline">Aucun modèle.</td></tr>'}</table></div>
+      <td style="white-space:nowrap"><button class="btn ghost sm" onclick="tplPreview('${t.id}')">Aperçu</button> <button class="btn ghost sm" onclick="tplEdit('${t.id}')">Éditer</button> <button class="btn ghost sm" onclick="tplDelete('${t.id}')">Supprimer</button></td></tr>`).join("")||'<tr><td colspan="5" class="note-inline">Aucun modèle.</td></tr>'}</table></div>
 
   <div class="grid2">
   <div class="panel"><b>Éléments de salaire → rubriques Paie</b>
@@ -2934,6 +2936,39 @@ async function tplDelete(id) {
   if (!confirm("Supprimer ce modèle ?")) return;
   try { await api("/templates/" + id, { method: "DELETE" }); templatesView(); }
   catch (e) { alert(e.message); }
+}
+async function tplEdit(id) {
+  let t; try { t = (await api("/templates")).find(x => x.id === id); } catch (e) { alert(e.message); return; }
+  if (!t) return;
+  const TYPES = [["ATTESTATION","Attestation"],["CERTIFICAT","Certificat de travail"],["AVENANT","Avenant / Renouvellement"],["SOLDE_TOUT_COMPTE","Solde de tout compte"],["DECISION_CONGE","Décision de congé"],["AVERTISSEMENT","Avertissement"],["CONTRACT","Contrat"],["OTHER","Autre"]];
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="width:460px"><h3 style="margin:0 0 10px">Éditer le modèle</h3>
+    <label>Nom du modèle</label><input id="teName" value="${esc(t.name)}" style="margin:0 0 10px">
+    <label>Type / processus</label><select id="teType" style="margin:0 0 8px">${TYPES.map(x=>`<option value="${x[0]}" ${t.docType===x[0]?'selected':''}>${esc(x[1])}</option>`).join("")}</select>
+    <div class="note-inline" style="margin:2px 0 10px">Variables détectées : ${(t.tags||[]).map(x=>`<span class="tpl-chip">${esc(x)}</span>`).join(" ")||"aucune"}. Pour re-baliser le contenu, utilisez le Studio.</div>
+    <div class="err hidden" id="teErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p" onclick="tplEditSave('${id}')">Enregistrer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function tplPreview(id) {
+  let d; try { d = await api("/templates/" + id + "/preview"); } catch (e) { alert(e.message); return; }
+  const html = esc(d.text || "").replace(/\n/g, "<br>").replace(/\{\{\s*([\w.]+)\s*\}\}/g, '<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:0 3px;font-weight:600">{{$1}}</span>');
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal" style="width:720px;max-height:86vh;display:flex;flex-direction:column">
+    <h3 style="margin:0 0 4px">${esc(d.name)}</h3>
+    <div class="note-inline" style="margin-bottom:8px">Aperçu du modèle - les <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:0 3px">{{variables}}</span> seront remplacées à la génération.</div>
+    <div style="flex:1;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:13px;line-height:1.6;background:#fff">${html || '<span class="note-inline">Document vide.</span>'}</div>
+    <div style="margin-top:8px">${(d.tags||[]).map(x=>`<span class="tpl-chip">${esc(x)}</span>`).join(" ")}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function tplEditSave(id) {
+  const name = (document.getElementById("teName")||{}).value, docType = (document.getElementById("teType")||{}).value;
+  try { await api("/templates/" + id, { method: "PUT", body: JSON.stringify({ name, docType }) });
+    const bgm = document.querySelector(".modal-bg"); if (bgm) bgm.remove(); templatesView(); }
+  catch (e) { const el = document.getElementById("teErr"); if (el) { el.textContent = e.message; el.classList.remove("hidden"); } else alert(e.message); }
 }
 async function selAdd() {
   try { await api("/config/salary-elements", { method: "POST", body: JSON.stringify({ name: selName.value, tag: selTag.value, rubriqueCode: (typeof selRub!=="undefined"?selRub.value:"") }) }); templatesView(); }
@@ -4012,10 +4047,54 @@ async function platformHomeView(){
 }
 
 /* ================= Plateforme : administrateurs (SADM) ================= */
+/* ================= Historique des connexions & sécurité ================= */
+function fmtAgo(iso){ if(!iso) return ""; const d=new Date(iso), s=Math.floor((Date.now()-d)/1000);
+  if(s<60) return "à l'instant"; if(s<3600) return "il y a "+Math.floor(s/60)+" min"; if(s<86400) return "il y a "+Math.floor(s/3600)+" h";
+  if(s<172800) return "hier à "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}); if(s<604800) return "il y a "+Math.floor(s/86400)+" jours";
+  return "le "+d.toLocaleDateString("fr-FR"); }
+function fmtDur(ms){ if(ms==null) return "—"; const s=Math.floor(ms/1000); if(s<60) return s+" s"; const m=Math.floor(s/60); if(m<60) return m+" min"; const h=Math.floor(m/60); return h+" h "+(m%60)+" min"; }
+const _ROLE_LBL={GPF:"Gestionnaire",CD:"Chef de département",RJ:"Responsable juridique",UI:"Utilisateur",RQ:"Responsable qualité",RC:"Comptable",RS:"Gestion stock",RP:"Gestion paie",ADM:"Administrateur",SADM:"Super-administrateur"};
+function _devIcon(dv){ const p=(c)=>_SVG(c); return dv==="Téléphone"?p('<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>'):dv==="Tablette"?p('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M11 18h2"/>'):p('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'); }
+async function loginsView(){
+  view.innerHTML='<h1 style="margin:0 0 8px">Historique des connexions</h1><div class="panel">Chargement…</div>';
+  let d; try{ d=await api("/audit/logins"); }catch(e){ view.innerHTML='<div class="adm-wrap"><h1>Historique des connexions</h1><div class="panel">'+esc(e.message)+'</div></div>'; return; }
+  const sadm=d.scope==="platform"; const rows=d.rows||[]; const st=d.stats||{};
+  const status=(r)=> r.active?'<span class="tag green">● Session active</span>': r.endReason==="idle"?'<span class="tag amber">Expirée (inactivité)</span>':'<span class="tag gray">Terminée</span>';
+  const loc=(r)=>{ const l=[r.city,r.country].filter(Boolean).join(", "); return l||"Localisation inconnue"; };
+  const line=(r)=>{
+    const who=`<b>${esc(r.userName||"?")}</b> <span class="note-inline">${esc(_ROLE_LBL[r.role]||r.role||"")}</span>`;
+    const dev=`<span style="display:inline-flex;align-items:center;gap:6px"><span style="color:var(--muted);display:inline-flex">${_devIcon(r.device)}</span>${esc(r.device||"Appareil")} · ${esc(r.browser||"")} <span class="note-inline">sur ${esc(r.os||"")}</span></span>`;
+    return `<tr>
+      <td>${who}</td>
+      <td><div>${esc(new Date(r.at).toLocaleString("fr-FR"))}</div><div class="note-inline">${fmtAgo(r.at)}</div></td>
+      <td>${dev}</td>
+      <td>${fmtDur(r.durationMs)}</td>
+      ${sadm?`<td><code>${esc(r.ip||"—")}</code></td><td>${esc(loc(r))}</td>`:''}
+      <td>${status(r)}</td></tr>`;
+  };
+  const kc=(l,v,s)=>`<div class="adm-kc"><div class="l">${l}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+  view.innerHTML=`<div class="adm-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Historique des connexions</h1>
+      <button class="btn ghost sm" onclick="loginsView()">Actualiser</button></div>
+    <div class="note" style="margin:6px 0 12px">${sadm?"Vue plateforme : toutes les organisations, avec appareil, adresse IP et localisation approximative.":"Connexions des utilisateurs de votre organisation : appareil, navigateur et durée de session."}</div>
+    <div class="adm-kpi">
+      ${kc("Connexions récentes", st.total||0, "affichées (max 400)")}
+      ${kc("Sessions actives", st.active||0, "en ce moment")}
+      ${kc("Utilisateurs", st.users||0, "distincts")}
+    </div>
+    <div class="panel" style="overflow-x:auto"><table>
+      <tr><th>Utilisateur</th><th>Connexion</th><th>Appareil</th><th>Durée</th>${sadm?'<th>Adresse IP</th><th>Localisation</th>':''}<th>Statut</th></tr>
+      ${rows.length?rows.map(line).join(""):`<tr><td colspan="${sadm?7:5}" class="note-inline">Aucune connexion enregistrée pour l'instant.</td></tr>`}
+    </table></div>
+    ${sadm?'<div class="note-inline" style="margin-top:6px">La localisation est approximative (basée sur l\'adresse IP publique) et peut être absente pour les réseaux privés.</div>':''}
+  </div>`;
+}
+
 async function superadminsView(){
   let list;
   try{ list=await api("/tenants/superadmins/list"); }
   catch(e){ view.innerHTML='<h1>Administrateurs plateforme</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  let sec={idleTimeoutMinutes:120,sessionHours:8}; try{ sec=await api("/tenants/platform-security"); }catch(e){}
   const rows=list.map(u=>`<tr>
       <td><b>${esc(u.fullName)}</b>${u.self?' <span class="note">(vous)</span>':''}</td>
       <td>${esc(u.email)}</td>
@@ -4031,6 +4110,14 @@ async function superadminsView(){
       <b>Super-administrateurs (${list.length})</b>
       <table style="margin-top:8px"><tr><th>Nom</th><th>Email</th><th>2FA</th><th>Statut</th><th></th></tr>${rows}</table>
     </div>
+    <div class="panel" style="margin-bottom:12px"><b>Sécurité & session (plateforme)</b>
+      <div class="note" style="margin:4px 0 8px">S'applique à toutes les organisations. Déconnexion automatique après inactivité et durée maximale d'une session.</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:end">
+        <div><label>Déconnexion après inactivité (minutes)</label><input id="secIdle" type="number" min="5" max="1440" value="${sec.idleTimeoutMinutes}" style="max-width:170px"></div>
+        <div><label>Durée maximale de session (heures)</label><input id="secSession" type="number" min="1" max="72" value="${sec.sessionHours}" style="max-width:170px"></div>
+        <button class="btn p" onclick="saSecuritySave()">Enregistrer</button>
+        <span class="note-inline" style="align-self:center">Par défaut : 120 min d'inactivité.</span>
+      </div><div class="err hidden" id="secErr" style="margin-top:6px"></div></div>
     <div class="grid2">
       <div class="panel"><b>Créer un super-admin</b>
         <label>Nom complet</label><input id="saName" placeholder="Ex. MASSO FERDINE">
@@ -4046,6 +4133,14 @@ async function superadminsView(){
         <div style="margin-top:10px"><button class="btn p" onclick="saPromote()">Promouvoir en super-admin</button></div>
       </div>
     </div>`;
+}
+async function saSecuritySave(){
+  const idleTimeoutMinutes=Number((document.getElementById("secIdle")||{}).value);
+  const sessionHours=Number((document.getElementById("secSession")||{}).value);
+  const el=document.getElementById("secErr");
+  try{ await api("/tenants/platform-security",{method:"PUT",body:JSON.stringify({idleTimeoutMinutes,sessionHours})});
+    if(el){ el.textContent="Enregistré. Les nouveaux délais s'appliquent aux prochaines connexions."; el.className="note"; el.classList.remove("hidden"); } }
+  catch(e){ if(el){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); } }
 }
 async function saCreate(){
   const g=id=>document.getElementById(id);

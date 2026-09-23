@@ -8,7 +8,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
-const { db, save } = require("./store");
+const { db, save, id } = require("./store");
 const { audit } = require("./audit");
 
 const SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
@@ -22,10 +22,10 @@ function policy() {
     require2faForAdmins: s.require2faForAdmins !== undefined ? s.require2faForAdmins
       : (process.env.ENFORCE_2FA === "true" || process.env.NODE_ENV === "production"),
     require2faForAll: !!s.require2faForAll,
-    sessionHours: s.sessionHours || Number(String(TOKEN_TTL).replace("h", "")) || 8,
+    sessionHours: (db.platform && db.platform.sessionHours) || s.sessionHours || Number(String(TOKEN_TTL).replace("h", "")) || 8,
     maxFailed: s.maxFailedLogins || MAX_FAILED,
     lockMinutes: s.lockoutMinutes || LOCK_MINUTES,
-    idleMinutes: s.idleTimeoutMinutes || 30,
+    idleMinutes: (db.platform && db.platform.idleTimeoutMinutes) || s.idleTimeoutMinutes || 120,
   };
 }
 
@@ -34,6 +34,77 @@ const lastSeen = new Map();
 function touchActivity(userId) { lastSeen.set(userId, Date.now()); }
 /* Presence sans WebSocket : actif si une requête a eu lieu récemment. */
 function isRecentlyActive(userId, windowMs) { const t = lastSeen.get(userId); return !!t && (Date.now() - t) < (windowMs || 70000); }
+
+/* ---------- Journal des connexions (IP, appareil, localisation) ---------- */
+function clientIp(req) {
+  let ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || (req.socket && req.socket.remoteAddress) || req.ip || "";
+  return String(ip).replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+}
+function parseUA(ua) {
+  ua = String(ua || "");
+  let browser = "Navigateur inconnu";
+  if (/Edg\//.test(ua)) browser = "Microsoft Edge";
+  else if (/OPR\/|Opera/.test(ua)) browser = "Opera";
+  else if (/SamsungBrowser/.test(ua)) browser = "Samsung Internet";
+  else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = "Google Chrome";
+  else if (/Firefox\//.test(ua)) browser = "Mozilla Firefox";
+  else if (/Version\/.*Safari/.test(ua)) browser = "Safari";
+  let os = "Système inconnu";
+  if (/Windows NT 10/.test(ua)) os = "Windows 10/11";
+  else if (/Windows NT/.test(ua)) os = "Windows";
+  else if (/Android[ /]?([\d.]+)?/.test(ua)) os = "Android" + (RegExp.$1 ? " " + RegExp.$1 : "");
+  else if (/iPhone|iPad|iPod/.test(ua)) os = "iOS";
+  else if (/Mac OS X/.test(ua)) os = "macOS";
+  else if (/Linux/.test(ua)) os = "Linux";
+  let device = "Ordinateur";
+  if (/iPad|Tablet/.test(ua)) device = "Tablette";
+  else if (/Mobile|iPhone|Android.*Mobile/.test(ua)) device = "Téléphone";
+  return { browser, os, device };
+}
+const _geoCache = new Map();
+function _isPublicIp(ip) {
+  if (!ip) return false;
+  if (/^127\.|^10\.|^192\.168\.|^169\.254\.|^::1$|^fc|^fe80/.test(ip)) return false;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return false;
+  return true;
+}
+async function geoLookup(ip) {
+  if (!_isPublicIp(ip) || typeof fetch !== "function") return null;
+  if (_geoCache.has(ip)) return _geoCache.get(ip);
+  try {
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 1800);
+    const r = await fetch("http://ip-api.com/json/" + encodeURIComponent(ip) + "?fields=status,country,regionName,city", { signal: ctl.signal });
+    clearTimeout(to);
+    const j = await r.json();
+    const g = (j && j.status === "success") ? { country: j.country || "", region: j.regionName || "", city: j.city || "" } : null;
+    _geoCache.set(ip, g); return g;
+  } catch (e) { _geoCache.set(ip, null); return null; }
+}
+function recordLogin(user, req) {
+  const ip = clientIp(req), ua = req.headers["user-agent"] || "", p = parseUA(ua);
+  const sess = { id: id("lgn"), userId: user.id, userName: user.fullName, email: user.email, role: user.role,
+    tenantId: user.tenantId || "t1", at: new Date().toISOString(), ip, userAgent: ua,
+    browser: p.browser, os: p.os, device: p.device, country: "", region: "", city: "",
+    logoutAt: null, durationMs: null, endReason: null };
+  db.loginSessions.push(sess);
+  if (db.loginSessions.length > 6000) db.loginSessions.splice(0, db.loginSessions.length - 6000);
+  save();
+  geoLookup(ip).then(g => { if (g) { sess.country = g.country; sess.region = g.region; sess.city = g.city; try { save(); } catch (e) {} } }).catch(() => {});
+  return sess;
+}
+function closeLoginSession(userId, reason) {
+  const list = db.loginSessions || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].userId === userId && !list[i].logoutAt) {
+      list[i].logoutAt = new Date().toISOString();
+      list[i].durationMs = Date.now() - new Date(list[i].at).getTime();
+      list[i].endReason = reason || "logout";
+      try { save(); } catch (e) {}
+      return;
+    }
+  }
+}
+function logout(req, res) { try { closeLoginSession(req.user.id, "logout"); } catch (e) {} res.json({ ok: true }); }
 function twoFaRequiredFor(user) {
   const p = policy();
   return user.totpEnabled || p.require2faForAll || (p.require2faForAdmins && user.role === "ADM");
@@ -127,6 +198,7 @@ function login(req, res) {
   const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: user.tenantId || "t1" },
     SECRET, { expiresIn: `${policy().sessionHours}h` });
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" }, "LOGIN", "User", user.id, {});
+  try { recordLogin(user, req); } catch (e) {}
   touchActivity(user.id);
   res.json({ token, idleMinutes: policy().idleMinutes,
     user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });
@@ -143,6 +215,7 @@ function authenticate(req, res, next) {
     const prev = lastSeen.get(req.user.id);
     if (prev && Date.now() - prev > idleMs) {
       lastSeen.delete(req.user.id);
+      try { closeLoginSession(req.user.id, "idle"); } catch (e) {}
       return res.status(401).json({ error: "Session expirée pour inactivité - reconnectez-vous", idle: true });
     }
     lastSeen.set(req.user.id, Date.now());
@@ -240,5 +313,5 @@ function totpDisable(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { login, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive, newConfirmToken, confirmAccount,
+module.exports = { login, logout, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive, newConfirmToken, confirmAccount,
   totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor };

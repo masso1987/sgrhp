@@ -97,9 +97,18 @@ function platformCfg() {
     try { save(); } catch (e) {}
   }
   if (db.platform.appLogo === undefined) db.platform.appLogo = "";
+  if (db.platform.idleTimeoutMinutes === undefined) db.platform.idleTimeoutMinutes = 120;
+  if (db.platform.sessionHours === undefined) db.platform.sessionHours = 8;
   return db.platform;
 }
 router.get("/platform-branding", allow("SADM"), (req, res) => { const p = platformCfg(); res.json({ appName: p.appName, appLogo: p.appLogo || "" }); });
+router.get("/platform-security", allow("SADM"), (req, res) => { const p = platformCfg(); res.json({ idleTimeoutMinutes: p.idleTimeoutMinutes || 120, sessionHours: p.sessionHours || 8 }); });
+router.put("/platform-security", allow("SADM"), (req, res) => {
+  const p = platformCfg(); const b = req.body || {};
+  if (b.idleTimeoutMinutes !== undefined) { const v = Number(b.idleTimeoutMinutes); if (!(v >= 5 && v <= 1440)) return res.status(400).json({ error: "Le délai d'inactivité doit être compris entre 5 et 1440 minutes." }); p.idleTimeoutMinutes = v; }
+  if (b.sessionHours !== undefined) { const v = Number(b.sessionHours); if (!(v >= 1 && v <= 72)) return res.status(400).json({ error: "La durée de session doit être comprise entre 1 et 72 heures." }); p.sessionHours = v; }
+  save(); res.json({ idleTimeoutMinutes: p.idleTimeoutMinutes, sessionHours: p.sessionHours });
+});
 router.put("/platform-branding", allow("SADM"), (req, res) => {
   const p = platformCfg(); const b = req.body || {};
   if (b.appName !== undefined) p.appName = String(b.appName).slice(0, 40) || "SGRHP";

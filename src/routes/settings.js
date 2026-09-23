@@ -17,7 +17,7 @@ const DEFAULTS = {
     sessionHours: 8,
     maxFailedLogins: 5,
     lockoutMinutes: 15,
-    idleTimeoutMinutes: 30,
+    idleTimeoutMinutes: 120,
   },
   email: {
     enabled: false, provider: "smtp", from: "SGRHP <no-reply@cible-rh.ci>",
