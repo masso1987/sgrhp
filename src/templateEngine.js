@@ -12,6 +12,16 @@ const Docxtemplater = require("docxtemplater");
 const { db } = require("./store");
 
 const TPL_DIR = path.join(__dirname, "..", "templates");
+// Répertoire INSCRIPTIBLE pour les modèles téléversés (le dossier bundlé /app/templates
+// est monté en lecture seule dans Docker). On écrit dans le volume persistant "uploads".
+const TPL_WRITE_DIR = process.env.TEMPLATES_DIR || path.join(__dirname, "..", "uploads", "templates");
+try { fs.mkdirSync(TPL_WRITE_DIR, { recursive: true }); } catch (e) {}
+/** Chemin d'un modèle : priorité au dossier inscriptible, sinon dossier bundlé (seed). */
+function tplPath(storedAs) {
+  const w = path.join(TPL_WRITE_DIR, storedAs);
+  if (fs.existsSync(w)) return w;
+  return path.join(TPL_DIR, storedAs);
+}
 
 /** Output formatting: ISO dates -> DD/MM/YYYY, plain numbers -> thousands spacing. */
 function fmtValue(v) {
@@ -21,7 +31,7 @@ function fmtValue(v) {
   if (/^\d{4,9}$/.test(s)) return Number(s).toLocaleString("fr-FR").replace(/\u202f|,/g, " ");
   return s;
 }
-fs.mkdirSync(TPL_DIR, { recursive: true });
+try { fs.mkdirSync(TPL_DIR, { recursive: true }); } catch (e) {}
 
 /** Scan a .docx for {{tags}} */
 function scanTags(filePath) {
@@ -46,6 +56,7 @@ function autoContext(employeeId) {
     employee_maritalStatus: e.maritalStatus, employee_residence: e.address,
     employee_phone: e.phone, employee_cniNumber: e.cniNumber,
     employee_cnpsNumber: e.cnpsNumber, employee_hireDate: e.hireDate,
+    employee_matricule: e.matricule, work_city: (c.workCity || e.workCity || "Douala"),
     contract_type: c.type, contract_category: c.category, contract_step: c.step,
     contract_startDate: c.startDate || e.hireDate,
     contract_position: c.position || e.position,          // Emploi/poste (auto)
@@ -102,7 +113,7 @@ function resolve(templateId, employeeId, provided = {}) {
 /** Render final DOCX with the stored data. */
 function render(templateId, data, outName) {
   const tpl = db.templates.find(t => t.id === templateId);
-  const zip = new PizZip(fs.readFileSync(path.join(TPL_DIR, tpl.storedAs)));
+  const zip = new PizZip(fs.readFileSync(tplPath(tpl.storedAs)));
   const doc = new Docxtemplater(zip, {
     delimiters: { start: "{{", end: "}}" },
     paragraphLoop: true, linebreaks: true,
@@ -118,6 +129,17 @@ function render(templateId, data, outName) {
   return fname;
 }
 
+/** Métadonnées des modèles fournis (nom lisible + type de document / processus). */
+const SEED_TPL_META = {
+  "AVI_Attestation_Virement_Irrevocable.docx": { name: "Attestation de virement irrévocable (AVI)", docType: "ATTESTATION" },
+  "Solde_de_tout_compte.docx": { name: "Solde de tout compte", docType: "SOLDE_TOUT_COMPTE" },
+  "Avenant_Renouvellement_Contrat.docx": { name: "Avenant / Renouvellement de contrat", docType: "AVENANT" },
+  "Avertissement.docx": { name: "Lettre d'avertissement", docType: "AVERTISSEMENT" },
+  "Certificat_de_travail.docx": { name: "Certificat de travail", docType: "CERTIFICAT" },
+  "Decision_de_mise_en_conge.docx": { name: "Décision de mise en congé", docType: "DECISION_CONGE" },
+  "CDD_template.docx": { name: "Contrat à durée déterminée (CDD)", docType: "CONTRACT" },
+  "CDI_template.docx": { name: "Contrat à durée indéterminée (CDI)", docType: "CONTRACT" },
+};
 /** Register any .docx dropped in templates/ that is not yet in the DB (seed sync). */
 function syncSeedTemplates() {
   const { save, id } = require("./store");
@@ -126,12 +148,13 @@ function syncSeedTemplates() {
     try {
       const tags = scanTags(path.join(TPL_DIR, f));
       if (!tags.length) continue;
-      db.templates.push({ id: id("tpl"), name: f.replace(/\.docx$/i, "").replace(/_/g, " "),
-        docType: "CONTRACT", storedAs: f, originalName: f, tags,
+      const meta = SEED_TPL_META[f] || {};
+      db.templates.push({ id: id("tpl"), name: meta.name || f.replace(/\.docx$/i, "").replace(/_/g, " "),
+        docType: meta.docType || "CONTRACT", storedAs: f, originalName: f, tags,
         uploadedBy: "seed", uploadedAt: new Date().toISOString() });
       console.log("Template registered:", f, `(${tags.length} tags)`);
     } catch (err) { console.error("Template sync failed:", f, err.message); }
   }
   save();
 }
-module.exports = { scanTags, autoContext, resolve, render, fmtValue, TPL_DIR, syncSeedTemplates };
+module.exports = { scanTags, autoContext, resolve, render, fmtValue, TPL_DIR, TPL_WRITE_DIR, tplPath, syncSeedTemplates };

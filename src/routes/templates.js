@@ -9,7 +9,7 @@ const engine = require("../templateEngine");
 
 const upload = multer({
   storage: multer.diskStorage({
-    destination: engine.TPL_DIR,
+    destination: engine.TPL_WRITE_DIR,
     filename: (req, f, cb) => cb(null, `${Date.now()}-${f.originalname.replace(/[^\w.\-]/g, "_")}`),
   }),
   fileFilter: (req, f, cb) => cb(null, f.originalname.toLowerCase().endsWith(".docx")),
@@ -33,6 +33,16 @@ router.post("/", allow("ADM"), upload.single("file"), (req, res, next) => {
     audit(req.user, "CREATED", "Template", t.id, { name: t.name, tags: tags.length });
     res.status(201).json(t);
   } catch (e) { next(e); }
+});
+
+// ADM deletes a template (removes the uploaded file; bundled seed files are left on disk)
+router.delete("/:id", allow("ADM"), (req, res) => {
+  const t = mine(db.templates, req).find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Modèle introuvable" });
+  db.templates = db.templates.filter(x => x.id !== t.id);
+  try { const p = require("path").join(engine.TPL_WRITE_DIR, t.storedAs); if (require("fs").existsSync(p)) require("fs").unlinkSync(p); } catch (e) {}
+  save(); audit(req.user, "DELETED", "Template", t.id, { name: t.name });
+  res.json({ ok: true });
 });
 
 // Preview resolution for an employee: what auto-fills, what's missing
@@ -80,7 +90,7 @@ router.post("/raw/:id/tagify", allow("ADM"), (req, res, next) => {
       if (!r.find || !r.tag || !/^[\w.]+$/.test(r.tag))
         return res.status(400).json({ error: "Each replacement needs 'find' text and a valid 'tag' (letters/numbers/_)" });
 
-    const filePath = require("path").join(engine.TPL_DIR, raw.storedAs);
+    const filePath = engine.tplPath(raw.storedAs);
     const zip = new PizZip(fs.readFileSync(filePath));
     let xml = zip.file("word/document.xml").asText();
     const notFound = [];
@@ -111,8 +121,9 @@ router.post("/raw/:id/tagify", allow("ADM"), (req, res, next) => {
 
     zip.file("word/document.xml", xml);
     const outName = `${Date.now()}-studio-${raw.originalName.replace(/[^\w.\-]/g, "_")}`;
-    fs.writeFileSync(require("path").join(engine.TPL_DIR, outName), zip.generate({ type: "nodebuffer" }));
-    const tags = engine.scanTags(require("path").join(engine.TPL_DIR, outName));
+    const _outPath = require("path").join(engine.TPL_WRITE_DIR, outName);
+    fs.writeFileSync(_outPath, zip.generate({ type: "nodebuffer" }));
+    const tags = engine.scanTags(_outPath);
     const t = { id: id("tpl"), name: name || raw.originalName.replace(/\.docx$/i, "") + " (template)",
       docType: docType || "ATTESTATION", storedAs: outName, originalName: raw.originalName, tags,
       uploadedBy: req.user.id, uploadedAt: new Date().toISOString() };

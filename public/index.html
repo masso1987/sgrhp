@@ -95,6 +95,21 @@ body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:
 .adm-bar{height:8px;border-radius:5px;background:#eef2f0;overflow:hidden}
 .adm-bar>i{display:block;height:100%;background:var(--accent);border-radius:5px}
 @media(max-width:640px){.adm-grid{grid-template-columns:1fr}}
+.studio-head{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+.studio-ic{width:34px;height:34px;flex:none;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px}
+.studio-sub{color:var(--muted);font-size:12px}
+.studio-steps{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:#374151;background:var(--nav-active-bg);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.st-badge{display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.st-arrow{color:var(--muted)}
+.studio-drop{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.studio-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+.studio-lbl{font-size:12px;font-weight:600;margin-bottom:4px}
+.studio-preview{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12.5px;line-height:1.65;white-space:pre-wrap;background:#fcfcfd;user-select:text}
+.studio-row{display:flex;gap:6px;margin-top:6px}
+.studio-save{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+.tpl-chip{display:inline-block;background:#f1f5f9;color:#334155;border-radius:8px;padding:1px 6px;margin:1px 2px;font-size:10.5px}
+.note-inline{color:var(--muted);font-weight:400;font-size:11px}
+@media(max-width:820px){.studio-grid{grid-template-columns:1fr}}
 .r{text-align:right}
 td.r,th.r,.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 code{font-family:"Consolas","SF Mono",ui-monospace,monospace;font-size:12px}
@@ -2441,40 +2456,76 @@ refreshBell();
 
 
 /* ================= M3: templates & generation ================= */
+const TPL_TAGS = [
+  {tag:"employee_fullName",label:"Nom & prénom (auto)"},{tag:"employee_lastName",label:"Nom (auto)"},{tag:"employee_firstName",label:"Prénom (auto)"},
+  {tag:"employee_matricule",label:"Matricule (auto)"},{tag:"employee_cniNumber",label:"N° CNI (auto)"},{tag:"employee_cnpsNumber",label:"N° CNPS (auto)"},
+  {tag:"employee_birthDate",label:"Date de naissance (auto)"},{tag:"employee_birthPlace",label:"Lieu de naissance (auto)"},{tag:"employee_hireDate",label:"Date d'embauche (auto)"},
+  {tag:"contract_position",label:"Emploi / poste (auto)"},{tag:"contract_category",label:"Catégorie (auto)"},{tag:"contract_type",label:"Type de contrat (auto)"},
+  {tag:"contract_startDate",label:"Date de début (auto)"},{tag:"contract_endDate",label:"Date de fin"},{tag:"client_company",label:"Entreprise utilisatrice (auto)"},
+  {tag:"collective_agreement",label:"Convention collective (auto)"},{tag:"salary_base",label:"Salaire de base (auto)"},{tag:"salary_gross",label:"Salaire brut (auto)"},
+  {tag:"work_city",label:"Lieu de travail (auto)"},{tag:"signature_city",label:"Ville de signature (auto)"},{tag:"signature_date",label:"Date de signature (auto)"},{tag:"company_name",label:"Société (auto)"},
+  {tag:"bank_name",label:"Banque"},{tag:"bank_account",label:"N° de compte bancaire"},{tag:"exit_date",label:"Date de sortie"},{tag:"exit_reason",label:"Motif de sortie"},
+  {tag:"leave_start",label:"Début du congé"},{tag:"leave_end",label:"Fin du congé"},{tag:"resume_date",label:"Date de reprise"},{tag:"renew_start",label:"Début renouvellement"},
+  {tag:"renew_end",label:"Fin renouvellement"},{tag:"renew_duration",label:"Durée renouvellement"},{tag:"daily_rate",label:"Taux journalier"},
+  {tag:"stc_brut",label:"STC - total brut"},{tag:"stc_retenues",label:"STC - retenues"},{tag:"stc_net",label:"STC - net"},{tag:"stc_solde",label:"STC - solde à payer"},
+];
 async function templatesView() {
   const list = await api("/templates");
   const sels = await api("/config/salary-elements");
   const ctypes = await api("/config/contract-types");
   view.innerHTML = `<h1>Modèles de documents</h1>
-  <div class="note">Upload a Word (.docx) template containing <b>{{placeholders}}</b> - e.g. {{employee_fullName}},
-  {{contract_startDate}}, {{salary_base}}. Known tags auto-fill from the employee file; unknown tags are asked
-  to the Portfolio Manager at generation time.</div>
-  <div class="panel"><b>Déposer un modèle</b>
-    <form style="display:flex;gap:8px;align-items:center;margin-top:8px" onsubmit="return tplUp(event)">
-      <input type="text" id="tplName" placeholder="Template name (e.g. CDI Contract)" style="margin:0;max-width:240px">
-      <input type="file" accept=".docx" required style="margin:0;max-width:260px">
-      <button class="btn p sm">Upload & scan</button></form>
-    <div class="err hidden" id="tErr"></div></div>
-  <div class="panel"><table><tr><th>Modèle</th><th>Type</th><th>Champs détectés</th><th>Déposé le</th></tr>
-  ${list.map(t => `<tr><td><b>${esc(t.name)}</b></td><td><span class="tag gray">${t.docType || "CONTRACT"}</span></td>
-    <td style="font-size:12px">${t.tags.map(x => `<span class="tag gray">${x}</span>`).join(" ")}</td>
-    <td>${t.uploadedAt.slice(0,10)}</td></tr>`).join("")}</table></div>
+  <div class="note">Les modèles contiennent des <b>variables</b> comme {{employee_fullName}} ou {{contract_position}} : les variables « (auto) » se remplissent seules depuis le dossier du salarié ; les autres sont demandées au gestionnaire au moment de la génération.</div>
 
-  <div class="panel"><b>Studio de modèles - transformer un document Word en modèle</b>
-    <div class="note" style="margin-top:8px">For attestations, certificats… Upload the Word file, then tell the app
-    which text to replace by which placeholder (e.g. find "MAGORE RACHEL" → tag employee_fullName).</div>
-    <form style="display:flex;gap:8px;align-items:center" onsubmit="return studioUp(event)">
-      <input type="file" accept=".docx" required style="margin:0;max-width:280px">
-      <button class="btn p sm">1. Upload & read</button></form>
-    <div id="studioZone" class="hidden" style="margin-top:10px">
-      <div style="max-height:140px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:var(--muted)" id="studioText"></div>
-      <div id="studioRows" style="margin-top:8px"></div>
-      <button class="btn ghost sm" onclick="studioRow()">+ Ajouter un remplacement</button>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <input id="studioName" placeholder="Nom du modèle" style="margin:0;max-width:220px">
-        <select id="studioType" style="margin:0;max-width:180px"><option>ATTESTATION</option><option>CERTIFICAT</option><option>CONTRACT</option><option>OTHER</option></select>
-        <button class="btn p sm" onclick="studioConvert()">2. Convertir en modèle</button></div>
-      <div class="err hidden" id="stErr"></div></div></div>
+  <div class="panel">
+    <div class="studio-head"><span class="studio-ic">&#10022;</span><div><b>Studio de modèles</b><div class="studio-sub">Transformez un document Word (attestation, certificat, avenant...) en modèle réutilisable.</div></div></div>
+    <div class="studio-steps"><span class="st-badge">1</span> Déposez le document Word <span class="st-arrow">&rarr;</span> <span class="st-badge">2</span> Marquez le texte variable <span class="st-arrow">&rarr;</span> <span class="st-badge">3</span> Enregistrez le modèle</div>
+    <form class="studio-drop" onsubmit="return studioUp(event)">
+      <input type="file" accept=".docx" required style="margin:0;max-width:300px">
+      <button class="btn p sm">Lire le document</button>
+      <span class="note-inline">Le fichier n'est pas modifié ; un nouveau modèle est créé.</span></form>
+    <div id="studioZone" class="hidden">
+      <div class="studio-grid">
+        <div>
+          <div class="studio-lbl">Aperçu du document <span class="note-inline">&mdash; surlignez un passage, puis « + depuis la sélection »</span></div>
+          <div class="studio-preview" id="studioText"></div>
+        </div>
+        <div>
+          <div class="studio-lbl">Variables à insérer</div>
+          <div id="studioRows"></div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn p sm" type="button" onclick="studioAddFromSelection()">+ depuis la sélection</button>
+            <button class="btn ghost sm" type="button" onclick="studioRow()">+ ligne vide</button>
+          </div>
+        </div>
+      </div>
+      <div class="studio-save">
+        <label class="note-inline" style="align-self:center">Modèle :</label>
+        <input id="studioName" placeholder="Nom du modèle" style="margin:0;max-width:260px">
+        <select id="studioType" style="margin:0;max-width:220px">
+          <option value="ATTESTATION">Attestation</option><option value="CERTIFICAT">Certificat de travail</option>
+          <option value="AVENANT">Avenant / Renouvellement</option><option value="SOLDE_TOUT_COMPTE">Solde de tout compte</option>
+          <option value="DECISION_CONGE">Décision de congé</option><option value="AVERTISSEMENT">Avertissement</option>
+          <option value="CONTRACT">Contrat</option><option value="OTHER">Autre</option></select>
+        <button class="btn p" onclick="studioConvert()">Enregistrer le modèle</button>
+      </div>
+      <div class="err hidden" id="stErr" style="margin-top:6px"></div>
+    </div>
+    <datalist id="tplTagList">${TPL_TAGS.map(t=>`<option value="${t.tag}">${esc(t.label)}</option>`).join("")}</datalist>
+  </div>
+
+  <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>Modèles disponibles (${list.length})</b>
+    <details class="rowmenu"><summary class="btn ghost sm" style="list-style:none">+ Importer un .docx déjà balisé</summary>
+      <div class="rowmenu-pop" style="min-width:340px;padding:10px"><form style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" onsubmit="return tplUp(event)">
+        <input type="text" id="tplName" placeholder="Nom du modèle" style="margin:0;max-width:200px">
+        <input type="file" accept=".docx" required style="margin:0;max-width:200px">
+        <button class="btn p sm">Importer &amp; scanner</button></form>
+        <div class="note-inline" style="margin-top:6px">Le .docx doit déjà contenir des {{variables}}.</div><div class="err hidden" id="tErr"></div></div></details></div>
+    <table style="margin-top:8px"><tr><th>Modèle</th><th>Type / processus</th><th>Variables</th><th>Déposé</th><th></th></tr>
+    ${list.map(t=>`<tr><td><b>${esc(t.name)}</b></td>
+      <td><span class="tag" style="background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-size:11px">${esc(({ATTESTATION:'Attestation',CERTIFICAT:'Certificat',AVENANT:'Avenant',SOLDE_TOUT_COMPTE:'Solde de tout compte',DECISION_CONGE:'Décision de congé',AVERTISSEMENT:'Avertissement',CONTRACT:'Contrat',OTHER:'Autre'})[t.docType]||t.docType||'-')}</span></td>
+      <td style="max-width:380px">${(t.tags||[]).map(x=>`<span class="tpl-chip">${esc(x)}</span>`).join(" ")}</td>
+      <td style="white-space:nowrap">${(t.uploadedAt||'').slice(0,10)}</td>
+      <td><button class="btn ghost sm" onclick="tplDelete('${t.id}')">Supprimer</button></td></tr>`).join("")||'<tr><td colspan="5" class="note-inline">Aucun modèle.</td></tr>'}</table></div>
 
   <div class="grid2">
   <div class="panel"><b>Éléments de salaire → rubriques Paie</b>
@@ -2849,21 +2900,40 @@ async function studioUp(ev) {
   catch (e) { alert(e.message); }
   return false;
 }
-function studioRow() {
+function studioRow(find) {
   const d = document.createElement("div");
-  d.style = "display:flex;gap:6px;margin-top:6px";
-  d.innerHTML = `<input placeholder="Texte à rechercher dans le document" data-find style="margin:0">
-    <input placeholder="tag (e.g. employee_fullName)" data-tag style="margin:0;max-width:220px">
-    <button class="btn ghost sm" onclick="this.parentElement.remove()">Fermer</button>`;
+  d.className = "studio-row";
+  d.innerHTML = `<input placeholder="Texte exact figurant dans le document" data-find value="${find ? esc(find) : ''}" style="margin:0">
+    <input placeholder="variable…" list="tplTagList" data-tag style="margin:0;max-width:200px">
+    <button class="btn ghost sm" type="button" title="Retirer" onclick="this.parentElement.remove()">&#10005;</button>`;
   studioRows.appendChild(d);
+  if (find) { const tg = d.querySelector("[data-tag]"); if (tg) tg.focus(); }
+}
+function studioAddFromSelection() {
+  let sel = ""; try { sel = String(window.getSelection ? window.getSelection() : "").trim(); } catch (e) {}
+  if (!sel) { alert("Surlignez d'abord un passage dans l'aperçu du document, puis cliquez « + depuis la sélection »."); return; }
+  // si la dernière ligne est vide, on la remplit ; sinon on en crée une
+  const rows = [...studioRows.children];
+  const last = rows[rows.length - 1];
+  if (last && !last.querySelector("[data-find]").value) { last.querySelector("[data-find]").value = sel; const tg = last.querySelector("[data-tag]"); if (tg) tg.focus(); }
+  else studioRow(sel);
 }
 async function studioConvert() {
   const replacements = [...studioRows.children].map(d => ({
-    find: d.querySelector("[data-find]").value, tag: d.querySelector("[data-tag]").value })).filter(r =>r.find && r.tag);
+    find: d.querySelector("[data-find]").value.trim(), tag: d.querySelector("[data-tag]").value.trim() })).filter(r => r.find && r.tag);
+  if (!replacements.length) { stErr.textContent = "Ajoutez au moins une variable (texte à remplacer + nom de variable)."; stErr.classList.remove("hidden"); return; }
+  const bad = replacements.find(r => !/^[\w.]+$/.test(r.tag));
+  if (bad) { stErr.textContent = "Nom de variable invalide : « " + bad.tag + " » (lettres, chiffres, _ uniquement)."; stErr.classList.remove("hidden"); return; }
+  stErr.classList.add("hidden");
   try { const t = await api(`/templates/raw/${STUDIO_ID}/tagify`, { method: "POST",
       body: JSON.stringify({ replacements, name: studioName.value, docType: studioType.value }) });
-    alert(`Template created: ${esc(t.name)} - ${t.tags.length} placeholders detected.`); templatesView(); }
+    toast ? toast(`Modèle « ${t.name} » créé (${t.tags.length} variables).`) : alert(`Modèle « ${t.name} » créé (${t.tags.length} variables).`); templatesView(); }
   catch (e) { stErr.textContent = e.message; stErr.classList.remove("hidden"); }
+}
+async function tplDelete(id) {
+  if (!confirm("Supprimer ce modèle ?")) return;
+  try { await api("/templates/" + id, { method: "DELETE" }); templatesView(); }
+  catch (e) { alert(e.message); }
 }
 async function selAdd() {
   try { await api("/config/salary-elements", { method: "POST", body: JSON.stringify({ name: selName.value, tag: selTag.value, rubriqueCode: (typeof selRub!=="undefined"?selRub.value:"") }) }); templatesView(); }
