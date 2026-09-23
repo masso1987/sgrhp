@@ -7,6 +7,7 @@ the secure `/api/v1` mobile API on the SGRHP backend — never to PostgreSQL dir
 ## Run
 ```bash
 flutter pub get
+dart run build_runner build   # generates the Drift database (local_db.g.dart)
 flutter run \
   --dart-define=API_BASE_URL=https://sgrhp.ciblerh-emploi.com \
   --dart-define=GOOGLE_MAPS_API_KEY=xxxx
@@ -25,13 +26,13 @@ lib/
 ## Implemented (MVP, verified against the live backend)
 - Auth: login (matricule/email), JWT **+ rotating refresh** (transparent Dio refresh), forced password change, secure token storage, logout.
 - Dashboard: greeting, today's attendance status, big check-in/out, leave balance, latest payslip, shortcuts.
-- Attendance: GPS acquisition (attendance-time only), site picker, geofence result (success / rejected / exception), history grouped by day.
+- Attendance: GPS acquisition (attendance-time only), site picker, geofence result (success / rejected / exception), history grouped by day, **offline-first queue + auto-sync** (works with no internet).
 - Leave: balance, request (date range + comment), status list.
 - Payslips: list + amounts (PDF via authenticated `/me/payslips/:id/pdf`).
 - Profile: read-only HR fields + logout.
 
 ## To wire before release (documented TODOs, interfaces already in place)
-- **Offline queue** (Drift): `AttendanceRepository.punch` currently posts directly; add the SQLite queue + `POST /me/sync` batch (idempotent by `attendance_uuid`) and a connectivity listener. States: PENDING_SYNC → SYNCING → SYNCED/FAILED.
+- ~~Offline queue (Drift)~~ **DONE** — punches are written to the Drift queue first, sent immediately when online, and flushed by `SyncService` (connectivity-driven + 45s safety net) via `POST /me/sync`, idempotent by `attendance_uuid`, with exponential backoff. States: PENDING_SYNC → SYNCING → SYNCED / FAILED / REQUIRES_REVIEW. A slim banner shows queued count. (Run `build_runner` once to generate `local_db.g.dart`.)
 - **Firebase**: add `firebase_options.dart`, `google-services.json` (Android) / `GoogleService-Info.plist` (iOS), register the FCM token via `POST /devices/register`.
 - **Maps**: drop the site + user pin on the check-in sheet with `google_maps_flutter`.
 - **Biometric unlock** (`local_auth`) after first login.

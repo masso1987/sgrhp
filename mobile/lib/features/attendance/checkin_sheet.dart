@@ -111,13 +111,15 @@ class _St extends ConsumerState<_CheckInSheet> {
     final r = _result!;
     final ok = r['success'] == true;
     final status = (r['status'] ?? '').toString();
+    final queued = r['queued'] == true || status == 'PENDING_SYNC';
     final isException = status == 'EXCEPTION';
-    final color = !ok ? AppColors.danger : (isException ? AppColors.warning : AppColors.success);
-    final icon = !ok ? Icons.location_off_rounded : (isException ? Icons.report_gmailerrorred_rounded : Icons.check_circle_rounded);
-    final title = !ok ? 'Pointage refusé' : (isException ? 'Enregistré — à vérifier' : (widget.checkIn ? 'Arrivée enregistrée' : 'Sortie enregistrée'));
+    final color = !ok ? AppColors.danger : (queued ? AppColors.info : (isException ? AppColors.warning : AppColors.success));
+    final icon = !ok ? Icons.location_off_rounded : (queued ? Icons.cloud_off_rounded : (isException ? Icons.report_gmailerrorred_rounded : Icons.check_circle_rounded));
+    final title = !ok ? 'Pointage refusé' : (queued ? 'Enregistré hors-ligne' : (isException ? 'Enregistré — à vérifier' : (widget.checkIn ? 'Arrivée enregistrée' : 'Sortie enregistrée')));
     final sub = !ok
         ? (r['message'] ?? 'En dehors de la zone autorisée.').toString()
-        : (isException ? 'Motif : ${r['exception_reason']}. Votre RH examinera ce pointage.' : 'Horodatage officiel du serveur enregistré.');
+        : (queued ? 'Pas de connexion : votre pointage est sauvegardé et sera synchronisé automatiquement.' :
+           (isException ? 'Motif : ${r['exception_reason']}. Votre RH examinera ce pointage.' : 'Horodatage officiel du serveur enregistré.'));
     return Column(children: [
       Container(width: 76, height: 76, decoration: BoxDecoration(color: color.withOpacity(.14), shape: BoxShape.circle), child: Icon(icon, color: color, size: 40)),
       const SizedBox(height: 16),
