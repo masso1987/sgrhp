@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - CTRL-50 (acompte: transfert auto en paie a la validation; bordereau montre l-acompte enregistre total; primes: bascule imposable/CNPS - non imposables exclues de l-assiette et bien placees; reouverture par CD)";
+const BUILD_VERSION = "2026-09-24 - MOB-51 (API mobile /api/v1: comptes employes + JWT/refresh, sites/geofences, pointage GPS + exceptions + idempotence, conges, bulletins; app Flutter Android/iOS)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -155,6 +155,8 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api", apiLimiter);
+// Mobile employee API (self-contained employee JWT auth) — mounted before the staff authenticate.
+app.use("/api/v1", require("./routes/mobile"));
 app.use("/api", authenticate);
 app.get("/api/me", require("./auth").me);
 app.post("/api/logout", authenticate, require("./auth").logout);
@@ -214,6 +216,7 @@ const payrollGate = (req, res, next) => {
   next();
 };
 app.use("/api/payroll", payrollGate, require("./routes/payroll"));
+app.use("/api", require("./routes/mobileAdmin")); // provisioning, sites/geofences, attendance review (staff)
 app.use("/api/billing", requireModule("invoicing"), require("./routes/billing"));
 app.use("/api/accounting", requireModule("accounting"), require("./routes/accounting"));
 app.use("/api/stock", requireModule("stock"), require("./routes/stock"));

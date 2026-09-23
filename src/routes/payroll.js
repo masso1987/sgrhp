@@ -2676,3 +2676,4 @@ function _ficheSagePDF(req, res, opts){
 module.exports = router;
 
 module.exports.payslipSig = payslipSig;
+module.exports.payslipBuffer = payslipBuffer;

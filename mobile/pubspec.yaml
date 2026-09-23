@@ -1,0 +1,52 @@
+name: hr_employee_portal
+description: HR Employee Portal — GPS attendance & self-service for MBOKA Mon RH (SGRHP).
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State & navigation
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.0
+  # Networking
+  dio: ^5.5.0
+  # Local persistence (offline attendance queue)
+  drift: ^2.18.0
+  sqlite3_flutter_libs: ^0.5.20
+  path_provider: ^2.1.3
+  path: ^1.9.0
+  # Device / platform
+  geolocator: ^12.0.0
+  google_maps_flutter: ^2.7.0
+  flutter_secure_storage: ^9.2.2
+  local_auth: ^2.2.0
+  connectivity_plus: ^6.0.3
+  device_info_plus: ^10.1.0
+  package_info_plus: ^8.0.0
+  uuid: ^4.4.0
+  intl: ^0.19.0
+  # Notifications & crash reporting
+  firebase_core: ^3.2.0
+  firebase_messaging: ^15.0.3
+  firebase_crashlytics: ^4.0.3
+  # UI niceties
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10+1
+  shimmer: ^3.0.0
+  camera: ^0.11.0+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  drift_dev: ^2.18.0
+  build_runner: ^2.4.11
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
