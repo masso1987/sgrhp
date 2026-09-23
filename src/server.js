@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - STK-44 (logo applicatif MBOKA Mon RH; stock: tableau de bord enrichi - KPI, flux entrees/sorties, repartition categories, alertes reappro)";
+const BUILD_VERSION = "2026-09-24 - PAY-45 (paie sequentielle: ouverture mois par mois, un nouveau mois exige la cloture du precedent)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

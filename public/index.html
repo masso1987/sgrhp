@@ -4989,14 +4989,30 @@ async function payHome(){
 }
 
 async function payrollView() {
-  const runs = await api("/payroll/runs");
+  const [runs, st] = await Promise.all([ api("/payroll/runs"), api("/payroll/runs/open-state").catch(()=>({hasRuns:false,canOpen:true,nextPeriod:null})) ]);
+  const prettyM=(p)=>{ if(!p) return ""; const [y,m]=p.split("-"); const N=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"]; return (N[Number(m)-1]||p)+" "+y; };
+  let creator="";
+  if(canRunPay()){
+    if(st.hasRuns && !st.canOpen){
+      creator=`<div class="panel" style="border-left:3px solid #d97706">
+        <b>Ouverture bloquée</b>
+        <div class="note" style="margin-top:6px">La paie s'ouvre <b>mois par mois</b>. Vous devez d'abord <b>clôturer la paie de ${esc(prettyM(st.blockedBy.period))}</b> (statut actuel&nbsp;: ${payStatusTag(st.blockedBy.status)}) avant d'ouvrir <b>${esc(prettyM(st.nextPeriod))}</b>.</div>
+        <button class="btn p sm" style="margin-top:8px" onclick="payRunView('${st.blockedBy.id}')">Ouvrir la paie de ${esc(prettyM(st.blockedBy.period))} &rarr;</button></div>`;
+    } else {
+      const np=st.nextPeriod||"";
+      const lockNext=!!(st.hasRuns && np);
+      creator=`<div class="panel"><form onsubmit="return payCreateRun(event)" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="margin:0">Nouvelle paie&nbsp;</label>
+        <input type="month" id="pRunPeriod" required style="max-width:180px;margin:0" value="${np}" ${lockNext?`min="${np}" max="${np}" readonly title="La paie s'ouvre mois par mois"`:''}>
+        <button class="btn p sm">+ Ouvrir le mois</button>
+        ${lockNext?`<span class="note" style="margin:0">Prochain mois à ouvrir&nbsp;: <b>${esc(prettyM(np))}</b></span>`:`<span class="note" style="margin:0">Choisissez le mois de démarrage de la paie.</span>`}
+      </form><div class="err hidden" id="pRunErr"></div></div>`;
+    }
+  }
   view.innerHTML = `<h1>Paie - cycles mensuels</h1>
-  <div class="note">Créez une paie mensuelle, saisissez les éléments variables (primes, heures supp., acomptes),
-  calculez les bulletins, éditez-les en PDF, puis clôturez la période.</div>
-  ${canRunPay() ? `<div class="panel"><form onsubmit="return payCreateRun(event)" style="display:flex;gap:8px;align-items:center">
-    <label style="margin:0">Nouvelle paie&nbsp;</label>
-    <input type="month" id="pRunPeriod" required style="max-width:180px;margin:0">
-    <button class="btn p sm">+ Créer</button></form><div class="err hidden" id="pRunErr"></div></div>` : ""}
+  <div class="note">La paie s'ouvre <b>mois par mois</b>&nbsp;: saisissez les éléments variables (primes, heures supp., acomptes),
+  calculez les bulletins, éditez-les en PDF, puis <b>clôturez la période</b>. Un nouveau mois ne peut être ouvert qu'après clôture du mois précédent.</div>
+  ${creator}
   <div class="panel"><table><tr><th>Période</th><th>Statut</th><th>Effectif</th><th>Calculée le</th><th></th></tr>
   ${runs.length ? runs.map(r => `<tr><td><b>${esc(r.period)}</b></td><td>${payStatusTag(r.status)}</td>
     <td>${r.count || 0}</td><td>${r.computedAt ? r.computedAt.slice(0, 10) : "-"}</td>

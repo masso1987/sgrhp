@@ -18,6 +18,32 @@ function verifySecret() {
   if (!st.verifySecret) { st.verifySecret = crypto.randomBytes(24).toString("hex"); try { save(); } catch (e) {} }
   return st.verifySecret;
 }
+
+/* ------------------------------------------------------------------ *
+ * Ouverture des paies mois par mois (séquentiel).
+ * Règle métier : on ne peut ouvrir un nouveau mois que si le mois
+ * précédent est CLÔTURÉ. La 1re paie est libre (amorçage) ; ensuite
+ * la période à ouvrir est toujours le mois suivant la dernière paie.
+ * ------------------------------------------------------------------ */
+function periodAdd(period, n) {
+  const [y, m] = String(period).split("-").map(Number);
+  const d = new Date(Date.UTC(y, (m - 1) + n, 1));
+  return d.toISOString().slice(0, 7);
+}
+/** Renvoie l'état d'ouverture pour un tenant : dernière paie, mois à ouvrir, blocage éventuel. */
+function payOpenState(req) {
+  const runs = mine(db.payRuns, req).slice().sort((a, b) => String(a.period).localeCompare(String(b.period)));
+  if (!runs.length) return { hasRuns: false, latest: null, nextPeriod: null, canOpen: true, blockedBy: null };
+  const latest = runs[runs.length - 1];
+  const closed = latest.status === "CLOSED";
+  return {
+    hasRuns: true,
+    latest: { id: latest.id, period: latest.period, status: latest.status },
+    nextPeriod: periodAdd(latest.period, 1),
+    canOpen: closed,
+    blockedBy: closed ? null : { id: latest.id, period: latest.period, status: latest.status }
+  };
+}
 function payslipSig(s) {
   const tt = (s.result && s.result.totals) || {};
   const data = [s.id, s.employeeName, s.period, Math.round(tt.netAPayer || 0)].join("|");
@@ -484,6 +510,11 @@ router.get("/runs", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   res.json(mine(db.payRuns, req).slice().sort((a, b) => (b.period || "").localeCompare(a.period || "")));
 });
 
+// État d'ouverture (mois par mois) : mois à ouvrir + blocage éventuel si le mois précédent n'est pas clôturé.
+router.get("/runs/open-state", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  res.json(payOpenState(req));
+});
+
 router.post("/runs", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
 
@@ -491,6 +522,14 @@ router.post("/runs", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => 
   if (!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({ error: "Période attendue au format YYYY-MM" });
   if (mine(db.payRuns, req).some(r => r.period === period))
     return res.status(409).json({ error: "Une paie existe déjà pour cette période" });
+  // Ouverture mois par mois : le mois précédent doit être clôturé, et on ouvre le mois qui suit la dernière paie.
+  const st = payOpenState(req);
+  if (st.hasRuns) {
+    if (!st.canOpen)
+      return res.status(409).json({ error: `Clôturez d'abord la paie de ${st.blockedBy.period} avant d'ouvrir un nouveau mois. La paie s'ouvre mois par mois.` });
+    if (period !== st.nextPeriod)
+      return res.status(409).json({ error: `La paie s'ouvre mois par mois : la prochaine période à ouvrir est ${st.nextPeriod} (le mois qui suit ${st.latest.period}).` });
+  }
   const run = stamp({ id: id("run"), period, label: req.body.label || `Paie ${period}`, status: "OPEN",
     createdBy: req.user.id, createdAt: new Date().toISOString(), computedAt: null, closedAt: null, count: 0 }, req);
   db.payRuns.push(run); save();
