@@ -5105,15 +5105,15 @@ async function bordControl(id){
 }
 function bordControlTable(ctrl,s,canBAP){
   if(ctrl.status==="NON_CALCULE") return '<div class="note" style="margin-top:6px;color:#b45309">La paie de la période n\'est pas encore calculée. Calculez la paie puis relancez le contrôle.</div>';
-  const cell=(c)=>{ const col=c.status==="OK"?"#16a34a":(c.status==="ACK"?"#b45309":"var(--red)"); const ic=c.status==="OK"?"&#10003;":(c.status==="ACK"?"justifié":"écart"); const dl=c.status!=="OK"?` (${c.calcule>c.soumis?'+':''}${(c.calcule-c.soumis).toLocaleString('fr-FR')})`:""; return `<span style="color:${col}" title="soumis ${c.soumis} / calculé ${c.calcule}${c.reason?' — '+esc(c.reason):''}">${ic}${dl}</span>`; };
+  window._CTRL=ctrl;
+  const cell=(emp,c)=>{ const col=c.status==="OK"?"#16a34a":(c.status==="ACK"?"#b45309":"var(--red)"); const ic=c.status==="OK"?"&#10003;":(c.status==="ACK"?"justifié":"écart"); const dl=c.status!=="OK"?` (${c.calcule>c.soumis?'+':''}${(c.calcule-c.soumis).toLocaleString('fr-FR')})`:""; return `<span style="color:${col};cursor:pointer;text-decoration:${c.status==='OK'?'none':'underline dotted'}" onclick="bordEcartDetail('${emp}','${c.field}')" title="Cliquer pour le détail">${ic}${dl}</span>`; };
   const bapBtn = (canBAP && s.status!=="BON_A_PAYER" && ctrl.computed) ? `<button class="btn p sm" onclick="bordBAP('${s.id}')">Signer « Bon à payer »</button>` : (s.status==="BON_A_PAYER"?'<span class="tag green">Bon à payer signé &#10003;</span>':'');
-  const head=`<tr><th>Employé</th><th>Présence</th><th>HS120</th><th>HS130</th><th>HS140</th><th>Nuit</th><th>Acompte</th><th>Prêt</th><th>Primes</th><th></th></tr>`;
+  const head=`<tr><th>Employé</th><th colspan="6" style="text-align:center;background:#eef4ff">Temps &amp; éléments (feuille de temps)</th><th colspan="2" style="text-align:center;background:#fff4e6">Acomptes &amp; prêts</th><th class="r">Net</th></tr><tr><th></th><th>Présence</th><th>HS120</th><th>HS130</th><th>HS140</th><th>Nuit</th><th>Primes</th><th>Acompte</th><th>Prêt</th><th></th></tr>`;
   const body=(ctrl.lines||[]).map(ln=>{
     if(ln.status==="NON_CALCULE") return `<tr><td>${esc(ln.name)}</td><td colspan="9" style="color:var(--red)">non calculé (aucun bulletin)</td></tr>`;
     const by=(f)=>ln.checks.find(c=>c.field===f)||{status:"OK",soumis:0,calcule:0};
-    const jbtn=(c)=>c.status==="ECART"&&canBAP?` <button class="btn ghost sm" style="padding:0 5px" onclick="bordAck('${s.id}','${ln.employeeId}','${c.field}')">justifier</button>`:"";
-    const C=(f)=>{ const c=by(f); return `<td class="r">${cell(c)}${jbtn(c)}</td>`; };
-    return `<tr><td>${esc(ln.name)}</td>${C('jours')}${C('hs120')}${C('hs130')}${C('hs140')}${C('nuit')}${C('acompte')}${C('pret')}${C('primes')}<td class="r">${money0(ln.net)}</td></tr>`;
+    const C=(f)=>{ const c=by(f); return `<td class="r">${cell(ln.employeeId,c)}</td>`; };
+    return `<tr><td>${esc(ln.name)}</td>${C('jours')}${C('hs120')}${C('hs130')}${C('hs140')}${C('nuit')}${C('primes')}${C('acompte')}${C('pret')}<td class="r">${money0(ln.net)}</td></tr>`;
   }).join("");
   const sumTag = ctrl.status==="CONFORME"?'<span class="tag green">Conforme</span>':'<span class="tag" style="background:#b45309;color:#fff">'+ctrl.counts.ecarts+' écart(s)</span>';
   return `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span>${sumTag} <span class="note-inline">contrôlé le ${(ctrl.at||'').slice(0,16).replace('T',' ')}</span></span>${bapBtn}</div>
@@ -5124,6 +5124,33 @@ function money0(n){ return Number(Math.round(n||0)).toLocaleString("fr-FR"); }
 async function bordAck(id,empId,field){
   const reason=prompt("Motif de l'écart (obligatoire) :"); if(!reason||!reason.trim()) return;
   try{ await api("/payroll/bordereaux/"+id+"/ack",{method:"POST",body:JSON.stringify({employeeId:empId,field,reason})}); payBordereauView(id); }catch(e){ alert(e.message); }
+}
+function bordEcartDetail(empId,field){
+  const ctrl=window._CTRL; if(!ctrl) return;
+  const ln=(ctrl.lines||[]).find(l=>l.employeeId===empId); if(!ln) return;
+  const c=(ln.checks||[]).find(x=>x.field===field); if(!c) return;
+  const s=window._BORD; const canBAP=["CD","ADM","RJ"].includes(ME.role);
+  const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
+  const statutTxt=c.status==="OK"?'<span class="tag green">Conforme</span>':(c.status==="ACK"?'<span class="tag" style="background:#b45309;color:#fff">Écart justifié</span>':'<span class="tag" style="background:var(--red);color:#fff">Écart</span>');
+  const d=c.detail||{};
+  const items=(d.items||[]).length?`<table style="width:100%;margin-top:6px"><tr><th>Élément</th><th class="r">Valeur</th></tr>${d.items.map(it=>`<tr><td>${esc(it.k)}</td><td class="r">${esc(it.v)}</td></tr>`).join("")}</table>`:'<div class="note-inline" style="margin-top:6px">Aucun détail additionnel.</div>';
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:520px"><h3 style="margin:0 0 4px">${esc(c.label)} — ${esc(ln.name)}</h3>
+    <div style="margin-bottom:8px">${statutTxt} ${d.groupe?`<span class="note-inline">· ${esc(d.groupe==="Temps"?"Feuille de temps":"Acomptes & prêts")}</span>`:""}</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:8px;padding:10px">
+      <div><div class="note-inline">Bordereau signé (GPF)</div><div style="font-size:18px;font-weight:600">${money(c.soumis)}</div></div>
+      <div style="align-self:center;color:var(--muted)">➜</div>
+      <div><div class="note-inline">Paie calculée</div><div style="font-size:18px;font-weight:600">${money(c.calcule)}</div></div>
+      <div style="align-self:center"><div class="note-inline">Écart</div><div style="font-size:18px;font-weight:700;color:${c.delta===0?'#16a34a':'var(--red)'}">${c.delta>0?'+':''}${money(c.delta)}</div></div>
+    </div>
+    ${d.source?`<div class="note" style="margin-top:8px">Source : ${esc(d.source)}</div>`:""}
+    ${items}
+    ${d.note?`<div class="note" style="margin-top:8px;color:#b45309">⚠ ${esc(d.note)}</div>`:""}
+    ${c.reason?`<div class="note" style="margin-top:8px">Motif de justification : <b>${esc(c.reason)}</b></div>`:""}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      ${(c.status==="ECART"&&canBAP&&s&&s.status!=="BON_A_PAYER")?`<button class="btn p" onclick="this.closest('.modal-bg').remove();bordAck('${s.id}','${empId}','${field}')">Justifier cet écart</button>`:""}
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg);
 }
 async function bordBAP(id){
   if(!confirm("Signer électroniquement le « Bon à payer » ? Cette signature autorise l'édition de l'ordre de virement.")) return;

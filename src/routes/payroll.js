@@ -803,11 +803,11 @@ function buildControl(s, req){
   const ref = s.snapshot || s.lines || [];
   const acks = (s.control&&s.control.acks) || [];
   const ackOf=(emp,field)=> acks.find(a=>a.employeeId===emp&&a.field===field);
-  const cmp=(emp,field,label,soumis,calcule)=>{
+  const cmp=(emp,field,label,soumis,calcule,detail)=>{
     soumis=Math.round(Number(soumis)||0); calcule=Math.round(Number(calcule)||0);
     const st = soumis===calcule ? "OK" : "ECART";
     const a = st==="ECART" ? ackOf(emp,field) : null;
-    return { field, label, soumis, calcule, delta:calcule-soumis, status:(st==="ECART"&&a)?"ACK":st, reason:a?a.reason:null };
+    return { field, label, soumis, calcule, delta:calcule-soumis, status:(st==="ECART"&&a)?"ACK":st, reason:a?a.reason:null, detail:detail||null };
   };
   let ecarts=0, nonCalcule=0; const lines=[];
   for(const l of ref){
@@ -816,22 +816,25 @@ function buildControl(s, req){
     const inp=sl.input||{}; const ot=inp.overtime||{};
     const od=(inp.otherDeductions||[]);
     const sumOD=(code)=> od.filter(d=>String(d.code)===code).reduce((a,d)=>a+(Number(d.amount)||0),0);
-    const loan=loanEcheance(l.employeeId, s.period, req).total;
+    const loanE=loanEcheance(l.employeeId, s.period, req);
+    const loan=loanE.total;
     const primesSoumis=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
     // Primes calculées = éléments variables réellement injectés (fromBordereau) pour cet employé/période.
     const primeTypes=new Set(["PRIME","RAPPEL","TREIZE","INDEMNITE"]);
-    const gainsFromEls=mine(db.payElements, req)
-      .filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && primeTypes.has(e.type))
-      .reduce((a,e)=>a+(Number(e.amount)||0),0);
+    const injected=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && primeTypes.has(e.type));
+    const gainsFromEls=injected.reduce((a,e)=>a+(Number(e.amount)||0),0);
+    const acoList=acompteList(l.employeeId, s.period, req);
+    const brouillons=acoList.filter(a=>a.status!=="VALIDE");
+    const TS="Feuille de temps signée (GPF) → bulletin calculé (Paie)";
     const checks=[
-      cmp(l.employeeId,"jours","Jours de présence", l.joursPresence, inp.workedDays),
-      cmp(l.employeeId,"hs120","HS 120%", l.hs120, ot.tier1),
-      cmp(l.employeeId,"hs130","HS 130%", l.hs130, ot.tier2),
-      cmp(l.employeeId,"hs140","HS 140%", l.hs140, ot.tier3),
-      cmp(l.employeeId,"nuit","Heures de nuit", l.hsNuit, ot.night),
-      cmp(l.employeeId,"acompte","Acompte", acompteTotal(l.employeeId, s.period, req), sumOD("7000")),
-      cmp(l.employeeId,"pret","Échéance prêt", loan, sumOD("7010")),
-      cmp(l.employeeId,"primes","Primes variables (total)", primesSoumis, gainsFromEls),
+      cmp(l.employeeId,"jours","Jours de présence", l.joursPresence, inp.workedDays, { groupe:"Temps", source:TS, items:[{k:"Feuille signée",v:(l.joursPresence||0)+" j"},{k:"Bulletin calculé",v:(inp.workedDays||0)+" j"}] }),
+      cmp(l.employeeId,"hs120","HS 120%", l.hs120, ot.tier1, { groupe:"Temps", source:TS, items:[{k:"Feuille signée",v:(l.hs120||0)+" h"},{k:"Bulletin calculé",v:(ot.tier1||0)+" h"}] }),
+      cmp(l.employeeId,"hs130","HS 130%", l.hs130, ot.tier2, { groupe:"Temps", source:TS, items:[{k:"Feuille signée",v:(l.hs130||0)+" h"},{k:"Bulletin calculé",v:(ot.tier2||0)+" h"}] }),
+      cmp(l.employeeId,"hs140","HS 140%", l.hs140, ot.tier3, { groupe:"Temps", source:TS, items:[{k:"Feuille signée",v:(l.hs140||0)+" h"},{k:"Bulletin calculé",v:(ot.tier3||0)+" h"}] }),
+      cmp(l.employeeId,"nuit","Heures de nuit", l.hsNuit, ot.night, { groupe:"Temps", source:TS, items:[{k:"Feuille signée",v:(l.hsNuit||0)+" h"},{k:"Bulletin calculé",v:(ot.night||0)+" h"}] }),
+      cmp(l.employeeId,"primes","Primes variables (total)", primesSoumis, gainsFromEls, { groupe:"Temps", source:"Primes du bordereau signé → éléments injectés en paie", items:(l.primes||[]).map(p=>({k:p.label,v:String(Math.round(p.amount)).replace(/\B(?=(\d{3})+(?!\d))/g," ")})) }),
+      cmp(l.employeeId,"acompte","Acompte sur salaire", acompteTotalAll(l.employeeId, s.period, req), sumOD("7000"), { groupe:"Acompte", source:"Registre des acomptes (tous statuts) → retenue sur bulletin (validés uniquement)", items:acoList.map(a=>({k:(a.momo?("N° "+a.momo):"Acompte")+" — "+(a.status==="VALIDE"?"Validé":"Brouillon"),v:String(a.amount).replace(/\B(?=(\d{3})+(?!\d))/g," ")})), note:brouillons.length?(brouillons.length+" acompte(s) en brouillon non retenu(s) — à valider dans « Acomptes sur salaire »."):"" }),
+      cmp(l.employeeId,"pret","Échéance prêt", loan, sumOD("7010"), { groupe:"Acompte", source:"Échéancier de prêt → retenue sur bulletin", items:(loanE.detail||[]).map(d=>({k:d.label+" ("+d.n+"/"+d.of+")",v:String(d.amount).replace(/\B(?=(\d{3})+(?!\d))/g," ")})) }),
     ];
     const lineEcarts=checks.filter(c=>c.status==="ECART").length;
     ecarts+=lineEcarts;
@@ -940,6 +943,12 @@ router.delete("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
 /* Acompte total d'un employé sur une période (utilisé par le contrôle du bordereau). */
 function acompteTotal(empId, period, req){
   return mine(db.payAcomptes, req).filter(a=>a.employeeId===empId && a.period===period && a.status==="VALIDE").reduce((s,a)=>s+(Number(a.amount)||0),0);
+}
+function acompteTotalAll(empId, period, req){
+  return mine(db.payAcomptes, req).filter(a=>a.employeeId===empId && a.period===period).reduce((s,a)=>s+(Number(a.amount)||0),0);
+}
+function acompteList(empId, period, req){
+  return mine(db.payAcomptes, req).filter(a=>a.employeeId===empId && a.period===period).map(a=>({amount:Number(a.amount)||0, momo:a.momo||"", status:a.status||"BROUILLON"}));
 }
 /* --- Acompte : validation workflow (BROUILLON -> VALIDE) --- */
 router.post("/acomptes/:id/validate", allow("CD","ADM","RJ"), (req,res)=>{
