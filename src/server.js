@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - CTRL-49 (rapprochement: detail au clic - pourquoi de chaque ecart; controle groupe Temps + Acomptes; acompte non valide signale comme ecart)";
+const BUILD_VERSION = "2026-09-24 - CTRL-50 (acompte: transfert auto en paie a la validation; bordereau montre l-acompte enregistre total; primes: bascule imposable/CNPS - non imposables exclues de l-assiette et bien placees; reouverture par CD)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

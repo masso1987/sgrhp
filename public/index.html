@@ -5018,7 +5018,7 @@ async function payBordereauView(id){
       <td class="r">${numInput(l,'joursPresence')}</td>
       <td class="r">${numInput(l,'absence')}</td>
       <td class="r">${numInput(l,'hs120')}</td><td class="r">${numInput(l,'hs130')}</td><td class="r">${numInput(l,'hs140')}</td><td class="r">${numInput(l,'hsNuit')}</td>
-      <td class="r" title="Acompte du mois (registre Acomptes, lecture seule)">${l.acompte?money(l.acompte):"—"}</td>
+      <td class="r" title="Acompte du mois (registre Acomptes)">${l.acompte?money(l.acompte):"—"}${(l.acompte&&(l.acompteValide||0)<l.acompte)?' <span class="tag amber" style="font-size:10px" title="Une partie n\'est pas encore validée">à valider</span>':""}</td>
       <td class="r" title="Échéance de prêt du mois (auto, lecture seule)">${loan}</td>
       <td style="max-width:210px"><span style="font-size:12px">${primesTxt||'<span class="note-inline">—</span>'}</span>
         ${editable?` <button class="btn ghost sm" style="padding:1px 6px" onclick="bordPrimes('${l.employeeId}')">Primes</button>`:""}</td>
@@ -5043,7 +5043,7 @@ async function payBordereauView(id){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         ${editable&&isGpf?`<button class="btn p sm" onclick="bordSave('${s.id}')">Enregistrer</button>
           <button class="btn sm" onclick="bordSubmit('${s.id}')">Soumettre &amp; signer (GPF)</button>`:""}
-        ${(!editable&&isGpf&&s.status!=="BON_A_PAYER")?`<button class="btn ghost sm" onclick="bordReopen('${s.id}')">Rouvrir (brouillon)</button>`:""}
+        ${(!editable&&(isGpf||["CD"].includes(ME.role))&&s.status!=="BON_A_PAYER")?`<button class="btn ghost sm" onclick="bordReopen('${s.id}')">Rouvrir (brouillon)</button>`:""}
         <button class="btn ghost sm" onclick="bordPdf('${s.id}')">PDF</button>
         <button class="btn ghost sm" onclick="bordExport('${s.id}','xlsx')">Excel</button>
         <button class="btn ghost sm" onclick="bordExport('${s.id}','csv')">CSV</button>
@@ -5070,7 +5070,8 @@ async function bordPrimes(empId){
   const noRub = !pickable.length;
   bg.innerHTML=`<div class="modal" style="width:600px"><h3 style="margin:0 0 8px">Primes / éléments variables — ${esc(l.name)}</h3>
     ${noRub?`<div class="note" style="color:#b45309;margin-bottom:8px">Aucune rubrique de paie disponible. Demandez à l'administrateur de créer la rubrique voulue dans « Paramètres paie », puis revenez l'ajouter ici.</div>`:`<div class="note-inline" style="margin-bottom:6px">Choisissez une rubrique existante (définie par l'administrateur) et saisissez le montant.</div>`}
-    <table style="width:100%"><thead><tr><th>Rubrique</th><th class="r">Montant</th><th></th></tr></thead><tbody id="prBody"></tbody></table>
+    <table style="width:100%"><thead><tr><th>Rubrique</th><th class="r">Montant</th><th style="text-align:center">Imposable</th><th style="text-align:center">CNPS</th><th></th></tr></thead><tbody id="prBody"></tbody></table>
+    <div class="note-inline" style="margin-top:4px">Décochez « Imposable » et/ou « CNPS » pour une prime non imposable / non cotisable (ex. certaines indemnités).</div>
     ${noRub?"":`<button class="btn ghost sm" style="margin-top:6px" onclick="window._BORD.__pr.push({code:'',label:'',amount:0,cnps:true,impo:true});bordPrimesRender()">+ Ajouter une ligne</button>`}
     <div style="display:flex;gap:8px;margin-top:12px"><button class="btn p" onclick="bordPrimesSave()">Valider</button>
       <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
@@ -5079,9 +5080,11 @@ async function bordPrimes(empId){
     const rs=window._BORD.__rubs||[];
     const opt=(cur)=>`<option value="">- rubrique -</option>`+rs.map(r=>`<option value="${r.code}" ${cur===r.code?'selected':''}>${esc(r.code)} · ${esc(r.label)}</option>`).join("");
     document.getElementById("prBody").innerHTML=(window._BORD.__pr||[]).map((p,i)=>`<tr>
-      <td><select onchange="bordPrimePick(${i},this.value)" style="margin:0;min-width:240px">${opt(p.code)}</select></td>
-      <td><input type="number" value="${p.amount||0}" oninput="window._BORD.__pr[${i}].amount=Number(this.value)||0" style="margin:0;width:120px;text-align:right"></td>
-      <td><button class="btn ghost sm" style="color:var(--red)" onclick="window._BORD.__pr.splice(${i},1);bordPrimesRender()">×</button></td></tr>`).join("")||'<tr><td colspan="3" class="note-inline">Aucune ligne.</td></tr>';
+      <td><select onchange="bordPrimePick(${i},this.value)" style="margin:0;min-width:220px">${opt(p.code)}</select></td>
+      <td><input type="number" value="${p.amount||0}" oninput="window._BORD.__pr[${i}].amount=Number(this.value)||0" style="margin:0;width:110px;text-align:right"></td>
+      <td style="text-align:center"><input type="checkbox" ${p.impo!==false?"checked":""} onchange="window._BORD.__pr[${i}].impo=this.checked"></td>
+      <td style="text-align:center"><input type="checkbox" ${p.cnps!==false?"checked":""} onchange="window._BORD.__pr[${i}].cnps=this.checked"></td>
+      <td><button class="btn ghost sm" style="color:var(--red)" onclick="window._BORD.__pr.splice(${i},1);bordPrimesRender()">×</button></td></tr>`).join("")||'<tr><td colspan="5" class="note-inline">Aucune ligne.</td></tr>';
   };
   window.bordPrimePick=function(i,code){ const r=(window._BORD.__rubs||[]).find(x=>String(x.code)===String(code)); const p=window._BORD.__pr[i]; if(!p) return; p.code=code; if(r){ p.label=r.label; p.cnps=!!r.cnps; p.impo=!!r.impo; } };
   window.bordPrimesSave=async function(){ const l2=(window._BORD.lines||[]).find(x=>x.employeeId===window._BORD.__prEmp); if(l2) l2.primes=(window._BORD.__pr||[]).filter(p=>p.code&&p.label&&Number(p.amount)>0); const bid=window._BORD.id; try{ await api("/payroll/bordereaux/"+bid+"/lines",{method:"PUT",body:JSON.stringify({lines:window._BORD.lines})}); }catch(e){ alert(e.message); return; } const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); payBordereauView(bid); };

@@ -558,7 +558,7 @@ function loanEcheance(empId, period, req){
 }
 function sheetOut(sheet, req){
   const out=Object.assign({}, sheet);
-  out.lines=(sheet.lines||[]).map(l => Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotal(l.employeeId, sheet.period, req) }));
+  out.lines=(sheet.lines||[]).map(l => Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req) }));
   const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
   out.portfolioName=pf?pf.name:"(tous)";
   return out;
@@ -625,7 +625,7 @@ router.put("/bordereaux/:id/lines", allow("RP","ADM","GPF"), (req,res)=>{
 });
 
 /* --- Rouvrir un brouillon soumis (avant contrôle) — GPF/ADM --- */
-router.post("/bordereaux/:id/reopen", allow("GPF","ADM"), (req,res)=>{
+router.post("/bordereaux/:id/reopen", allow("GPF","ADM","CD"), (req,res)=>{
   const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
   if(s.status==="BON_A_PAYER") return res.status(409).json({error:"Bordereau validé Bon à payer - réouverture interdite."});
   if(s.status==="BROUILLON") return res.json(sheetOut(s, req));
@@ -917,7 +917,7 @@ router.post("/acomptes", allow("RP","ADM","GPF","CD"), (req,res)=>{
     employeeName:e?`${e.firstName||""} ${e.lastName||""}`.trim():"", matricule:e?(e.matricule||""):"",
     momo:String(b.momo||"").slice(0,30), amount:Math.round(Number(b.amount)), note:String(b.note||"").slice(0,120),
     status:"BROUILLON", createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
-  db.payAcomptes.push(a); save();
+  db.payAcomptes.push(a); recomputeEmployeeOpenRun(req, a.period, a.employeeId); save();
   audit(req.user, "CREATED", "PayAcompte", a.id, { period, employeeId:a.employeeId, amount:a.amount });
   res.status(201).json(acompteOut(a, req));
 });
@@ -929,15 +929,15 @@ router.put("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
   if(b.amount!=null){ if(!(Number(b.amount)>0)) return res.status(400).json({error:"Montant invalide"}); a.amount=Math.round(Number(b.amount)); }
   if(b.momo!=null) a.momo=String(b.momo).slice(0,30);
   if(b.note!=null) a.note=String(b.note).slice(0,120);
-  save(); audit(req.user, "UPDATED", "PayAcompte", a.id, { amount:a.amount });
+  recomputeEmployeeOpenRun(req, a.period, a.employeeId); save(); audit(req.user, "UPDATED", "PayAcompte", a.id, { amount:a.amount });
   res.json(acompteOut(a, req));
 });
 router.delete("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
   if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
   if(a.status==="VALIDE") return res.status(409).json({error:"Acompte validé - dévalidez-le avant de le supprimer."});
-  db.payAcomptes.splice(db.payAcomptes.indexOf(a),1); save();
-  audit(req.user, "DELETED", "PayAcompte", a.id, { period:a.period, employeeId:a.employeeId });
+  const _p=a.period, _e=a.employeeId; db.payAcomptes.splice(db.payAcomptes.indexOf(a),1); recomputeEmployeeOpenRun(req, _p, _e); save();
+  audit(req.user, "DELETED", "PayAcompte", a.id, { period:_p, employeeId:_e });
   res.json({ ok:true });
 });
 /* Acompte total d'un employé sur une période (utilisé par le contrôle du bordereau). */
@@ -950,20 +950,34 @@ function acompteTotalAll(empId, period, req){
 function acompteList(empId, period, req){
   return mine(db.payAcomptes, req).filter(a=>a.employeeId===empId && a.period===period).map(a=>({amount:Number(a.amount)||0, momo:a.momo||"", status:a.status||"BROUILLON"}));
 }
+/* Recalcule le bulletin d'un employé si la paie du mois est déjà calculée (et non clôturée),
+   afin qu'un changement d'acompte soit immédiatement répercuté sur la paie. */
+function recomputeEmployeeOpenRun(req, period, employeeId){
+  const run=mine(db.payRuns, req).find(r=>r.period===period && r.status!=="CLOSED");
+  if(!run) return false;
+  const emp=mine(db.employees, req).find(e=>e.id===employeeId);
+  if(!emp || !baseSalaryOf(emp, req)) return false;
+  const existing=mine(db.payslips, req).find(x=>x.runId===run.id && x.employeeId===emp.id);
+  if(!existing) return false;
+  const { input, result }=computeFor(emp, run.period, req);
+  existing.input=input; existing.result=result; existing.status="CALCULATED"; existing.recomputedAt=new Date().toISOString();
+  run.count=mine(db.payslips, req).filter(x=>x.runId===run.id).length;
+  return true;
+}
 /* --- Acompte : validation workflow (BROUILLON -> VALIDE) --- */
 router.post("/acomptes/:id/validate", allow("CD","ADM","RJ"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
   if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
   if(a.status==="VALIDE") return res.status(409).json({error:"Déjà validé"});
   a.status="VALIDE"; a.validatedBy=req.user.id; a.validatedByName=req.user.fullName||""; a.validatedAt=new Date().toISOString();
-  save(); audit(req.user, "VALIDATED", "PayAcompte", a.id, { period:a.period, employeeId:a.employeeId, amount:a.amount });
+  recomputeEmployeeOpenRun(req, a.period, a.employeeId); save(); audit(req.user, "VALIDATED", "PayAcompte", a.id, { period:a.period, employeeId:a.employeeId, amount:a.amount });
   res.json(acompteOut(a, req));
 });
 router.post("/acomptes/:id/unvalidate", allow("CD","ADM"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
   if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
   a.status="BROUILLON"; delete a.validatedBy; delete a.validatedByName; delete a.validatedAt;
-  save(); audit(req.user, "UNVALIDATED", "PayAcompte", a.id, { period:a.period });
+  recomputeEmployeeOpenRun(req, a.period, a.employeeId); save(); audit(req.user, "UNVALIDATED", "PayAcompte", a.id, { period:a.period });
   res.json(acompteOut(a, req));
 });
 /* Valider en lot tous les brouillons d'un client/période. */
@@ -972,7 +986,8 @@ router.post("/acomptes/validate-batch", allow("CD","ADM","RJ"), (req,res)=>{
   let list=mine(db.payAcomptes, req).filter(a=>a.status!=="VALIDE");
   if(period) list=list.filter(a=>a.period===period);
   if(portfolioId) list=list.filter(a=>a.portfolioId===portfolioId);
-  let n=0; for(const a of list){ if(runLocked(a.period, req)) continue; a.status="VALIDE"; a.validatedBy=req.user.id; a.validatedByName=req.user.fullName||""; a.validatedAt=new Date().toISOString(); n++; }
+  let n=0; const touched=new Set(); for(const a of list){ if(runLocked(a.period, req)) continue; a.status="VALIDE"; a.validatedBy=req.user.id; a.validatedByName=req.user.fullName||""; a.validatedAt=new Date().toISOString(); touched.add(a.period+"|"+a.employeeId); n++; }
+  for(const k of touched){ const [p,e]=k.split("|"); recomputeEmployeeOpenRun(req, p, e); }
   save(); audit(req.user, "VALIDATED_BATCH", "PayAcompte", "", { period, portfolioId, count:n });
   res.json({ ok:true, validated:n });
 });
