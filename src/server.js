@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - CTRL-46 (bordereau d-elements GPF: saisie in-app, snapshot signe, e-signature, rapprochement auto vs paie, Bon a payer CD/Audit, gate virement, audit strict)";
+const BUILD_VERSION = "2026-09-24 - CTRL-47 (bordereau: acces GPF sans droit paie; acomptes registre dedie OM/MOMO; primes depuis rubriques; PDF avec elements de salaire; edit/suppr bordereau)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -196,7 +196,24 @@ const requireModule = (key) => (req, res, next) => {
   }
   next();
 };
-app.use("/api/payroll", requireModule("payroll"), require("./routes/payroll"));
+// Paie : les chemins de CONTRÔLE (bordereaux d'éléments, acomptes, lecture des rubriques) sont
+// des outils du GPF ; ils n'exigent PAS l'accès personnel au module « paie » (seulement que
+// l'organisation ait le module). Le contrôle de rôle reste fait dans chaque route.
+const payrollGate = (req, res, next) => {
+  const { db } = require("./store");
+  const u = req.user || {};
+  const t = (db.tenants || []).find(x => x.id === (u.tenantId || "t1"));
+  if (!((t && t.modules) || []).includes("payroll"))
+    return res.status(403).json({ error: "Module « payroll » non activé pour votre organisation - contactez le super-administrateur." });
+  const p = req.path || "";
+  const isControlPath = p.startsWith("/bordereaux") || p.startsWith("/acomptes") || (req.method === "GET" && p.startsWith("/rubriques"));
+  if (u.role === "ADM" || u.role === "SADM" || isControlPath) return next();
+  const dbu = (db.users || []).find(x => x.id === u.id);
+  if (!(((dbu && dbu.modules) || []).includes("payroll")))
+    return res.status(403).json({ error: "Accès au module « payroll » non accordé - contactez votre administrateur." });
+  next();
+};
+app.use("/api/payroll", payrollGate, require("./routes/payroll"));
 app.use("/api/billing", requireModule("invoicing"), require("./routes/billing"));
 app.use("/api/accounting", requireModule("accounting"), require("./routes/accounting"));
 app.use("/api/stock", requireModule("stock"), require("./routes/stock"));

@@ -51,7 +51,7 @@ function payslipSig(s) {
 }
 
 /* Ensure collections exist (defensive for older stores). */
-for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans", "payElementSheets"])
+for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans", "payElementSheets", "payAcomptes"])
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
@@ -263,6 +263,10 @@ function elementsToInput(emp, period, req, opts) {
     const diff = periodDiff(ln.startPeriod, period);
     if (diff >= 0 && diff < ln.installments)
       otherDeductions.push({ code: "7010", label: `${ln.label || "Prêt"} (${diff + 1}/${ln.installments})`, amount: Number(ln.monthlyAmount) });
+  }
+  // Acomptes sur salaire (registre dédié) : retenus à 100% sur le mois concerné.
+  for (const ac of mine(db.payAcomptes, req).filter(a => a.employeeId === emp.id && a.period === period)) {
+    if (Number(ac.amount) > 0) otherDeductions.push({ code: "7000", label: "Acompte sur salaire", amount: Number(ac.amount) });
   }
   const cfg = configOf(req);
   const joursEl = els.find(e => e.type === "JOURS");
@@ -541,7 +545,7 @@ function blankLine(e, req){
   return { employeeId:e.id, matricule:e.matricule||e.id.slice(-6), name:empName(e),
     category:(e.contract&&e.contract.category)||"", contrat:(e.contract&&e.contract.type)||"",
     joursPresence:B_STD_DAYS(req), absence:0, hs120:0, hs130:0, hs140:0, hsNuit:0,
-    acompte:0, primes:[] /* {label,amount,kind:PRIME|INDEMNITE|RAPPEL|TREIZE} */ };
+    primes:[] /* {code,label,amount,cnps,impo} depuis les rubriques de paie */ };
 }
 /** Échéance de prêt du mois pour un employé (lecture seule, depuis payLoans). */
 function loanEcheance(empId, period, req){
@@ -554,7 +558,7 @@ function loanEcheance(empId, period, req){
 }
 function sheetOut(sheet, req){
   const out=Object.assign({}, sheet);
-  out.lines=(sheet.lines||[]).map(l => Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req) }));
+  out.lines=(sheet.lines||[]).map(l => Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotal(l.employeeId, sheet.period, req) }));
   const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
   out.portfolioName=pf?pf.name:"(tous)";
   return out;
@@ -613,8 +617,7 @@ router.put("/bordereaux/:id/lines", allow("RP","ADM","GPF"), (req,res)=>{
     line.joursPresence=clean(nu.joursPresence, 0, 31);
     line.absence=clean(nu.absence, 0, 31);
     line.hs120=clean(nu.hs120,0,null); line.hs130=clean(nu.hs130,0,null); line.hs140=clean(nu.hs140,0,null); line.hsNuit=clean(nu.hsNuit,0,null);
-    line.acompte=clean(nu.acompte,0,null);
-    line.primes=Array.isArray(nu.primes)?nu.primes.filter(p=>p&&p.label&&Number(p.amount)>0).map(p=>({label:String(p.label).slice(0,40), amount:Math.round(Number(p.amount)), kind:["PRIME","INDEMNITE","RAPPEL","TREIZE","ROTATION"].includes(p.kind)?p.kind:"PRIME"})):[];
+    line.primes=Array.isArray(nu.primes)?nu.primes.filter(p=>p&&p.label&&Number(p.amount)>0).map(p=>({code:String(p.code||"2000").slice(0,10), label:String(p.label).slice(0,40), amount:Math.round(Number(p.amount)), cnps:p.cnps!==false, impo:p.impo!==false})):[];
     if(JSON.stringify(line)!==before) changes++;
   }
   bEvent(s, req, "BORDEREAU_LIGNES_MAJ", { lignesModifiees:changes });
@@ -632,6 +635,19 @@ router.post("/bordereaux/:id/reopen", allow("GPF","ADM"), (req,res)=>{
   save(); res.json(sheetOut(s, req));
 });
 
+/* --- Supprimer un bordereau (GPF/ADM) — impossible si « Bon à payer » --- */
+router.delete("/bordereaux/:id", allow("GPF","ADM","CD"), (req,res)=>{
+  const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
+  if(s.status==="BON_A_PAYER") return res.status(409).json({error:"Bordereau validé « Bon à payer » - suppression interdite."});
+  if(runLocked(s.period, req)) return res.status(409).json({error:"Période clôturée"});
+  // retirer les éléments variables injectés par ce bordereau
+  const empIds=new Set((s.lines||[]).map(l=>l.employeeId));
+  db.payElements=db.payElements.filter(e=>!(empIds.has(e.employeeId) && e.period===s.period && (e.tenantId||"t1")===(s.tenantId||"t1") && e.bordereauId===s.id));
+  audit(req.user, "DELETED", "PayElementSheet", s.id, { period:s.period, portfolioId:s.portfolioId });
+  db.payElementSheets.splice(db.payElementSheets.indexOf(s),1); save();
+  res.json({ ok:true });
+});
+
 /** Injecte les éléments variables de la période pour les employés du bordereau (remplace les précédents issus du bordereau). */
 function pushElementsFromSheet(s, req){
   const empIds=new Set(s.lines.map(l=>l.employeeId));
@@ -644,11 +660,8 @@ function pushElementsFromSheet(s, req){
     if(Number(l.hs130)>0) add({ employeeId:l.employeeId, type:"HS30", hours:Number(l.hs130), label:"HS 130%" });
     if(Number(l.hs140)>0) add({ employeeId:l.employeeId, type:"HS40", hours:Number(l.hs140), label:"HS 140%" });
     if(Number(l.hsNuit)>0) add({ employeeId:l.employeeId, type:"NUIT", hours:Number(l.hsNuit), label:"Heures de nuit" });
-    if(Number(l.acompte)>0) add({ employeeId:l.employeeId, type:"ACOMPTE", amount:Number(l.acompte), label:"Acompte sur salaire" });
     for(const p of (l.primes||[])){
-      const kind=p.kind||"PRIME";
-      const type= kind==="RAPPEL"?"RAPPEL" : kind==="TREIZE"?"TREIZE" : kind==="INDEMNITE"?"INDEMNITE" : "PRIME";
-      add({ employeeId:l.employeeId, type, amount:Math.round(Number(p.amount)), label:p.label });
+      add({ employeeId:l.employeeId, type:"PRIME", code:String(p.code||"2000"), amount:Math.round(Number(p.amount)), label:p.label, cnps:p.cnps!==false, impo:p.impo!==false });
     }
   }
 }
@@ -675,13 +688,33 @@ router.get("/bordereaux/:id/audit", allow("RP","ADM","GPF","CD","RJ"), (req,res)
   const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
   res.json({ events:(s.events||[]).slice().reverse(), signatures:s.signatures||[], snapshotHash:s.snapshotHash||null });
 });
-/* --- PDF du bordereau (mise en page proche de l'Excel) + signatures/traçabilité --- */
+/* --- PDF du bordereau : éléments de salaire (comme l'Excel) + éléments variables + traçabilité --- */
 router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
   const tenant=(db.tenants||[]).find(t=>(t.id)===(s.tenantId||"t1"))||{name:"Entreprise"};
   const pf=mine(db.portfolios, req).find(p=>p.id===s.portfolioId);
-  const F=(n)=>String(Math.round(Number(n)||0)).replace(/\B(?=(\d{3})+(?!\d))/g," ");
-  const doc=new PDFDocument({ size:"A4", layout:"landscape", margin:24 });
+  const F=(n)=>{ n=Math.round(Number(n)||0); return n?String(n).replace(/\B(?=(\d{3})+(?!\d))/g," "):""; };
+  const empById={}; mine(db.employees, req).forEach(e=>{ empById[e.id]=e; });
+  // Construire la structure salariale par employé + l'union ordonnée des libellés de primes structurelles
+  const struct={}; const gainLabels=[];
+  for(const l of s.lines){ const e=empById[l.employeeId]; if(!e){ struct[l.employeeId]={base:0,gains:[],transport:0}; continue; }
+    const st=structureToInput(e, req);
+    const gains=(st.gains||[]).map(g=>({label:g.label||g.code||"Prime", amount:Number(g.amount)||0}));
+    for(const g of gains) if(!gainLabels.includes(g.label)) gainLabels.push(g.label);
+    struct[l.employeeId]={ base:Number(st.baseSalary)||0, gains, transport:(st.transport&&Number(st.transport.amount))||0 };
+  }
+  const gCols=gainLabels.slice(0,10); // borne raisonnable
+  // Colonnes : fixes + salaire + variables
+  const cols=[{h:"N°",w:20,a:"l"},{h:"Nom",w:120,a:"l"},{h:"Contrat",w:38,a:"l"},{h:"Cat",w:26,a:"l"},{h:"Sal. base",w:50,a:"r"}];
+  gCols.forEach(g=>cols.push({h:g.length>12?g.slice(0,12):g,w:46,a:"r",gain:g}));
+  cols.push({h:"Transport",w:46,a:"r",kind:"transport"});
+  cols.push({h:"Brut contr.",w:52,a:"r",kind:"brut"});
+  cols.push({h:"Prés.",w:28,a:"r",kind:"pres"});
+  cols.push({h:"HS120",w:32,a:"r",kind:"hs120"},{h:"HS130",w:32,a:"r",kind:"hs130"},{h:"HS140",w:32,a:"r",kind:"hs140"},{h:"Nuit",w:26,a:"r",kind:"nuit"});
+  cols.push({h:"Primes var.",w:52,a:"r",kind:"primesv"});
+  cols.push({h:"Acompte",w:50,a:"r",kind:"acompte"});
+  cols.push({h:"Éch. prêt",w:50,a:"r",kind:"pret"});
+  const doc=new PDFDocument({ size:"A4", layout:"landscape", margin:18 });
   const chunks=[]; doc.on("data",d=>chunks.push(d));
   doc.on("end",()=>{ const buf=Buffer.concat(chunks);
     res.setHeader("Content-Type","application/pdf");
@@ -689,60 +722,79 @@ router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>
     res.end(buf);
   });
   const green="#0b7a4b", ink="#111827", grey="#6b7280", line="#d1d5db";
-  const W=doc.page.width, M=24; let y=28;
-  doc.fillColor(green).font("Helvetica-Bold").fontSize(15).text(`Bordereau d'éléments de paie`, M, y);
-  doc.fillColor(ink).font("Helvetica").fontSize(10).text(tenant.name||"", M, y+2, {align:"right", width:W-2*M});
-  y+=22;
-  doc.fontSize(10).fillColor(ink)
-    .text(`Client : ${pf?pf.name:"(tous)"}     Période : ${s.period}     Statut : ${s.status}`, M, y);
-  y+=16;
-  // columns
-  const cols=[
-    {h:"N°",w:26,a:"l"},{h:"Nom",w:150,a:"l"},{h:"Contrat",w:44,a:"l"},{h:"Cat",w:30,a:"l"},
-    {h:"Prés.",w:34,a:"r"},{h:"Abs.",w:30,a:"r"},{h:"HS120",w:36,a:"r"},{h:"HS130",w:36,a:"r"},{h:"HS140",w:36,a:"r"},{h:"Nuit",w:30,a:"r"},
-    {h:"Acompte",w:56,a:"r"},{h:"Éch. prêt",w:56,a:"r"},{h:"Primes variables",w:0,a:"l"}
-  ];
-  let used=cols.reduce((a,c)=>a+c.w,0); cols[cols.length-1].w=Math.max(120, W-2*M-used);
-  const drawRow=(cells,opts)=>{
-    opts=opts||{}; let x=M; const h=opts.h||16;
-    if(opts.fill){ doc.rect(M,y,W-2*M,h).fill(opts.fill); }
-    doc.fillColor(opts.color||ink).font(opts.bold?"Helvetica-Bold":"Helvetica").fontSize(opts.size||8);
+  const W=doc.page.width, M=18;
+  // auto-fit : réduire proportionnellement si trop large
+  let totW=cols.reduce((a,c)=>a+c.w,0); const avail=W-2*M;
+  if(totW>avail){ const k=avail/totW; cols.forEach(c=>c.w=Math.max(16,Math.floor(c.w*k))); }
+  let y=24;
+  doc.fillColor(green).font("Helvetica-Bold").fontSize(13).text("Bordereau d'éléments de paie", M, y);
+  doc.fillColor(ink).font("Helvetica").fontSize(9).text(tenant.name||"", M, y+1, {align:"right", width:W-2*M});
+  y+=18;
+  doc.fontSize(9).fillColor(ink).text(`Client : ${pf?pf.name:"(tous)"}     Période : ${s.period}     Statut : ${s.status}     Effectif : ${(s.lines||[]).length}`, M, y);
+  y+=14;
+  const rowH=15;
+  const drawRow=(cells,opts)=>{ opts=opts||{}; let x=M; const h=opts.h||rowH;
+    if(opts.fill){ doc.rect(M,y,cols.reduce((a,c)=>a+c.w,0),h).fill(opts.fill); }
+    doc.font(opts.bold?"Helvetica-Bold":"Helvetica").fontSize(opts.size||6.5);
     for(let i=0;i<cols.length;i++){ const c=cols[i];
-      doc.fillColor(opts.color||ink).text(String(cells[i]==null?"":cells[i]), x+3, y+4, {width:c.w-6, align:c.a, ellipsis:true, lineBreak:false});
-      x+=c.w;
-    }
-    doc.moveTo(M,y+h).lineTo(W-M,y+h).strokeColor(line).lineWidth(0.5).stroke();
-    y+=h;
-  };
-  drawRow(cols.map(c=>c.h), {fill:"#e6f2ec", bold:true, color:green, h:18, size:8});
-  let n=0; const tot={pres:0,acompte:0,loan:0};
+      doc.fillColor(opts.color||ink).text(String(cells[i]==null?"":cells[i]), x+2, y+4, {width:c.w-4, align:c.a, ellipsis:true, lineBreak:false});
+      x+=c.w; }
+    doc.moveTo(M,y+h).lineTo(M+cols.reduce((a,c)=>a+c.w,0),y+h).strokeColor(line).lineWidth(0.4).stroke();
+    y+=h; };
+  drawRow(cols.map(c=>c.h), {fill:"#e6f2ec", bold:true, color:green, h:20, size:6});
+  let n=0; const T={base:0,transport:0,brut:0,acompte:0,pret:0,primesv:0};
   for(const l of s.lines){ n++;
-    const loan=loanEcheance(l.employeeId, s.period, req);
-    tot.pres+=Number(l.joursPresence)||0; tot.acompte+=Number(l.acompte)||0; tot.loan+=loan.total;
-    const primes=(l.primes||[]).map(p=>`${p.label}: ${F(p.amount)}`).join("  ·  ");
-    if(y>doc.page.height-70){ doc.addPage(); y=28; drawRow(cols.map(c=>c.h), {fill:"#e6f2ec", bold:true, color:green, h:18, size:8}); }
-    drawRow([n, l.name, l.contrat||"", l.category||"", F(l.joursPresence), l.absence?F(l.absence):"", l.hs120||"", l.hs130||"", l.hs140||"", l.hsNuit||"", l.acompte?F(l.acompte):"", loan.total?F(loan.total):"", primes], {size:8});
+    const stc=struct[l.employeeId]||{base:0,gains:[],transport:0};
+    const gainAmt=(lbl)=>{ const g=(stc.gains||[]).find(x=>x.label===lbl); return g?g.amount:0; };
+    const brut=stc.base+ (stc.gains||[]).reduce((a,g)=>a+g.amount,0) + stc.transport;
+    const acompte=acompteTotal(l.employeeId, s.period, req);
+    const pret=loanEcheance(l.employeeId, s.period, req).total;
+    const primesv=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
+    T.base+=stc.base; T.transport+=stc.transport; T.brut+=brut; T.acompte+=acompte; T.pret+=pret; T.primesv+=primesv;
+    if(y>doc.page.height-72){ doc.addPage(); y=24; drawRow(cols.map(c=>c.h), {fill:"#e6f2ec", bold:true, color:green, h:20, size:6}); }
+    const cells=cols.map(c=>{
+      if(c.h==="N°") return n; if(c.h==="Nom") return l.name; if(c.h==="Contrat") return l.contrat||""; if(c.h==="Cat") return l.category||"";
+      if(c.h==="Sal. base") return F(stc.base);
+      if(c.gain) return F(gainAmt(c.gain));
+      if(c.kind==="transport") return F(stc.transport);
+      if(c.kind==="brut") return F(brut);
+      if(c.kind==="pres") return F(l.joursPresence);
+      if(c.kind==="hs120") return l.hs120||""; if(c.kind==="hs130") return l.hs130||""; if(c.kind==="hs140") return l.hs140||""; if(c.kind==="nuit") return l.hsNuit||"";
+      if(c.kind==="primesv") return F(primesv);
+      if(c.kind==="acompte") return F(acompte);
+      if(c.kind==="pret") return F(pret);
+      return "";
+    });
+    drawRow(cells, {size:6.5});
   }
-  drawRow(["","TOTAUX ("+n+")","","",F(tot.pres),"","","","","",F(tot.acompte),F(tot.loan),""], {bold:true, fill:"#f3f4f6", h:18});
-  y+=10;
+  const totCells=cols.map(c=>{ if(c.h==="Nom") return "TOTAUX ("+n+")"; if(c.h==="Sal. base") return F(T.base); if(c.kind==="transport") return F(T.transport); if(c.kind==="brut") return F(T.brut); if(c.kind==="primesv") return F(T.primesv); if(c.kind==="acompte") return F(T.acompte); if(c.kind==="pret") return F(T.pret); return ""; });
+  drawRow(totCells, {bold:true, fill:"#f3f4f6", h:18, size:6.5});
+  y+=8;
+  // détail des primes variables par employé (sous le tableau)
+  const withPrimes=s.lines.filter(l=>(l.primes||[]).length);
+  if(withPrimes.length){ doc.font("Helvetica-Bold").fontSize(8).fillColor(ink).text("Primes variables (détail)", M, y); y+=12;
+    doc.font("Helvetica").fontSize(7).fillColor(ink);
+    for(const l of withPrimes){ const t=(l.primes||[]).map(p=>`${p.label} ${F(p.amount)}`).join("  ·  "); doc.text(`${l.name} : ${t}`, M, y, {width:W-2*M}); y+=10; if(y>doc.page.height-70){ doc.addPage(); y=24; } }
+    y+=6;
+  }
   // traçabilité + signatures
   const sigSoum=(s.signatures||[]).find(x=>x.kind==="SOUMISSION");
   const sigBap=(s.signatures||[]).find(x=>x.kind==="BON_A_PAYER");
   doc.font("Helvetica").fontSize(8).fillColor(grey);
   doc.text(`Créé par : ${s.createdByName||"-"}  ·  Généré/imprimé par : ${req.user.fullName||""} le ${new Date().toISOString().slice(0,16).replace("T"," ")}`, M, y); y+=12;
   doc.fillColor(ink).font("Helvetica-Bold").fontSize(9).text("Signatures électroniques", M, y); y+=13;
-  doc.font("Helvetica").fontSize(8).fillColor(ink);
-  if(sigSoum) doc.text(`Soumis & signé (GPF) : ${sigSoum.name} (${sigSoum.role}) le ${sigSoum.at.slice(0,16).replace("T"," ")} — empreinte SHA-256 : ${(sigSoum.sha256||"").slice(0,24)}…`, M, y, {width:W-2*M});
+  doc.font("Helvetica").fontSize(8);
+  if(sigSoum) doc.fillColor(ink).text(`Soumis & signé (GPF) : ${sigSoum.name} (${sigSoum.role}) le ${sigSoum.at.slice(0,16).replace("T"," ")} — empreinte SHA-256 : ${(sigSoum.sha256||"").slice(0,24)}…`, M, y, {width:W-2*M});
   else doc.fillColor(grey).text("Soumis & signé (GPF) : en attente", M, y);
   y+=12;
   if(sigBap) doc.fillColor(ink).text(`Bon à payer (${sigBap.role}) : ${sigBap.name} le ${sigBap.at.slice(0,16).replace("T"," ")} — empreinte SHA-256 : ${(sigBap.sha256||"").slice(0,24)}…`, M, y, {width:W-2*M});
   else doc.fillColor(grey).text("Bon à payer : en attente (CD / Audit)", M, y);
-  y+=16;
+  y+=15;
   doc.fillColor(grey).fontSize(7).text("Document généré par SGRHP — MBOKA Mon RH. Toute modification postérieure à la signature est tracée dans le journal d'audit.", M, y, {width:W-2*M});
-  // trace de génération
   bEvent(s, req, "BORDEREAU_PDF_GENERE", {}); save();
   doc.end();
 });
+
 /* --- Rapprochement automatique : snapshot signé (GPF) vs paie calculée --- */
 function buildControl(s, req){
   const run=mine(db.payRuns, req).slice().sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")).find(r=>r.period===s.period);
@@ -777,7 +829,7 @@ function buildControl(s, req){
       cmp(l.employeeId,"hs130","HS 130%", l.hs130, ot.tier2),
       cmp(l.employeeId,"hs140","HS 140%", l.hs140, ot.tier3),
       cmp(l.employeeId,"nuit","Heures de nuit", l.hsNuit, ot.night),
-      cmp(l.employeeId,"acompte","Acompte", l.acompte, sumOD("7000")),
+      cmp(l.employeeId,"acompte","Acompte", acompteTotal(l.employeeId, s.period, req), sumOD("7000")),
       cmp(l.employeeId,"pret","Échéance prêt", loan, sumOD("7010")),
       cmp(l.employeeId,"primes","Primes variables (total)", primesSoumis, gainsFromEls),
     ];
@@ -833,6 +885,61 @@ router.post("/bordereaux/:id/bon-a-payer", allow("CD","ADM","RJ"), (req,res)=>{
   bEvent(s, req, "BON_A_PAYER_SIGNE", { signataire:req.user.fullName||"", role:req.user.role, signature:sig.seq, empreinte:payload.slice(0,16) });
   save(); res.json(sheetOut(s, req));
 });
+/* =================================================================== *
+ *  ACOMPTES SUR SALAIRE  (registre dédié, par client & période)       *
+ *  Mireroir de l'Excel : client, employé, n° OM/MOMO, montant.        *
+ *  Retenu à 100% sur le mois (le moteur de paie lit ce registre).     *
+ * =================================================================== */
+function acompteOut(a, req){
+  const pf=mine(db.portfolios, req).find(p=>p.id===a.portfolioId);
+  const e=mine(db.employees, req).find(x=>x.id===a.employeeId);
+  return Object.assign({}, a, { portfolioName:pf?pf.name:"", employeeName:a.employeeName||(e?`${e.firstName||""} ${e.lastName||""}`.trim():""), matricule:a.matricule||(e?(e.matricule||""):"") });
+}
+router.get("/acomptes", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const { period, portfolioId, employeeId } = req.query;
+  let list=mine(db.payAcomptes, req);
+  if(period) list=list.filter(a=>a.period===period);
+  if(portfolioId) list=list.filter(a=>a.portfolioId===portfolioId);
+  if(employeeId) list=list.filter(a=>a.employeeId===employeeId);
+  res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"")||String(a.employeeName||"").localeCompare(String(b.employeeName||""))).map(a=>acompteOut(a, req)));
+});
+router.post("/acomptes", allow("RP","ADM","GPF","CD"), (req,res)=>{
+  const b=req.body||{}; const period=(b.period||"").trim();
+  if(!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({error:"Période attendue au format AAAA-MM"});
+  if(!b.employeeId) return res.status(400).json({error:"Employé obligatoire"});
+  if(!(Number(b.amount)>0)) return res.status(400).json({error:"Montant obligatoire"});
+  if(runLocked(period, req)) return res.status(409).json({error:"Période clôturée - saisie impossible"});
+  const e=mine(db.employees, req).find(x=>x.id===b.employeeId);
+  const a=stamp({ id:id("aco"), period, portfolioId:b.portfolioId||(e&&e.portfolioId)||"", employeeId:b.employeeId,
+    employeeName:e?`${e.firstName||""} ${e.lastName||""}`.trim():"", matricule:e?(e.matricule||""):"",
+    momo:String(b.momo||"").slice(0,30), amount:Math.round(Number(b.amount)), note:String(b.note||"").slice(0,120),
+    createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
+  db.payAcomptes.push(a); save();
+  audit(req.user, "CREATED", "PayAcompte", a.id, { period, employeeId:a.employeeId, amount:a.amount });
+  res.status(201).json(acompteOut(a, req));
+});
+router.put("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
+  const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
+  if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  const b=req.body||{};
+  if(b.amount!=null){ if(!(Number(b.amount)>0)) return res.status(400).json({error:"Montant invalide"}); a.amount=Math.round(Number(b.amount)); }
+  if(b.momo!=null) a.momo=String(b.momo).slice(0,30);
+  if(b.note!=null) a.note=String(b.note).slice(0,120);
+  save(); audit(req.user, "UPDATED", "PayAcompte", a.id, { amount:a.amount });
+  res.json(acompteOut(a, req));
+});
+router.delete("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
+  const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
+  if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  db.payAcomptes.splice(db.payAcomptes.indexOf(a),1); save();
+  audit(req.user, "DELETED", "PayAcompte", a.id, { period:a.period, employeeId:a.employeeId });
+  res.json({ ok:true });
+});
+/* Acompte total d'un employé sur une période (utilisé par le contrôle du bordereau). */
+function acompteTotal(empId, period, req){
+  return mine(db.payAcomptes, req).filter(a=>a.employeeId===empId && a.period===period).reduce((s,a)=>s+(Number(a.amount)||0),0);
+}
+
 
 
 
