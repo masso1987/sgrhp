@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - SEC-42 (inactivite 2h + configurable SADM, historique connexions ADM/SADM avec appareil-IP-localisation, modeles: edition + apercu)";
+const BUILD_VERSION = "2026-09-24 - DASH-43 (facturation: tableau de bord enrichi; rapports: vue consolidee multi-modules + a-traiter)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

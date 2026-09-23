@@ -3458,6 +3458,72 @@ let REP_KEY = "kpis";
 const bar = (pct, color) => `<div style="height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden">
   <div style="height:100%;width:${Math.min(100, pct)}%;background:${color}"></div></div>`;
 
+async function load360(){
+  const [acct,bill,hr] = await Promise.all([
+    api("/accounting/dashboard").catch(()=>null),
+    api("/billing/dashboard").catch(()=>null),
+    api("/reports/kpis").catch(()=>null),
+  ]);
+  let pay=null; let due=[];
+  try{ const runs=await api("/payroll/runs"); if(runs&&runs.length){ const last=runs.slice().sort((a,b)=>String(b.period).localeCompare(String(a.period)))[0]; const rr=await api("/payroll/runs/"+last.id); pay={period:last.period, totals:(rr.totals)||{}, count:(rr.payslips||[]).length}; } }catch(e){}
+  try{ due=await api("/billing/invoices/due"); }catch(e){}
+  return {acct,bill,hr:(hr&&hr.data)||null,pay,due};
+}
+function build360(x){
+  if(!x) return "";
+  const M=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
+  const kc=(l,v,s,col)=>`<div class="adm-kc"><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:''}>${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+  const sec=(t)=>`<div class="adm-sec" style="margin:14px 0 8px">${t}</div>`;
+  let html=`<div class="panel" style="background:linear-gradient(0deg,#fff,#fff);border:1px solid var(--border)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b style="font-size:14px">Direction - Vue consolidée</b><span class="note-inline">données en direct</span></div>`;
+  if(x.hr){ html+=sec("Ressources humaines");
+    html+=`<div class="adm-kpi">
+      ${kc("Effectif total",x.hr.headcount,"salariés")}
+      ${kc("Masse salariale",M(x.hr.payroll)+" F","par mois")}
+      ${kc("Turnover",x.hr.turnover+" %","")}
+      ${kc("Absentéisme",x.hr.absenteeism+" %","")}
+      ${kc("Documents générés",x.hr.generatedDocs,"")}</div>`;
+  }
+  if(x.pay){ const t=x.pay.totals||{}; html+=sec("Paie - "+esc(x.pay.period||""));
+    html+=`<div class="adm-kpi">
+      ${kc("Bulletins",x.pay.count||0,"dernier mois")}
+      ${kc("Brut",M(t.brutTotal)+" F","")}
+      ${kc("Net à payer",M(t.netAPayer)+" F","")}
+      ${kc("Charges patronales",M(t.chargesPatronales)+" F","")}
+      ${kc("CNPS + impôts",M((t.cnpsSalarie||0)+(t.cnpsPatronal||0)+(t.totalImpots||0))+" F","à déclarer")}</div>`;
+  }
+  if(x.bill&&x.bill.kpi){ const k=x.bill.kpi; html+=sec("Facturation");
+    html+=`<div class="adm-kpi">
+      ${kc("CA (TTC)",M(k.caTTC)+" F","validé")}
+      ${kc("CA (HT)",M(k.caHT)+" F","")}
+      ${kc("TVA collectée",M(k.tva)+" F","")}
+      ${kc("À encaisser",M(k.totalDu)+" F","",(k.totalDu>0)?'#d97706':'')}
+      ${kc("Factures",k.factures,`${k.validees} validées`)}</div>`;
+  }
+  if(x.acct&&x.acct.kpi){ const k=x.acct.kpi; html+=sec("Comptabilité"+(x.acct.exercice?(" - exercice "+x.acct.exercice.year):""));
+    html+=`<div class="adm-kpi">
+      ${kc("Résultat",M(k.resultat)+" F","produits - charges",(k.resultat>=0?'var(--nav-active-color)':'var(--red)'))}
+      ${kc("Trésorerie",M(k.tresorerie)+" F","classe 5")}
+      ${kc(k.tva>=0?"TVA à payer":"Crédit de TVA",M(Math.abs(k.tva))+" F","")}
+      ${kc("Créances clients",M(k.creances)+" F","411")}
+      ${kc("Dettes fournisseurs",M(k.dettes)+" F","401")}</div>`;
+  }
+  // À traiter (cockpit)
+  const todo=(x.acct&&x.acct.todo)||{}; const overdue=(x.due||[]).filter(d=>d.overdue).length;
+  const items=[];
+  if(todo.invNonCompta) items.push(["Factures validées non comptabilisées",todo.invNonCompta,"invoices",true]);
+  if(todo.payNonCompta) items.push(["Paies clôturées non comptabilisées",todo.payNonCompta,"payroll",true]);
+  if(todo.draftUnbalanced) items.push(["Écritures brouillon déséquilibrées",todo.draftUnbalanced,"acctsaisie",true]);
+  if(todo.draftTotal) items.push(["Écritures en brouillon",todo.draftTotal,"acctsaisie",false]);
+  if(overdue) items.push(["Factures échues impayées",overdue,"invoices",true]);
+  if(todo.bankUnpointed) items.push(["Lignes bancaires non pointées",todo.bankUnpointed,"acctbank",false]);
+  if(items.length){ html+=sec("À traiter");
+    html+=`<div class="grid2"><div>${items.map(it=>`<div onclick="go('${it[2]}')" style="cursor:pointer;display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${it[0]}</span><b style="color:${it[3]?'var(--red)':'#d97706'}">${it[1]}</b></div>`).join("")}</div><div></div></div>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+
 async function reportsView() {
   const list = await api("/reports");
   const r = await api("/reports/" + REP_KEY);
@@ -3525,8 +3591,11 @@ async function reportsView() {
       ${d.map(row => `<tr>${Object.values(row).map(v => `<td>${v}</td>`).join("")}</tr>`).join("")}</table></div>`;
   }
 
-  view.innerHTML = `<h1>Reports & KPIs</h1>
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+  if(window._REP360===undefined){ window._REP360=null; try{ window._REP360=await load360(); }catch(e){} }
+  view.innerHTML = `<h1>Rapports &amp; KPIs</h1>
+  ${build360(window._REP360)}
+  <div style="display:flex;gap:8px;align-items:center;margin:14px 0;flex-wrap:wrap">
+    <b style="font-size:12px;color:var(--muted)">Rapport détaillé :</b>
     <select style="max-width:340px;margin:0" onchange="REP_KEY=this.value;reportsView()">
       ${list.map(x => `<option value="${x.key}" ${x.key===REP_KEY?"selected":""}>${esc(x.label)}</option>`).join("")}</select>
     <button class="btn p sm" onclick="repExport('pdf')">Export PDF</button>
@@ -5821,46 +5890,59 @@ function caReport(fmt){ const from=(document.getElementById("caFrom")||{}).value
   if(!from||!to){ alert("Choisissez la plage."); return; }
   payDownload(`/billing/reports/ca?from=${from}&to=${to}&format=${fmt}`, `Rapport_facturation_${from}_${to}.${fmt==="xlsx"?"xlsx":fmt}`); }
 async function billHome(){
-  const d=await api("/billing/dashboard").catch(()=>null);
+  const [d, due] = await Promise.all([ api("/billing/dashboard").catch(()=>null), api("/billing/invoices/due").catch(()=>[]) ]);
   if(!d){ view.innerHTML='<h1>Facturation</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
-  const k=d.kpi;
-  const money=(n)=>Number(n||0).toLocaleString("fr-FR")+" FCFA";
-  const card=(l,v,sub,dest)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:160px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:14px;padding:14px 16px">
-    <div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:21px;font-weight:700;margin-top:4px">${v}</div>${sub?`<div class="note" style="font-size:11px;margin-top:2px">${sub}</div>`:''}</div>`;
-  const stat=(l)=>({validated:'<span class="tag green">Validée</span>',draft:'<span class="tag amber">Brouillon</span>'}[l]||l);
+  const k=d.kpi||{}; const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR")+" FCFA";
   const nowM=new Date().toISOString().slice(0,7); const janM=new Date().getFullYear()+"-01";
-  view.innerHTML=`<h1>Tableau de bord - Facturation</h1>
-    <div class="panel" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:10px 0">
-      <b style="font-size:12px;color:var(--muted);align-self:center;margin-right:4px">RAPPORT CA (PLAGE)</b>
-      <div><label>De</label><input id="caFrom" type="month" value="${janM}" style="margin:0"></div>
-      <div><label>À</label><input id="caTo" type="month" value="${nowM}" style="margin:0"></div>
-      <button class="btn ghost sm" onclick="caReport('pdf')">PDF</button>
-      <button class="btn ghost sm" onclick="caReport('xlsx')">Excel</button>
-      <button class="btn ghost sm" onclick="caReport('csv')">CSV</button>
+  const tr=d.trend||[]; let variation=null;
+  if(tr.length>=2){ const a=tr[tr.length-2].TTC||0, b=tr[tr.length-1].TTC||0; variation= a>0? Math.round((b-a)/a*100) : (b>0?100:null); }
+  const varTag = variation==null?'' : `<span style="color:${variation>=0?'var(--nav-active-color)':'var(--red)'};font-weight:600">${variation>=0?'&#9650; +':'&#9660; '}${variation}%</span> vs mois pr&eacute;c&eacute;dent`;
+  const list=due||[]; const overdue=list.filter(x=>x.overdue); const soon=list.filter(x=>x.dueSoon && !x.overdue); const nonCompta=list.filter(x=>!x.receiptConfirmed);
+  const totalEchu=overdue.reduce((a,x)=>a+(x.totalDu||x.TTC||0),0);
+  const kc=(l,v,ss,dest,col)=>`<div class="adm-kc ${dest?'clk':''}" ${dest?`onclick="go('${dest}')"`:''}><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:''}>${v}</div>${ss?`<div class="s">${ss}</div>`:''}</div>`;
+  const stat=(l)=>({validated:'<span class="tag green">Valid&eacute;e</span>',draft:'<span class="tag amber">Brouillon</span>'}[l]||l);
+  const alertRow=(label,n,warn,extra)=>`<div onclick="go('invoices')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)"><span>${label}${extra?` <span class="note-inline">${extra}</span>`:''}</span><b style="color:${n>0?(warn?'var(--red)':'#d97706'):'var(--muted)'}">${n}</b></div>`;
+  view.innerHTML=`<div class="adm-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Facturation</h1><span class="tag green">Exercice ${new Date().getFullYear()}</span></div>
+    <div class="adm-kpi">
+      ${kc("Chiffre d'affaires (TTC)",money(k.caTTC),varTag||`${k.validees||0} facture(s) valid&eacute;e(s)`,"invoices")}
+      ${kc("CA hors taxes",money(k.caHT),"base imposable")}
+      ${kc("TVA collect&eacute;e",money(k.tva),"&agrave; reverser")}
+      ${kc("&Agrave; encaisser",money(k.totalDu),`${list.length} en attente`,"invoices",(k.totalDu>0)?'#d97706':'')}
+      ${kc("Factures",k.factures||0,`${k.validees||0} valid&eacute;es &middot; ${k.brouillons||0} brouillon(s)`,"invoices")}
+      ${kc("Clients (contrats)",k.clients||0,"portefeuille","billingcfg")}
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0">
-      ${card("Chiffre d'affaires (TTC)",money(k.caTTC),k.validees+" facture(s) validée(s)","invoices")}
-      ${card("Chiffre d'affaires (HT)",money(k.caHT),"")}
-      ${card("TVA collectée",money(k.tva),"")}
-      ${card("Retenue IS",money(k.is),"")}
-      ${card("Factures",k.factures,k.brouillons+" brouillon(s)","invoices")}
-      ${card("Clients (contrats)",k.clients,"","billingcfg")}
+    <div class="grid2">
+      <div class="panel"><b>&Eacute;volution du chiffre d'affaires <span class="note-inline">(8 derniers mois)</span></b><div style="position:relative;height:220px;margin-top:8px"><canvas id="billChart"></canvas></div></div>
+      <div class="panel"><b>&Agrave; traiter &amp; &eacute;ch&eacute;ances</b><div style="margin-top:6px">
+        ${alertRow("Factures &eacute;chues (impay&eacute;es)",overdue.length,true, totalEchu?money(totalEchu):'')}
+        ${alertRow("&Eacute;ch&eacute;ance proche (&le; 7 j)",soon.length,false)}
+        ${alertRow("En attente de comptabilisation",nonCompta.length,false)}
+        <div style="display:flex;justify-content:space-between;padding:7px 0"><span>Brouillons &agrave; valider</span><b style="color:${(k.brouillons||0)>0?'#d97706':'var(--muted)'}">${k.brouillons||0}</b></div>
+      </div></div>
     </div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <div class="panel" style="flex:2;min-width:320px"><b>Évolution du chiffre d'affaires</b><div style="position:relative;height:180px;margin-top:8px"><canvas id="billChart"></canvas></div></div>
-      <div class="panel" style="flex:1;min-width:240px"><b>Top clients</b>
-        <table style="margin-top:6px;width:100%"><tr><th>Client</th><th class="r">CA (TTC)</th></tr>
-        ${(d.topClients||[]).map(c=>`<tr><td>${esc(c.client)}</td><td class="r">${money(c.TTC)}</td></tr>`).join("")||'<tr><td colspan="2" class="note">-</td></tr>'}</table></div>
+    <div class="grid2">
+      <div class="panel"><b>Top clients</b>
+        <table style="margin-top:6px;width:100%"><tr><th>Client</th><th class="r">Factures</th><th class="r">CA (TTC)</th></tr>
+        ${(d.topClients||[]).map(c=>`<tr><td>${esc(c.client)}</td><td class="r">${c.n||''}</td><td class="r">${money(c.TTC)}</td></tr>`).join("")||'<tr><td colspan="3" class="note-inline">Aucune facture.</td></tr>'}</table></div>
+      <div class="panel"><b>R&eacute;partition du CA par client</b><div style="position:relative;height:200px;margin-top:8px"><canvas id="billDonut"></canvas></div></div>
     </div>
-    <div class="panel" style="margin-top:12px"><b>Factures récentes</b>
-      <table style="margin-top:6px;width:100%"><tr><th>N°</th><th>Client</th><th>Date</th><th class="r">TTC</th><th>Statut</th></tr>
-      ${(d.recent||[]).map(i=>`<tr><td><b>${esc(i.number||"")}</b></td><td>${esc(i.client||"")}</td><td>${esc(i.date||"")}</td><td class="r">${money(i.TTC)}</td><td>${stat(i.status)}</td></tr>`).join("")||'<tr><td colspan="5" class="note">Aucune facture.</td></tr>'}</table>
-      <button class="btn ghost sm" style="margin-top:8px" onclick="go('invoices')">Ouvrir les factures →</button></div>`;
-  if(d.trend&&d.trend.length&&await ensureChartJs()&&window.Chart){
-    new window.Chart(document.getElementById("billChart"),{type:"bar",data:{labels:d.trend.map(t=>t.periode),datasets:[
-      {label:"CA TTC",data:d.trend.map(t=>t.TTC),backgroundColor:"#6366f1"},
-      {label:"CA HT",data:d.trend.map(t=>t.HT),backgroundColor:"#22c55e"}
-    ]},options:{plugins:{legend:{display:true}},scales:{y:{ticks:{callback:v=>(v/1e6)+"M"}}},maintainAspectRatio:false}});
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>Factures r&eacute;centes</b>
+      <span style="display:flex;gap:6px;align-items:center"><span class="note-inline">Rapport CA</span>
+        <input id="caFrom" type="month" value="${janM}" style="margin:0;max-width:120px"><input id="caTo" type="month" value="${nowM}" style="margin:0;max-width:120px">
+        <button class="btn ghost sm" onclick="caReport('pdf')">PDF</button><button class="btn ghost sm" onclick="caReport('xlsx')">Excel</button><button class="btn ghost sm" onclick="caReport('csv')">CSV</button></span></div>
+      <table style="margin-top:8px;width:100%"><tr><th>N&deg;</th><th>Client</th><th>Date</th><th class="r">TTC</th><th>Statut</th></tr>
+      ${(d.recent||[]).map(i=>`<tr style="cursor:pointer" onclick="go('invoices')"><td><b>${esc(i.number||"")}</b></td><td>${esc(i.client||"")}</td><td>${esc(i.date||"")}</td><td class="r">${money(i.TTC)}</td><td>${stat(i.status)}</td></tr>`).join("")||'<tr><td colspan="5" class="note-inline">Aucune facture.</td></tr>'}</table>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="go('invoices')">Ouvrir les factures &rarr;</button></div>
+  </div>`;
+  if(await ensureChartJs() && window.Chart){
+    try{
+      if(tr.length){ new window.Chart(document.getElementById("billChart"),{type:"bar",data:{labels:tr.map(t=>t.periode),datasets:[
+        {label:"CA TTC",data:tr.map(t=>t.TTC),backgroundColor:"#6366f1",borderRadius:4},
+        {label:"CA HT",data:tr.map(t=>t.HT),backgroundColor:"#22c55e",borderRadius:4}]},
+        options:{plugins:{legend:{display:true,position:"bottom"}},scales:{y:{ticks:{callback:v=>(v/1e6)+"M"}}},maintainAspectRatio:false}}); }
+      const tc=d.topClients||[]; if(tc.length){ new window.Chart(document.getElementById("billDonut"),{type:"doughnut",data:{labels:tc.map(c=>c.client),datasets:[{data:tc.map(c=>c.TTC),backgroundColor:["#6366f1","#22c55e","#f59e0b","#ef4444","#14b8a6","#a855f7"]}]},options:{plugins:{legend:{display:true,position:"right",labels:{boxWidth:10,font:{size:10}}}},maintainAspectRatio:false}}); }
+    }catch(e){ console.warn("bill charts",e); }
   }
 }
 
