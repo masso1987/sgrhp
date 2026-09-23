@@ -51,7 +51,7 @@ function payslipSig(s) {
 }
 
 /* Ensure collections exist (defensive for older stores). */
-for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans", "payElementSheets", "payAcomptes"])
+for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans", "payElementSheets", "payAcomptes", "bordereauFields"])
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
@@ -508,6 +508,11 @@ router.delete("/elements/:id", allow("RP", "ADM", "GPF"), (req, res) => {
 function runLocked(period, req) {
   return mine(db.payRuns, req).some(r => r.period === period && r.status === "CLOSED");
 }
+/* La paie du mois a-t-elle été calculée (ou clôturée) ? Une fois calculée, le bordereau et les
+   acomptes sont figés : plus de réouverture ni de modification (corrections = régularisation mois suivant). */
+function runComputed(period, req) {
+  return mine(db.payRuns, req).some(r => r.period === period && (r.status === "CALCULATED" || r.status === "CLOSED"));
+}
 
 /* =================================================================== *
  *  BORDEREAU D'ÉLÉMENTS DE PAIE  (contrôle GPF <-> Paie)              *
@@ -545,7 +550,7 @@ function blankLine(e, req){
   return { employeeId:e.id, matricule:e.matricule||e.id.slice(-6), name:empName(e),
     category:(e.contract&&e.contract.category)||"", contrat:(e.contract&&e.contract.type)||"",
     joursPresence:B_STD_DAYS(req), absence:0, hs120:0, hs130:0, hs140:0, hsNuit:0,
-    primes:[] /* {code,label,amount,cnps,impo} depuis les rubriques de paie */ };
+    custom:{} /* {fieldKey: value} colonnes personnalisées */, primes:[] /* {code,label,amount,cnps,impo} */ };
 }
 /** Échéance de prêt du mois pour un employé (lecture seule, depuis payLoans). */
 function loanEcheance(empId, period, req){
@@ -561,10 +566,59 @@ function sheetOut(sheet, req){
   out.lines=(sheet.lines||[]).map(l => Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req) }));
   const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
   out.portfolioName=pf?pf.name:"(tous)";
+  out.fields=fieldsForSheet(req, sheet.portfolioId).map(f=>({key:f.key,label:f.label,kind:f.kind,rubriqueCode:f.rubriqueCode,overtimeType:f.overtimeType}));
   return out;
 }
 function findSheet(req, sid){ return mine(db.payElementSheets, req).find(s=>s.id===sid); }
 function canSignBAP(req){ return ["CD","ADM","RJ"].includes(req.user.role); } // Bon à payer : CD, ADM (audit) ou RJ
+
+
+/* =================================================================== *
+ *  CHAMPS PERSONNALISÉS DU BORDEREAU (colonnes supplémentaires)       *
+ *  L'admin définit des colonnes en plus (par client ou pour tous),    *
+ *  chacune MAPPÉE à une rubrique de paie -> injectée en paie et        *
+ *  contrôlée. kind AMOUNT -> prime (rubriqueCode) ; HOURS -> HS/nuit.   *
+ * =================================================================== */
+function fieldsForSheet(req, portfolioId){
+  return mine(db.bordereauFields, req).filter(f => f.active!==false && (!f.portfolioId || f.portfolioId===portfolioId))
+    .sort((a,b)=>(a.order||0)-(b.order||0));
+}
+router.get("/bordereau-fields", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const { portfolioId } = req.query;
+  let list=mine(db.bordereauFields, req);
+  if(portfolioId!=null) list=list.filter(f=>!f.portfolioId || f.portfolioId===portfolioId);
+  const rubs=mine(db.payRubriques, req);
+  res.json(list.sort((a,b)=>(a.order||0)-(b.order||0)).map(f=>Object.assign({}, f,
+    { rubriqueLabel:(rubs.find(r=>String(r.code)===String(f.rubriqueCode))||{}).label||"" })));
+});
+router.post("/bordereau-fields", allow("ADM"), (req,res)=>{
+  const b=req.body||{};
+  if(!b.label) return res.status(400).json({error:"Libellé requis"});
+  const kind = b.kind==="HOURS" ? "HOURS" : "AMOUNT";
+  if(kind==="AMOUNT" && !b.rubriqueCode) return res.status(400).json({error:"Rubrique requise pour un montant"});
+  if(kind==="HOURS" && !["HS20","HS30","HS40","NUIT"].includes(b.overtimeType)) return res.status(400).json({error:"Type d'heures requis (HS20/HS30/HS40/NUIT)"});
+  const key = "c_"+id("f").slice(-6);
+  const f=stamp({ id:id("bfld"), key, label:String(b.label).slice(0,40), kind,
+    rubriqueCode: kind==="AMOUNT"?String(b.rubriqueCode):"", overtimeType: kind==="HOURS"?b.overtimeType:"",
+    portfolioId: b.portfolioId||"", order: Number(b.order)||0, active:true, createdAt:new Date().toISOString() }, req);
+  db.bordereauFields.push(f); save(); audit(req.user,"CREATED","BordereauField",f.id,{label:f.label});
+  res.status(201).json(f);
+});
+router.put("/bordereau-fields/:id", allow("ADM"), (req,res)=>{
+  const f=mine(db.bordereauFields, req).find(x=>x.id===req.params.id); if(!f) return res.status(404).json({error:"Introuvable"});
+  const b=req.body||{};
+  if(b.label!=null) f.label=String(b.label).slice(0,40);
+  if(b.rubriqueCode!=null) f.rubriqueCode=String(b.rubriqueCode);
+  if(b.overtimeType!=null) f.overtimeType=b.overtimeType;
+  if(b.portfolioId!=null) f.portfolioId=b.portfolioId;
+  if(b.order!=null) f.order=Number(b.order)||0;
+  if(b.active!=null) f.active=!!b.active;
+  save(); res.json(f);
+});
+router.delete("/bordereau-fields/:id", allow("ADM"), (req,res)=>{
+  const f=mine(db.bordereauFields, req).find(x=>x.id===req.params.id); if(!f) return res.status(404).json({error:"Introuvable"});
+  db.bordereauFields.splice(db.bordereauFields.indexOf(f),1); save(); res.json({ok:true});
+});
 
 /* --- Liste --- */
 router.get("/bordereaux", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
@@ -618,6 +672,7 @@ router.put("/bordereaux/:id/lines", allow("RP","ADM","GPF"), (req,res)=>{
     line.absence=clean(nu.absence, 0, 31);
     line.hs120=clean(nu.hs120,0,null); line.hs130=clean(nu.hs130,0,null); line.hs140=clean(nu.hs140,0,null); line.hsNuit=clean(nu.hsNuit,0,null);
     line.primes=Array.isArray(nu.primes)?nu.primes.filter(p=>p&&p.label&&Number(p.amount)>0).map(p=>({code:String(p.code||"2000").slice(0,10), label:String(p.label).slice(0,40), amount:Math.round(Number(p.amount)), cnps:p.cnps!==false, impo:p.impo!==false})):[];
+    if(nu.custom && typeof nu.custom==="object"){ line.custom=line.custom||{}; const defs=fieldsForSheet(req, s.portfolioId); for(const d of defs){ const v=Number(nu.custom[d.key]); line.custom[d.key]=Number.isFinite(v)&&v>0?v:0; } }
     if(JSON.stringify(line)!==before) changes++;
   }
   bEvent(s, req, "BORDEREAU_LIGNES_MAJ", { lignesModifiees:changes });
@@ -627,9 +682,9 @@ router.put("/bordereaux/:id/lines", allow("RP","ADM","GPF"), (req,res)=>{
 /* --- Rouvrir un brouillon soumis (avant contrôle) — GPF/ADM --- */
 router.post("/bordereaux/:id/reopen", allow("GPF","ADM","CD"), (req,res)=>{
   const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
-  if(s.status==="BON_A_PAYER") return res.status(409).json({error:"Bordereau validé Bon à payer - réouverture interdite."});
+  if(s.status==="BON_A_PAYER") return res.status(409).json({error:"Bordereau validé « Bon à payer » - réouverture interdite."});
   if(s.status==="BROUILLON") return res.json(sheetOut(s, req));
-  if(runLocked(s.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(runComputed(s.period, req)) return res.status(409).json({error:"La paie de cette période a déjà été calculée - le bordereau est figé. Toute correction se fait par régularisation sur la période suivante."});
   s.status="BROUILLON"; s.control=null;
   bEvent(s, req, "BORDEREAU_ROUVERT", { motif:(req.body&&req.body.reason)||"" });
   save(); res.json(sheetOut(s, req));
@@ -662,6 +717,12 @@ function pushElementsFromSheet(s, req){
     if(Number(l.hsNuit)>0) add({ employeeId:l.employeeId, type:"NUIT", hours:Number(l.hsNuit), label:"Heures de nuit" });
     for(const p of (l.primes||[])){
       add({ employeeId:l.employeeId, type:"PRIME", code:String(p.code||"2000"), amount:Math.round(Number(p.amount)), label:p.label, cnps:p.cnps!==false, impo:p.impo!==false });
+    }
+    // colonnes personnalisées -> éléments mappés (rubrique/heures)
+    const _defs=fieldsForSheet(req, s.portfolioId); const _rubs=mine(db.payRubriques, req);
+    for(const d of _defs){ const v=Number((l.custom||{})[d.key]); if(!(v>0)) continue;
+      if(d.kind==="HOURS"){ add({ employeeId:l.employeeId, type:d.overtimeType, hours:v, label:d.label, fieldKey:d.key }); }
+      else { const rub=_rubs.find(r=>String(r.code)===String(d.rubriqueCode))||{}; add({ employeeId:l.employeeId, type:"PRIME", code:String(d.rubriqueCode||"2000"), amount:Math.round(v), label:d.label, cnps:!!rub.cnps, impo:!!rub.impo, fieldKey:d.key }); }
     }
   }
 }
@@ -821,7 +882,7 @@ function buildControl(s, req){
     const primesSoumis=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
     // Primes calculées = éléments variables réellement injectés (fromBordereau) pour cet employé/période.
     const primeTypes=new Set(["PRIME","RAPPEL","TREIZE","INDEMNITE"]);
-    const injected=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && primeTypes.has(e.type));
+    const injected=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && primeTypes.has(e.type) && !e.fieldKey);
     const gainsFromEls=injected.reduce((a,e)=>a+(Number(e.amount)||0),0);
     const acoList=acompteList(l.employeeId, s.period, req);
     const brouillons=acoList.filter(a=>a.status!=="VALIDE");
@@ -836,6 +897,14 @@ function buildControl(s, req){
       cmp(l.employeeId,"acompte","Acompte sur salaire", acompteTotalAll(l.employeeId, s.period, req), sumOD("7000"), { groupe:"Acompte", source:"Registre des acomptes (tous statuts) → retenue sur bulletin (validés uniquement)", items:acoList.map(a=>({k:(a.momo?("N° "+a.momo):"Acompte")+" — "+(a.status==="VALIDE"?"Validé":"Brouillon"),v:String(a.amount).replace(/\B(?=(\d{3})+(?!\d))/g," ")})), note:brouillons.length?(brouillons.length+" acompte(s) en brouillon non retenu(s) — à valider dans « Acomptes sur salaire »."):"" }),
       cmp(l.employeeId,"pret","Échéance prêt", loan, sumOD("7010"), { groupe:"Acompte", source:"Échéancier de prêt → retenue sur bulletin", items:(loanE.detail||[]).map(d=>({k:d.label+" ("+d.n+"/"+d.of+")",v:String(d.amount).replace(/\B(?=(\d{3})+(?!\d))/g," ")})) }),
     ];
+    // colonnes personnalisées : bordereau signé vs élément injecté (par fieldKey)
+    const _cdefs=fieldsForSheet(req, s.portfolioId);
+    for(const d of _cdefs){
+      const soum=Number((l.custom||{})[d.key])||0;
+      const injEls=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && e.fieldKey===d.key);
+      const calc=injEls.reduce((a,e)=>a+(Number(d.kind==="HOURS"?e.hours:e.amount)||0),0);
+      checks.push(cmp(l.employeeId,"cf_"+d.key,d.label, soum, calc, { groupe:"Temps", source:"Colonne personnalisée → élément injecté ("+(d.kind==="HOURS"?d.overtimeType:("rubrique "+d.rubriqueCode))+")", items:[{k:"Bordereau signé",v:String(soum)},{k:"Injecté en paie",v:String(calc)}] }));
+    }
     const lineEcarts=checks.filter(c=>c.status==="ECART").length;
     ecarts+=lineEcarts;
     lines.push({ employeeId:l.employeeId, name:l.name, net:sl.result&&sl.result.totals?sl.result.totals.netAPayer:0,
@@ -923,7 +992,7 @@ router.post("/acomptes", allow("RP","ADM","GPF","CD"), (req,res)=>{
 });
 router.put("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
-  if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(runComputed(a.period, req)) return res.status(409).json({error:"La paie de cette période a été calculée - acompte figé (corrigez par régularisation le mois suivant)."});
   if(a.status==="VALIDE") return res.status(409).json({error:"Acompte validé - dévalidez-le avant de le modifier."});
   const b=req.body||{};
   if(b.amount!=null){ if(!(Number(b.amount)>0)) return res.status(400).json({error:"Montant invalide"}); a.amount=Math.round(Number(b.amount)); }
@@ -934,7 +1003,7 @@ router.put("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
 });
 router.delete("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
-  if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(runComputed(a.period, req)) return res.status(409).json({error:"La paie de cette période a été calculée - acompte figé (corrigez par régularisation le mois suivant)."});
   if(a.status==="VALIDE") return res.status(409).json({error:"Acompte validé - dévalidez-le avant de le supprimer."});
   const _p=a.period, _e=a.employeeId; db.payAcomptes.splice(db.payAcomptes.indexOf(a),1); recomputeEmployeeOpenRun(req, _p, _e); save();
   audit(req.user, "DELETED", "PayAcompte", a.id, { period:_p, employeeId:_e });
@@ -975,7 +1044,7 @@ router.post("/acomptes/:id/validate", allow("CD","ADM","RJ"), (req,res)=>{
 });
 router.post("/acomptes/:id/unvalidate", allow("CD","ADM"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
-  if(runLocked(a.period, req)) return res.status(409).json({error:"Période clôturée"});
+  if(runComputed(a.period, req)) return res.status(409).json({error:"La paie de cette période a été calculée - dévalidation impossible (corrigez par régularisation le mois suivant)."});
   a.status="BROUILLON"; delete a.validatedBy; delete a.validatedByName; delete a.validatedAt;
   recomputeEmployeeOpenRun(req, a.period, a.employeeId); save(); audit(req.user, "UNVALIDATED", "PayAcompte", a.id, { period:a.period });
   res.json(acompteOut(a, req));
