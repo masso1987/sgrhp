@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - CONGE-56 (calcul du conge: SBM 12 mois; allocation annuelle = SBM*12/diviseur (16=18j, 12=24j selon convention); base congé = SBM/30; parametrable par convention; auto-suggestion bordereau; rubrique 3702; endpoint conge-calc)";
+const BUILD_VERSION = "2026-09-25 - FIX-57 (persistance PostgreSQL: sauvegarde de TOUTES les collections - bordereaux, acomptes, controle, sites, pointages... n-etaient pas persistees et disparaissaient au redemarrage; correction generique + singleton platform)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

@@ -37,6 +37,7 @@ const COLLECTIONS = {
   billingInvoiceModels: "billing_invoice_models", billingInvoices: "billing_invoices", billingLineFields: "billing_line_fields",
   acctAccounts: "acct_accounts", acctJournals: "acct_journals", acctTaxes: "acct_taxes", acctThirdParties: "acct_third_parties", acctEntries: "acct_entries", acctExercises: "acct_exercises", acctBudgets: "acct_budgets", acctBankLines: "acct_bank_lines", acctBankMatches: "acct_bank_matches", stockProducts: "stock_products", stockCategories: "stock_categories", stockUnits: "stock_units", stockSuppliers: "stock_suppliers", stockContacts: "stock_contacts", stockBrands: "stock_brands", stockWarranties: "stock_warranties", stockPriceGroups: "stock_price_groups", stockVariations: "stock_variations", stockPOs: "stock_pos", stockPurchases: "stock_purchases", stockReturns: "stock_returns", stockSOs: "stock_sos", stockSales: "stock_sales", stockQuotes: "stock_quotes", stockSalesReturns: "stock_sales_returns", stockLocations: "stock_locations", stockTransfers: "stock_transfers", stockExpenseCats: "stock_expense_cats", stockExpenses: "stock_expenses", stockPaymentAccounts: "stock_payment_accounts", stockMovements: "stock_movements", stockNotifTemplates: "stock_notif_templates", dmMessages: "dm_messages",
   smqAxes:"smq_axes",smqProcesses:"smq_processes",smqIndicators:"smq_indicators",smqMeasures:"smq_measures",smqDocTypes:"smq_doc_types",smqDocuments:"smq_documents",smqDocRevisions:"smq_doc_revisions",smqStakeholders:"smq_stakeholders",smqScope:"smq_scope",smqClauses:"smq_clauses",smqPolicy:"smq_policy",smqImprovements:"smq_improvements",smqEvents:"smq_events",smqConfig:"smq_config",smqAudits:"smq_audits",smqAuditItems:"smq_audit_items",smqRisks:"smq_risks",smqSatisfaction:"smq_satisfaction",smqClaims:"smq_claims",smqCompetences:"smq_competences",smqSupplierEvals:"smq_supplier_evals",smqEquipment:"smq_equipment",smqReviews:"smq_reviews",smqConformity:"smq_conformity",smqTdb:"smq_tdb",smqTdbData:"smq_tdb_data",fichesPrix:"fiches_prix",epiIssues:"epi_issues",smqVeille:"smq_veille",smqHabilitations:"smq_habilitations",smqEvalForms:"smq_eval_forms",smqEvalResponses:"smq_eval_responses",gaModels:"ga_models",
+  acctRubriqueMap:"acct_rubrique_map", loginSessions:"login_sessions", payElementSheets:"pay_element_sheets", payAcomptes:"pay_acomptes", bordereauFields:"bordereau_fields", empAccounts:"emp_accounts", empSessions:"emp_sessions", sites:"sites", siteAssignments:"site_assignments", attendance:"attendance", empDevices:"emp_devices", leaveRequests:"leave_requests",
 };
 
 let pool;
@@ -91,6 +92,7 @@ async function load(db) {
   for (const r of rows) {
     if (r.collection === "_meta") { seq = r.doc.seq || 1; continue; }
     if (r.collection === "settings") { db.settings = r.doc; continue; }
+    if (r.collection === "platform") { db.platform = r.doc; continue; }
     (db[r.collection] = db[r.collection] || []).push(r.doc);
   }
   db.seq = seq;
@@ -102,7 +104,11 @@ async function save(db) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    for (const key of Object.keys(COLLECTIONS)) {
+    // Persist EVERY array-valued collection present in memory (not a fixed list),
+    // so any new module's data is durably saved — never silently dropped.
+    const RESERVED = new Set(["seq", "settings", "platform"]);
+    const collectionKeys = Object.keys(db).filter(k => Array.isArray(db[k]) && !RESERVED.has(k));
+    for (const key of collectionKeys) {
       const items = Array.isArray(db[key]) ? db[key] : [];
       const ids = [];
       for (const item of items) {
@@ -130,6 +136,12 @@ async function save(db) {
         `INSERT INTO store (tenant_id, collection, id, doc, updated_at) VALUES ($1,$2,$3,$4, now())
          ON CONFLICT (tenant_id, collection, id) DO UPDATE SET doc = EXCLUDED.doc, updated_at = now()`,
         [TENANT, "settings", "_singleton", db.settings]);
+    }
+    if (db.platform && typeof db.platform === "object") {
+      await client.query(
+        `INSERT INTO store (tenant_id, collection, id, doc, updated_at) VALUES ($1,$2,$3,$4, now())
+         ON CONFLICT (tenant_id, collection, id) DO UPDATE SET doc = EXCLUDED.doc, updated_at = now()`,
+        [TENANT, "platform", "_singleton", db.platform]);
     }
     await client.query("COMMIT");
   } catch (e) {
