@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - BORD-62 (bordereau complementaire/regularisation apres calcul de paie: 2e bordereau meme client/periode, recalcul auto des bulletins concernes; reouverture apres calcul reservee ADM/CD, le GPF passe par le complementaire)";
+const BUILD_VERSION = "2026-09-25 - SORT-63 (tri alphabetique: portefeuilles/clients, liste des bordereaux (par client), registre des acomptes (par nom dans chaque groupe OM/MOMO); salaries & bulletins deja tries par nom; rubriques inchangees)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

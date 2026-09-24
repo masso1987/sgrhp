@@ -4987,7 +4987,8 @@ function acoGroupTables(list, ctx){
       </td></tr>`; };
   if(!list.length) return '<div class="note-inline" style="padding:10px 2px">Aucun acompte pour ce filtre.</div>';
   let html="";
-  for(const d of defs){ const items=list.filter(a=>acoChan(a)===d.k); if(!items.length) continue;
+  const _byNom=(x,y)=>String(x.employeeName||"").localeCompare(String(y.employeeName||""),"fr",{sensitivity:"base"});
+  for(const d of defs){ const items=list.filter(a=>acoChan(a)===d.k).sort(_byNom); if(!items.length) continue;
     const sub=items.reduce((n,a)=>n+(a.amount||0),0); const subVal=items.filter(a=>a.status==="VALIDE").reduce((n,a)=>n+(a.amount||0),0);
     html+=`<div style="margin-top:12px;display:flex;align-items:center;gap:8px">
         <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${d.col}"></span>

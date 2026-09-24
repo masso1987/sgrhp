@@ -5,7 +5,7 @@ const { mine, stamp } = require("../store");
 const { audit } = require("../audit");
 const CNI = "V";
 
-router.get("/", allow("GPF", "CD", "RJ", "ADM", "UI"), (req, res) => res.json(mine(db.portfolios, req)));
+router.get("/", allow("GPF", "CD", "RJ", "ADM", "UI"), (req, res) => res.json(mine(db.portfolios, req).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "fr", { sensitivity: "base" }))));
 router.get("/doc-types", allow("GPF", "CD", "RJ", "ADM", "UI"), (req, res) => res.json(db.docTypes));
 
 const _norm = (s) => String(s || "").trim().replace(/\s+/g, " ").toLowerCase();

@@ -701,7 +701,8 @@ router.get("/bordereaux", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   if(period) list=list.filter(s=>s.period===period);
   if(portfolioId) list=list.filter(s=>s.portfolioId===portfolioId);
   const pfs=mine(db.portfolios, req);
-  res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"")).map(s=>({
+  const _pfn=(pid)=>((pfs.find(p=>p.id===pid)||{}).name||"").toLowerCase();
+  res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"") || _pfn(a.portfolioId).localeCompare(_pfn(b.portfolioId),"fr",{sensitivity:"base"}) || (a.seq||1)-(b.seq||1)).map(s=>({
     id:s.id, period:s.period, portfolioId:s.portfolioId, portfolioName:(pfs.find(p=>p.id===s.portfolioId)||{}).name||"(tous)",
     kind:s.kind||"PRINCIPAL", seq:s.seq||1,
     status:s.status, lineCount:(s.lines||[]).length, submittedBy:s.submittedByName||null, submittedAt:s.submittedAt||null,
