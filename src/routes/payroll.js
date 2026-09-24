@@ -389,7 +389,11 @@ router.get("/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =>
 router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
   if (!emp) return res.status(404).json({ error: "Employé introuvable" });
-  res.json(employeeRubriques(emp, req).map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel })));
+  // Renvoie TOUTES les rubriques du référentiel (groupées par sens/famille), en marquant
+  // d'un drapeau `mine` celles habituellement attribuées au salarié pour les afficher en premier.
+  const mineCodes = new Set(employeeRubriques(emp, req).map(r => String(r.code)));
+  const all = sortRubriques(mine(db.payRubriques, req));
+  res.json(all.map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel, mine: mineCodes.has(String(r.code)) })));
 });
 
 router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
@@ -1731,6 +1735,13 @@ router.get("/employees/:eid/payslips", allow("RP", "ADM", "CD", "RJ", "GPF", "UI
 });
 
 /* PDF bulletin de paie */
+// Résout le libellé d'une rubrique en direct depuis le référentiel (par code), afin que
+// toute modification de libellé se reflète aussi sur les bulletins déjà calculés.
+function rubCatalogLabel(tid) {
+  const m = {};
+  for (const rb of (db.payRubriques || [])) if ((rb.tenantId || "t1") === (tid || "t1")) m[String(rb.code)] = rb.label;
+  return (code, fallback) => m[String(code)] || fallback || "";
+}
 function drawPayslip(doc, s, emp, tenant) {
   const _cfg = (db.payrollConfig || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1")) || {};
   if ((_cfg.payslipDesign || "classic") === "modern") return drawPayslipModern(doc, s, emp, tenant);
@@ -1808,7 +1819,8 @@ function drawPayslip(doc, s, emp, tenant) {
   T(X.txp, TY + 13, "Taux", { b: 1, s: 6.5, w: X.retp - X.txp, a: "center" });
   T(X.retp, TY + 13, "Retenue", { b: 1, s: 6.5, w: X.end - X.retp, a: "center" });
   const SLBL = { "5000":"PENSION VIEILLESSE","5010":"ALLOCATIONS FAMILIALES","5020":"ACCIDENT DE TRAVAIL","5025":"IRPP1","5045":"CAC/IRPP 1","5050":"CREDIT FONCIER","5060":"CREDIT FONCIER PATR.","5070":"FNE","5080":"REDEVANCE CRTV","5090":"TAXE COMMUNALE" };
-  const dlbl = (l) => (SLBL[l.code] || l.label || "").toUpperCase();
+  const _clbl = rubCatalogLabel(s.tenantId);
+  const dlbl = (l) => (_clbl(l.code) || SLBL[l.code] || l.label || "").toUpperCase();
   let y = TY + 24;
   const cell = (x, xe, v, al) => { if (v || v === 0) T(x + 1, y, v, { s: 7.5, w: xe - x - 2, a: al || "right" }); };
   const gains = r.lines.filter(l => l.kind === "GAIN" || l.kind === "AVANTAGE");
@@ -1886,6 +1898,7 @@ function drawPayslip(doc, s, emp, tenant) {
   T(520, 812, "TAKE CARE", { b: 1, s: 7 });
 }
 function drawPayslipModern(doc, s, emp, tenant) {
+  const _clbl = rubCatalogLabel(s.tenantId);
   const t = s.result.totals, r = s.result;
   const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
@@ -1963,7 +1976,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const gcols = [{x:L,w:26,a:"left"},{x:L+26,w:176,a:"left"},{x:L+202,w:66,a:"right"},{x:L+268,w:82,a:"right"},{x:L+350,w:100,a:"right"},{x:L+450,w:W-450,a:"right"}];
   const gains = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
   drawTable("Rémunération", gcols, ["N°","Désignation","Nombre","Base","Part salariale","Part patronale"],
-    gains.map(l => [l.code||"", (l.label||""), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", F(l.gain), ""]),
+    gains.map(l => [l.code||"", _clbl(l.code, l.label), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", F(l.gain), ""]),
     ["","TOTAL BRUT","","",F(t.brutTotal),""]);
 
   /* Cotisations & retenues - en-tête groupé (Part salariale / Part patronale), façon Sage */
@@ -1992,7 +2005,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
     cot.forEach((l, ri) => {
       if (ri % 2) { doc.save(); doc.rect(L, y, W, rowH).fill(STRIPE); doc.restore(); }
       txt(cN[0]+6, y+3, l.code||"", {s:7.5,w:cN[1]-6,a:"left"});
-      txt(cC[0]+6, y+3, l.label||"", {s:7.5,w:cC[1]-6,a:"left"});
+      txt(cC[0]+6, y+3, _clbl(l.code, l.label), {s:7.5,w:cC[1]-6,a:"left"});
       txt(cB[0], y+3, l.base?F2(l.base):"0", {s:7.5,w:cB[1]-6,a:"right"});
       txt(cTS[0], y+3, rate(l.rate), {s:7.5,w:cTS[1]-6,a:"right"});
       txt(cMS[0], y+3, amt(l.retenue), {s:7.5,w:cMS[1]-6,a:"right"});

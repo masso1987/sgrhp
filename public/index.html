@@ -6057,9 +6057,13 @@ async function payClose(id) {
 }
 
 /* ---- Payslip detail ---- */
+let RUB_LABELS = null;
+async function rubLabelsMap(){ if(RUB_LABELS) return RUB_LABELS; try{ const rs=await api("/payroll/rubriques"); RUB_LABELS={}; (rs||[]).forEach(r=>{ RUB_LABELS[String(r.code)]=r.label; }); }catch{ RUB_LABELS={}; } return RUB_LABELS; }
+function rubLbl(code, fb){ return (RUB_LABELS && RUB_LABELS[String(code)]) || fb || ""; }
 let PAYSLIP_EDIT = null, PAYSLIP_EDIT_ID = null, PAYSLIP_RUBS = [];
 async function payslipView(id, edit) {
   const s = await api("/payroll/payslips/" + id);
+  await rubLabelsMap();
   const canEdit = ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit");
   if (edit) {
     if (PAYSLIP_EDIT_ID !== id || !PAYSLIP_EDIT) {
@@ -6085,7 +6089,7 @@ async function payslipView(id, edit) {
     <tbody id="payslipBody"></tbody></table>
     ${edit ? `<div style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <b style="font-size:12px;color:var(--muted)">+ Ajouter :</b>
-      <select id="addRub" style="margin:0;max-width:280px">${(() => { const g={},o=[]; PAYSLIP_RUBS.forEach(r=>{const k=r.sectionLabel||"Rubriques";if(!g[k]){g[k]=[];o.push(k);}g[k].push(r);}); return o.map(k=>`<optgroup label="${esc(k)}">`+g[k].map(r => `<option value="${esc(r.code)}" data-kind="${r.family === "COTISATION" ? "IMPOT" : (r.sens === "RETENUE" ? "RETENUE" : "GAIN")}" data-cnps="${r.cnps ? 1 : 0}" data-impo="${r.impo ? 1 : 0}" data-label="${esc(r.label)}">${esc(r.code)} - ${esc(r.label)}</option>`).join("")+`</optgroup>`).join(""); })()}</select>
+      <select id="addRub" style="margin:0;max-width:280px">${(() => { const g={},o=[]; PAYSLIP_RUBS.forEach(r=>{const k=r.sectionLabel||"Rubriques";if(!g[k]){g[k]=[];o.push(k);}g[k].push(r);}); const opt=r=>`<option value="${esc(r.code)}" data-kind="${r.family === "COTISATION" ? "IMPOT" : (r.sens === "RETENUE" ? "RETENUE" : "GAIN")}" data-cnps="${r.cnps ? 1 : 0}" data-impo="${r.impo ? 1 : 0}" data-label="${esc(r.label)}">${esc(r.code)} - ${esc(r.label)}</option>`; const mineRs=PAYSLIP_RUBS.filter(r=>r.mine); let html=mineRs.length?`<optgroup label="\u2605 Rubriques du salari\u00e9">`+mineRs.map(opt).join("")+`</optgroup>`:""; html+=o.map(k=>`<optgroup label="${esc(k)}">`+g[k].map(opt).join("")+`</optgroup>`).join(""); return html; })()}</select>
       <input id="addAmt" type="number" placeholder="Montant" style="margin:0;max-width:130px">
       <button class="btn p sm" onclick="payslipAddRow()">Ajouter la rubrique</button></div>` : ""}
   </div>
@@ -6101,7 +6105,7 @@ function payslipRenderBody(edit, s) {
     ? `<input type="number" step="1" data-idx="__I__" data-field="${field}" value="${l[field] || 0}" style="width:92px;text-align:right;margin:0;padding:2px" oninput="payslipEditAmt(this)">`
     : (l[field] ? fCFA(l[field]) : "");
   document.getElementById("payslipBody").innerHTML = rows.map((l, i) => `<tr>
-    <td>${esc(l.code)}${l.manual ? ' <span class="tag amber" title="corrigé">corrigé</span>' : ""}</td><td>${esc(l.label)}</td>
+    <td>${esc(l.code)}${l.manual ? ' <span class="tag amber" title="corrigé">corrigé</span>' : ""}</td><td>${esc(rubLbl(l.code, l.label))}</td>
     <td style="text-align:right">${l.base ? fCFA(l.base) : ""}</td>
     <td style="text-align:right">${l.rate && l.rate !== 1 ? (l.rate * 100).toFixed(2) + "%" : ""}</td>
     <td style="text-align:right;color:var(--green)">${l.kind === "GAIN" ? num(l, "gain").replace("__I__", i) : ""}</td>
