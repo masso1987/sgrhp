@@ -581,7 +581,7 @@ function loanEcheance(empId, period, req){
 function sheetOut(sheet, req){
   const out=Object.assign({}, sheet);
   const _empById={}; mine(db.employees, req).forEach(e=>{ _empById[e.id]=e; });
-  out.lines=(sheet.lines||[]).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period);
+  out.lines=(sheet.lines||[]).slice().sort((a,b)=>_empNomKey(_empById[a.employeeId]).localeCompare(_empNomKey(_empById[b.employeeId]), "fr", {sensitivity:"base"})).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period);
     return Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req),
       hireDate:l.hireDate||empHireDate(emp), anciennete:seniorityLabel(emp, sheet.period), conge:ci }); });
   const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
@@ -688,7 +688,7 @@ router.post("/bordereaux", allow("RP","ADM","GPF"), (req,res)=>{
   if(runLocked(period, req)) return res.status(409).json({error:"Période clôturée - création impossible"});
   if(mine(db.payElementSheets, req).some(s=>s.period===period && s.portfolioId===portfolioId))
     return res.status(409).json({error:"Un bordereau existe déjà pour ce client et cette période."});
-  const emps=mine(db.employees, req).filter(e=>(e.status||"").toUpperCase()!=="ARCHIVED" && e.portfolioId===portfolioId);
+  const emps=mine(db.employees, req).filter(e=>(e.status||"").toUpperCase()!=="ARCHIVED" && e.portfolioId===portfolioId).sort((a,b)=>_empNomKey(a).localeCompare(_empNomKey(b), "fr", {sensitivity:"base"}));
   const s=stamp({ id:id("bord"), period, portfolioId, status:"BROUILLON",
     lines:emps.map(e=>blankLine(e, req)), signatures:[], events:[], control:null,
     createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
@@ -908,7 +908,7 @@ function buildControl(s, req){
   const run=mine(db.payRuns, req).slice().sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")).find(r=>r.period===s.period);
   const slips = run ? mine(db.payslips, req).filter(x=>x.runId===run.id) : [];
   const slipByEmp={}; slips.forEach(x=>{ slipByEmp[x.employeeId]=x; });
-  const ref = s.snapshot || s.lines || [];
+  const _nk=nomSorter(req); const ref = (s.snapshot || s.lines || []).slice().sort((a,b)=>_nk(a.employeeId,b.employeeId));
   const acks = (s.control&&s.control.acks) || [];
   const ackOf=(emp,field)=> acks.find(a=>a.employeeId===emp&&a.field===field);
   const cmp=(emp,field,label,soumis,calcule,detail)=>{
@@ -1024,6 +1024,11 @@ router.post("/bordereaux/:id/bon-a-payer", allow("CD","ADM","RJ"), (req,res)=>{
  *  Mireroir de l'Excel : client, employé, n° OM/MOMO, montant.        *
  *  Retenu à 100% sur le mois (le moteur de paie lit ce registre).     *
  * =================================================================== */
+function _empNomKey(e){ return (((e&&e.lastName)||"")+" "+((e&&e.firstName)||"")).trim().toLowerCase(); }
+function nomSorter(req){ const m={}; mine(db.employees, req).forEach(e=>{ m[e.id]=_empNomKey(e); }); return (idA,idB)=> (m[idA]||"").localeCompare(m[idB]||"", "fr", {sensitivity:"base"}); }
+/* Canal effectif d'un acompte : explicite, sinon déduit de l'opérateur du numéro. */
+function acompteChannel(a){ if(a&&(a.channel==="OM"||a.channel==="MOMO")) return a.channel; const op=_phone.cmOperator(a&&a.momo); if(op==="ORANGE")return "OM"; if(op==="MTN")return "MOMO"; return "AUTRE"; }
+function acompteChannelKey(a){ const c=(a&&a.channel)||acompteChannel(a); return (c==="OM"||c==="MOMO")?c:"AUTRE"; }
 function acompteOut(a, req){
   const pf=mine(db.portfolios, req).find(p=>p.id===a.portfolioId);
   const e=mine(db.employees, req).find(x=>x.id===a.employeeId);
@@ -1035,7 +1040,7 @@ router.get("/acomptes", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   if(period) list=list.filter(a=>a.period===period);
   if(portfolioId) list=list.filter(a=>a.portfolioId===portfolioId);
   if(employeeId) list=list.filter(a=>a.employeeId===employeeId);
-  res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"")||String(a.employeeName||"").localeCompare(String(b.employeeName||""))).map(a=>acompteOut(a, req)));
+  const _nk=nomSorter(req); res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"")||_nk(a.employeeId,b.employeeId)).map(a=>Object.assign(acompteOut(a, req),{channel:acompteChannel(a)})));
 });
 /** Net mensuel estimé de l'employé pour la période (pour la règle du tiers). 0 si incalculable. */
 function netEstimate(emp, period, req){
@@ -1180,29 +1185,46 @@ function acompteRows(req, period, portfolioId){
   let list=mine(db.payAcomptes, req);
   if(period) list=list.filter(a=>a.period===period);
   if(portfolioId) list=list.filter(a=>a.portfolioId===portfolioId);
-  return list.map(a=>acompteOut(a, req)).sort((x,y)=>String(x.portfolioName||"").localeCompare(String(y.portfolioName||""))||String(x.employeeName||"").localeCompare(String(y.employeeName||"")));
+  const _nk=nomSorter(req); return list.map(a=>Object.assign(acompteOut(a, req),{channel:acompteChannel(a)})).sort((x,y)=>_nk(x.employeeId,y.employeeId));
 }
 router.get("/acomptes/export", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const { period, portfolioId, format } = req.query;
-  const rows=acompteRows(req, period, portfolioId);
+  const rows=acompteRows(req, period, portfolioId);   // triés par NOM, avec canal effectif
   const fmt=(format||"pdf").toLowerCase();
-  const head=["Client","Employé","Matricule","N° OM/MOMO","Montant","Statut"];
-  const data=rows.map(a=>[a.portfolioName||"", a.employeeName||"", a.matricule||"", a.momo||"", a.amount||0, a.status==="VALIDE"?"Validé":"Brouillon"]);
-  const total=rows.reduce((s,a)=>s+(Number(a.amount)||0),0);
+  const F=(n)=>String(Math.round(Number(n)||0)).replace(/\B(?=(\d{3})+(?!\d))/g," ");
+  const CH=[{k:"OM",label:"ORANGE MONEY (OM)"},{k:"MOMO",label:"MTN MOBILE MONEY (MOMO)"},{k:"AUTRE",label:"AUTRES"}];
+  const groups=CH.map(c=>({ ...c, items:rows.filter(a=>acompteChannelKey(a)===c.k) })).filter(g=>g.items.length);
+  const grand=rows.reduce((t,a)=>t+(Number(a.amount)||0),0);
   const fname=`Acomptes_${period||"tous"}`;
-  if(fmt==="csv"){ return sendCSV(res, fname+".csv", [head, ...data, ["","","","TOTAL",total,""]]); }
+  const head=["Client","Employé","N° mobile","Montant","Statut"];
+
+  if(fmt==="csv"){
+    const lines=[["ACOMPTES SUR SALAIRE — "+(period||"toutes périodes")],[]];
+    for(const g of groups){ const sub=g.items.reduce((t,a)=>t+(Number(a.amount)||0),0);
+      lines.push([g.label+" — "+g.items.length+" acompte(s)"]); lines.push(head);
+      for(const a of g.items) lines.push([a.portfolioName||"", a.employeeName||"", _phone.formatCmPhone(a.momo)||a.momo||"", a.amount||0, a.status==="VALIDE"?"Validé":"Brouillon"]);
+      lines.push(["","","SOUS-TOTAL "+g.k, sub, ""]); lines.push([]);
+    }
+    lines.push(["","","TOTAL GÉNÉRAL", grand, ""]);
+    return sendCSV(res, fname+".csv", lines);
+  }
   if(fmt==="xlsx"){
     let XLSX; try{ XLSX=require("xlsx"); }catch(e){ return res.status(500).json({error:"Module Excel indisponible"}); }
     if(!(XLSX&&XLSX.utils&&typeof XLSX.utils.aoa_to_sheet==="function")) return res.status(500).json({error:"Export Excel indisponible sur ce serveur"});
-    const aoa=[["ACOMPTES SUR SALAIRE — "+(period||"toutes périodes")],[],head,...data,["","","","TOTAL",total,""]];
-    const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=[{wch:20},{wch:26},{wch:12},{wch:16},{wch:12},{wch:12}];
+    const aoa=[["ACOMPTES SUR SALAIRE — "+(period||"toutes périodes")],[]];
+    for(const g of groups){ const sub=g.items.reduce((t,a)=>t+(Number(a.amount)||0),0);
+      aoa.push([g.label+" — "+g.items.length+" acompte(s)"]); aoa.push(head);
+      for(const a of g.items) aoa.push([a.portfolioName||"", a.employeeName||"", _phone.formatCmPhone(a.momo)||a.momo||"", a.amount||0, a.status==="VALIDE"?"Validé":"Brouillon"]);
+      aoa.push(["","","SOUS-TOTAL "+g.k, sub, ""]); aoa.push([]);
+    }
+    aoa.push(["","","TOTAL GÉNÉRAL", grand, ""]);
+    const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=[{wch:20},{wch:28},{wch:16},{wch:12},{wch:12}];
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Acomptes");
     res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition",`attachment; filename="${fname}.xlsx"`);
     return res.send(XLSX.write(wb, { type:"buffer", bookType:"xlsx" }));
   }
-  // PDF
-  const F=(n)=>String(Math.round(Number(n)||0)).replace(/\B(?=(\d{3})+(?!\d))/g," ");
+  // PDF — une SECTION par canal (OM / MOMO), chacune avec son sous-total
   const tenant=(db.tenants||[]).find(t=>(t.id)===(req.user.tenantId||"t1"))||{name:""};
   const doc=new PDFDocument({ size:"A4", margin:36 });
   const chunks=[]; doc.on("data",d=>chunks.push(d));
@@ -1210,17 +1232,24 @@ router.get("/acomptes/export", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const green="#0b7a4b", ink="#111827", line="#d1d5db"; const W=doc.page.width, M=36; let y=40;
   doc.fillColor(green).font("Helvetica-Bold").fontSize(15).text("Acomptes sur salaire", M, y);
   doc.fillColor(ink).font("Helvetica").fontSize(10).text(tenant.name||"", M, y+2, {align:"right", width:W-2*M}); y+=22;
-  doc.fontSize(10).text(`Période : ${period||"toutes"}     Nombre : ${rows.length}`, M, y); y+=16;
-  const cols=[{h:"Client",w:120,a:"l"},{h:"Employé",w:150,a:"l"},{h:"N° OM/MOMO",w:90,a:"l"},{h:"Montant",w:75,a:"r"},{h:"Statut",w:0,a:"l"}];
+  doc.fontSize(10).text(`Période : ${period||"toutes"}     Nombre : ${rows.length}`, M, y); y+=18;
+  const cols=[{h:"Client",w:120,a:"l"},{h:"Employé",w:160,a:"l"},{h:"N° mobile",w:95,a:"l"},{h:"Montant",w:75,a:"r"},{h:"Statut",w:0,a:"l"}];
   let used=cols.reduce((a,c)=>a+c.w,0); cols[cols.length-1].w=W-2*M-used;
   const row=(cells,o)=>{ o=o||{}; let x=M; const h=o.h||16; if(o.fill){ doc.rect(M,y,W-2*M,h).fill(o.fill); }
     doc.font(o.bold?"Helvetica-Bold":"Helvetica").fontSize(o.size||9);
     for(let i=0;i<cols.length;i++){ doc.fillColor(o.color||ink).text(String(cells[i]==null?"":cells[i]),x+3,y+4,{width:cols[i].w-6,align:cols[i].a,ellipsis:true,lineBreak:false}); x+=cols[i].w; }
     doc.moveTo(M,y+h).lineTo(W-M,y+h).strokeColor(line).lineWidth(0.5).stroke(); y+=h; };
-  row(["Client","Employé","N° OM/MOMO","Montant","Statut"], {fill:"#e6f2ec",bold:true,color:green,h:18});
-  for(const a of rows){ if(y>doc.page.height-70){ doc.addPage(); y=40; row(["Client","Employé","N° OM/MOMO","Montant","Statut"], {fill:"#e6f2ec",bold:true,color:green,h:18}); }
-    row([a.portfolioName||"", a.employeeName||"", a.momo||"", F(a.amount), a.status==="VALIDE"?"Validé":"Brouillon"]); }
-  row(["","","TOTAL", F(total), ""], {bold:true, fill:"#f3f4f6", h:18});
+  const sectionBanner=(g)=>{ if(y>doc.page.height-90){ doc.addPage(); y=40; }
+    const col=g.k==="OM"?"#c2410c":(g.k==="MOMO"?"#b45309":"#475569");
+    doc.rect(M,y,W-2*M,20).fill(col); doc.fillColor("#fff").font("Helvetica-Bold").fontSize(10).text(g.label+"   ("+g.items.length+" acompte(s))", M+6, y+5); y+=20;
+    row(cols.map(c=>c.h), {fill:"#e6f2ec",bold:true,color:green,h:18}); };
+  if(!groups.length){ doc.fontSize(11).fillColor(ink).text("Aucun acompte pour ce filtre.", M, y); doc.end(); return; }
+  for(const g of groups){ sectionBanner(g); const sub=g.items.reduce((t,a)=>t+(Number(a.amount)||0),0);
+    for(const a of g.items){ if(y>doc.page.height-70){ doc.addPage(); y=40; row(cols.map(c=>c.h), {fill:"#e6f2ec",bold:true,color:green,h:18}); }
+      row([a.portfolioName||"", a.employeeName||"", _phone.formatCmPhone(a.momo)||a.momo||"", F(a.amount), a.status==="VALIDE"?"Validé":"Brouillon"]); }
+    row(["","","SOUS-TOTAL "+g.k, F(sub), ""], {bold:true, fill:"#f3f4f6", h:18}); y+=8;
+  }
+  row(["","","TOTAL GÉNÉRAL", F(grand), ""], {bold:true, fill:"#e6f2ec", color:green, h:20});
   doc.end();
 });
 
@@ -1297,7 +1326,7 @@ router.post("/runs", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => 
 router.get("/runs/:id", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
-  const slips = mine(db.payslips, req).filter(s => s.runId === run.id).map(summary);
+  const _nk = nomSorter(req); const slips = mine(db.payslips, req).filter(s => s.runId === run.id).sort((a,b)=>_nk(a.employeeId,b.employeeId)).map(summary);
   res.json({ run, payslips: slips, totals: runTotals(run, req) });
 });
 

@@ -4945,6 +4945,38 @@ function acoMomoHint(){
 }
 
 /* ===================== ACOMPTES SUR SALAIRE (registre, façon Excel) ===================== */
+function acoChan(a){ if(a.channel==="OM"||a.channel==="MOMO") return a.channel; const op=CM.operator(a.momo); return op==="ORANGE"?"OM":op==="MTN"?"MOMO":"AUTRE"; }
+function acoGroupTables(list, ctx){
+  const {canEdit, canValidate, money}=ctx;
+  const defs=[{k:"OM",label:"Orange Money (OM)",col:"#c2410c"},{k:"MOMO",label:"MTN Mobile Money (MOMO)",col:"#b45309"},{k:"AUTRE",label:"Autres",col:"#475569"}];
+  const rowHtml=(a)=>{ const val=a.status==="VALIDE"; const mis=a.momo&&CM.operator(a.momo)&&a.channel&&CM.operator(a.momo)!==CM.channelOp(a.channel);
+    return `<tr>
+      <td>${esc(a.portfolioName||"")}</td><td><b>${esc(a.employeeName||"")}</b> <span class="note-inline">${esc(a.matricule||"")}</span></td>
+      <td>${a.momo?esc(CM.fmt(a.momo)):"—"}${mis?' <span title="Opérateur ≠ canal" style="color:#d97706">⚠</span>':""}</td>
+      <td class="r"><b>${money(a.amount)}</b>${a.overThird?' <span class="tag" style="background:#7c3aed;color:#fff;font-size:9px" title="Dépassement du tiers approuvé">&gt;1/3 ✓</span>':""}</td>
+      <td>${val?'<span class="tag green">Validé</span>':'<span class="tag amber">Brouillon</span>'}</td>
+      <td class="note-inline">${esc(a.createdByName||"")}${a.validatedByName?` &rarr; ${esc(a.validatedByName)}`:""}</td>
+      <td style="white-space:nowrap">
+        ${(!val&&canEdit)?`<button class="btn ghost sm" onclick="acoEdit('${a.id}',${a.amount},'${esc(a.momo||"")}')">Modifier</button> `:""}
+        ${(!val&&canValidate)?`<button class="btn ghost sm" onclick="acoValidate('${a.id}')">Valider</button> `:""}
+        ${(val&&canValidate)?`<button class="btn ghost sm" onclick="acoUnvalidate('${a.id}')">Dévalider</button> `:""}
+        ${(!val&&canEdit)?`<button class="btn ghost sm" style="color:var(--red)" onclick="acoDelete('${a.id}')">Suppr.</button>`:""}
+      </td></tr>`; };
+  if(!list.length) return '<div class="note-inline" style="padding:10px 2px">Aucun acompte pour ce filtre.</div>';
+  let html="";
+  for(const d of defs){ const items=list.filter(a=>acoChan(a)===d.k); if(!items.length) continue;
+    const sub=items.reduce((n,a)=>n+(a.amount||0),0); const subVal=items.filter(a=>a.status==="VALIDE").reduce((n,a)=>n+(a.amount||0),0);
+    html+=`<div style="margin-top:12px;display:flex;align-items:center;gap:8px">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${d.col}"></span>
+        <b style="color:${d.col}">${d.label}</b><span class="note-inline">${items.length} acompte(s) · ${money(sub)} (validés : ${money(subVal)})</span></div>
+      <table style="width:100%;margin-top:4px"><tr><th>Client</th><th>Employé</th><th>N° mobile</th><th class="r">Montant</th><th>Statut</th><th>Saisi / validé par</th><th></th></tr>
+      ${items.map(rowHtml).join("")}
+      <tr style="font-weight:600;background:#f3f4f6"><td colspan="3">SOUS-TOTAL ${d.k}</td><td class="r">${money(sub)}</td><td colspan="3"></td></tr></table>`;
+  }
+  const grand=list.reduce((n,a)=>n+(a.amount||0),0);
+  html+=`<div style="margin-top:10px;padding:8px 10px;border-top:2px solid #999;display:flex;justify-content:space-between;font-weight:700"><span>TOTAL GÉNÉRAL (${list.length})</span><span>${money(grand)}</span></div>`;
+  return html;
+}
 async function payAcomptesView(){
   if(!PFS||!PFS.length){ try{ PFS=await api("/portfolios"); }catch(e){ PFS=[]; } }
   const period = window._acoPeriod || new Date().toISOString().slice(0,7);
@@ -4980,23 +5012,8 @@ async function payAcomptesView(){
         <button class="btn ghost sm" onclick="acoExport('pdf')">PDF</button>
         <button class="btn ghost sm" onclick="acoExport('xlsx')">Excel</button>
         <button class="btn ghost sm" onclick="acoExport('csv')">CSV</button></div>
-      <table style="width:100%"><tr><th>Client</th><th>Employé</th><th>Canal</th><th>N° mobile</th><th class="r">Montant</th><th>Statut</th><th>Saisi / validé par</th><th></th></tr>
-      ${list.length?list.map(a=>{const val=a.status==="VALIDE";return `<tr>
-        <td>${esc(a.portfolioName||"")}</td><td><b>${esc(a.employeeName||"")}</b> <span class="note-inline">${esc(a.matricule||"")}</span></td>
-        <td>${a.channel?`<span class="tag" style="background:${a.channel==='OM'?'#f97316':'#f59e0b'}1f;color:${a.channel==='OM'?'#c2410c':'#b45309'};font-size:10px">${a.channel==='OM'?'Orange Money':'MTN MoMo'}</span>`:'<span class="note-inline">—</span>'}</td>
-        <td>${a.momo?esc(CM.fmt(a.momo)):"—"}${(a.momo&&CM.operator(a.momo)&&a.channel&&CM.operator(a.momo)!==CM.channelOp(a.channel))?' <span title="Opérateur ≠ canal" style="color:#d97706">⚠</span>':""}</td>
-        <td class="r"><b>${money(a.amount)}</b>${a.overThird?' <span class="tag" style="background:#7c3aed;color:#fff;font-size:9px" title="Dépassement du tiers approuvé">>1/3 ✓</span>':""}</td>
-        <td>${val?'<span class="tag green">Validé</span>':'<span class="tag amber">Brouillon</span>'}</td>
-        <td class="note-inline">${esc(a.createdByName||"")}${a.validatedByName?` &rarr; ${esc(a.validatedByName)}`:""}</td>
-        <td style="white-space:nowrap">
-          ${(!val&&canEdit)?`<button class="btn ghost sm" onclick="acoEdit('${a.id}',${a.amount},'${esc(a.momo||"")}')">Modifier</button> `:""}
-          ${(!val&&canValidate)?`<button class="btn ghost sm" onclick="acoValidate('${a.id}')">Valider</button> `:""}
-          ${(val&&canValidate)?`<button class="btn ghost sm" onclick="acoUnvalidate('${a.id}')">Dévalider</button> `:""}
-          ${(!val&&canEdit)?`<button class="btn ghost sm" style="color:var(--red)" onclick="acoDelete('${a.id}')">Suppr.</button>`:""}
-        </td></tr>`;}).join(""):'<tr><td colspan="7" class="note-inline">Aucun acompte pour ce filtre.</td></tr>'}
-      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="4">TOTAL (${list.length}) &middot; validés : ${money(list.filter(a=>a.status==="VALIDE").reduce((s2,a)=>s2+(a.amount||0),0))}</td><td class="r">${money(total)}</td><td colspan="3"></td></tr>
-      <tr><td colspan="4" class="note-inline">Dont Orange Money : ${list.filter(a=>a.channel==="OM").length} (${money(list.filter(a=>a.channel==="OM").reduce((n,a)=>n+(a.amount||0),0))}) &middot; MTN MoMo : ${list.filter(a=>a.channel==="MOMO").length} (${money(list.filter(a=>a.channel==="MOMO").reduce((n,a)=>n+(a.amount||0),0))})</td><td colspan="4"></td></tr>
-      </table><div class="note-inline" style="margin-top:6px">Seuls les acomptes <b>validés</b> sont retenus sur la paie et pris en compte dans le contrôle.</div></div>
+      ${acoGroupTables(list, {canEdit, canValidate, money})}
+      <div class="note-inline" style="margin-top:6px">Seuls les acomptes <b>validés</b> sont retenus sur la paie et pris en compte dans le contrôle.</div></div>
   </div>`;
   window._acoEmpsCache={};
 }
