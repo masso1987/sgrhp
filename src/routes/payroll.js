@@ -242,18 +242,27 @@ function elementsToInput(emp, period, req, opts) {
   let absenceDays = 0;
   // 2) variable elements entered for this period (on top of the structure)
   const els = mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
+  const _rubOf = (code) => mine(db.payRubriques, req).find(r => String(r.code) === String(code));
+  // Drapeaux fiscaux d'un élément variable : explicite sur l'élément > rubrique du référentiel > défaut.
+  const _flags = (e, defImpo, defCnps) => {
+    const rub = _rubOf(e.code);
+    const impo = e.impo !== undefined ? (e.impo !== false) : (rub ? !!rub.impo : defImpo);
+    const cnps = e.cnps !== undefined ? (e.cnps !== false) : (rub ? !!rub.cnps : defCnps);
+    return { impo, cnps };
+  };
   for (const e of els) {
     switch (e.type) {
-      case "PRIME": gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: e.cnps !== false, impo: e.impo !== false }); break;
-      case "INDEMNITE": nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount) }); break;
-      case "ACOMPTE": otherDeductions.push({ code: "7000", label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
-      case "PRET": otherDeductions.push({ code: "7010", label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
+      case "PRIME": { const f = _flags(e, true, true); gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
+      case "INDEMNITE": { const f = _flags(e, false, false); if (!f.impo && !f.cnps) nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount) }); else gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
+      case "ACOMPTE": otherDeductions.push({ code: e.code && String(e.code) !== "ACOMPTE" ? String(e.code) : "7000", label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
+      case "PRET": otherDeductions.push({ code: e.code && String(e.code) !== "PRET" ? String(e.code) : "7010", label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
+      case "RETENUE": otherDeductions.push({ code: e.code && String(e.code) !== "RETENUE" ? String(e.code) : "7030", label: e.label || "Retenue diverse", amount: Number(e.amount) }); break;
       case "HS20": overtime.tier1 += Number(e.hours || 0); break;
       case "HS30": overtime.tier2 += Number(e.hours || 0); break;
       case "HS40": overtime.tier3 += Number(e.hours || 0); break;
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
-      case "AVANTAGE": avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: Number(e.amount), cnps: !!e.cnps, impo: e.impo !== false }); break;
+      case "AVANTAGE": { const f = _flags(e, true, false); avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
       case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)) }); break; }
       case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount) }); break;
       default: break;
@@ -494,9 +503,14 @@ router.post("/elements", allow("RP", "ADM", "GPF"), (req, res) => {
   const b = req.body || {};
   if (!b.employeeId || !b.period || !b.type) return res.status(400).json({ error: "employeeId, period, type obligatoires" });
   if (runLocked(b.period, req)) return res.status(409).json({ error: "Période clôturée - saisie impossible" });
+  // Hérite les drapeaux fiscaux (imposable/CNPS) de la rubrique choisie si non fournis explicitement.
+  const _rub = b.code ? mine(db.payRubriques, req).find(r => String(r.code) === String(b.code)) : null;
+  const _impo = b.impo !== undefined ? (b.impo !== false && b.impo !== "false") : (_rub ? !!_rub.impo : undefined);
+  const _cnps = b.cnps !== undefined ? (b.cnps !== false && b.cnps !== "false") : (_rub ? !!_rub.cnps : undefined);
   const e = stamp({ id: id("pel"), employeeId: b.employeeId, period: b.period, type: b.type,
     code: b.code || b.type, label: b.label || b.type, amount: b.amount ? Number(b.amount) : undefined,
     hours: b.hours ? Number(b.hours) : undefined, days: b.days ? Number(b.days) : undefined,
+    impo: _impo, cnps: _cnps,
     createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.payElements.push(e); save();
   audit(req.user, "CREATED", "PayElement", e.id, { period: e.period, type: e.type, employeeId: e.employeeId });
@@ -1823,7 +1837,12 @@ function drawPayslip(doc, s, emp, tenant) {
   const dlbl = (l) => (_clbl(l.code) || SLBL[l.code] || l.label || "").toUpperCase();
   let y = TY + 24;
   const cell = (x, xe, v, al) => { if (v || v === 0) T(x + 1, y, v, { s: 7.5, w: xe - x - 2, a: al || "right" }); };
-  const gains = r.lines.filter(l => l.kind === "GAIN" || l.kind === "AVANTAGE");
+  const _isTransportC = (l) => l._transportTaxable !== undefined || String(l.code) === "3513";
+  const _allGainsC = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
+  const gains = _allGainsC.filter(l => l.impo || l.cnps || _isTransportC(l));
+  const _nonSoumisC = _allGainsC.filter(l => !(l.impo || l.cnps) && !_isTransportC(l));
+  const _retenuesC = r.lines.filter(l => l.kind === "RETENUE" && l.retenue);
+  const _brutSoumisC = gains.reduce((a, l) => a + (l.gain || 0), 0);
   for (const l of gains) {
     if (!l.gain) continue;
     T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" });
@@ -1835,7 +1854,7 @@ function drawPayslip(doc, s, emp, tenant) {
     y += 12;
   }
   HL(X.gain, X.rets, y + 1);
-  y += 3; T(X.des, y, "Total Brut", { b: 1, s: 8, w: X.nb - X.des, a: "center" }); cell(X.gain, X.rets, F(t.brutTotal)); doc.font("Helvetica-Bold"); y += 14; doc.font("Helvetica");
+  y += 3; T(X.des, y, "Total Brut", { b: 1, s: 8, w: X.nb - X.des, a: "center" }); cell(X.gain, X.rets, F(_brutSoumisC)); doc.font("Helvetica-Bold"); y += 14; doc.font("Helvetica");
   const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
   for (const l of cot) {
     T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" });
@@ -1850,6 +1869,20 @@ function drawPayslip(doc, s, emp, tenant) {
   HL(X.rets, X.txp, y + 1); HL(X.retp, X.end, y + 1);
   y += 3; T(X.des, y, "Total Cotisations", { b: 1, s: 8, w: X.nb - X.des, a: "center" });
   cell(X.rets, X.txp, F((t.cnpsSalarie||0) + (t.totalImpots||0))); cell(X.retp, X.end, F((t.cnpsPatronal||0) + (t.cfcPatronal||0)));
+  y += 14;
+  // Éléments non soumis (indemnités non imposables ajoutées au net ; acomptes/prêts retenus).
+  if ((_nonSoumisC.length || _retenuesC.length) && y < 606) {
+    T(X.n + 1, y, "", { s: 7.5 }); T(X.des + 2, y, "ÉLÉMENTS NON SOUMIS", { b: 1, s: 7.5, w: X.gain - X.des - 4 }); y += 12;
+    for (const l of _nonSoumisC) { if (y > 620) break;
+      T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" }); T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.rets - X.des - 4 });
+      cell(X.gain, X.rets, F(l.gain)); y += 12; }
+    for (const l of _retenuesC) { if (y > 620) break;
+      T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" }); T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.rets - X.des - 4 });
+      cell(X.rets, X.txp, "-" + F(l.retenue)); y += 12; }
+    const nsNetC = _nonSoumisC.reduce((a,l)=>a+(l.gain||0),0) - _retenuesC.reduce((a,l)=>a+(l.retenue||0),0);
+    T(X.des, y, "Total éléments non soumis", { b: 1, s: 8, w: X.nb - X.des, a: "center" });
+    cell(X.gain, X.rets, (nsNetC<0?"-":"") + F(Math.abs(nsNetC)));
+  }
 
   /* ===== SUMMARY BAND ===== */
   let by = 644; const bh = 34;
@@ -1864,7 +1897,7 @@ function drawPayslip(doc, s, emp, tenant) {
   const band = (name, ry, vals) => { T(20, ry, name, { b: 1, s: 7 });
     const xs=[62,120,172,224,276,334,378], ws=[58,52,52,52,58,44,58];
     vals.forEach((v,i) => T(xs[i], ry, v, { s: 7, w: ws[i], a: "right" })); };
-  band("Période", by + 13, [F(t.brutTotal), F((t.cnpsSalarie||0)+(t.totalImpots||0)), F((t.cnpsPatronal||0)+(t.cfcPatronal||0)), F(t.avantagesNature||0), F(t.netImposable), (r.meta&&r.meta.workedDays)||30, 0]);
+  band("Période", by + 13, [F(_brutSoumisC), F((t.cnpsSalarie||0)+(t.totalImpots||0)), F((t.cnpsPatronal||0)+(t.cfcPatronal||0)), F(t.avantagesNature||0), F(t.netImposable), (r.meta&&r.meta.workedDays)||30, 0]);
   if (cum) band("Année", by + 24, [F(cum.brut), "", "", "", "", "", ""]);
   // NET A PAYER box
   BX(500, by, 77, bh);
@@ -1975,11 +2008,18 @@ function drawPayslipModern(doc, s, emp, tenant) {
 
   /* Rémunération : N° | Désignation | Nombre | Base | Part salariale | Part patronale */
   const gcols = [{x:L,w:24,a:"left"},{x:L+24,w:150,a:"left"},{x:L+174,w:52,a:"right"},{x:L+226,w:74,a:"right"},{x:L+300,w:52,a:"right"},{x:L+352,w:95,a:"right"},{x:L+447,w:W-447,a:"right"}];
-  const gains = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
+  // Classement : éléments soumis (imposables ou cotisables) vs non soumis. Le transport (assiette
+  // spécifique) reste dans la rémunération. Les non soumis sont présentés sous le total des cotisations.
+  const _isTransport = (l) => l._transportTaxable !== undefined || String(l.code) === "3513";
+  const _allGains = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
+  const _soumis = _allGains.filter(l => l.impo || l.cnps || _isTransport(l));
+  const _nonSoumis = _allGains.filter(l => !(l.impo || l.cnps) && !_isTransport(l));
+  const _retenues = r.lines.filter(l => l.kind === "RETENUE" && l.retenue);
+  const _brutSoumis = _soumis.reduce((a, l) => a + (l.gain || 0), 0);
   const gtaux = (l) => (l.rate && Number(l.rate) !== 1) ? (Number(l.rate) * 100).toFixed(2) : "";
   drawTable("Rémunération", gcols, ["N°","Désignation","Nombre","Base","Taux","Part salariale","Part patronale"],
-    gains.map(l => [l.code||"", _clbl(l.code, l.label), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", gtaux(l), F(l.gain), ""]),
-    ["","TOTAL BRUT","","","",F(t.brutTotal),""]);
+    _soumis.map(l => [l.code||"", _clbl(l.code, l.label), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", gtaux(l), F(l.gain), ""]),
+    ["","TOTAL BRUT","","","",F(_brutSoumis),""]);
 
   /* Cotisations & retenues - en-tête groupé (Part salariale / Part patronale), façon Sage */
   {
@@ -2023,15 +2063,30 @@ function drawPayslipModern(doc, s, emp, tenant) {
     doc.save(); doc.roundedRect(L, top, W, bh, 3).stroke(LINE); doc.restore(); y += 8;
   }
 
+  /* Éléments non soumis à cotisation : indemnités/primes non imposables (ajoutées au net)
+     et retenues (acomptes, prêts, retenues diverses — soustraites du net). */
+  if (_nonSoumis.length || _retenues.length) {
+    if (y > 636) { doc.addPage(); y = 28; }
+    const nscols = [{x:L,w:28,a:"left"},{x:L+28,w:W-28-110,a:"left"},{x:L+W-110,w:110,a:"right"}];
+    const nsRows = [
+      ..._nonSoumis.map(l => [l.code||"", _clbl(l.code, l.label), F(l.gain)]),
+      ..._retenues.map(l => [l.code||"", _clbl(l.code, l.label), "-" + F(l.retenue)]),
+    ];
+    const nsNet = _nonSoumis.reduce((a,l)=>a+(l.gain||0),0) - _retenues.reduce((a,l)=>a+(l.retenue||0),0);
+    drawTable("Éléments non soumis (ajoutés / retenus sur le net)", nscols,
+      ["N°","Désignation","Montant"], nsRows,
+      ["","TOTAL ÉLÉMENTS NON SOUMIS", (nsNet<0?"-":"") + F(Math.abs(nsNet))]);
+  }
+
   if (y > 648) { doc.addPage(); y = 28; }
 
   /* CUMUL DE LA PÉRIODE - dedicated, 2 columns */
   const heuresSupp = r.lines.filter(l => l.hours).reduce((a, l) => a + Number(l.hours || 0), 0);
   const sumRows = [
-    ["Salaire brut", F(t.brutTotal)], ["Charges salariales", F((t.cnpsSalarie||0)+(t.totalImpots||0))],
+    ["Salaire brut", F(_brutSoumis)], ["Charges salariales", F((t.cnpsSalarie||0)+(t.totalImpots||0))],
     ["Charges patronales", F((t.cnpsPatronal||0)+(t.cfcPatronal||0))], ["Avantages en nature", F(t.avantagesNature||0)],
     ["Salaire taxable", F(t.netImposable||0)], ["Jours travaillés", F2(workedDays)],
-    ["Heures supplémentaires", NB(heuresSupp)||"0"], ["Cumul brut annuel", F(cum ? cum.brut : t.brutTotal)],
+    ["Heures supplémentaires", NB(heuresSupp)||"0"], ["Cumul brut annuel", F(cum ? cum.brut : _brutSoumis)],
   ];
   const rowsPerCol = Math.ceil(sumRows.length / 2), sumH = 22 + rowsPerCol * 13 + 8;
   card(L, y, W, sumH, CARD);

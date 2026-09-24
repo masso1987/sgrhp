@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - PAY-60 (corriger: preserve le Nombre (jours/heures) apres correction; colonne Taux ajoutee au tableau Remuneration du bulletin — affiche le taux d'anciennete et des heures sup)";
+const BUILD_VERSION = "2026-09-25 - PAY-61 (rubriques non soumises: les elements variables heritent la fiscalite Imposable/CNPS de la rubrique (surchargeable), acompte/pret/retenue lies aux bonnes rubriques; sur le bulletin les elements non soumis sont regroupes sous le total des cotisations et ajoutes au net)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

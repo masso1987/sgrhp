@@ -5880,16 +5880,20 @@ function bulletinRenderTab() {
       <div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES DU MOIS (primes, heures supp., absences, acomptes)</b>
       ${open ? `<form onsubmit="return bulletinAddEl(event,'${run.period}','${empId}')" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;margin-top:8px">
         <div><label>Type</label><select id="beType" onchange="beToggle()">
-          <option value="PRIME">Prime (imposable)</option><option value="INDEMNITE">Indemnité (non imposable)</option>
+          <option value="PRIME">Prime</option><option value="INDEMNITE">Indemnité (non imposable)</option>
           <option value="HS20">Heures supp. +20%</option><option value="HS30">Heures supp. +30%</option><option value="HS40">Heures supp. +40%</option>
           <option value="NUIT">Heures de nuit +50%</option><option value="ABSENCE">Absence (jours)</option>
-          <option value="ACOMPTE">Acompte</option><option value="AVANTAGE">Avantage en nature</option><option value="TREIZE">13e mois</option><option value="RAPPEL">Rappel de salaire</option></select></div>
-        <div><label>Libellé</label><input id="beLabel" placeholder="ex. Prime de rendement" style="min-width:160px"></div>
-        <div><label id="beValLbl">Montant (XAF)</label><input id="beVal" type="number" min="0" style="max-width:130px"></div>
+          <option value="ACOMPTE">Acompte</option><option value="PRET">Remboursement prêt</option><option value="RETENUE">Retenue diverse</option><option value="AVANTAGE">Avantage en nature</option><option value="TREIZE">13e mois</option><option value="RAPPEL">Rappel de salaire</option></select></div>
+        <div><label>Rubrique (référentiel)</label><select id="beRub" onchange="rubPick('be')" style="min-width:220px"><option value="">— choisir —</option></select><input type="hidden" id="beCode"></div>
+        <div><label>Libellé</label><input id="beLabel" placeholder="ex. Prime de rendement" style="min-width:150px"></div>
+        <div><label id="beValLbl">Montant (XAF)</label><input id="beVal" type="number" min="0" style="max-width:120px"></div>
+        <div id="beFlags"><label>Fiscalité</label><div style="display:flex;gap:10px;align-items:center;height:32px"><label style="font-weight:400;font-size:12px"><input type="checkbox" id="beImpo" checked> Imposable</label><label style="font-weight:400;font-size:12px"><input type="checkbox" id="beCnps" checked> CNPS</label></div></div>
         <button class="btn p sm">+ Ajouter</button></form>
+        <div class="note-inline" style="margin-top:4px">Choisissez une rubrique du référentiel : sa fiscalité (Imposable / CNPS) est reprise automatiquement et modifiable. Décochez « Imposable » et « CNPS » pour une prime non soumise (elle apparaîtra sous le total des cotisations et sera ajoutée au net).</div>
         <div class="err hidden" id="beErr" style="margin-top:6px"></div>` : '<div class="note" style="margin-top:6px">Période clôturée - lecture seule.</div>'}
       <div id="beList" style="margin-top:8px"></div></div>`;
     bulletinRenderEls(els);
+    if (open) fillRubPicker("be");
   }
 }
 function bulletinCalcule(slip) {
@@ -5908,15 +5912,51 @@ function bulletinCalcule(slip) {
     <div><label>Net à payer</label><div style="font-size:18px;color:var(--green)"><b>${fCFA(t.netAPayer)}</b>XAF</div></div>
     <div><label>Coût employeur</label><div>${fCFA(t.coutTotalEmployeur)} XAF</div></div></div>`;
 }
+let PE_RUBS = null;
+async function loadPeRubs(){ if(PE_RUBS) return PE_RUBS; try{ PE_RUBS = await api("/payroll/rubriques"); }catch{ PE_RUBS = []; } return PE_RUBS; }
+async function fillRubPicker(prefix){
+  const sel = document.getElementById(prefix+"Rub"); if(!sel) return;
+  const rubs = await loadPeRubs();
+  // Rubriques sélectionnables : gains, non soumises et retenues (hors cotisations calculées et salaire de base/ancienneté)
+  const pick = (rubs||[]).filter(r => r.active!==false && (r.family!=="COTISATION") && !/^100[0-9]$|^104|^105/.test(String(r.code||"")));
+  const g={}, order=[];
+  pick.forEach(r=>{ const k=r.sectionLabel||"Rubriques"; if(!g[k]){g[k]=[];order.push(k);} g[k].push(r); });
+  sel.innerHTML = `<option value="">— choisir —</option>` + order.map(k=>`<optgroup label="${esc(k)}">`+g[k].map(r=>`<option value="${esc(r.code)}" data-label="${esc(r.label)}" data-impo="${r.impo?1:0}" data-cnps="${r.cnps?1:0}" data-sens="${esc(r.sens||"GAIN")}" data-fam="${esc(r.family||"")}">${esc(r.code)} · ${esc(r.label)}</option>`).join("")+`</optgroup>`).join("");
+}
+function rubPick(prefix){
+  const sel = document.getElementById(prefix+"Rub"); const o = sel && sel.selectedOptions[0]; if(!o || !o.value) return;
+  const lab = document.getElementById(prefix+"Label"); if(lab) lab.value = o.dataset.label || "";
+  const code = document.getElementById(prefix+"Code"); if(code) code.value = o.value;
+  const impo = document.getElementById(prefix+"Impo"), cnps = document.getElementById(prefix+"Cnps");
+  if(impo) impo.checked = o.dataset.impo === "1";
+  if(cnps) cnps.checked = o.dataset.cnps === "1";
+  // Aligne le type sur le sens de la rubrique (retenue/non soumise -> RETENUE/ACOMPTE)
+  const typeSel = document.getElementById(prefix+"Type");
+  if(typeSel){ const fam=o.dataset.fam, sens=o.dataset.sens;
+    if(fam==="NON_SOUMISE" || sens==="RETENUE"){ if(/acompte/i.test(o.dataset.label)) typeSel.value="ACOMPTE"; else if(/pr[eê]t|remb/i.test(o.dataset.label)) typeSel.value="PRET"; else typeSel.value="RETENUE"; }
+    else if(!o.dataset.impo && !o.dataset.cnps) typeSel.value="INDEMNITE";
+    else typeSel.value="PRIME";
+    beToggle();
+  }
+}
 function beToggle() { const t = beType.value, l = document.getElementById("beValLbl");
-  l.textContent = ["HS20","HS30","HS40","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)"; }
+  l.textContent = ["HS20","HS30","HS40","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)";
+  const fl = document.getElementById("beFlags"); if(fl) fl.style.display = ["PRIME","INDEMNITE","AVANTAGE","RAPPEL","TREIZE"].includes(t) ? "" : "none"; }
 async function bulletinAddEl(ev, period, empId) {
   ev.preventDefault(); const t = beType.value;
+  const codeEl = document.getElementById("beCode");
   const body = { employeeId: empId, period, type: t, label: beLabel.value || beType.selectedOptions[0].text };
+  if (codeEl && codeEl.value) body.code = codeEl.value;
+  // Fiscalité explicite pour les éléments monétaires (prime, indemnité, avantage, rappel, 13e)
+  if (["PRIME","INDEMNITE","AVANTAGE","RAPPEL","TREIZE"].includes(t)) {
+    const impo = document.getElementById("beImpo"), cnps = document.getElementById("beCnps");
+    if (impo) body.impo = impo.checked; if (cnps) body.cnps = cnps.checked;
+  }
   const v = Number(beVal.value || 0);
   if (["HS20","HS30","HS40","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
   try { await api("/payroll/elements", { method: "POST", body: JSON.stringify(body) });
-    const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els; bulletinRenderEls(els); beVal.value = ""; beLabel.value = ""; }
+    const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els; bulletinRenderEls(els);
+    beVal.value = ""; beLabel.value = ""; if (codeEl) codeEl.value = ""; const rs=document.getElementById("beRub"); if(rs) rs.value=""; }
   catch (e) { beErr.textContent = e.message; beErr.classList.remove("hidden"); }
 }
 async function bulletinSetJours(period, empId) {
