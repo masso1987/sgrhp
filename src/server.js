@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - PAY-59 (corriger: liste toutes les rubriques groupees par sens/famille, celles du salarie en premier; libelles de rubriques resolus en direct depuis le referentiel sur bulletins ecran+PDF, y compris deja calcules)";
+const BUILD_VERSION = "2026-09-25 - PAY-60 (corriger: preserve le Nombre (jours/heures) apres correction; colonne Taux ajoutee au tableau Remuneration du bulletin — affiche le taux d'anciennete et des heures sup)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

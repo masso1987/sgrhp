@@ -1830,6 +1830,7 @@ function drawPayslip(doc, s, emp, tenant) {
     T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.nb - X.des - 4 });
     if (l.nombre) cell(X.nb, X.base, Number(l.nombre).toFixed(3).replace(/\B(?=(\d{3})+(?!\d))(?=\d*\.)/g, " ").replace(".", ","));
     if (l.base) cell(X.base, X.txs, F2(l.base));
+    if (l.rate && Number(l.rate) !== 1) cell(X.txs, X.gain, (Number(l.rate) * 100).toFixed(2));
     cell(X.gain, X.rets, F(l.gain));
     y += 12;
   }
@@ -1973,11 +1974,12 @@ function drawPayslipModern(doc, s, emp, tenant) {
   };
 
   /* Rémunération : N° | Désignation | Nombre | Base | Part salariale | Part patronale */
-  const gcols = [{x:L,w:26,a:"left"},{x:L+26,w:176,a:"left"},{x:L+202,w:66,a:"right"},{x:L+268,w:82,a:"right"},{x:L+350,w:100,a:"right"},{x:L+450,w:W-450,a:"right"}];
+  const gcols = [{x:L,w:24,a:"left"},{x:L+24,w:150,a:"left"},{x:L+174,w:52,a:"right"},{x:L+226,w:74,a:"right"},{x:L+300,w:52,a:"right"},{x:L+352,w:95,a:"right"},{x:L+447,w:W-447,a:"right"}];
   const gains = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
-  drawTable("Rémunération", gcols, ["N°","Désignation","Nombre","Base","Part salariale","Part patronale"],
-    gains.map(l => [l.code||"", _clbl(l.code, l.label), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", F(l.gain), ""]),
-    ["","TOTAL BRUT","","",F(t.brutTotal),""]);
+  const gtaux = (l) => (l.rate && Number(l.rate) !== 1) ? (Number(l.rate) * 100).toFixed(2) : "";
+  drawTable("Rémunération", gcols, ["N°","Désignation","Nombre","Base","Taux","Part salariale","Part patronale"],
+    gains.map(l => [l.code||"", _clbl(l.code, l.label), l.nombre?NB(l.nombre):"", l.base?F2(l.base):"", gtaux(l), F(l.gain), ""]),
+    ["","TOTAL BRUT","","","",F(t.brutTotal),""]);
 
   /* Cotisations & retenues - en-tête groupé (Part salariale / Part patronale), façon Sage */
   {
@@ -2238,11 +2240,18 @@ router.put("/payslips/:id/lines", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (
     // Full edit: add / remove / modify rubriques (formula not re-run; amounts as given)
     s.result.lines = req.body.lines
       .filter(l => l && l.code)
-      .map(l => ({ code: String(l.code), label: String(l.label || l.code), kind: l.kind || "GAIN",
-        base: Number(l.base) || 0, rate: Number(l.rate) || 0,
-        gain: Math.round(Number(l.gain) || 0), retenue: Math.round(Number(l.retenue) || 0),
-        employer: Math.round(Number(l.employer) || 0), employerRate: Number(l.employerRate) || 0,
-        cnps: !!l.cnps, impo: !!l.impo, manual: true }));
+      .map(l => {
+        const o = { code: String(l.code), label: String(l.label || l.code), kind: l.kind || "GAIN",
+          base: Number(l.base) || 0, rate: Number(l.rate) || 0,
+          gain: Math.round(Number(l.gain) || 0), retenue: Math.round(Number(l.retenue) || 0),
+          employer: Math.round(Number(l.employer) || 0), employerRate: Number(l.employerRate) || 0,
+          cnps: !!l.cnps, impo: !!l.impo, manual: true };
+        // Préserver les quantités (nombre de jours/heures) : elles ne sont pas éditées à l'écran
+        // mais doivent rester sur le bulletin après correction.
+        if (l.nombre !== undefined && l.nombre !== null && l.nombre !== "") o.nombre = Number(l.nombre);
+        if (l.hours !== undefined && l.hours !== null && l.hours !== "") o.hours = Number(l.hours);
+        return o;
+      });
   } else {
     const overrides = (req.body && req.body.overrides) || {};
     for (const l of s.result.lines) {
