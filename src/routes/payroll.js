@@ -546,10 +546,26 @@ function esign(sheet, req, kind, payloadHash){
 const B_STD_DAYS = (req)=> (configOf(req).standardMonthlyDays || 30);
 function empName(e){ return `${e.firstName||""} ${e.lastName||""}`.trim(); }
 /** Ligne vierge pour un employé. */
+/* Congé : à partir de la date d'embauche + convention/ancienneté, déterminer si le congé
+   de l'employé est DÛ ce mois (anniversaire d'embauche, ≥ 12 mois d'ancienneté) et son droit. */
+function empHireDate(e){ return e.hireDate || (e.contract && e.contract.startDate) || ""; }
+function congeInfo(emp, period){
+  const hire = empHireDate(emp);
+  if(!hire || !/^\d{4}-\d{2}$/.test(period||"")) return { due:false, hireDate:hire||"", entitlementDays:null, accruedDays:null, seniorityYears:0 };
+  const hMonth = new Date(hire).getMonth()+1;
+  const [y,mo] = period.split("-").map(Number);
+  const months = seniorityMonths(emp, period);
+  const due = months>=12 && mo===hMonth;
+  let bal={}; try{ bal=require("./hr").leaveBalance(emp); }catch(e){ bal={}; }
+  return { due, hireDate:hire, anniversaryMonth:hMonth, seniorityYears:Math.floor(months/12), seniorityLabel:seniorityLabel(emp, period),
+    entitlementDays: bal.annualEntitlement!=null?bal.annualEntitlement:null, accruedDays: bal.accrued!=null?bal.accrued:null,
+    remainingDays: bal.remaining!=null?bal.remaining:null, majoration: bal.majoration||0 };
+}
+
 function blankLine(e, req){
   return { employeeId:e.id, matricule:e.matricule||e.id.slice(-6), name:empName(e),
-    category:(e.contract&&e.contract.category)||"", contrat:(e.contract&&e.contract.type)||"",
-    joursPresence:B_STD_DAYS(req), absence:0, hs120:0, hs130:0, hs140:0, hsNuit:0,
+    category:(e.contract&&e.contract.category)||"", contrat:(e.contract&&e.contract.type)||"", hireDate:empHireDate(e),
+    joursPresence:B_STD_DAYS(req), absence:0, hs120:0, hs130:0, hs140:0, hsNuit:0, congeAmount:0,
     custom:{} /* {fieldKey: value} colonnes personnalisées */, primes:[] /* {code,label,amount,cnps,impo} */ };
 }
 /** Échéance de prêt du mois pour un employé (lecture seule, depuis payLoans). */
@@ -563,7 +579,10 @@ function loanEcheance(empId, period, req){
 }
 function sheetOut(sheet, req){
   const out=Object.assign({}, sheet);
-  out.lines=(sheet.lines||[]).map(l => Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req) }));
+  const _empById={}; mine(db.employees, req).forEach(e=>{ _empById[e.id]=e; });
+  out.lines=(sheet.lines||[]).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period);
+    return Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req),
+      hireDate:l.hireDate||empHireDate(emp), anciennete:seniorityLabel(emp, sheet.period), conge:ci }); });
   const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
   out.portfolioName=pf?pf.name:"(tous)";
   out.fields=fieldsForSheet(req, sheet.portfolioId).map(f=>({key:f.key,label:f.label,kind:f.kind,rubriqueCode:f.rubriqueCode,overtimeType:f.overtimeType}));
@@ -633,6 +652,27 @@ router.get("/bordereaux", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
     bapBy:s.bapByName||null, bapAt:s.bapAt||null, controlStatus:(s.control&&s.control.status)||null })));
 });
 
+/* --- Alerte congés dus (par période) : pour GPF & Paie --- */
+router.get("/conge-alerts", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const period = (req.query.period||"").trim() || new Date().toISOString().slice(0,7);
+  if(!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({error:"Période AAAA-MM"});
+  const pfById={}; mine(db.portfolios, req).forEach(p=>{ pfById[p.id]=p.name; });
+  const sheets = mine(db.payElementSheets, req).filter(s=>s.period===period);
+  const handled = {}; // employeeId -> true if a bordereau line has congeAmount>0
+  for(const sh of sheets) for(const l of (sh.lines||[])) if(Number(l.congeAmount)>0) handled[l.employeeId]=true;
+  const rows=[];
+  for(const e of mine(db.employees, req)){
+    if((e.status||"").toUpperCase()==="ARCHIVED") continue;
+    const ci=congeInfo(e, period);
+    if(!ci.due) continue;
+    rows.push({ employeeId:e.id, name:`${e.firstName||""} ${e.lastName||""}`.trim(), matricule:e.matricule||"",
+      portfolio: pfById[e.portfolioId]||"", hireDate:ci.hireDate, seniority:ci.seniorityLabel,
+      entitlementDays:ci.entitlementDays, accruedDays:ci.accruedDays, handled: !!handled[e.id] });
+  }
+  rows.sort((a,b)=>String(a.portfolio).localeCompare(String(b.portfolio))||String(a.name).localeCompare(String(b.name)));
+  res.json({ period, count:rows.length, pending:rows.filter(r=>!r.handled).length, rows });
+});
+
 /* --- Détail --- */
 router.get("/bordereaux/:id", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
@@ -671,6 +711,7 @@ router.put("/bordereaux/:id/lines", allow("RP","ADM","GPF"), (req,res)=>{
     line.joursPresence=clean(nu.joursPresence, 0, 31);
     line.absence=clean(nu.absence, 0, 31);
     line.hs120=clean(nu.hs120,0,null); line.hs130=clean(nu.hs130,0,null); line.hs140=clean(nu.hs140,0,null); line.hsNuit=clean(nu.hsNuit,0,null);
+    line.congeAmount=clean(nu.congeAmount,0,null);
     line.primes=Array.isArray(nu.primes)?nu.primes.filter(p=>p&&p.label&&Number(p.amount)>0).map(p=>({code:String(p.code||"2000").slice(0,10), label:String(p.label).slice(0,40), amount:Math.round(Number(p.amount)), cnps:p.cnps!==false, impo:p.impo!==false})):[];
     if(nu.custom && typeof nu.custom==="object"){ line.custom=line.custom||{}; const defs=fieldsForSheet(req, s.portfolioId); for(const d of defs){ const v=Number(nu.custom[d.key]); line.custom[d.key]=Number.isFinite(v)&&v>0?v:0; } }
     if(JSON.stringify(line)!==before) changes++;
@@ -718,6 +759,7 @@ function pushElementsFromSheet(s, req){
     for(const p of (l.primes||[])){
       add({ employeeId:l.employeeId, type:"PRIME", code:String(p.code||"2000"), amount:Math.round(Number(p.amount)), label:p.label, cnps:p.cnps!==false, impo:p.impo!==false });
     }
+    if(Number(l.congeAmount)>0){ add({ employeeId:l.employeeId, type:"PRIME", code:"2600", amount:Math.round(Number(l.congeAmount)), label:"Allocation de congé", cnps:true, impo:true, conge:true }); }
     // colonnes personnalisées -> éléments mappés (rubrique/heures)
     const _defs=fieldsForSheet(req, s.portfolioId); const _rubs=mine(db.payRubriques, req);
     for(const d of _defs){ const v=Number((l.custom||{})[d.key]); if(!(v>0)) continue;
@@ -766,7 +808,7 @@ router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>
   }
   const gCols=gainLabels.slice(0,10); // borne raisonnable
   // Colonnes : fixes + salaire + variables
-  const cols=[{h:"N°",w:20,a:"l"},{h:"Nom",w:120,a:"l"},{h:"Contrat",w:38,a:"l"},{h:"Cat",w:26,a:"l"},{h:"Sal. base",w:50,a:"r"}];
+  const cols=[{h:"N°",w:18,a:"l"},{h:"Nom",w:110,a:"l"},{h:"Contrat",w:34,a:"l"},{h:"Cat",w:24,a:"l"},{h:"Embauche",w:50,a:"l",kind:"hire"},{h:"Anc.",w:60,a:"l",kind:"anc"},{h:"Sal. base",w:48,a:"r"}];
   gCols.forEach(g=>cols.push({h:g.length>12?g.slice(0,12):g,w:46,a:"r",gain:g}));
   cols.push({h:"Transport",w:46,a:"r",kind:"transport"});
   cols.push({h:"Brut contr.",w:52,a:"r",kind:"brut"});
@@ -775,6 +817,7 @@ router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>
   cols.push({h:"Primes var.",w:52,a:"r",kind:"primesv"});
   cols.push({h:"Acompte",w:50,a:"r",kind:"acompte"});
   cols.push({h:"Éch. prêt",w:50,a:"r",kind:"pret"});
+  cols.push({h:"Congé",w:48,a:"r",kind:"conge"});
   const doc=new PDFDocument({ size:"A4", layout:"landscape", margin:18 });
   const chunks=[]; doc.on("data",d=>chunks.push(d));
   doc.on("end",()=>{ const buf=Buffer.concat(chunks);
@@ -815,6 +858,8 @@ router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>
     if(y>doc.page.height-72){ doc.addPage(); y=24; drawRow(cols.map(c=>c.h), {fill:"#e6f2ec", bold:true, color:green, h:20, size:6}); }
     const cells=cols.map(c=>{
       if(c.h==="N°") return n; if(c.h==="Nom") return l.name; if(c.h==="Contrat") return l.contrat||""; if(c.h==="Cat") return l.category||"";
+      if(c.kind==="hire") return (l.hireDate||empHireDate(empById[l.employeeId]||{})||"").toString().slice(0,10);
+      if(c.kind==="anc") return seniorityLabel(empById[l.employeeId]||{}, s.period);
       if(c.h==="Sal. base") return F(stc.base);
       if(c.gain) return F(gainAmt(c.gain));
       if(c.kind==="transport") return F(stc.transport);
@@ -824,6 +869,7 @@ router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>
       if(c.kind==="primesv") return F(primesv);
       if(c.kind==="acompte") return F(acompte);
       if(c.kind==="pret") return F(pret);
+      if(c.kind==="conge"){ const _ci=congeInfo(empById[l.employeeId]||{}, s.period); return _ci.due ? (Number(l.congeAmount)>0?F(l.congeAmount):"DÛ") : ""; }
       return "";
     });
     drawRow(cells, {size:6.5});
@@ -882,7 +928,7 @@ function buildControl(s, req){
     const primesSoumis=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
     // Primes calculées = éléments variables réellement injectés (fromBordereau) pour cet employé/période.
     const primeTypes=new Set(["PRIME","RAPPEL","TREIZE","INDEMNITE"]);
-    const injected=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && primeTypes.has(e.type) && !e.fieldKey);
+    const injected=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && primeTypes.has(e.type) && !e.fieldKey && !e.conge);
     const gainsFromEls=injected.reduce((a,e)=>a+(Number(e.amount)||0),0);
     const acoList=acompteList(l.employeeId, s.period, req);
     const brouillons=acoList.filter(a=>a.status!=="VALIDE");
@@ -904,6 +950,21 @@ function buildControl(s, req){
       const injEls=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && e.fieldKey===d.key);
       const calc=injEls.reduce((a,e)=>a+(Number(d.kind==="HOURS"?e.hours:e.amount)||0),0);
       checks.push(cmp(l.employeeId,"cf_"+d.key,d.label, soum, calc, { groupe:"Temps", source:"Colonne personnalisée → élément injecté ("+(d.kind==="HOURS"?d.overtimeType:("rubrique "+d.rubriqueCode))+")", items:[{k:"Bordereau signé",v:String(soum)},{k:"Injecté en paie",v:String(calc)}] }));
+    }
+    // Congé : si le congé de l'employé est dû ce mois (anniversaire d'embauche), il doit être traité.
+    const _emp=mine(db.employees, req).find(e=>e.id===l.employeeId)||{};
+    const ci=congeInfo(_emp, s.period);
+    if(ci.due){
+      const soumC=Math.round(Number(l.congeAmount)||0);
+      const congeEl=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && e.conge).reduce((a,e)=>a+(Number(e.amount)||0),0);
+      const calcC=Math.round(congeEl);
+      const ackC=acks.find(a=>a.employeeId===l.employeeId&&a.field==="conge");
+      let st = (soumC===calcC && soumC>0) ? "OK" : "ECART";
+      if(st==="ECART" && ackC) st="ACK";
+      checks.push({ field:"conge", label:"Congé dû ce mois", soumis:soumC, calcule:calcC, delta:calcC-soumC, status:st, reason:ackC?ackC.reason:null,
+        detail:{ groupe:"Congé", source:"Dû d'après la date d'embauche ("+(ci.hireDate||"")+") et l'ancienneté",
+          note: soumC>0 ? "" : "Congé DÛ ce mois — indemnité non saisie. Payez l'allocation de congé, ou justifiez un report.",
+          items:[ {k:"Ancienneté",v:ci.seniorityLabel||(ci.seniorityYears+" an(s)")}, {k:"Droit annuel",v:(ci.entitlementDays!=null?ci.entitlementDays+" j":"—")}, {k:"Acquis",v:(ci.accruedDays!=null?ci.accruedDays+" j":"—")}, {k:"Indemnité saisie",v:String(soumC)} ] } });
     }
     const lineEcarts=checks.filter(c=>c.status==="ECART").length;
     ecarts+=lineEcarts;
@@ -1122,13 +1183,14 @@ router.get("/bordereaux/:id/export", allow("RP","ADM","GPF","CD","RJ"), (req,res
     for(const g of gains) if(!gainLabels.includes(g.label)) gainLabels.push(g.label);
     struct[l.employeeId]={base:Number(st.baseSalary)||0, gains, transport:(st.transport&&Number(st.transport.amount))||0};
   }
-  const head=["N°","Nom","Contrat","Cat","Salaire base",...gainLabels,"Transport","Brut contractuel","Présences","HS120","HS130","HS140","Nuit","Primes variables","Acompte","Échéance prêt"];
+  const head=["N°","Nom","Contrat","Cat","Date embauche","Ancienneté","Salaire base",...gainLabels,"Transport","Brut contractuel","Présences","HS120","HS130","HS140","Nuit","Primes variables","Acompte","Échéance prêt","Congé dû","Indemnité congé"];
   const data=[]; let n=0;
   for(const l of s.lines){ n++; const stc=struct[l.employeeId]||{base:0,gains:[],transport:0};
     const gv=(lbl)=>{ const g=(stc.gains||[]).find(x=>x.label===lbl); return g?g.amount:0; };
     const brut=stc.base+(stc.gains||[]).reduce((a,g)=>a+g.amount,0)+stc.transport;
     const primesv=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
-    data.push([n, l.name, l.contrat||"", l.category||"", stc.base, ...gainLabels.map(gv), stc.transport, brut, l.joursPresence||0, l.hs120||0, l.hs130||0, l.hs140||0, l.hsNuit||0, primesv, acompteTotal(l.employeeId, s.period, req), loanEcheance(l.employeeId, s.period, req).total]);
+    const _e=empById[l.employeeId]||{}; const _ci=congeInfo(_e, s.period);
+    data.push([n, l.name, l.contrat||"", l.category||"", (l.hireDate||empHireDate(_e)||"").toString().slice(0,10), seniorityLabel(_e, s.period), stc.base, ...gainLabels.map(gv), stc.transport, brut, l.joursPresence||0, l.hs120||0, l.hs130||0, l.hs140||0, l.hsNuit||0, primesv, acompteTotal(l.employeeId, s.period, req), loanEcheance(l.employeeId, s.period, req).total, _ci.due?"OUI":"", Math.round(Number(l.congeAmount)||0)]);
   }
   const fname=`Bordereau_${(pf?pf.name:"client").replace(/[^\w]/g,"_")}_${s.period}`;
   if(fmt==="csv"){ return sendCSV(res, fname+".csv", [head, ...data]); }

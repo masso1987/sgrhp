@@ -214,7 +214,7 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
   <div class="modbar" id="modbar"></div>
   <div style="font-size:13px;display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="width:52px;height:28px;padding:2px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.15);color:#fff;font-size:12px;cursor:pointer;flex:0 0 auto">
-      <option value="fr">FR</option><option value="en">EN</option></select><span id="chatBell" style="cursor:pointer" onclick="go('discussion')" title="Messages">Messages</span><span id="bell" style="cursor:pointer" onclick="showNotifs()" title="Notifications">Notifications</span><span id="who"></span><button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
+      <option value="fr">FR</option><option value="en">EN</option></select><span id="chatBell" style="cursor:pointer;position:relative;display:inline-flex;align-items:center" onclick="go('discussion')" title="Messages"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="m4 6 8 6 8-6"/></svg><span id="chatBadge" style="display:none;position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 4px;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:700;line-height:16px;text-align:center"></span></span><span id="bell" style="cursor:pointer" onclick="showNotifs()" title="Notifications">Notifications</span><span id="who"></span><button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
 <div class="layout">
   <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
   <div class="sidebar" id="nav"></div>
@@ -870,7 +870,7 @@ const I18N = {
 "Aucun module disponible.": "No module available.",
 "Se souvenir de moi": "Remember me",
 "Mot de passe oublié ?": "Forgot password?",
-"Principal": "Main", "RH": "HR", "Paie": "Payroll", "Facturation": "Invoicing",
+"Gestion Admin.": "Admin", "Principal": "Admin", "RH": "HR", "Paie": "Payroll", "Facturation": "Invoicing",
 "Comptabilité": "Accounting", "Stock": "Stock", "Qualité": "Quality",
 "Rapports": "Reports", "Admin": "Admin", "Plateforme": "Platform",
 "Tableau de bord - Facturation": "Dashboard - Invoicing",
@@ -1285,14 +1285,14 @@ const NAV = [
   { k: "logins", label: "Connexions & sécurité", sec: "Sécurité & accès", roles: ["ADM"], grp: "admin" },
 ];
 const NAV_GROUPS = [
-  { g: "principal", label: "Principal" },
-  { g: "discussion", label: "Discussion" },
+  { g: "principal", label: "Gestion Admin." },
   { g: "rh", label: "RH" },
   { g: "paie", label: "Paie" },
   { g: "facturation", label: "Facturation" },
   { g: "comptabilite", label: "Comptabilité" },
   { g: "stock", label: "Stock" },
   { g: "qualite", label: "Qualité" },
+  { g: "discussion", label: "Discussion" },
   { g: "rapports", label: "Rapports" },
   { g: "admin", label: "Admin" },
   { g: "plateforme", label: "Plateforme" },
@@ -1393,7 +1393,7 @@ const GROUP_META = {
 };
 const GROUP_DESC = {
   discussion: "Messagerie interne entre collaborateurs",
-  principal: "Tableau de bord, dossiers du personnel & documents",
+  principal: "Gestion administrative : tableau de bord, dossiers du personnel & documents",
   rh: "Administration RH, carrière & performance",
   paie: "Bulletins, traitements & états de paie",
   facturation: "Annexes, factures & suivi client",
@@ -5005,16 +5005,32 @@ function bordStatusTag(s, ctrl){
 }
 function prettyMois(p){ if(!p) return ""; const [y,m]=p.split("-"); const N=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"]; return (N[Number(m)-1]||p)+" "+y; }
 
+function congeBanner(alerts){
+  if(!alerts||!alerts.count) return "";
+  const pend=alerts.pending||0;
+  const names=(alerts.rows||[]).slice(0,6).map(r=>esc(r.name)+(r.handled?" ✓":"")).join(", ");
+  const col = pend>0 ? "#7c3aed" : "#16a34a";
+  return `<div class="panel" style="border-left:4px solid ${col};background:${col}12">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <b style="color:${col}">🌴 Congés dus ce mois : ${alerts.count}</b>
+      ${pend>0?`<span class="tag" style="background:#7c3aed;color:#fff">${pend} à traiter</span>`:'<span class="tag green">tous traités</span>'}
+      <span class="note-inline">${names}${(alerts.rows||[]).length>6?"…":""}</span>
+    </div>
+    <div class="note" style="margin-top:4px">Le congé de ces employés tombe ce mois (anniversaire d'embauche). Saisissez l'allocation de congé dans le bordereau, ou justifiez un report — le contrôle le vérifie.</div>
+  </div>`;
+}
 async function payBordereauxView(){
   if(!PFS||!PFS.length){ try{ PFS=await api("/portfolios"); }catch(e){ PFS=[]; } }
   const period = window._bordPeriod || new Date().toISOString().slice(0,7);
   const list = await api("/payroll/bordereaux"+(period?("?period="+period):"")).catch(()=>[]);
+  const congeAlerts = await api("/payroll/conge-alerts?period="+period).catch(()=>null);
   const canCreate = ["ADM","GPF"].includes(ME.role) || canRunPay();
   const clientOpts = (PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
   view.innerHTML = `<div class="adm-wrap">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Bordereaux d'éléments &amp; contrôle</h1>
       <span style="display:flex;gap:8px;align-items:center">${ME.role==="ADM"?`<button class="btn ghost sm" onclick="go('bordfields')">Colonnes du bordereau</button>`:""}<span class="note-inline">Saisie GPF &rarr; contrôle &rarr; Bon à payer</span></span></div>
     <div class="note">Le GPF saisit les éléments variables par client, l'app génère le bordereau à signer, la paie calcule, puis le système rapproche automatiquement la paie avec le bordereau signé. L'ordre de virement n'est édité qu'après « Bon à payer » (CD / Audit).</div>
+    ${congeBanner(congeAlerts)}
     ${canCreate?`<div class="panel"><b>Nouveau bordereau</b>
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:8px">
         <div><label>Client (portefeuille)</label><select id="bNewPf" style="margin:0;min-width:200px">${clientOpts||'<option value="">- aucun -</option>'}</select></div>
@@ -5062,13 +5078,18 @@ async function payBordereauView(id){
     const primesTxt=(l.primes||[]).map(p=>`${esc(p.label)}: ${money(p.amount)}`).join(", ");
     const loan=l.loan&&l.loan.total?money(l.loan.total):"—";
     return `<tr>
-      <td>${i+1}</td><td style="white-space:nowrap">${esc(l.name)}<div class="note-inline">${esc(l.matricule||"")}${l.category?" &middot; "+esc(l.category):""}</div></td>
+      <td>${i+1}</td><td style="white-space:nowrap">${esc(l.name)}<div class="note-inline">${esc(l.matricule||"")}</div></td>
+      <td class="note-inline" style="white-space:nowrap">${esc(l.contrat||"—")}</td>
+      <td class="note-inline">${esc(l.category||"—")}</td>
+      <td class="note-inline" style="white-space:nowrap">${l.hireDate?esc(String(l.hireDate).slice(0,10)):"—"}</td>
+      <td class="note-inline" style="white-space:nowrap">${esc(l.anciennete||"—")}</td>
       <td class="r">${numInput(l,'joursPresence')}</td>
       <td class="r">${numInput(l,'absence')}</td>
       <td class="r">${numInput(l,'hs120')}</td><td class="r">${numInput(l,'hs130')}</td><td class="r">${numInput(l,'hs140')}</td><td class="r">${numInput(l,'hsNuit')}</td>
       <td class="r" title="Acompte du mois (registre Acomptes)">${l.acompte?money(l.acompte):"—"}${(l.acompte&&(l.acompteValide||0)<l.acompte)?' <span class="tag amber" style="font-size:10px" title="Une partie n\'est pas encore validée">à valider</span>':""}</td>
       <td class="r" title="Échéance de prêt du mois (auto, lecture seule)">${loan}</td>
       ${cflds.map(fd=>`<td class="r">${customInput(l,fd.key)}</td>`).join("")}
+      <td class="r" title="Congé dû ce mois (calculé d'après la date d'embauche et l'ancienneté)">${(l.conge&&l.conge.due)?`<div><span class="tag" style="background:#7c3aed;color:#fff;font-size:10px">Congé dû ${l.conge.entitlementDays!=null?l.conge.entitlementDays+' j':''}</span></div>${editable?`<input type="number" min="0" value="${l.congeAmount||0}" style="width:80px;margin:2px 0 0;padding:3px 5px;text-align:right" placeholder="Indemnité" oninput="bordSet('${l.employeeId}','congeAmount',this.value)">`:`<div>${l.congeAmount?money(l.congeAmount):'<span style=\'color:var(--red)\'>non payé</span>'}</div>`}`:'<span class="note-inline">—</span>'}</td>
       <td style="max-width:210px"><span style="font-size:12px">${primesTxt||'<span class="note-inline">—</span>'}</span>
         ${editable?` <button class="btn ghost sm" style="padding:1px 6px" onclick="bordPrimes('${l.employeeId}')">Primes</button>`:""}</td>
     </tr>`;
@@ -5086,8 +5107,8 @@ async function payBordereauView(id){
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px">
       <h1 style="margin:0">Bordereau &middot; ${esc(s.portfolioName||"")}</h1>${bordStatusTag(s.status,ctrl)}</div>
     <div class="note">Client : <b>${esc(s.portfolioName||"")}</b> &middot; Période : <b>${esc(prettyMois(s.period))}</b> &middot; ${(s.lines||[]).length} employé(s)${s.submittedByName?` &middot; soumis par <b>${esc(s.submittedByName)}</b>`:""}${s.bapByName?` &middot; Bon à payer : <b>${esc(s.bapByName)}</b>`:""}</div>
-    <div class="panel"><div style="overflow:auto"><table style="width:100%;min-width:820px"><tr>
-      <th>#</th><th>Employé</th><th class="r">Prés.</th><th class="r">Abs.</th><th class="r">HS120</th><th class="r">HS130</th><th class="r">HS140</th><th class="r">Nuit</th><th class="r">Acompte</th><th class="r">Éch. prêt</th>${(s.fields||[]).map(fd=>`<th class="r" title="Colonne personnalisée">${esc(fd.label)}</th>`).join("")}<th>Primes variables</th></tr>
+    <div class="panel"><div style="overflow:auto"><table style="width:100%;min-width:1080px"><tr>
+      <th>#</th><th>Employé</th><th>Contrat</th><th>Cat</th><th>Embauche</th><th>Ancienneté</th><th class="r">Prés.</th><th class="r">Abs.</th><th class="r">HS120</th><th class="r">HS130</th><th class="r">HS140</th><th class="r">Nuit</th><th class="r">Acompte</th><th class="r">Éch. prêt</th>${(s.fields||[]).map(fd=>`<th class="r" title="Colonne personnalisée">${esc(fd.label)}</th>`).join("")}<th class="r">Congé</th><th>Primes variables</th></tr>
       ${rows||'<tr><td colspan="11" class="note-inline">Aucun employé.</td></tr>'}</table></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         ${editable&&isGpf?`<button class="btn p sm" onclick="bordSave('${s.id}')">Enregistrer</button>
@@ -5163,12 +5184,15 @@ function bordControlTable(ctrl,s,canBAP){
   window._CTRL=ctrl;
   const cell=(emp,c)=>{ const col=c.status==="OK"?"#16a34a":(c.status==="ACK"?"#b45309":"var(--red)"); const ic=c.status==="OK"?"&#10003;":(c.status==="ACK"?"justifié":"écart"); const dl=c.status!=="OK"?` (${c.calcule>c.soumis?'+':''}${(c.calcule-c.soumis).toLocaleString('fr-FR')})`:""; return `<span style="color:${col};cursor:pointer;text-decoration:${c.status==='OK'?'none':'underline dotted'}" onclick="bordEcartDetail('${emp}','${c.field}')" title="Cliquer pour le détail">${ic}${dl}</span>`; };
   const bapBtn = (canBAP && s.status!=="BON_A_PAYER" && ctrl.computed) ? `<button class="btn p sm" onclick="bordBAP('${s.id}')">Signer « Bon à payer »</button>` : (s.status==="BON_A_PAYER"?'<span class="tag green">Bon à payer signé &#10003;</span>':'');
-  const head=`<tr><th>Employé</th><th colspan="6" style="text-align:center;background:#eef4ff">Temps &amp; éléments (feuille de temps)</th><th colspan="2" style="text-align:center;background:#fff4e6">Acomptes &amp; prêts</th><th class="r">Net</th></tr><tr><th></th><th>Présence</th><th>HS120</th><th>HS130</th><th>HS140</th><th>Nuit</th><th>Primes</th><th>Acompte</th><th>Prêt</th><th></th></tr>`;
+  const head=`<tr><th>Employé</th><th colspan="6" style="text-align:center;background:#eef4ff">Temps &amp; éléments (feuille de temps)</th><th colspan="2" style="text-align:center;background:#fff4e6">Acomptes &amp; prêts</th><th style="text-align:center;background:#f3e8ff">Autres</th><th class="r">Net</th></tr><tr><th></th><th>Présence</th><th>HS120</th><th>HS130</th><th>HS140</th><th>Nuit</th><th>Primes</th><th>Acompte</th><th>Prêt</th><th>Colonnes / Congé</th><th></th></tr>`;
   const body=(ctrl.lines||[]).map(ln=>{
     if(ln.status==="NON_CALCULE") return `<tr><td>${esc(ln.name)}</td><td colspan="9" style="color:var(--red)">non calculé (aucun bulletin)</td></tr>`;
     const by=(f)=>ln.checks.find(c=>c.field===f)||{status:"OK",soumis:0,calcule:0};
     const C=(f)=>{ const c=by(f); return `<td class="r">${cell(ln.employeeId,c)}</td>`; };
-    return `<tr><td>${esc(ln.name)}</td>${C('jours')}${C('hs120')}${C('hs130')}${C('hs140')}${C('nuit')}${C('primes')}${C('acompte')}${C('pret')}<td class="r">${money0(ln.net)}</td></tr>`;
+    const extras=(ln.checks||[]).filter(c=>c.field==="conge"||String(c.field).indexOf("cf_")===0);
+    const chip=(c)=>{ const col=c.status==="OK"?"#16a34a":(c.status==="ACK"?"#b45309":"var(--red)"); return `<span onclick="bordEcartDetail('${ln.employeeId}','${c.field}')" style="cursor:pointer;display:inline-block;margin:1px;padding:1px 7px;border-radius:9px;background:${col}1f;color:${col};font-size:11px;font-weight:600" title="Cliquer pour le détail">${esc(c.label)}: ${c.status==="OK"?"&#10003;":(c.status==="ACK"?"justifié":"écart")}</span>`; };
+    const extraCell=extras.length?extras.map(chip).join(" "):'<span class="note-inline">—</span>';
+    return `<tr><td>${esc(ln.name)}</td>${C('jours')}${C('hs120')}${C('hs130')}${C('hs140')}${C('nuit')}${C('primes')}${C('acompte')}${C('pret')}<td>${extraCell}</td><td class="r">${money0(ln.net)}</td></tr>`;
   }).join("");
   const sumTag = ctrl.status==="CONFORME"?'<span class="tag green">Conforme</span>':'<span class="tag" style="background:#b45309;color:#fff">'+ctrl.counts.ecarts+' écart(s)</span>';
   return `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span>${sumTag} <span class="note-inline">contrôlé le ${(ctrl.at||'').slice(0,16).replace('T',' ')}</span></span>${bapBtn}</div>
@@ -5359,6 +5383,7 @@ async function payHome(){
 
 async function payrollView() {
   const [runs, st] = await Promise.all([ api("/payroll/runs"), api("/payroll/runs/open-state").catch(()=>({hasRuns:false,canOpen:true,nextPeriod:null})) ]);
+  const _cm=new Date().toISOString().slice(0,7); const congeAlerts=await api("/payroll/conge-alerts?period="+_cm).catch(()=>null);
   const prettyM=(p)=>{ if(!p) return ""; const [y,m]=p.split("-"); const N=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"]; return (N[Number(m)-1]||p)+" "+y; };
   let creator="";
   if(canRunPay()){
@@ -5381,6 +5406,7 @@ async function payrollView() {
   view.innerHTML = `<h1>Paie - cycles mensuels</h1>
   <div class="note">La paie s'ouvre <b>mois par mois</b>&nbsp;: saisissez les éléments variables (primes, heures supp., acomptes),
   calculez les bulletins, éditez-les en PDF, puis <b>clôturez la période</b>. Un nouveau mois ne peut être ouvert qu'après clôture du mois précédent.</div>
+  ${congeBanner(congeAlerts)}
   ${creator}
   <div class="panel"><table><tr><th>Période</th><th>Statut</th><th>Effectif</th><th>Calculée le</th><th></th></tr>
   ${runs.length ? runs.map(r => `<tr><td><b>${esc(r.period)}</b></td><td>${payStatusTag(r.status)}</td>
@@ -8894,7 +8920,7 @@ function onChatEvent(d){
 async function refreshChatUnread(){ try{ const r=await api("/messages/unread"); const prev=window._CHAT.totalUnread||0; window._CHAT.totalUnread=r.unread||0;
   if((r.unread||0)>prev && (!window._CHAT.ws || window._CHAT.ws.readyState!==1)) chatBeep();   // beep via polling si WS indisponible
   updateChatBadge(); }catch(_){}}
-function updateChatBadge(){ const el=document.getElementById("chatBell"); if(el) el.textContent=window._CHAT.totalUnread>0?(""+window._CHAT.totalUnread):""; }
+function updateChatBadge(){ const b=document.getElementById("chatBadge"); if(!b) return; const n=window._CHAT.totalUnread||0; if(n>0){ b.textContent=n>99?"99+":(""+n); b.style.display="inline-block"; } else { b.style.display="none"; } }
 
 async function chatFastPoll(){
   if(window.CURRENT_VIEW!=="discussion") return;

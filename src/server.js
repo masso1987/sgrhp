@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-24 - CTRL-52 (bordereau: colonnes personnalisees admin mappees aux rubriques + controle; verrou apres calcul paie: plus de reouverture/devalidation une fois la paie calculee)";
+const BUILD_VERSION = "2026-09-25 - HR-53 (nav: Gestion Admin. + Discussion apres Qualite + badge messagerie; bordereau: colonnes contrat/cat/embauche/anciennete; controle conge du (date embauche + convention) avec alertes GPF+Paie)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -208,7 +208,7 @@ const payrollGate = (req, res, next) => {
   if (!((t && t.modules) || []).includes("payroll"))
     return res.status(403).json({ error: "Module « payroll » non activé pour votre organisation - contactez le super-administrateur." });
   const p = req.path || "";
-  const isControlPath = p.startsWith("/bordereaux") || p.startsWith("/acomptes") || p.startsWith("/bordereau-fields") || (req.method === "GET" && p.startsWith("/rubriques"));
+  const isControlPath = p.startsWith("/bordereaux") || p.startsWith("/acomptes") || p.startsWith("/bordereau-fields") || p.startsWith("/conge-alerts") || (req.method === "GET" && p.startsWith("/rubriques"));
   if (u.role === "ADM" || u.role === "SADM" || isControlPath) return next();
   const dbu = (db.users || []).find(x => x.id === u.id);
   if (!(((dbu && dbu.modules) || []).includes("payroll")))
