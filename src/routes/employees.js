@@ -5,6 +5,7 @@ const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
 const { mine, stamp } = require("../store");
 const { audit } = require("../audit");
+const _phone = require("../phone");
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -71,6 +72,10 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
     return res.status(409).json({ error: `CNPS number ${b.cnpsNumber} already belongs to another employee` });
   if (b.email && mine(db.employees, req).some(e => (e.email || "").toLowerCase() === String(b.email).toLowerCase()))
     return res.status(409).json({ error: "Cet email est déjà utilisé par un autre employé" });
+  if (b.phone && !_phone.isCmPhone(b.phone))
+    return res.status(400).json({ error: "Téléphone invalide : numéro camerounais attendu (mobile 6XX XX XX XX, ou fixe 2XX XX XX XX)." });
+  if (b.emergencyPhone && !_phone.isCmPhone(b.emergencyPhone))
+    return res.status(400).json({ error: "Téléphone du contact d'urgence invalide (numéro camerounais attendu)." });
   if (b.phone && mine(db.employees, req).some(e => (e.phone || "") === b.phone))
     return res.status(409).json({ error: "Ce numéro de téléphone est déjà utilisé par un autre employé" });
   if (String(b.matricule || "").trim() && mine(db.employees, req).some(e => (e.matricule || "") === String(b.matricule).trim()))
@@ -157,6 +162,10 @@ router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
     return res.status(409).json({ error: "CNPS number already belongs to another employee" });
   if (req.body.email && mine(db.employees, req).some(e => e.id !== emp.id && (e.email || "").toLowerCase() === String(req.body.email).toLowerCase()))
     return res.status(409).json({ error: "Cet email est déjà utilisé par un autre employé" });
+  if (req.body.phone && !_phone.isCmPhone(req.body.phone))
+    return res.status(400).json({ error: "Téléphone invalide : numéro camerounais attendu (mobile 6XX…, ou fixe 2XX…)." });
+  if (req.body.emergencyPhone && !_phone.isCmPhone(req.body.emergencyPhone))
+    return res.status(400).json({ error: "Téléphone du contact d'urgence invalide (numéro camerounais attendu)." });
   if (req.body.phone && mine(db.employees, req).some(e => e.id !== emp.id && (e.phone || "") === req.body.phone))
     return res.status(409).json({ error: "Ce téléphone est déjà utilisé par un autre employé" });
   if (req.body.matricule && mine(db.employees, req).some(e => e.id !== emp.id && (e.matricule || "") === String(req.body.matricule).trim()))

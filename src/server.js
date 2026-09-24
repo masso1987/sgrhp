@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - HR-53 (nav: Gestion Admin. + Discussion apres Qualite + badge messagerie; bordereau: colonnes contrat/cat/embauche/anciennete; controle conge du (date embauche + convention) avec alertes GPF+Paie)";
+const BUILD_VERSION = "2026-09-25 - ACO-54 (acompte: regle du tiers du net avec approbation CD ou conversion en pret; canal OM/MOMO + validation numero/operateur camerounais; totaux OM/MOMO separes; telephone employe+contact urgence au format camerounais)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

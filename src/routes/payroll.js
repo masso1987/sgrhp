@@ -9,6 +9,7 @@ const PDFDocument = require("pdfkit");
 const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
+const _phone = require("../phone");
 const { computePayslip, seniorityRate } = require("../payroll/engine");
 const crypto = require("crypto");
 let _multer; try { _multer = require("multer"); } catch (e) { _multer = null; }
@@ -1036,28 +1037,80 @@ router.get("/acomptes", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   if(employeeId) list=list.filter(a=>a.employeeId===employeeId);
   res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"")||String(a.employeeName||"").localeCompare(String(b.employeeName||""))).map(a=>acompteOut(a, req)));
 });
+/** Net mensuel estimé de l'employé pour la période (pour la règle du tiers). 0 si incalculable. */
+function netEstimate(emp, period, req){
+  try { if(!baseSalaryOf(emp, req)) return 0; const { result }=computeFor(emp, period, req); return Math.round((result&&result.totals&&result.totals.netAPayer)||0); }
+  catch(e){ return 0; }
+}
+/** Valide canal + numéro OM/MOMO. Renvoie {ok, error?} ou {mismatch, detected, expected}. */
+function validateAcompteMoney(b){
+  const channel=String(b.channel||"").toUpperCase();
+  if(!["OM","MOMO"].includes(channel)) return { error:"Choisissez le canal : Orange Money (OM) ou MTN Mobile Money (MOMO)." };
+  const num=_phone.normalizeCmPhone(b.momo);
+  if(!_phone.isCmMobile(num)) return { error:"Numéro mobile camerounais invalide (9 chiffres commençant par 6)." };
+  const detected=_phone.cmOperator(num), expected=_phone.channelOperator(channel);
+  if(detected && expected && detected!==expected && b.confirmMismatch!==true)
+    return { mismatch:true, detected, expected, num, channel,
+      message:`Ce numéro semble être ${_phone.operatorLabel(detected)}, alors que vous avez choisi ${channel==="OM"?"Orange Money":"MTN Mobile Money"} (${_phone.operatorLabel(expected)}). Vérifiez le numéro, ou confirmez si le compte a été porté.` };
+  return { ok:true, channel, num };
+}
+
 router.post("/acomptes", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const b=req.body||{}; const period=(b.period||"").trim();
   if(!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({error:"Période attendue au format AAAA-MM"});
   if(!b.employeeId) return res.status(400).json({error:"Employé obligatoire"});
-  if(!(Number(b.amount)>0)) return res.status(400).json({error:"Montant obligatoire"});
+  const amount=Math.round(Number(b.amount)||0);
+  if(!(amount>0)) return res.status(400).json({error:"Montant obligatoire"});
   if(runLocked(period, req)) return res.status(409).json({error:"Période clôturée - saisie impossible"});
   const e=mine(db.employees, req).find(x=>x.id===b.employeeId);
+  if(!e) return res.status(404).json({error:"Employé introuvable"});
+  // 1) Canal + numéro OM/MOMO
+  const mv=validateAcompteMoney(b);
+  if(mv.error) return res.status(400).json({error:mv.error});
+  if(mv.mismatch) return res.status(409).json({reason:"OPERATOR_MISMATCH", detectedOperator:mv.detected, expectedOperator:mv.expected, message:mv.message});
+  // 2) Règle du tiers : l'acompte ne doit pas dépasser 1/3 du net (sauf approbation CD/ADM ou passage en prêt)
+  const net=netEstimate(e, period, req);
+  const maxThird=Math.floor(net/3);
+  const isMgr=["CD","ADM"].includes(req.user.role);
+  let overThird=false;
+  if(net>0 && amount>maxThird){
+    if(b.approveOverThird===true && isMgr){ overThird=true; }
+    else return res.status(409).json({ reason:"OVER_THIRD", maxThird, net, amount,
+      canApprove:isMgr,
+      message:`Cet acompte (${amount.toLocaleString("fr-FR")} FCFA) dépasse le tiers du salaire net (max ${maxThird.toLocaleString("fr-FR")} FCFA sur un net estimé de ${net.toLocaleString("fr-FR")} FCFA). Créez un prêt (échéancier), ou faites approuver le dépassement par un CD/Administrateur.` });
+  }
   const a=stamp({ id:id("aco"), period, portfolioId:b.portfolioId||(e&&e.portfolioId)||"", employeeId:b.employeeId,
-    employeeName:e?`${e.firstName||""} ${e.lastName||""}`.trim():"", matricule:e?(e.matricule||""):"",
-    momo:String(b.momo||"").slice(0,30), amount:Math.round(Number(b.amount)), note:String(b.note||"").slice(0,120),
+    employeeName:`${e.firstName||""} ${e.lastName||""}`.trim(), matricule:e.matricule||"",
+    channel:mv.channel, momo:mv.num, amount, note:String(b.note||"").slice(0,120),
+    netRef:net, maxThird, overThird, overThirdApprovedBy: overThird?req.user.id:null, overThirdApprovedByName: overThird?(req.user.fullName||""):null,
     status:"BROUILLON", createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
   db.payAcomptes.push(a); recomputeEmployeeOpenRun(req, a.period, a.employeeId); save();
-  audit(req.user, "CREATED", "PayAcompte", a.id, { period, employeeId:a.employeeId, amount:a.amount });
+  audit(req.user, "CREATED", "PayAcompte", a.id, { period, employeeId:a.employeeId, amount, channel:mv.channel, overThird });
   res.status(201).json(acompteOut(a, req));
 });
 router.put("/acomptes/:id", allow("RP","ADM","GPF","CD"), (req,res)=>{
   const a=mine(db.payAcomptes, req).find(x=>x.id===req.params.id); if(!a) return res.status(404).json({error:"Acompte introuvable"});
   if(runComputed(a.period, req)) return res.status(409).json({error:"La paie de cette période a été calculée - acompte figé (corrigez par régularisation le mois suivant)."});
   if(a.status==="VALIDE") return res.status(409).json({error:"Acompte validé - dévalidez-le avant de le modifier."});
-  const b=req.body||{};
-  if(b.amount!=null){ if(!(Number(b.amount)>0)) return res.status(400).json({error:"Montant invalide"}); a.amount=Math.round(Number(b.amount)); }
-  if(b.momo!=null) a.momo=String(b.momo).slice(0,30);
+  const b=req.body||{}; const e=mine(db.employees, req).find(x=>x.id===a.employeeId)||{};
+  // canal/numéro si modifiés
+  if(b.channel!=null || b.momo!=null){
+    const mv=validateAcompteMoney({ channel:b.channel!=null?b.channel:a.channel, momo:b.momo!=null?b.momo:a.momo, confirmMismatch:b.confirmMismatch });
+    if(mv.error) return res.status(400).json({error:mv.error});
+    if(mv.mismatch) return res.status(409).json({reason:"OPERATOR_MISMATCH", detectedOperator:mv.detected, expectedOperator:mv.expected, message:mv.message});
+    a.channel=mv.channel; a.momo=mv.num;
+  }
+  if(b.amount!=null){
+    const amount=Math.round(Number(b.amount)||0);
+    if(!(amount>0)) return res.status(400).json({error:"Montant invalide"});
+    const net=netEstimate(e, a.period, req); const maxThird=Math.floor(net/3); const isMgr=["CD","ADM"].includes(req.user.role);
+    if(net>0 && amount>maxThird){
+      if(b.approveOverThird===true && isMgr){ a.overThird=true; a.overThirdApprovedBy=req.user.id; a.overThirdApprovedByName=req.user.fullName||""; }
+      else return res.status(409).json({ reason:"OVER_THIRD", maxThird, net, amount, canApprove:isMgr,
+        message:`Cet acompte (${amount.toLocaleString("fr-FR")} FCFA) dépasse le tiers du net (max ${maxThird.toLocaleString("fr-FR")} FCFA). Créez un prêt, ou faites approuver le dépassement par un CD/Administrateur.` });
+    }
+    a.amount=amount; a.netRef=net; a.maxThird=maxThird;
+  }
   if(b.note!=null) a.note=String(b.note).slice(0,120);
   recomputeEmployeeOpenRun(req, a.period, a.employeeId); save(); audit(req.user, "UPDATED", "PayAcompte", a.id, { amount:a.amount });
   res.json(acompteOut(a, req));

@@ -1580,11 +1580,11 @@ async function empForm(edit) {
       <div><label>Statut</label><select id="fStatut"><option value="">-</option><option>Employé</option><option>Agent de maîtrise</option><option>Cadre</option></select></div>
       <div><label>Catégorie socio-pro. (CSP)</label><input id="fCsp"></div></div>
     <div class="grid3">
-      <div><label>Téléphone</label><input id="fPhone"></div>
+      <div><label>Téléphone</label><input id="fPhone" placeholder="6XX XX XX XX" oninput="cmFieldHint(this,'fPhoneHint')"><div id="fPhoneHint" class="note-inline"></div></div>
       <div><label>Email (envoi du bulletin)</label><input id="fEmail" type="email" placeholder="salarie@exemple.com"></div>
       <div><label>Mode de paiement</label><select id="fPay"><option>VIREMENT</option><option>ESPECES</option><option>CHEQUE</option><option>ORANGE MONEY</option><option>MOMO</option></select></div></div>
     <label>Personne à contacter en cas d'urgence</label>
-    <div class="grid2"><input id="fEmgName" placeholder="Nom"><input id="fEmgTel" placeholder="Téléphone"></div>
+    <div class="grid2"><input id="fEmgName" placeholder="Nom"><input id="fEmgTel" placeholder="6XX XX XX XX" oninput="cmFieldHint(this,'fEmgTelHint')"></div><div id="fEmgTelHint" class="note-inline"></div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0">
       <label>Éléments de salaire <span class="tag gray">rubriques du portefeuille - décochez celles qui ne s'appliquent pas, puis saisissez les montants</span></label>
       <div id="salElsBox"></div>
@@ -1698,6 +1698,8 @@ function renderSalEls(pfId, existingSalary) {
 }
 async function empSave(editId) {
   try {
+    if (fPhone.value && !CM.isPhone(fPhone.value)) { alert("Téléphone invalide : numéro camerounais attendu (mobile 6XX XX XX XX, ou fixe 2XX XX XX XX)."); fPhone.focus(); return; }
+    if (fEmgTel.value && !CM.isPhone(fEmgTel.value)) { alert("Téléphone du contact d'urgence invalide (numéro camerounais attendu)."); fEmgTel.focus(); return; }
     const _payload = {
       civility: fCiv.value, firstName: fFirst.value, lastName: fLast.value, portfolioId: fPf.value,
       hireDate: fHire.value, birthDate: fBirth.value, birthPlace: fBp.value,
@@ -4914,6 +4916,34 @@ async function bordFieldCreate(){
 }
 async function bordFieldDelete(id){ if(!confirm("Supprimer cette colonne ? Les bordereaux en brouillon ne l'afficheront plus.")) return; try{ await api("/payroll/bordereau-fields/"+id,{method:"DELETE"}); bordFieldsView(); }catch(e){ alert(e.message); } }
 
+/* ---- Numérotation Cameroun (mobile 9 chiffres, préfixe 6) : détection opérateur ---- */
+const CM = {
+  norm(raw){ let d=String(raw||"").replace(/[^\d]/g,""); if(d.startsWith("00237"))d=d.slice(5); else if(d.startsWith("237")&&d.length>9)d=d.slice(3); if(d.length===10&&d.startsWith("0"))d=d.slice(1); return d; },
+  isMobile(raw){ return /^6\d{8}$/.test(CM.norm(raw)); },
+  isPhone(raw){ const d=CM.norm(raw); return /^6\d{8}$/.test(d)||/^2\d{8}$/.test(d); },
+  operator(raw){ const d=CM.norm(raw); if(!/^6\d{8}$/.test(d))return ""; const p2=d.slice(0,2),p3=d.slice(0,3);
+    if(p2==="67"||p2==="68")return "MTN"; if(p3>="650"&&p3<="654")return "MTN";
+    if(p2==="69")return "ORANGE"; if(p3>="655"&&p3<="659")return "ORANGE";
+    if(p2==="66")return "NEXTTEL"; if(p2==="62")return "CAMTEL"; return ""; },
+  opLabel(o){ return {MTN:"MTN",ORANGE:"Orange",NEXTTEL:"Nexttel",CAMTEL:"Camtel"}[o]||"inconnu"; },
+  channelOp(c){ c=String(c||"").toUpperCase(); return c==="OM"?"ORANGE":c==="MOMO"?"MTN":""; },
+  fmt(raw){ const d=CM.norm(raw); return d.length===9?d.replace(/(\d)(\d{2})(\d{2})(\d{2})(\d{2})/,"$1$2 $3 $4 $5"):d; }
+};
+function cmFieldHint(inp, hintId){ const el=document.getElementById(hintId); if(!el) return; const v=inp.value||""; if(!v){ el.innerHTML=""; return; }
+  if(!CM.isPhone(v)){ el.innerHTML='<span style="color:var(--red)">Numéro camerounais invalide (mobile 6XX… ou fixe 2XX…)</span>'; return; }
+  const op=CM.operator(v); el.innerHTML='<span style="color:#16a34a">✓ '+(op?CM.opLabel(op)+' — ':'')+CM.fmt(v)+'</span>'; }
+/* Indicateur live sous le champ OM/MOMO : opérateur détecté vs canal choisi. */
+function acoMomoHint(){
+  const ch=(document.getElementById("acChannel")||{}).value||"";
+  const num=(document.getElementById("acMomo")||{}).value||"";
+  const el=document.getElementById("acMomoHint"); if(!el) return;
+  if(!num){ el.innerHTML=""; return; }
+  if(!CM.isMobile(num)){ el.innerHTML='<span style="color:var(--red)">Numéro mobile invalide (9 chiffres, commence par 6)</span>'; return; }
+  const det=CM.operator(num), exp=CM.channelOp(ch);
+  if(det && exp && det!==exp){ el.innerHTML=`<span style="color:#d97706">⚠ Numéro <b>${CM.opLabel(det)}</b> mais canal <b>${ch==="OM"?"Orange Money":"MTN Mobile Money"}</b> — vérifiez.</span>`; }
+  else { el.innerHTML=`<span style="color:#16a34a">✓ ${CM.opLabel(det||exp)} — ${CM.fmt(num)}</span>`; }
+}
+
 /* ===================== ACOMPTES SUR SALAIRE (registre, façon Excel) ===================== */
 async function payAcomptesView(){
   if(!PFS||!PFS.length){ try{ PFS=await api("/portfolios"); }catch(e){ PFS=[]; } }
@@ -4934,10 +4964,12 @@ async function payAcomptesView(){
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:8px">
         <div><label>Client</label><select id="acPf" style="margin:0;min-width:170px" onchange="acoLoadEmps()">${(PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
         <div><label>Employé</label><select id="acEmp" style="margin:0;min-width:200px"><option value="">- choisir un client -</option></select></div>
-        <div><label>N° OM / MOMO</label><input id="acMomo" placeholder="6XX XX XX XX" style="margin:0;max-width:130px"></div>
+        <div><label>Canal</label><select id="acChannel" style="margin:0" onchange="acoMomoHint()"><option value="OM">Orange Money (OM)</option><option value="MOMO">MTN Mobile Money (MOMO)</option></select></div>
+        <div><label>N° ${''}</label><input id="acMomo" placeholder="6XX XX XX XX" style="margin:0;max-width:140px" oninput="acoMomoHint()"></div>
         <div><label>Montant (FCFA)</label><input id="acAmount" type="number" min="0" style="margin:0;max-width:120px"></div>
         <div><label>Période</label><input id="acPer" type="month" value="${period}" style="margin:0"></div>
         <button class="btn p sm" onclick="acoCreate()">+ Ajouter</button></div>
+      <div id="acMomoHint" class="note-inline" style="margin-top:4px"></div>
       <div class="err hidden" id="acErr" style="margin-top:6px"></div></div>`:""}
     <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
         <b style="margin-right:auto">Acomptes</b>
@@ -4948,10 +4980,12 @@ async function payAcomptesView(){
         <button class="btn ghost sm" onclick="acoExport('pdf')">PDF</button>
         <button class="btn ghost sm" onclick="acoExport('xlsx')">Excel</button>
         <button class="btn ghost sm" onclick="acoExport('csv')">CSV</button></div>
-      <table style="width:100%"><tr><th>Client</th><th>Employé</th><th>N° OM/MOMO</th><th class="r">Montant</th><th>Statut</th><th>Saisi / validé par</th><th></th></tr>
+      <table style="width:100%"><tr><th>Client</th><th>Employé</th><th>Canal</th><th>N° mobile</th><th class="r">Montant</th><th>Statut</th><th>Saisi / validé par</th><th></th></tr>
       ${list.length?list.map(a=>{const val=a.status==="VALIDE";return `<tr>
         <td>${esc(a.portfolioName||"")}</td><td><b>${esc(a.employeeName||"")}</b> <span class="note-inline">${esc(a.matricule||"")}</span></td>
-        <td>${esc(a.momo||"—")}</td><td class="r"><b>${money(a.amount)}</b></td>
+        <td>${a.channel?`<span class="tag" style="background:${a.channel==='OM'?'#f97316':'#f59e0b'}1f;color:${a.channel==='OM'?'#c2410c':'#b45309'};font-size:10px">${a.channel==='OM'?'Orange Money':'MTN MoMo'}</span>`:'<span class="note-inline">—</span>'}</td>
+        <td>${a.momo?esc(CM.fmt(a.momo)):"—"}${(a.momo&&CM.operator(a.momo)&&a.channel&&CM.operator(a.momo)!==CM.channelOp(a.channel))?' <span title="Opérateur ≠ canal" style="color:#d97706">⚠</span>':""}</td>
+        <td class="r"><b>${money(a.amount)}</b>${a.overThird?' <span class="tag" style="background:#7c3aed;color:#fff;font-size:9px" title="Dépassement du tiers approuvé">>1/3 ✓</span>':""}</td>
         <td>${val?'<span class="tag green">Validé</span>':'<span class="tag amber">Brouillon</span>'}</td>
         <td class="note-inline">${esc(a.createdByName||"")}${a.validatedByName?` &rarr; ${esc(a.validatedByName)}`:""}</td>
         <td style="white-space:nowrap">
@@ -4960,7 +4994,8 @@ async function payAcomptesView(){
           ${(val&&canValidate)?`<button class="btn ghost sm" onclick="acoUnvalidate('${a.id}')">Dévalider</button> `:""}
           ${(!val&&canEdit)?`<button class="btn ghost sm" style="color:var(--red)" onclick="acoDelete('${a.id}')">Suppr.</button>`:""}
         </td></tr>`;}).join(""):'<tr><td colspan="7" class="note-inline">Aucun acompte pour ce filtre.</td></tr>'}
-      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="3">TOTAL (${list.length}) &middot; validés : ${money(list.filter(a=>a.status==="VALIDE").reduce((s2,a)=>s2+(a.amount||0),0))}</td><td class="r">${money(total)}</td><td colspan="3"></td></tr>
+      <tr style="font-weight:600;border-top:2px solid #999"><td colspan="4">TOTAL (${list.length}) &middot; validés : ${money(list.filter(a=>a.status==="VALIDE").reduce((s2,a)=>s2+(a.amount||0),0))}</td><td class="r">${money(total)}</td><td colspan="3"></td></tr>
+      <tr><td colspan="4" class="note-inline">Dont Orange Money : ${list.filter(a=>a.channel==="OM").length} (${money(list.filter(a=>a.channel==="OM").reduce((n,a)=>n+(a.amount||0),0))}) &middot; MTN MoMo : ${list.filter(a=>a.channel==="MOMO").length} (${money(list.filter(a=>a.channel==="MOMO").reduce((n,a)=>n+(a.amount||0),0))})</td><td colspan="4"></td></tr>
       </table><div class="note-inline" style="margin-top:6px">Seuls les acomptes <b>validés</b> sont retenus sur la paie et pris en compte dans le contrôle.</div></div>
   </div>`;
   window._acoEmpsCache={};
@@ -4973,18 +5008,55 @@ async function acoLoadEmps(){
   sel.innerHTML=emps.map(e=>`<option value="${e.id}">${esc((e.firstName||"")+" "+(e.lastName||""))} ${e.matricule?"("+esc(e.matricule)+")":""}</option>`).join("")||'<option value="">- aucun employé -</option>';
 }
 async function acoCreate(){
-  const pf=document.getElementById("acPf").value, emp=document.getElementById("acEmp").value, momo=document.getElementById("acMomo").value, amount=document.getElementById("acAmount").value, per=document.getElementById("acPer").value;
-  const err=document.getElementById("acErr");
-  if(!emp){ err.textContent="Choisissez un employé."; err.classList.remove("hidden"); return; }
-  if(!(Number(amount)>0)){ err.textContent="Montant obligatoire."; err.classList.remove("hidden"); return; }
-  try{ await api("/payroll/acomptes",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf,employeeId:emp,momo,amount:Number(amount)})}); payAcomptesView(); }
-  catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
+  const pf=document.getElementById("acPf").value, emp=document.getElementById("acEmp").value, channel=document.getElementById("acChannel").value,
+        momo=document.getElementById("acMomo").value, amount=Number(document.getElementById("acAmount").value), per=document.getElementById("acPer").value;
+  const err=document.getElementById("acErr"); const showErr=(m)=>{ err.textContent=m; err.classList.remove("hidden"); };
+  if(!emp) return showErr("Choisissez un employé.");
+  if(!CM.isMobile(momo)) return showErr("Numéro mobile camerounais invalide (9 chiffres, commence par 6).");
+  if(!(amount>0)) return showErr("Montant obligatoire.");
+  const body={ period:per, portfolioId:pf, employeeId:emp, channel, momo, amount };
+  await acoSubmit(body, err);
+}
+async function acoSubmit(body, err){
+  try{ await api("/payroll/acomptes",{method:"POST",body:JSON.stringify(body)}); payAcomptesView(); }
+  catch(e){
+    const info=e||{}; const reason=info.reason;
+    if(reason==="OPERATOR_MISMATCH"){
+      if(confirm((info.message||"Le numéro ne correspond pas au canal choisi.")+"\n\nConfirmer quand même (numéro porté) ?")){ return acoSubmit({...body, confirmMismatch:true}, err); }
+      return;
+    }
+    if(reason==="OVER_THIRD"){
+      const opts=info.canApprove
+        ? "OK = Approuver le dépassement (CD/Admin)\nAnnuler = ne pas créer (créez plutôt un prêt)"
+        : "Dépassement non autorisé.\nOK = créer un PRÊT à la place\nAnnuler = revenir";
+      if(info.canApprove){ if(confirm((info.message||"")+"\n\n"+opts)){ return acoSubmit({...body, approveOverThird:true}, err); } return; }
+      else { if(confirm((info.message||"")+"\n\n"+opts)){ acoToLoan(body); } return; }
+    }
+    if(err){ err.textContent=(info.error||e.message); err.classList.remove("hidden"); } else alert(info.error||e.message);
+  }
+}
+function acoToLoan(body){
+  // Pré-remplir la création d'un prêt (échéancier) à partir de l'acompte refusé.
+  const n=prompt("Créer un prêt de "+Number(body.amount).toLocaleString("fr-FR")+" FCFA — sur combien de mois ?","3");
+  const inst=Math.max(1,Math.round(Number(n)||0)); if(!inst) return;
+  api("/payroll/loans",{method:"POST",body:JSON.stringify({employeeId:body.employeeId, principal:body.amount, installments:inst, label:"Prêt (acompte converti)", startPeriod:body.period})})
+    .then(()=>{ alert("Prêt créé ("+inst+" mois). Il sera retenu automatiquement chaque mois."); payAcomptesView(); })
+    .catch(e=>alert(e.message||"Erreur"));
 }
 async function acoEdit(id,amount,momo){
   const na=prompt("Nouveau montant (FCFA) :", amount); if(na===null) return;
   if(!(Number(na)>0)){ alert("Montant invalide."); return; }
-  const nm=prompt("N° OM/MOMO :", momo||"");
-  try{ await api("/payroll/acomptes/"+id,{method:"PUT",body:JSON.stringify({amount:Number(na),momo:nm||""})}); payAcomptesView(); }catch(e){ alert(e.message); }
+  const nm=prompt("N° mobile (OM/MOMO) :", momo||""); if(nm===null) return;
+  if(nm && !CM.isMobile(nm)){ alert("Numéro mobile camerounais invalide (9 chiffres, commence par 6)."); return; }
+  await acoPut(id, { amount:Number(na), momo:nm||undefined });
+}
+async function acoPut(id, body){
+  try{ await api("/payroll/acomptes/"+id,{method:"PUT",body:JSON.stringify(body)}); payAcomptesView(); }
+  catch(e){ const info=e||{};
+    if(info.reason==="OPERATOR_MISMATCH"){ if(confirm((info.message||"Numéro ≠ canal.")+"\n\nConfirmer quand même ?")) return acoPut(id,{...body,confirmMismatch:true}); return; }
+    if(info.reason==="OVER_THIRD"){ if(info.canApprove){ if(confirm((info.message||"")+"\n\nApprouver le dépassement ?")) return acoPut(id,{...body,approveOverThird:true}); return; } alert(info.message||"Dépassement du tiers non autorisé."); return; }
+    alert(info.error||e.message);
+  }
 }
 async function acoDelete(id){
   if(!confirm("Supprimer cet acompte ?")) return;
