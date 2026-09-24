@@ -3098,6 +3098,7 @@ function cnvRenderGrid(){
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn ghost sm" onclick="cnvPrefill('${c.id}')">Pré-remplir</button>
         <button class="btn ghost sm" onclick="cnvRename('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Renommer</button>
+        <button class="btn ghost sm" onclick='cnvConge(${JSON.stringify(c).replace(/'/g,"&#39;")})'>Paramètres congé</button>
         <button class="btn ghost sm" style="color:var(--red)" onclick="cnvDelete('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Supprimer</button></div></div>
     ${c.gridSource==='officiel 2024'?'<div class="note" style="margin-top:4px;color:#16a34a">Grille officielle 2024 (effet 1er janvier 2024).</div>':(c.gridSource==='indicatif'?'<div class="note" style="margin-top:4px;color:var(--amber)">Barème indicatif (reconstitué) - à confirmer avec l\'annexe officielle.</div>':'')}`;
   if(isMatrix){
@@ -3132,6 +3133,28 @@ async function cnvSaveGrid(cid){ const rows=[...document.getElementById('cnvgrid
   try{ await api('/config/conventions/'+cid+'/grid',{method:'PUT',body:JSON.stringify({grid:rows})}); alert('Grille enregistrée.'); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvCreate(){ const name=prompt("Nom de la convention :"); if(!name)return; try{ await api('/config/conventions',{method:'POST',body:JSON.stringify({name})}); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvRename(id,cur){ const name=prompt("Nouveau nom :",cur); if(!name||name===cur)return; try{ await api('/config/conventions/'+id,{method:'PUT',body:JSON.stringify({name})}); conventionsView(); }catch(e){ alert(e.message); } }
+function cnvConge(c){
+  const g=(c&&c.conge)||{}; const isCommerce=/commerce/i.test(c.name||"");
+  const dBase=g.baseAnnualDays!=null?g.baseAnnualDays:(isCommerce?24:24);
+  const dAlloc=g.allocationDivisor!=null?g.allocationDivisor:(isCommerce?12:12);
+  const dProv=g.provisionDivisor!=null?g.provisionDivisor:30;
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:520px"><h3 style="margin:0 0 6px">Paramètres de congé — ${esc(c.name)}</h3>
+    <div class="note">Base : allocation de congé = (SBM × 12) ÷ diviseur. Diviseur <b>16</b> pour 18 j/an (1,5 j/mois), <b>12</b> pour 24 j/an (2 j/mois) — selon la convention. La base congé quotidienne (provision mensuelle) = SBM ÷ diviseur provision.</div>
+    <div class="grid2" style="margin-top:10px">
+      <div><label>Jours de congé / an (base)</label><input id="cgDays" type="number" min="0" value="${dBase}"></div>
+      <div><label>Diviseur allocation annuelle</label><input id="cgAlloc" type="number" min="1" value="${dAlloc}"></div>
+      <div><label>Diviseur base congé (provision)</label><input id="cgProv" type="number" min="1" value="${dProv}"></div>
+    </div>
+    <div class="err hidden" id="cgErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn p" onclick="cnvCongeSave('${c.id}','${esc(c.name).replace(/'/g,"&#39;")}')">Enregistrer</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function cnvCongeSave(id,name){
+  const conge={ baseAnnualDays:Number(document.getElementById("cgDays").value)||0, allocationDivisor:Number(document.getElementById("cgAlloc").value)||12, provisionDivisor:Number(document.getElementById("cgProv").value)||30 };
+  try{ await api('/config/conventions/'+id,{method:'PUT',body:JSON.stringify({name,conge})}); document.querySelector('.modal-bg').remove(); alert("Paramètres de congé enregistrés."); }catch(e){ const el=document.getElementById("cgErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
 async function cnvDelete(id,name){ if(!confirm("Supprimer la convention « "+name+" » et sa grille ? Cette action est irréversible."))return; try{ await api('/config/conventions/'+id,{method:'DELETE'}); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvPrefill(id){ if(!confirm("Pré-remplir la grille (catégories 1 à 12, échelons A à F) ? Pour « Commerce » la grille officielle 2024 est appliquée ; sinon un barème indicatif à vérifier. Cela remplace la grille actuelle."))return; try{ await api('/config/conventions/'+id+'/prefill-grid',{method:'POST'}); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvPrefillAll(){ if(!confirm("Pré-remplir les grilles vides (et les grilles par défaut) de toutes les conventions avec un barème indicatif ? Les grilles que vous avez déjà personnalisées ne sont pas touchées."))return; try{ const r=await api('/config/conventions/prefill-all',{method:'POST',body:JSON.stringify({})}); alert(r.filled+" grille(s) pré-remplie(s)."); conventionsView(); }catch(e){ alert(e.message); } }
@@ -5178,7 +5201,7 @@ async function payBordereauView(id){
       <td class="r" title="Acompte du mois (registre Acomptes)">${l.acompte?money(l.acompte):"—"}${(l.acompte&&(l.acompteValide||0)<l.acompte)?' <span class="tag amber" style="font-size:10px" title="Une partie n\'est pas encore validée">à valider</span>':""}</td>
       <td class="r" title="Échéance de prêt du mois (auto, lecture seule)">${loan}</td>
       ${cflds.map(fd=>`<td class="r">${customInput(l,fd.key)}</td>`).join("")}
-      <td class="r" title="Congé dû ce mois (calculé d'après la date d'embauche et l'ancienneté)">${(l.conge&&l.conge.due)?`<div><span class="tag" style="background:#7c3aed;color:#fff;font-size:10px">Congé dû ${l.conge.entitlementDays!=null?l.conge.entitlementDays+' j':''}</span></div>${editable?`<input type="number" min="0" value="${l.congeAmount||0}" style="width:80px;margin:2px 0 0;padding:3px 5px;text-align:right" placeholder="Indemnité" oninput="bordSet('${l.employeeId}','congeAmount',this.value)">`:`<div>${l.congeAmount?money(l.congeAmount):'<span style=\'color:var(--red)\'>non payé</span>'}</div>`}`:'<span class="note-inline">—</span>'}</td>
+      <td class="r" title="Congé dû ce mois (calculé d'après la date d'embauche et l'ancienneté)">${(l.conge&&l.conge.due)?`<div><span class="tag" style="background:#7c3aed;color:#fff;font-size:10px">Congé dû ${l.conge.entitlementDays!=null?l.conge.entitlementDays+' j':''}</span></div>${editable?`<input type="number" min="0" value="${l.congeAmount||0}" id="conge_${l.employeeId}" style="width:88px;margin:2px 0 0;padding:3px 5px;text-align:right" placeholder="Indemnité" oninput="bordSet('${l.employeeId}','congeAmount',this.value)">${(l.conge.suggestedAllocation>0)?`<div class="note-inline" style="font-size:10px">Alloc. ${money(l.conge.suggestedAllocation)} <a href="#" onclick="bordUseConge('${l.employeeId}',${l.conge.suggestedAllocation});return false" style="color:var(--nav-active-color);font-weight:600">utiliser</a></div>`:""}`:`<div>${l.congeAmount?money(l.congeAmount):'<span style=\'color:var(--red)\'>non payé</span>'}</div>`}<div class="note-inline" style="font-size:9px" title="Salaire brut moyen 12 mois / diviseur ${l.conge.allocationDivisor||''}">SBM ${l.conge.sbm?money(l.conge.sbm):'—'} · /${l.conge.allocationDivisor||'?'}</div>`:'<span class="note-inline">—</span>'}</td>
       <td style="max-width:210px"><span style="font-size:12px">${primesTxt||'<span class="note-inline">—</span>'}</span>
         ${editable?` <button class="btn ghost sm" style="padding:1px 6px" onclick="bordPrimes('${l.employeeId}')">Primes</button>`:""}</td>
     </tr>`;
@@ -5219,6 +5242,7 @@ function bordSet(empId,field,val){
 function bordSetCustom(empId,key,val){
   const b=window._BORD; if(!b) return; const l=(b.lines||[]).find(x=>x.employeeId===empId); if(l){ l.custom=l.custom||{}; l.custom[key]=Number(val)||0; }
 }
+function bordUseConge(empId, amount){ const b=window._BORD; if(!b) return; const l=(b.lines||[]).find(x=>x.employeeId===empId); if(l){ l.congeAmount=Math.round(Number(amount)||0); const inp=document.getElementById("conge_"+empId); if(inp) inp.value=l.congeAmount; } }
 async function bordPrimes(empId){
   const b=window._BORD; const l=(b.lines||[]).find(x=>x.employeeId===empId); if(!l) return;
   l.primes=l.primes||[];

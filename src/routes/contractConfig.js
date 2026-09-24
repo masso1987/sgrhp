@@ -120,7 +120,15 @@ router.put("/conventions/:id", allow("ADM"), (req, res) => {
   const name = String((req.body || {}).name || "").trim();
   if (!name) return res.status(400).json({ error: "name required" });
   if (mine(db.conventions, req).find(c => c.id !== cnv.id && c.name === name)) return res.status(409).json({ error: "Convention exists" });
-  cnv.name = name; save();
+  cnv.name = name;
+  // Paramètres de congé de la convention (jours/an, diviseur d'allocation, diviseur base congé)
+  if ((req.body||{}).conge && typeof req.body.conge === "object") {
+    const g = req.body.conge; cnv.conge = cnv.conge || {};
+    if (g.baseAnnualDays != null) cnv.conge.baseAnnualDays = Math.max(0, Number(g.baseAnnualDays) || 0);
+    if (g.allocationDivisor != null) cnv.conge.allocationDivisor = Math.max(1, Number(g.allocationDivisor) || 12);
+    if (g.provisionDivisor != null) cnv.conge.provisionDivisor = Math.max(1, Number(g.provisionDivisor) || 30);
+  }
+  save();
   audit(req.user, "CONFIG_CHANGED", "Convention", cnv.id, { renamed: name });
   res.json(cnv);
 });

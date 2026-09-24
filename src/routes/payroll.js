@@ -550,7 +550,41 @@ function empName(e){ return `${e.firstName||""} ${e.lastName||""}`.trim(); }
 /* Congé : à partir de la date d'embauche + convention/ancienneté, déterminer si le congé
    de l'employé est DÛ ce mois (anniversaire d'embauche, ≥ 12 mois d'ancienneté) et son droit. */
 function empHireDate(e){ return e.hireDate || (e.contract && e.contract.startDate) || ""; }
-function congeInfo(emp, period){
+/* Salaire brut moyen (SBM) : moyenne des bruts des 12 derniers bulletins (période de référence),
+   repli sur le brut contractuel courant si l'historique manque. */
+function sbmOf(emp, period, req){
+  const slips=mine(db.payslips, req).filter(s=>s.employeeId===emp.id && s.period && (!period || s.period < period))
+    .sort((a,b)=>(b.period||"").localeCompare(a.period||"")).slice(0,12);
+  if(slips.length){ const tot=slips.reduce((a,s)=>a+((s.result&&s.result.totals&&s.result.totals.brutTotal)||0),0); return Math.round(tot/slips.length); }
+  try{ if(baseSalaryOf(emp, req)){ const { result }=computeFor(emp, period||new Date().toISOString().slice(0,7), req); return Math.round((result&&result.totals&&result.totals.brutTotal)||0); } }catch(e){}
+  return 0;
+}
+/* Paramètres de congé applicables à l'employé : convention (si définie) sinon config paie. */
+function congeParams(emp, req){
+  const cfg=(configOf(req).leave)||{};
+  let baseAnnual=cfg.baseAnnual||24, allocationDivisor=cfg.allocationDivisor||12, provisionDivisor=cfg.provisionDivisor||30;
+  const cid=emp && emp.contract && emp.contract.conventionId;
+  const conv=cid ? mine(db.conventions, req).find(c=>c.id===cid) : null;
+  if(conv && conv.conge){ const g=conv.conge;
+    if(g.baseAnnualDays>0) baseAnnual=g.baseAnnualDays;
+    if(g.allocationDivisor>0) allocationDivisor=g.allocationDivisor;
+    if(g.provisionDivisor>0) provisionDivisor=g.provisionDivisor;
+  } else if(conv && /commerce/i.test(conv.name||"")){ baseAnnual=24; allocationDivisor=12; } // CCN Commerce : 2 j/mois, allocation 1/12
+  return { baseAnnual, allocationDivisor, provisionDivisor };
+}
+/* Calcul complet du congé : allocation annuelle (réf/diviseur) + provision mensuelle (SBM/30 x jours). */
+function congeCompute(emp, period, req){
+  const p=congeParams(emp, req); const sbm=sbmOf(emp, period, req);
+  const refRemun=sbm*12;
+  const annualAllocation=Math.round(refRemun / (p.allocationDivisor||12));
+  const dailyBase=Math.round(sbm / (p.provisionDivisor||30));          // BASEC
+  const joursMensuel=Math.round((p.baseAnnual/12)*100)/100;            // 1,5 ou 2
+  const monthlyProvision=Math.round(dailyBase*joursMensuel);
+  return { sbm, refRemun, allocationDivisor:p.allocationDivisor, provisionDivisor:p.provisionDivisor,
+    baseAnnual:p.baseAnnual, joursMensuel, dailyBase, annualAllocation, monthlyProvision };
+}
+
+function congeInfo(emp, period, req){
   const hire = empHireDate(emp);
   if(!hire || !/^\d{4}-\d{2}$/.test(period||"")) return { due:false, hireDate:hire||"", entitlementDays:null, accruedDays:null, seniorityYears:0 };
   const hMonth = new Date(hire).getMonth()+1;
@@ -558,9 +592,11 @@ function congeInfo(emp, period){
   const months = seniorityMonths(emp, period);
   const due = months>=12 && mo===hMonth;
   let bal={}; try{ bal=require("./hr").leaveBalance(emp); }catch(e){ bal={}; }
+  const calc = congeCompute(emp, period, req);
   return { due, hireDate:hire, anniversaryMonth:hMonth, seniorityYears:Math.floor(months/12), seniorityLabel:seniorityLabel(emp, period),
     entitlementDays: bal.annualEntitlement!=null?bal.annualEntitlement:null, accruedDays: bal.accrued!=null?bal.accrued:null,
-    remainingDays: bal.remaining!=null?bal.remaining:null, majoration: bal.majoration||0 };
+    remainingDays: bal.remaining!=null?bal.remaining:null, majoration: bal.majoration||0,
+    sbm:calc.sbm, allocationDivisor:calc.allocationDivisor, annualAllocation:calc.annualAllocation, monthlyProvision:calc.monthlyProvision, dailyBase:calc.dailyBase, suggestedAllocation:calc.annualAllocation };
 }
 
 function blankLine(e, req){
@@ -581,7 +617,7 @@ function loanEcheance(empId, period, req){
 function sheetOut(sheet, req){
   const out=Object.assign({}, sheet);
   const _empById={}; mine(db.employees, req).forEach(e=>{ _empById[e.id]=e; });
-  out.lines=(sheet.lines||[]).slice().sort((a,b)=>_empNomKey(_empById[a.employeeId]).localeCompare(_empNomKey(_empById[b.employeeId]), "fr", {sensitivity:"base"})).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period);
+  out.lines=(sheet.lines||[]).slice().sort((a,b)=>_empNomKey(_empById[a.employeeId]).localeCompare(_empNomKey(_empById[b.employeeId]), "fr", {sensitivity:"base"})).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period, req);
     return Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req),
       hireDate:l.hireDate||empHireDate(emp), anciennete:seniorityLabel(emp, sheet.period), conge:ci }); });
   const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
@@ -664,7 +700,7 @@ router.get("/conge-alerts", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const rows=[];
   for(const e of mine(db.employees, req)){
     if((e.status||"").toUpperCase()==="ARCHIVED") continue;
-    const ci=congeInfo(e, period);
+    const ci=congeInfo(e, period, req);
     if(!ci.due) continue;
     rows.push({ employeeId:e.id, name:`${e.firstName||""} ${e.lastName||""}`.trim(), matricule:e.matricule||"",
       portfolio: pfById[e.portfolioId]||"", hireDate:ci.hireDate, seniority:ci.seniorityLabel,
@@ -672,6 +708,18 @@ router.get("/conge-alerts", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   }
   rows.sort((a,b)=>String(a.portfolio).localeCompare(String(b.portfolio))||String(a.name).localeCompare(String(b.name)));
   res.json({ period, count:rows.length, pending:rows.filter(r=>!r.handled).length, rows });
+});
+
+/* --- Calcul du congé d'un employé (détail) : SBM, diviseur, allocation annuelle, provision --- */
+router.get("/conge-calc", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
+  const { employeeId, period } = req.query;
+  const e=mine(db.employees, req).find(x=>x.id===employeeId); if(!e) return res.status(404).json({error:"Employé introuvable"});
+  const per=(period||"").trim()||new Date().toISOString().slice(0,7);
+  const calc=congeCompute(e, per, req); const info=congeInfo(e, per, req);
+  const conv=(e.contract&&e.contract.conventionId)?mine(db.conventions, req).find(c=>c.id===e.contract.conventionId):null;
+  res.json(Object.assign({ employeeId:e.id, name:`${e.firstName||""} ${e.lastName||""}`.trim(), period:per,
+    convention: conv?conv.name:"(config paie)", due:info.due, hireDate:info.hireDate, seniority:info.seniorityLabel,
+    entitlementDays:info.entitlementDays, accruedDays:info.accruedDays }, calc));
 });
 
 /* --- Détail --- */
@@ -760,7 +808,7 @@ function pushElementsFromSheet(s, req){
     for(const p of (l.primes||[])){
       add({ employeeId:l.employeeId, type:"PRIME", code:String(p.code||"2000"), amount:Math.round(Number(p.amount)), label:p.label, cnps:p.cnps!==false, impo:p.impo!==false });
     }
-    if(Number(l.congeAmount)>0){ add({ employeeId:l.employeeId, type:"PRIME", code:"2600", amount:Math.round(Number(l.congeAmount)), label:"Allocation de congé", cnps:true, impo:true, conge:true }); }
+    if(Number(l.congeAmount)>0){ add({ employeeId:l.employeeId, type:"PRIME", code:"3702", amount:Math.round(Number(l.congeAmount)), label:"Congés annuels (allocation)", cnps:true, impo:true, conge:true }); }
     // colonnes personnalisées -> éléments mappés (rubrique/heures)
     const _defs=fieldsForSheet(req, s.portfolioId); const _rubs=mine(db.payRubriques, req);
     for(const d of _defs){ const v=Number((l.custom||{})[d.key]); if(!(v>0)) continue;
@@ -870,7 +918,7 @@ router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>
       if(c.kind==="primesv") return F(primesv);
       if(c.kind==="acompte") return F(acompte);
       if(c.kind==="pret") return F(pret);
-      if(c.kind==="conge"){ const _ci=congeInfo(empById[l.employeeId]||{}, s.period); return _ci.due ? (Number(l.congeAmount)>0?F(l.congeAmount):"DÛ") : ""; }
+      if(c.kind==="conge"){ const _ci=congeInfo(empById[l.employeeId]||{}, s.period, req); return _ci.due ? (Number(l.congeAmount)>0?F(l.congeAmount):"DÛ") : ""; }
       return "";
     });
     drawRow(cells, {size:6.5});
@@ -954,7 +1002,7 @@ function buildControl(s, req){
     }
     // Congé : si le congé de l'employé est dû ce mois (anniversaire d'embauche), il doit être traité.
     const _emp=mine(db.employees, req).find(e=>e.id===l.employeeId)||{};
-    const ci=congeInfo(_emp, s.period);
+    const ci=congeInfo(_emp, s.period, req);
     if(ci.due){
       const soumC=Math.round(Number(l.congeAmount)||0);
       const congeEl=mine(db.payElements, req).filter(e=>e.employeeId===l.employeeId && e.period===s.period && e.fromBordereau && e.conge).reduce((a,e)=>a+(Number(e.amount)||0),0);
@@ -1271,7 +1319,7 @@ router.get("/bordereaux/:id/export", allow("RP","ADM","GPF","CD","RJ"), (req,res
     const gv=(lbl)=>{ const g=(stc.gains||[]).find(x=>x.label===lbl); return g?g.amount:0; };
     const brut=stc.base+(stc.gains||[]).reduce((a,g)=>a+g.amount,0)+stc.transport;
     const primesv=(l.primes||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
-    const _e=empById[l.employeeId]||{}; const _ci=congeInfo(_e, s.period);
+    const _e=empById[l.employeeId]||{}; const _ci=congeInfo(_e, s.period, req);
     data.push([n, l.name, l.contrat||"", l.category||"", (l.hireDate||empHireDate(_e)||"").toString().slice(0,10), seniorityLabel(_e, s.period), stc.base, ...gainLabels.map(gv), stc.transport, brut, l.joursPresence||0, l.hs120||0, l.hs130||0, l.hs140||0, l.hsNuit||0, primesv, acompteTotal(l.employeeId, s.period, req), loanEcheance(l.employeeId, s.period, req).total, _ci.due?"OUI":"", Math.round(Number(l.congeAmount)||0)]);
   }
   const fname=`Bordereau_${(pf?pf.name:"client").replace(/[^\w]/g,"_")}_${s.period}`;

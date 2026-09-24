@@ -66,6 +66,10 @@ const DEFAULT_CONFIG = {
   leave: {
     daysPerMonth: 2.5, // CONGE1 - provision comptable (jours calendaires) / mois
     ouvrablePerMonth: 2, baseAnnual: 24, // Art. 63.1 : 2 jours ouvrables / mois = 24 / an
+    // Allocation de congé = rémunération de la période de référence / allocationDivisor.
+    // 16 pour 18 j/an (1,5/mois) ; 12 pour 24 j/an (2/mois) ; ~9,6 (48/5) pour 30 j/an. Selon convention.
+    allocationDivisor: 12,
+    provisionDivisor: 30, // base congé quotidienne (provision) = SBM / provisionDivisor
     // Art. 63.5 : majoration d'ancienneté (jours ouvrables ajoutés au congé annuel)
     seniorityMajoration: [
       { upToYears: 5, days: 0 }, { upToYears: 10, days: 3 }, { upToYears: 15, days: 6 },

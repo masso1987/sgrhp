@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - ACO-55 (tri alphabetique par NOM: paie, acomptes, controle, bordereaux; acomptes separes en sections OM et MOMO avec sous-totaux, ecran + PDF + Excel/CSV)";
+const BUILD_VERSION = "2026-09-25 - CONGE-56 (calcul du conge: SBM 12 mois; allocation annuelle = SBM*12/diviseur (16=18j, 12=24j selon convention); base congé = SBM/30; parametrable par convention; auto-suggestion bordereau; rubrique 3702; endpoint conge-calc)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -208,7 +208,7 @@ const payrollGate = (req, res, next) => {
   if (!((t && t.modules) || []).includes("payroll"))
     return res.status(403).json({ error: "Module « payroll » non activé pour votre organisation - contactez le super-administrateur." });
   const p = req.path || "";
-  const isControlPath = p.startsWith("/bordereaux") || p.startsWith("/acomptes") || p.startsWith("/bordereau-fields") || p.startsWith("/conge-alerts") || (req.method === "GET" && p.startsWith("/rubriques"));
+  const isControlPath = p.startsWith("/bordereaux") || p.startsWith("/acomptes") || p.startsWith("/bordereau-fields") || p.startsWith("/conge-alerts") || p.startsWith("/conge-calc") || (req.method === "GET" && p.startsWith("/rubriques"));
   if (u.role === "ADM" || u.role === "SADM" || isControlPath) return next();
   const dbu = (db.users || []).find(x => x.id === u.id);
   if (!(((dbu && dbu.modules) || []).includes("payroll")))
