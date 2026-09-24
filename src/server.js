@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - FIX-57 (persistance PostgreSQL: sauvegarde de TOUTES les collections - bordereaux, acomptes, controle, sites, pointages... n-etaient pas persistees et disparaissaient au redemarrage; correction generique + singleton platform)";
+const BUILD_VERSION = "2026-09-25 - FIX-58 (tripwire persistance: self-check au demarrage + endpoint /api/health/persistence — alerte si une collection ne round-trip pas vers PostgreSQL)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -159,6 +159,12 @@ app.use("/api", apiLimiter);
 app.use("/api/v1", require("./routes/mobile"));
 app.use("/api", authenticate);
 app.get("/api/me", require("./auth").me);
+// Diagnostic de persistance (ADM/SADM) : confirme que toutes les collections sont bien enregistrées.
+app.get("/api/health/persistence", async (req, res) => {
+  if (!req.user || !["ADM","SADM"].includes(req.user.role)) return res.status(403).json({ error: "Réservé à l'administrateur" });
+  try { const r = await require("./store").checkPersistence(); res.json(r); }
+  catch (e) { res.status(500).json({ ok:false, error: e.message }); }
+});
 app.post("/api/logout", authenticate, require("./auth").logout);
 app.post("/api/me/password", require("./auth").changePassword);
 app.post("/api/me/2fa/disable", require("./auth").totpDisable);

@@ -152,6 +152,24 @@ async function save(db) {
   }
 }
 
+/** Self-check : compare le nombre d'éléments en mémoire au nombre réellement persisté par
+ * collection. Détecte immédiatement une collection qui ne « round-trip » pas vers PostgreSQL. */
+async function verifyPersistence(db) {
+  const { rows } = await pool.query(
+    "SELECT collection, count(*)::int AS n FROM store WHERE tenant_id=$1 GROUP BY collection", [TENANT]);
+  const persisted = {}; rows.forEach(r => { persisted[r.collection] = r.n; });
+  const RESERVED = new Set(["seq", "settings", "platform"]);
+  const report = []; const warnings = [];
+  for (const key of Object.keys(db)) {
+    if (!Array.isArray(db[key]) || RESERVED.has(key)) continue;
+    const mem = db[key].length, pers = persisted[key] || 0;
+    const ok = mem === 0 || pers > 0; // des données en mémoire DOIVENT exister en base
+    report.push({ collection: key, memory: mem, persisted: pers, ok });
+    if (!ok) warnings.push(`${key}: ${mem} en mémoire mais 0 persisté`);
+  }
+  return { ok: warnings.length === 0, checked: report.length, warnings, report };
+}
+
 async function close() { if (pool) await pool.end(); }
 
-module.exports = { init, load, save, close, TENANT, get pool() { return pool; } };
+module.exports = { init, load, save, close, verifyPersistence, TENANT, get pool() { return pool; } };
