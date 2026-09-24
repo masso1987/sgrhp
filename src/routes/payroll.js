@@ -635,7 +635,8 @@ function loanEcheance(empId, period, req){
 function sheetOut(sheet, req){
   const out=Object.assign({}, sheet);
   const _empById={}; mine(db.employees, req).forEach(e=>{ _empById[e.id]=e; });
-  out.lines=(sheet.lines||[]).slice().sort((a,b)=>_empNomKey(_empById[a.employeeId]).localeCompare(_empNomKey(_empById[b.employeeId]), "fr", {sensitivity:"base"})).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period, req);
+  const _dispNom=(e)=>(((e&&e.firstName)||"")+" "+((e&&e.lastName)||"")).trim().toLowerCase();
+  out.lines=(sheet.lines||[]).slice().sort((a,b)=>_dispNom(_empById[a.employeeId]).localeCompare(_dispNom(_empById[b.employeeId]), "fr", {sensitivity:"base"})).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period, req);
     return Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req),
       hireDate:l.hireDate||empHireDate(emp), anciennete:seniorityLabel(emp, sheet.period), conge:ci }); });
   const pf=mine(db.portfolios, req).find(p=>p.id===sheet.portfolioId);
@@ -1533,10 +1534,11 @@ router.get("/runs/:id/roster", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   const byEmp = {}; mine(db.payslips, req).filter(s => s.runId === run.id).forEach(s => { byEmp[s.employeeId] = s; });
+  const _pfName = {}; mine(db.portfolios, req).forEach(p => { _pfName[p.id] = (p.name || "").toLowerCase(); });
   const roster = mine(db.employees, req)
     .filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
-    .sort((a, b) => String(a.portfolioId||"").localeCompare(String(b.portfolioId||"")) ||
-      `${a.lastName||""} ${a.firstName||""}`.localeCompare(`${b.lastName||""} ${b.firstName||""}`, "fr", { sensitivity: "base" }))
+    .sort((a, b) => (_pfName[a.portfolioId] || "~").localeCompare(_pfName[b.portfolioId] || "~", "fr", { sensitivity: "base" }) ||
+      `${a.firstName||""} ${a.lastName||""}`.localeCompare(`${b.firstName||""} ${b.lastName||""}`, "fr", { sensitivity: "base" }))
     .map(e => { const s = byEmp[e.id]; return {
       employeeId: e.id, name: `${e.firstName} ${e.lastName}`, matricule: e.matricule || e.id.slice(-6),
       portfolioId: e.portfolioId, category: (e.contract && e.contract.category) || "",

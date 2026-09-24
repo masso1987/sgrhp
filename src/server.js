@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - SORT-63 (tri alphabetique: portefeuilles/clients, liste des bordereaux (par client), registre des acomptes (par nom dans chaque groupe OM/MOMO); salaries & bulletins deja tries par nom; rubriques inchangees)";
+const BUILD_VERSION = "2026-09-25 - SORT-64 (listes salaries triees alphabetiquement par nom affiche (Prenom Nom), groupees par client A->Z: roster paie (corrige le tri par ID de portefeuille), lignes du bordereau, dossiers du personnel)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

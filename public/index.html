@@ -1520,8 +1520,8 @@ function empRender() {
     if (st && (e.status || "DRAFT") !== st) return false;
     if (q && !`${e.firstName} ${e.lastName} ${e.matricule || ""} ${e.cniNumber || ""}`.toLowerCase().includes(q)) return false;
     return true;
-  }).sort((a, b) => (pfName(a.portfolioId)||"").localeCompare(pfName(b.portfolioId)||"") ||
-      `${a.lastName||""} ${a.firstName||""}`.localeCompare(`${b.lastName||""} ${b.firstName||""}`, "fr", { sensitivity: "base" }));
+  }).sort((a, b) => (pfName(a.portfolioId)||"").localeCompare(pfName(b.portfolioId)||"", "fr", { sensitivity: "base" }) ||
+      `${a.firstName||""} ${a.lastName||""}`.localeCompare(`${b.firstName||""} ${b.lastName||""}`, "fr", { sensitivity: "base" }));
   empCount.textContent = `${list.length} employé(s)`;
   registerPager("emp", empRender);
   const rows = pageSlice("emp", list);
