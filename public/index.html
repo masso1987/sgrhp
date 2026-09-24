@@ -5108,6 +5108,7 @@ async function acoValidateBatch(pf,per){ if(!confirm("Valider tous les acomptes 
 async function acoExport(fmt){ const per=window._acoPeriod||new Date().toISOString().slice(0,7); const pf=window._acoPf||""; let url="/api/payroll/acomptes/export?format="+fmt+"&period="+per+(pf?("&portfolioId="+pf):""); try{ const r=await fetch(url,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok){ let j={};try{j=await r.json();}catch(_){}; throw new Error(j.error||"Erreur export"); } const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); if(fmt==="pdf"){a.target="_blank";}else{a.download="acomptes."+(fmt==="xlsx"?"xlsx":"csv");} a.click(); }catch(e){ alert(e.message); } }
 
 /* ===================== BORDEREAUX D'ÉLÉMENTS & CONTRÔLE (GPF <-> Paie) ===================== */
+function bordKindTag(s){ if(!s||(s.kind||"PRINCIPAL")==="PRINCIPAL") return ""; return `<span class="tag" style="background:#7c3aed;color:#fff" title="Bordereau de régularisation">Complémentaire${s.seq?(" #"+s.seq):""}</span>`; }
 function bordStatusTag(s, ctrl){
   if(s==="BROUILLON") return '<span class="tag amber">Brouillon</span>';
   if(s==="SOUMIS") return '<span class="tag blue">Soumis &amp; signé</span>';
@@ -5147,14 +5148,16 @@ async function payBordereauxView(){
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:8px">
         <div><label>Client (portefeuille)</label><select id="bNewPf" style="margin:0;min-width:200px">${clientOpts||'<option value="">- aucun -</option>'}</select></div>
         <div><label>Période</label><input id="bNewPer" type="month" value="${period}" style="margin:0"></div>
+        <label style="margin:0;font-weight:400;font-size:12px;display:flex;align-items:center;gap:4px;height:32px"><input type="checkbox" id="bNewCompl"> Complémentaire (régularisation)</label>
         <button class="btn p sm" onclick="bordCreate()">+ Créer le bordereau</button></div>
+      <div class="note-inline" style="margin-top:4px">« Complémentaire » ajoute un second bordereau au même client/période pour rattraper un élément oublié — utilisable même après le calcul de la paie (les bulletins concernés sont recalculés).</div>
       <div class="err hidden" id="bNewErr" style="margin-top:6px"></div></div>`:""}
     <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
         <b style="margin-right:auto">Bordereaux</b>
         <label style="margin:0" class="note-inline">Période</label><input type="month" value="${period}" onchange="window._bordPeriod=this.value;payBordereauxView()" style="margin:0;max-width:150px"></div>
       <table style="width:100%"><tr><th>Client</th><th>Période</th><th>Employés</th><th>Statut</th><th>Contrôle</th><th>Soumis par</th><th>Bon à payer</th><th></th></tr>
       ${list.length?list.map(s=>`<tr>
-        <td><b>${esc(s.portfolioName||"")}</b></td><td>${esc(s.period)}</td><td>${s.lineCount||0}</td>
+        <td><b>${esc(s.portfolioName||"")}</b> ${bordKindTag(s)}</td><td>${esc(s.period)}</td><td>${s.lineCount||0}</td>
         <td>${bordStatusTag(s.status,{status:s.controlStatus})}</td>
         <td>${s.controlStatus?(s.controlStatus==="CONFORME"?'<span class="tag green">Conforme</span>':(s.controlStatus==="ECARTS"?'<span class="tag" style="background:#b45309;color:#fff">Écarts</span>':esc(s.controlStatus))):'<span class="note-inline">—</span>'}</td>
         <td>${s.submittedBy?esc(s.submittedBy):'<span class="note-inline">—</span>'}</td>
@@ -5165,10 +5168,16 @@ async function payBordereauxView(){
 }
 async function bordCreate(){
   const pf=document.getElementById("bNewPf").value, per=document.getElementById("bNewPer").value;
+  const compl=!!(document.getElementById("bNewCompl")&&document.getElementById("bNewCompl").checked);
   const err=document.getElementById("bNewErr");
   if(!pf){ err.textContent="Choisissez un client."; err.classList.remove("hidden"); return; }
-  try{ const s=await api("/payroll/bordereaux",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf})}); go('bordereau',s.id); }
+  try{ const s=await api("/payroll/bordereaux",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf,complementaire:compl})}); go('bordereau',s.id); }
   catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
+}
+async function bordCreateComplementaire(portfolioId, period){
+  if(!confirm("Créer un bordereau complémentaire (régularisation) pour ce client et cette période ?\n\nIl reprend les valeurs actuelles, que vous pourrez corriger ou compléter. À la soumission, il remplacera les éléments injectés et recalculera les bulletins concernés.")) return;
+  try{ const s=await api("/payroll/bordereaux",{method:"POST",body:JSON.stringify({period,portfolioId,complementaire:true})}); go('bordereau',s.id); }
+  catch(e){ alert(e.message); }
 }
 async function bordDelete(id){
   if(!confirm("Supprimer ce bordereau ? Les éléments variables injectés pour la période seront retirés.")) return;
@@ -5217,7 +5226,7 @@ async function payBordereauView(id){
   view.innerHTML = `<div class="adm-wrap">
     <button class="btn ghost sm" onclick="go('bordereaux')">&larr; Bordereaux</button>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px">
-      <h1 style="margin:0">Bordereau &middot; ${esc(s.portfolioName||"")}</h1>${bordStatusTag(s.status,ctrl)}</div>
+      <h1 style="margin:0">Bordereau &middot; ${esc(s.portfolioName||"")}</h1>${bordStatusTag(s.status,ctrl)} ${bordKindTag(s)}</div>
     <div class="note">Client : <b>${esc(s.portfolioName||"")}</b> &middot; Période : <b>${esc(prettyMois(s.period))}</b> &middot; ${(s.lines||[]).length} employé(s)${s.submittedByName?` &middot; soumis par <b>${esc(s.submittedByName)}</b>`:""}${s.bapByName?` &middot; Bon à payer : <b>${esc(s.bapByName)}</b>`:""}</div>
     <div class="panel"><div style="overflow:auto"><table style="width:100%;min-width:1080px"><tr>
       <th>#</th><th>Employé</th><th>Contrat</th><th>Cat</th><th>Embauche</th><th>Ancienneté</th><th class="r">Prés.</th><th class="r">Abs.</th><th class="r">HS120</th><th class="r">HS130</th><th class="r">HS140</th><th class="r">Nuit</th><th class="r">Acompte</th><th class="r">Éch. prêt</th>${(s.fields||[]).map(fd=>`<th class="r" title="Colonne personnalisée">${esc(fd.label)}</th>`).join("")}<th class="r">Congé</th><th>Primes variables</th></tr>
@@ -5226,6 +5235,7 @@ async function payBordereauView(id){
         ${editable&&isGpf?`<button class="btn p sm" onclick="bordSave('${s.id}')">Enregistrer</button>
           <button class="btn sm" onclick="bordSubmit('${s.id}')">Soumettre &amp; signer (GPF)</button>`:""}
         ${(!editable&&(isGpf||["CD"].includes(ME.role))&&s.status!=="BON_A_PAYER")?`<button class="btn ghost sm" onclick="bordReopen('${s.id}')">Rouvrir (brouillon)</button>`:""}
+        ${(!editable&&(isGpf||["ADM","CD"].includes(ME.role)))?`<button class="btn ghost sm" style="border-color:#7c3aed;color:#7c3aed" onclick="bordCreateComplementaire('${s.portfolioId}','${s.period}')">+ Bordereau complémentaire</button>`:""}
         <button class="btn ghost sm" onclick="bordPdf('${s.id}')">PDF</button>
         <button class="btn ghost sm" onclick="bordExport('${s.id}','xlsx')">Excel</button>
         <button class="btn ghost sm" onclick="bordExport('${s.id}','csv')">CSV</button>

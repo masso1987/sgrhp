@@ -703,6 +703,7 @@ router.get("/bordereaux", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const pfs=mine(db.portfolios, req);
   res.json(list.slice().sort((a,b)=>(b.period||"").localeCompare(a.period||"")).map(s=>({
     id:s.id, period:s.period, portfolioId:s.portfolioId, portfolioName:(pfs.find(p=>p.id===s.portfolioId)||{}).name||"(tous)",
+    kind:s.kind||"PRINCIPAL", seq:s.seq||1,
     status:s.status, lineCount:(s.lines||[]).length, submittedBy:s.submittedByName||null, submittedAt:s.submittedAt||null,
     bapBy:s.bapByName||null, bapAt:s.bapAt||null, controlStatus:(s.control&&s.control.status)||null })));
 });
@@ -752,14 +753,28 @@ router.post("/bordereaux", allow("RP","ADM","GPF"), (req,res)=>{
   if(!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({error:"Période attendue au format AAAA-MM"});
   if(!portfolioId) return res.status(400).json({error:"Client (portefeuille) obligatoire"});
   if(runLocked(period, req)) return res.status(409).json({error:"Période clôturée - création impossible"});
-  if(mine(db.payElementSheets, req).some(s=>s.period===period && s.portfolioId===portfolioId))
-    return res.status(409).json({error:"Un bordereau existe déjà pour ce client et cette période."});
-  const emps=mine(db.employees, req).filter(e=>(e.status||"").toUpperCase()!=="ARCHIVED" && e.portfolioId===portfolioId).sort((a,b)=>_empNomKey(a).localeCompare(_empNomKey(b), "fr", {sensitivity:"base"}));
-  const s=stamp({ id:id("bord"), period, portfolioId, status:"BROUILLON",
-    lines:emps.map(e=>blankLine(e, req)), signatures:[], events:[], control:null,
+  const existing=mine(db.payElementSheets, req).filter(s=>s.period===period && s.portfolioId===portfolioId);
+  const wantComplementaire=!!(b.complementaire===true || b.complementaire==="true");
+  if(existing.length && !wantComplementaire)
+    return res.status(409).json({error:"Un bordereau existe déjà pour ce client et cette période. Utilisez « Bordereau complémentaire » pour ajouter ou corriger des éléments après coup."});
+  if(!existing.length && wantComplementaire)
+    return res.status(409).json({error:"Aucun bordereau principal pour ce client/période - créez d'abord le bordereau initial."});
+  let lines, kind, seq;
+  if(wantComplementaire){
+    // Complémentaire (régularisation) : reprend les lignes du dernier bordereau de la période
+    // (valeurs pré-remplies), modifiables. À la soumission, il remplace les éléments injectés et recalcule.
+    const last=existing.slice().sort((a,b)=>(a.seq||1)-(b.seq||1)).pop();
+    lines=JSON.parse(JSON.stringify(last.lines||[]));
+    kind="COMPLEMENTAIRE"; seq=(existing.reduce((m,x)=>Math.max(m,x.seq||1),1))+1;
+  } else {
+    const emps=mine(db.employees, req).filter(e=>(e.status||"").toUpperCase()!=="ARCHIVED" && e.portfolioId===portfolioId).sort((a,b)=>_empNomKey(a).localeCompare(_empNomKey(b), "fr", {sensitivity:"base"}));
+    lines=emps.map(e=>blankLine(e, req)); kind="PRINCIPAL"; seq=1;
+  }
+  const s=stamp({ id:id("bord"), period, portfolioId, status:"BROUILLON", kind, seq,
+    lines, signatures:[], events:[], control:null,
     createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
   db.payElementSheets.push(s);
-  bEvent(s, req, "BORDEREAU_CREE", { employes:emps.length });
+  bEvent(s, req, wantComplementaire?"BORDEREAU_COMPLEMENTAIRE_CREE":"BORDEREAU_CREE", { employes:lines.length, seq });
   save(); res.status(201).json(sheetOut(s, req));
 });
 
@@ -792,9 +807,15 @@ router.post("/bordereaux/:id/reopen", allow("GPF","ADM","CD"), (req,res)=>{
   const s=findSheet(req, req.params.id); if(!s) return res.status(404).json({error:"Bordereau introuvable"});
   if(s.status==="BON_A_PAYER") return res.status(409).json({error:"Bordereau validé « Bon à payer » - réouverture interdite."});
   if(s.status==="BROUILLON") return res.json(sheetOut(s, req));
-  if(runComputed(s.period, req)) return res.status(409).json({error:"La paie de cette période a déjà été calculée - le bordereau est figé. Toute correction se fait par régularisation sur la période suivante."});
+  const _computed=runComputed(s.period, req);
+  if(_computed){
+    // Après calcul de la paie, la réouverture n'est ouverte qu'à l'ADM / CD (dérogation tracée).
+    // Le GPF passe par un bordereau complémentaire (régularisation).
+    if(!["ADM","CD"].includes(req.user.role))
+      return res.status(409).json({error:"La paie de cette période a déjà été calculée. Créez un « bordereau complémentaire » pour ajouter ou corriger des éléments (il recalculera les bulletins concernés)."});
+  }
   s.status="BROUILLON"; s.control=null;
-  bEvent(s, req, "BORDEREAU_ROUVERT", { motif:(req.body&&req.body.reason)||"" });
+  bEvent(s, req, "BORDEREAU_ROUVERT", { motif:(req.body&&req.body.reason)||"", apresCalcul:_computed });
   save(); res.json(sheetOut(s, req));
 });
 
@@ -849,7 +870,13 @@ router.post("/bordereaux/:id/submit", allow("RP","ADM","GPF"), (req,res)=>{
   s.submittedBy=req.user.id; s.submittedByName=req.user.fullName||""; s.submittedAt=new Date().toISOString();
   const sig=esign(s, req, "SOUMISSION", s.snapshotHash);
   pushElementsFromSheet(s, req);
-  bEvent(s, req, "BORDEREAU_SOUMIS_SIGNE", { empreinte:s.snapshotHash.slice(0,16), signature:sig.seq, employes:s.lines.length });
+  // Si la paie de la période est déjà calculée (run ouvert), recalculer les bulletins concernés
+  // afin qu'un bordereau complémentaire / corrigé se répercute immédiatement sur les paies.
+  let _recalc=0;
+  if(runComputed(s.period, req) && !runLocked(s.period, req)){
+    for(const l of s.lines){ if(recomputeEmployeeOpenRun(req, s.period, l.employeeId)) _recalc++; }
+  }
+  bEvent(s, req, "BORDEREAU_SOUMIS_SIGNE", { empreinte:s.snapshotHash.slice(0,16), signature:sig.seq, employes:s.lines.length, bulletinsRecalcules:_recalc });
   save(); res.json(sheetOut(s, req));
 });
 
