@@ -6782,7 +6782,7 @@ function cstModal(c){
   const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:440px"><b>${isEdit?"Modifier":"Créer"} une constante</b>
     <div class="grid2" style="margin-top:8px">
-      <div><label>Code</label><input id="csCode" value="${esc(c.code||"")}" ${isEdit?"disabled":""}></div>
+      <div><label>Code ${(isEdit && !c.system) ? '<span class="note-inline">(modifiable)</span>' : ""}</label><input id="csCode" value="${esc(c.code||"")}" ${(isEdit && c.system)?"disabled":""}></div>
       <div><label>Type</label><select id="csType">${["Valeur","Prédéfini","Calcul","Individuel","Cumul","Rubrique","Réponse","Test","Tranche","Système"].map(x=>`<option ${x===c.type?"selected":""}>${x}</option>`).join("")}</select></div>
       <div style="grid-column:1/3"><label>Libellé</label><input id="csLabel" value="${esc(c.label||"")}"></div>
       <div><label>Valeur</label><input id="csVal" type="number" step="any" value="${c.valeur!=null?c.valeur:""}"></div>
@@ -6844,7 +6844,7 @@ function rubModal(r) {
       <b>Rubrique utilisée dans des bulletins calculés.</b>Toute modification affectera l'ensemble de la paie
       et nécessitera un recalcul. Cochez la confirmation ci-dessous pour l'autoriser.</div>` : ""}
     <div class="grid2" style="margin-top:8px">
-      <div><label>Code</label><input id="rmCode" value="${esc(r.code || "")}" ${isEdit ? "disabled" : ""}></div>
+      <div><label>Code ${(isEdit && !r.system && !r.inUse) ? '<span class="note-inline">(modifiable)</span>' : ""}</label><input id="rmCode" value="${esc(r.code || "")}" ${(isEdit && (r.system || r.inUse)) ? "disabled" : ""}></div>
       <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}"></div>
       <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
       <div><label>Formule</label><select id="rmFormula">${["Nombre x Base","Base x Taux","Nombre x Base x Taux","Montant pris tel quel","Barème"].map(f =>opt(f, r.formula)).join("")}</select></div>

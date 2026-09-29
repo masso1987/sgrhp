@@ -480,6 +480,15 @@ router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
       warning: `La rubrique « ${r.code} ${r.label} » est déjà utilisée dans des bulletins de paie calculés/clôturés. ` +
         `La modifier affectera l'ensemble de la paie et nécessitera un recalcul. Confirmez pour appliquer.` });
   const before = { ...r };
+  // Le code est modifiable uniquement pour une rubrique personnalisée (non baseline) et non encore
+  // utilisée en paie — c'est le cas d'une rubrique dupliquée que l'on adapte.
+  if (b.code !== undefined && String(b.code).trim() && String(b.code).trim() !== String(r.code)) {
+    const nc = String(b.code).trim();
+    if (r.system) return res.status(409).json({ error: "Le code d'une rubrique du référentiel Sage ne peut pas être modifié. Dupliquez-la pour en créer une nouvelle." });
+    if (inUse) return res.status(409).json({ error: "Rubrique déjà utilisée en paie - son code ne peut plus être modifié." });
+    if (mine(db.payRubriques, req).some(x => x.id !== r.id && String(x.code) === nc)) return res.status(409).json({ error: `Le code ${nc} existe déjà.` });
+    r.code = nc;
+  }
   for (const f of RUB_FIELDS) if (b[f] !== undefined) {
     r[f] = (f === "taux" || f === "tauxPat") ? (b[f] === "" || b[f] == null ? null : Number(b[f]))
       : (f === "cnps" || f === "impo" || f === "active") ? !!b[f] : b[f];
@@ -528,6 +537,13 @@ router.put("/constantes/:id", allow("RP", "ADM"), (req, res) => {
   const c = mine(db.payConstantes, req).find(x => x.id === req.params.id);
   if (!c) return res.status(404).json({ error: "Constante introuvable" });
   const b = req.body || {}; const before = { valeur: c.valeur, label: c.label };
+  // Code modifiable uniquement pour une constante personnalisée (non baseline), ex. une duplication.
+  if (b.code !== undefined && String(b.code).trim() && String(b.code).trim().toUpperCase() !== String(c.code).toUpperCase()) {
+    const nc = String(b.code).trim().toUpperCase();
+    if (c.system) return res.status(409).json({ error: "Le code d'une constante du référentiel Sage ne peut pas être modifié. Dupliquez-la pour en créer une nouvelle." });
+    if (mine(db.payConstantes, req).some(x => x.id !== c.id && String(x.code).toUpperCase() === nc)) return res.status(409).json({ error: `La constante ${nc} existe déjà.` });
+    c.code = nc;
+  }
   if (b.label !== undefined) c.label = b.label;
   if (b.type !== undefined) c.type = b.type;
   if (b.valeur !== undefined) c.valeur = (b.valeur === "" || b.valeur == null) ? null : Number(b.valeur);
