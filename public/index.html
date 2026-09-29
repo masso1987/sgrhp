@@ -2404,7 +2404,7 @@ async function habSave(empId,hid,btn){ const g=i=>document.getElementById(i);
   const body={employeeId:empId,intitule:g("hbInt").value,type:g("hbTyp").value,organisme:g("hbOrg").value,reference:g("hbRef").value,obtainedDate:g("hbObt").value,expiryDate:g("hbExp").value};
   try{ await api("/hr/habilitations"+(hid?("/"+hid):""),{method:hid?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); empDetail(empId); }
   catch(e){ const el=g("hbErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
-async function habDel(hid,empId){ if(!confirm("Supprimer cette habilitation ?"))return; try{ await api("/hr/habilitations/"+hid,{method:"DELETE"}); empDetail(empId); }catch(e){ alert(e.message); } }
+async function habDel(hid,empId){ if(!await mmConfirm({title:"Supprimer l'habilitation",message:"Supprimer cette habilitation ?",confirmLabel:"Supprimer",danger:true}))return; try{ await api("/hr/habilitations/"+hid,{method:"DELETE"}); empDetail(empId); }catch(e){ alert(e.message); } }
 async function newContractOpen(empId){
   const bg=document.createElement("div");bg.className="modal-bg";
   const today=new Date().toISOString().slice(0,10);
@@ -3259,10 +3259,10 @@ async function cnvCongeSave(id,name){
   const conge={ baseAnnualDays:Number(document.getElementById("cgDays").value)||0, allocationDivisor:Number(document.getElementById("cgAlloc").value)||12, provisionDivisor:Number(document.getElementById("cgProv").value)||30 };
   try{ await api('/config/conventions/'+id,{method:'PUT',body:JSON.stringify({name,conge})}); document.querySelector('.modal-bg').remove(); alert("Paramètres de congé enregistrés."); }catch(e){ const el=document.getElementById("cgErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function cnvDelete(id,name){ if(!confirm("Supprimer la convention « "+name+" » et sa grille ? Cette action est irréversible."))return; try{ await api('/config/conventions/'+id,{method:'DELETE'}); conventionsView(); }catch(e){ alert(e.message); } }
-async function cnvPrefill(id){ if(!confirm("Pré-remplir la grille (catégories 1 à 12, échelons A à F) ? Pour « Commerce » la grille officielle 2024 est appliquée ; sinon un barème indicatif à vérifier. Cela remplace la grille actuelle."))return; try{ await api('/config/conventions/'+id+'/prefill-grid',{method:'POST'}); conventionsView(); }catch(e){ alert(e.message); } }
-async function cnvPrefillAll(){ if(!confirm("Pré-remplir les grilles vides (et les grilles par défaut) de toutes les conventions avec un barème indicatif ? Les grilles que vous avez déjà personnalisées ne sont pas touchées."))return; try{ const r=await api('/config/conventions/prefill-all',{method:'POST',body:JSON.stringify({})}); alert(r.filled+" grille(s) pré-remplie(s)."); conventionsView(); }catch(e){ alert(e.message); } }
-async function cnvSeedCmr(){ if(!confirm("Importer la liste des conventions collectives du Cameroun ? Les conventions déjà présentes seront ignorées."))return; try{ const r=await api('/config/conventions/seed-cameroon',{method:'POST'}); alert(r.added+" convention(s) ajoutée(s)."); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvDelete(id,name){ if(!await mmConfirm({title:"Supprimer la convention",message:"Supprimer « "+name+" » et sa grille ? Cette action est irréversible.",confirmLabel:"Supprimer",danger:true}))return; try{ await api('/config/conventions/'+id,{method:'DELETE'}); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvPrefill(id){ if(!await mmConfirm({title:"Pré-remplir la grille",message:"Pré-remplir la grille (cat. 1 à 12, échelons A à F) ? Pour « Commerce » la grille officielle 2024 est appliquée ; sinon un barème indicatif à vérifier. Cela remplace la grille actuelle.",confirmLabel:"Pré-remplir"}))return; try{ await api('/config/conventions/'+id+'/prefill-grid',{method:'POST'}); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvPrefillAll(){ if(!await mmConfirm({title:"Pré-remplir toutes les grilles",message:"Pré-remplir les grilles vides (et par défaut) de toutes les conventions avec un barème indicatif ? Les grilles personnalisées ne sont pas touchées.",confirmLabel:"Pré-remplir"}))return; try{ const r=await api('/config/conventions/prefill-all',{method:'POST',body:JSON.stringify({})}); alert(r.filled+" grille(s) pré-remplie(s)."); conventionsView(); }catch(e){ alert(e.message); } }
+async function cnvSeedCmr(){ if(!await mmConfirm({title:"Importer les conventions",message:"Importer la liste des conventions collectives du Cameroun ? Les conventions déjà présentes seront ignorées.",confirmLabel:"Importer"}))return; try{ const r=await api('/config/conventions/seed-cameroon',{method:'POST'}); alert(r.added+" convention(s) ajoutée(s)."); conventionsView(); }catch(e){ alert(e.message); } }
 
 /* ================= RH : Fiche de Prix (simulateur) ================= */
 function fpMoney(v){ return Math.round(Number(v||0)).toLocaleString('fr-FR')+' F'; }
@@ -3405,7 +3405,7 @@ async function fpSave(){ const g=i=>document.getElementById(i); const sel=g('fpC
   try{ if(window._FP.id){ await api('/ficheprix/'+window._FP.id,{method:'PUT',body:JSON.stringify(body)}); alert('Simulation enregistrée.'); } else { await api('/ficheprix',{method:'POST',body:JSON.stringify(body)}); alert('Simulation créée.'); } fichePrixView(); }catch(e){ alert(e.message); } }
 async function fpExport(idv){ try{ const r=await fetch('/api/ficheprix/'+idv+'/export',{headers:{Authorization:'Bearer '+TOKEN}}); if(!r.ok)throw new Error('Export indisponible'); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='fiche_prix.xlsx'; a.click(); }catch(e){ alert(e.message); } }
 async function fpPdf(idv){ try{ const r=await fetch('/api/ficheprix/'+idv+'/pdf',{headers:{Authorization:'Bearer '+TOKEN}}); if(!r.ok)throw new Error('PDF indisponible'); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='fiche_prix.pdf'; a.click(); }catch(e){ alert(e.message); } }
-async function fpDelete(idv){ if(!confirm("Supprimer cette simulation ? Cette action est irréversible."))return; try{ await api('/ficheprix/'+idv,{method:'DELETE'}); fichePrixView(); }catch(e){ alert(e.message); } }
+async function fpDelete(idv){ if(!await mmConfirm({title:"Supprimer la simulation",message:"Supprimer cette simulation ? Cette action est irréversible.",confirmLabel:"Supprimer",danger:true}))return; try{ await api('/ficheprix/'+idv,{method:'DELETE'}); fichePrixView(); }catch(e){ alert(e.message); } }
 
 /* ================= M5: Career & Performance ================= */
 const RD_TAG = r => ({READY_NOW:'<span class="tag green">Prêt maintenant</span>',READY_1_2Y:'<span class="tag amber">Prêt sous 1-2 ans</span>',TO_DEVELOP:'<span class="tag gray">À développer</span>'}[r]||r);
@@ -5041,7 +5041,7 @@ async function bordFieldCreate(){
   try{ await api("/payroll/bordereau-fields",{method:"POST",body:JSON.stringify(body)}); bordFieldsView(); }
   catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
 }
-async function bordFieldDelete(id){ if(!confirm("Supprimer cette colonne ? Les bordereaux en brouillon ne l'afficheront plus.")) return; try{ await api("/payroll/bordereau-fields/"+id,{method:"DELETE"}); bordFieldsView(); }catch(e){ alert(e.message); } }
+async function bordFieldDelete(id){ if(!await mmConfirm({title:"Supprimer la colonne",message:"Supprimer cette colonne ? Les bordereaux en brouillon ne l'afficheront plus.",confirmLabel:"Supprimer",danger:true})) return; try{ await api("/payroll/bordereau-fields/"+id,{method:"DELETE"}); bordFieldsView(); }catch(e){ alert(e.message); } }
 
 /* ---- Numérotation Cameroun (mobile 9 chiffres, préfixe 6) : détection opérateur ---- */
 const CM = {
@@ -5209,7 +5209,7 @@ async function acoDelete(id){
 }
 async function acoValidate(id){ try{ await api("/payroll/acomptes/"+id+"/validate",{method:"POST"}); payAcomptesView(); }catch(e){ alert(e.message); } }
 async function acoUnvalidate(id){ try{ await api("/payroll/acomptes/"+id+"/unvalidate",{method:"POST"}); payAcomptesView(); }catch(e){ alert(e.message); } }
-async function acoValidateBatch(pf,per){ if(!confirm("Valider tous les acomptes en brouillon de ce filtre ?")) return; try{ const r=await api("/payroll/acomptes/validate-batch",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf||undefined})}); alert(r.validated+" acompte(s) validé(s)."); payAcomptesView(); }catch(e){ alert(e.message); } }
+async function acoValidateBatch(pf,per){ if(!await mmConfirm({title:"Valider les acomptes",message:"Valider tous les acomptes en brouillon de ce filtre ?",confirmLabel:"Valider"})) return; try{ const r=await api("/payroll/acomptes/validate-batch",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf||undefined})}); alert(r.validated+" acompte(s) validé(s)."); payAcomptesView(); }catch(e){ alert(e.message); } }
 async function acoExport(fmt){ const per=window._acoPeriod||new Date().toISOString().slice(0,7); const pf=window._acoPf||""; let url="/api/payroll/acomptes/export?format="+fmt+"&period="+per+(pf?("&portfolioId="+pf):""); try{ const r=await fetch(url,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok){ let j={};try{j=await r.json();}catch(_){}; throw new Error(j.error||"Erreur export"); } const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); if(fmt==="pdf"){a.target="_blank";}else{a.download="acomptes."+(fmt==="xlsx"?"xlsx":"csv");} a.click(); }catch(e){ alert(e.message); } }
 
 /* ===================== BORDEREAUX D'ÉLÉMENTS & CONTRÔLE (GPF <-> Paie) ===================== */
