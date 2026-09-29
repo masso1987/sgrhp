@@ -1749,10 +1749,10 @@ async function empForm(edit) {
 }
 async function empEdit(id) { const e = await api("/employees/" + id); empForm(e); }
 async function empDelete(id, name) {
-  if (!confirm(`Supprimer le dossier de ${name} ? Cette action est journalisée.`)) return;
+  if (!await mmConfirm({message:`Supprimer le dossier de ${name} ? Cette action est journalisée.`,danger:true})) return;
   try { await api("/employees/" + id, { method: "DELETE" }); employees(); }
   catch (e) {
-    if (e.requiresConfirmation && confirm((e.warning || e.message) + "\n\nConfirmer la suppression ?")) {
+    if (e.requiresConfirmation && await mmConfirm({message:(e.warning || e.message) + "\n\nConfirmer la suppression ?",danger:false})) {
       try { await api("/employees/" + id + "?force=1", { method: "DELETE" }); employees(); } catch (e2) { alert(e2.message); }
     } else if (!e.requiresConfirmation) alert(e.message);
   }
@@ -1976,7 +1976,7 @@ async function rubCreate(pfId) {
   } catch (e) { alert(e.message); }
 }
 async function rubDelete(id) {
-  if (!confirm("Supprimer cette rubrique du catalogue ? Elle sera retirée de tous les portefeuilles.")) return;
+  if (!await mmConfirm({message:"Supprimer cette rubrique du catalogue ? Elle sera retirée de tous les portefeuilles.",danger:true})) return;
   try { await api("/config/salary-elements/" + id, { method: "DELETE" }); portfolios(); } catch (e) { alert(e.message); }
 }
 async function pfCnvSave(id) {
@@ -1993,7 +1993,7 @@ async function pfRename(id) {
 }
 async function pfDelete(id) {
   const pf = (PFS || []).find(p => p.id === id); if (!pf) return;
-  if (!confirm(`Supprimer le portefeuille « ${pf.name} » ?\nCette action est définitive et n'est possible que s'il n'est rattaché à aucun salarié ni utilisateur.`)) return;
+  if (!await mmConfirm({title:"Supprimer le portefeuille",message:`Supprimer « ${pf.name} » ? Cette action est définitive et n'est possible que s'il n'est rattaché à aucun salarié ni utilisateur.`,confirmLabel:"Supprimer",danger:true})) return;
   try { await api(`/portfolios/${id}`, { method: "DELETE" }); window._pfSel = null; portfolios(); }
   catch (e) { alert(e.message); }
 }
@@ -2077,7 +2077,7 @@ async function setRole(uid, role) {
   catch (e) { alert(e.message); users(); }
 }
 async function toggleActive(uid, active) {
-  if (!active && !confirm("Désactiver ce compte ? L'utilisateur ne pourra plus se connecter (aucune donnée supprimée).")) return;
+  if (!active && !await mmConfirm({message:"Désactiver ce compte ? L'utilisateur ne pourra plus se connecter (aucune donnée supprimée).",danger:true})) return;
   try { await api(`/users/${uid}/active`, { method: "PUT", body: JSON.stringify({ active }) }); users(); }
   catch (e) { alert(e.message); }
 }
@@ -2105,11 +2105,11 @@ async function savePerms(uid, btn) {
   catch (e) { alert(e.message); }
 }
 async function smqMgrToggle(uid,name,on){
-  if(!confirm((on?"Retirer":"Attribuer")+" le rôle Responsable SMQ (accès complet Qualité) à "+name+" ?"))return;
+  if(!await mmConfirm({message:(on?"Retirer":"Attribuer")+" le rôle Responsable SMQ (accès complet Qualité) à "+name+" ?",danger:true}))return;
   try{ await api("/users/"+uid+"/smq",{method:"PUT",body:JSON.stringify({smqManager:!on})}); users(); }catch(e){ alert(e.message); }
 }
 async function resetUserPw(uid,name){
-  if(!confirm("Réinitialiser le mot de passe de "+name+" ?\nUn mot de passe temporaire sera généré."))return;
+  if(!await mmConfirm({message:"Réinitialiser le mot de passe de "+name+" ?\nUn mot de passe temporaire sera généré.",danger:true}))return;
   try{ const r=await api("/users/"+uid+"/reset",{method:"POST",body:JSON.stringify({})});
     prompt("Mot de passe temporaire pour "+name+" (à communiquer et à changer à la première connexion) :", r.tempPassword); }
   catch(e){ alert(e.message); }
@@ -2431,7 +2431,7 @@ async function endContractOpen(empId,current){
   bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
 }
 async function contractLetter(empId){
-  if(!confirm("Générer la lettre de fin de contrat à la banque ? Elle passera par le circuit de validation configuré."))return;
+  if(!await mmConfirm({message:"Générer la lettre de fin de contrat à la banque ? Elle passera par le circuit de validation configuré.",danger:false}))return;
   try{ await api("/hr/"+empId+"/contract-letter",{method:"POST",body:JSON.stringify({})}); alert("Lettre créée et soumise au circuit de validation. Elle sera disponible (Word) dans « Documents générés » une fois validée."); }
   catch(e){ alert(e.message); }
 }
@@ -2476,7 +2476,7 @@ async function soldeCalc(empId,btn){
 }
 async function soldeToLetter(empId,btn){
   const r=window._lastSolde; if(!r) return;
-  if(!confirm("Générer la lettre de fin de contrat à la banque (avec le détail du solde) ? Elle passera par le circuit de validation."))return;
+  if(!await mmConfirm({message:"Générer la lettre de fin de contrat à la banque (avec le détail du solde) ? Elle passera par le circuit de validation.",danger:false}))return;
   try{ await api("/hr/"+empId+"/contract-letter",{method:"POST",body:JSON.stringify({ soldeTotal:r.total, soldeLines:r.lines, soldeMotif:r.motifLabel, motif:r.motifLabel })});
     alert("Lettre créée et soumise au circuit de validation. Disponible (Word) dans « Documents générés » une fois validée."); btn.closest(".modal-bg").remove(); }
   catch(e){ alert(e.message); }
@@ -3056,7 +3056,7 @@ async function studioConvert() {
   catch (e) { stErr.textContent = e.message; stErr.classList.remove("hidden"); }
 }
 async function tplDelete(id) {
-  if (!confirm("Supprimer ce modèle ?")) return;
+  if (!await mmConfirm({message:"Supprimer ce modèle ?",danger:true})) return;
   try { await api("/templates/" + id, { method: "DELETE" }); templatesView(); }
   catch (e) { alert(e.message); }
 }
@@ -3102,7 +3102,7 @@ async function selMap(id, rubriqueCode) {
   catch (e) { alert(e.message); }
 }
 async function selDel(id) {
-  if (!confirm("Supprimer cet élément de salaire ?")) return;
+  if (!await mmConfirm({message:"Supprimer cet élément de salaire ?",danger:true})) return;
   await api(`/config/salary-elements/${id}`, { method: "DELETE" }); templatesView();
 }
 async function cttAdd() {
@@ -3965,7 +3965,7 @@ async function saveBranding() {
   catch (e) { bErr.textContent = e.message; bErr.classList.remove("hidden"); }
 }
 async function resetBranding() {
-  if (!confirm(t("Réinitialiser l'apparence par défaut ?"))) return;
+  if (!await mmConfirm({message:t("Réinitialiser l'apparence par défaut ?"),danger:true})) return;
   try { const b = await api("/settings/branding", { method: "PUT", body: JSON.stringify({
       appName: "MBOKA Mon RH", tagline: "", logo: "", density: "comfortable",
       colors: { primary: "#1e3a5f", accent: "#e8833a", bg: "#f4f6f9", sidebar: "#ffffff", text: "#1f2937" },
@@ -4376,7 +4376,7 @@ async function saPromote(){
   catch(e){ const el=g("saPromoErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function saReset(uid,name){
-  if(!confirm("Réinitialiser le mot de passe de "+name+" ?"))return;
+  if(!await mmConfirm({message:"Réinitialiser le mot de passe de "+name+" ?",danger:true}))return;
   try{ const r=await api("/tenants/superadmins/"+uid+"/reset",{method:"POST"});
     alert("Nouveau mot de passe temporaire pour "+name+" :\\n"+r.tempPassword); }
   catch(e){ alert(e.message); }
@@ -4431,14 +4431,14 @@ async function legalSave(){
 }
 async function legalResetLang(){
   const {doc,lang}=window._LEGALEDIT;
-  if(!confirm("Réinitialiser la version "+lang.toUpperCase()+" de ce document au texte par défaut ?"))return;
+  if(!await mmConfirm({message:"Réinitialiser la version "+lang.toUpperCase()+" de ce document au texte par défaut ?",danger:true}))return;
   try{ await api("/tenants/config/legal/"+doc+"?lang="+lang,{method:"DELETE"});
     await legalLoadCustom(); alert("Réinitialisé."); legalView(); }
   catch(e){ alert(e.message); }
 }
 async function legalDeleteDoc(){
   const {doc}=window._LEGALEDIT;
-  if(!confirm("Supprimer la version personnalisée de ce document (FR et EN) ? Le texte par défaut sera rétabli."))return;
+  if(!await mmConfirm({message:"Supprimer la version personnalisée de ce document (FR et EN) ? Le texte par défaut sera rétabli.",danger:true}))return;
   try{ await api("/tenants/config/legal/"+doc,{method:"DELETE"});
     await legalLoadCustom(); alert("Document supprimé (retour au défaut)."); legalView(); }
   catch(e){ alert(e.message); }
@@ -4731,7 +4731,7 @@ async function sadmSetRole(uid, role) {
   document.querySelector(".modal-bg").remove(); tenantUsers(_SADM_TU.tid, _SADM_TU.name);
 }
 async function sadmToggleActive(uid, active) {
-  if (!active && !confirm("Désactiver ce compte ? L'utilisateur ne pourra plus se connecter.")) return;
+  if (!active && !await mmConfirm({message:"Désactiver ce compte ? L'utilisateur ne pourra plus se connecter.",danger:true})) return;
   try { await api(`/users/${uid}/active`, { method: "PUT", body: JSON.stringify({ active }) });
     document.querySelector(".modal-bg").remove(); tenantUsers(_SADM_TU.tid, _SADM_TU.name); }
   catch (e) { alert(e.message); }
@@ -4771,7 +4771,7 @@ async function tenantAddUser(tid, name) {
   } catch(e){ nuErr.textContent=e.message; nuErr.classList.remove("hidden"); }
 }
 async function tenantReset(tid, uid) {
-  if(!confirm(t("Réinitialiser le mot de passe de cet utilisateur ?")))return;
+  if(!await mmConfirm({message:t("Réinitialiser le mot de passe de cet utilisateur ?"),danger:true}))return;
   try { const r = await api(`/tenants/${tid}/users/${uid}/reset`,{method:"POST",body:JSON.stringify({})});
     alert(t("Nouveau mot de passe temporaire :")+" "+r.tempPassword); } catch(e){ alert(e.message); }
 }
@@ -4800,7 +4800,7 @@ async function tenantSave(id){
 }
 async function tenantToggle(id,cur){
   const st=cur==="ACTIVE"?"SUSPENDED":"ACTIVE";
-  if(!confirm(st==="SUSPENDED"?"Suspendre cette entreprise ?":"Réactiver cette entreprise ?"))return;
+  if(!await mmConfirm({message:st==="SUSPENDED"?"Suspendre cette entreprise ?":"Réactiver cette entreprise ?",danger:true}))return;
   try{await api("/tenants/"+id+"/status",{method:"PUT",body:JSON.stringify({status:st})});tenantsView();}catch(e){alert(e.message);}
 }
 
@@ -5168,15 +5168,15 @@ async function acoSubmit(body, err){
   catch(e){
     const info=e||{}; const reason=info.reason;
     if(reason==="OPERATOR_MISMATCH"){
-      if(confirm((info.message||"Le numéro ne correspond pas au canal choisi.")+"\n\nConfirmer quand même (numéro porté) ?")){ return acoSubmit({...body, confirmMismatch:true}, err); }
+      if(await mmConfirm({message:(info.message||"Le numéro ne correspond pas au canal choisi.")+"\n\nConfirmer quand même (numéro porté) ?",danger:false})){ return acoSubmit({...body, confirmMismatch:true}, err); }
       return;
     }
     if(reason==="OVER_THIRD"){
       const opts=info.canApprove
         ? "OK = Approuver le dépassement (CD/Admin)\nAnnuler = ne pas créer (créez plutôt un prêt)"
         : "Dépassement non autorisé.\nOK = créer un PRÊT à la place\nAnnuler = revenir";
-      if(info.canApprove){ if(confirm((info.message||"")+"\n\n"+opts)){ return acoSubmit({...body, approveOverThird:true}, err); } return; }
-      else { if(confirm((info.message||"")+"\n\n"+opts)){ acoToLoan(body); } return; }
+      if(info.canApprove){ if(await mmConfirm({message:(info.message||"")+"\n\n"+opts,danger:false})){ return acoSubmit({...body, approveOverThird:true}, err); } return; }
+      else { if(await mmConfirm({message:(info.message||"")+"\n\n"+opts,danger:false})){ acoToLoan(body); } return; }
     }
     if(err){ err.textContent=(info.error||e.message); err.classList.remove("hidden"); } else alert(info.error||e.message);
   }
@@ -5199,13 +5199,13 @@ async function acoEdit(id,amount,momo){
 async function acoPut(id, body){
   try{ await api("/payroll/acomptes/"+id,{method:"PUT",body:JSON.stringify(body)}); payAcomptesView(); }
   catch(e){ const info=e||{};
-    if(info.reason==="OPERATOR_MISMATCH"){ if(confirm((info.message||"Numéro ≠ canal.")+"\n\nConfirmer quand même ?")) return acoPut(id,{...body,confirmMismatch:true}); return; }
-    if(info.reason==="OVER_THIRD"){ if(info.canApprove){ if(confirm((info.message||"")+"\n\nApprouver le dépassement ?")) return acoPut(id,{...body,approveOverThird:true}); return; } alert(info.message||"Dépassement du tiers non autorisé."); return; }
+    if(info.reason==="OPERATOR_MISMATCH"){ if(await mmConfirm({message:(info.message||"Numéro ≠ canal.")+"\n\nConfirmer quand même ?",danger:false})) return acoPut(id,{...body,confirmMismatch:true}); return; }
+    if(info.reason==="OVER_THIRD"){ if(info.canApprove){ if(await mmConfirm({message:(info.message||"")+"\n\nApprouver le dépassement ?",danger:false})) return acoPut(id,{...body,approveOverThird:true}); return; } alert(info.message||"Dépassement du tiers non autorisé."); return; }
     alert(info.error||e.message);
   }
 }
 async function acoDelete(id){
-  if(!confirm("Supprimer cet acompte ?")) return;
+  if(!await mmConfirm({message:"Supprimer cet acompte ?",danger:true})) return;
   try{ await api("/payroll/acomptes/"+id,{method:"DELETE"}); payAcomptesView(); }catch(e){ alert(e.message); }
 }
 async function acoValidate(id){ try{ await api("/payroll/acomptes/"+id+"/validate",{method:"POST"}); payAcomptesView(); }catch(e){ alert(e.message); } }
@@ -5281,12 +5281,12 @@ async function bordCreate(){
   catch(e){ err.textContent=e.message; err.classList.remove("hidden"); }
 }
 async function bordCreateComplementaire(portfolioId, period){
-  if(!confirm("Créer un bordereau complémentaire (régularisation) pour ce client et cette période ?\n\nIl reprend les valeurs actuelles, que vous pourrez corriger ou compléter. À la soumission, il remplacera les éléments injectés et recalculera les bulletins concernés.")) return;
+  if(!await mmConfirm({message:"Créer un bordereau complémentaire (régularisation) pour ce client et cette période ?\n\nIl reprend les valeurs actuelles, que vous pourrez corriger ou compléter. À la soumission, il remplacera les éléments injectés et recalculera les bulletins concernés.",danger:false})) return;
   try{ const s=await api("/payroll/bordereaux",{method:"POST",body:JSON.stringify({period,portfolioId,complementaire:true})}); go('bordereau',s.id); }
   catch(e){ alert(e.message); }
 }
 async function bordDelete(id){
-  if(!confirm("Supprimer ce bordereau ? Les éléments variables injectés pour la période seront retirés.")) return;
+  if(!await mmConfirm({message:"Supprimer ce bordereau ? Les éléments variables injectés pour la période seront retirés.",danger:true})) return;
   try{ await api("/payroll/bordereaux/"+id,{method:"DELETE"}); payBordereauxView(); }catch(e){ alert(e.message); }
 }
 
@@ -5397,12 +5397,12 @@ async function bordSave(id){
   catch(e){ alert(e.message); }
 }
 async function bordSubmit(id){
-  if(!confirm("Soumettre et signer électroniquement ce bordereau ? Il sera figé (snapshot) et servira de référence au contrôle.")) return;
+  if(!await mmConfirm({message:"Soumettre et signer électroniquement ce bordereau ? Il sera figé (snapshot) et servira de référence au contrôle.",danger:false})) return;
   try{ await bordSave(id).catch(()=>{}); await api("/payroll/bordereaux/"+id+"/submit",{method:"POST"}); payBordereauView(id); }
   catch(e){ alert(e.message); }
 }
 async function bordReopen(id){
-  if(!confirm("Rouvrir le bordereau en brouillon ? Le contrôle sera réinitialisé.")) return;
+  if(!await mmConfirm({message:"Rouvrir le bordereau en brouillon ? Le contrôle sera réinitialisé.",danger:false})) return;
   try{ await api("/payroll/bordereaux/"+id+"/reopen",{method:"POST",body:JSON.stringify({reason:""})}); payBordereauView(id); }catch(e){ alert(e.message); }
 }
 async function bordControl(id){
@@ -5461,7 +5461,7 @@ function bordEcartDetail(empId,field){
   document.body.appendChild(bg);
 }
 async function bordBAP(id){
-  if(!confirm("Signer électroniquement le « Bon à payer » ? Cette signature autorise l'édition de l'ordre de virement.")) return;
+  if(!await mmConfirm({message:"Signer électroniquement le « Bon à payer » ? Cette signature autorise l'édition de l'ordre de virement.",danger:false})) return;
   try{ await api("/payroll/bordereaux/"+id+"/bon-a-payer",{method:"POST"}); payBordereauView(id); }
   catch(e){ alert(e.message); }
 }
@@ -5813,7 +5813,7 @@ async function armDel(id){ if(!await mmConfirm({message:"Supprimer cette corresp
 async function payEmailPortfolio(runId) {
   const pf = (document.getElementById("emailPf") || {}).value || "";
   const label = pf ? pfName(pf) : "tous les portefeuilles";
-  if (!confirm(`Envoyer les bulletins de paie par email à ${label} ?\n\nSeuls les salariés ayant une adresse email renseignée seront servis. Chaque email contient le bulletin en PDF.`)) return;
+  if (!await mmConfirm({message:`Envoyer les bulletins de paie par email à ${label} ?\n\nSeuls les salariés ayant une adresse email renseignée seront servis. Chaque email contient le bulletin en PDF.`,danger:false})) return;
   try {
     const r = await api(`/payroll/runs/${runId}/email-portfolio`, { method: "POST", body: JSON.stringify({ portfolioId: pf || undefined }) });
     let msg = `${r.sent} bulletin(s) envoyé(s) par email.`;
@@ -6096,7 +6096,7 @@ function bulletinRenderEls(all) {
     : '<small style="color:var(--muted)">Aucun élément variable ce mois.</small>';
 }
 async function bulletinDelEl(id) {
-  if (!confirm("Supprimer cet élément variable ?")) return;
+  if (!await mmConfirm({message:"Supprimer cet élément variable ?",danger:true})) return;
   try { await api("/payroll/elements/" + id, { method: "DELETE" });
     const { run, empId } = BULLETIN_CTX; const els = await api(`/payroll/elements?period=${run.period}&employeeId=${empId}`);
     BULLETIN_CTX.els = els; bulletinRenderEls(els); } catch (e) { alert(e.message); }
@@ -6118,7 +6118,7 @@ async function loanAdd(ev, empId) {
   catch (e) { loErr.textContent = e.message; loErr.classList.remove("hidden"); }
 }
 async function loanDel(id, empId) {
-  if (!confirm("Supprimer ce prêt ?")) return;
+  if (!await mmConfirm({message:"Supprimer ce prêt ?",danger:true})) return;
   try { await api("/payroll/loans/" + id, { method: "DELETE" }); loanRender(empId); } catch (e) { alert(e.message); }
 }
 async function bulletinEmail(slipId) {
@@ -6182,13 +6182,13 @@ async function payLoadElements(period, employeeId) {
     : `<small style="color:var(--muted)">Aucun élément saisi pour ce salarié.</small>`;
 }
 async function payDelElement(id, period, employeeId) {
-  if (!confirm("Supprimer cet élément de paie ?")) return;
+  if (!await mmConfirm({message:"Supprimer cet élément de paie ?",danger:true})) return;
   try { await api("/payroll/elements/" + id, { method: "DELETE" }); payLoadElements(period, employeeId); }
   catch (e) { alert(e.message); }
 }
 async function payComputePf(id){
   const pf=window._PAYPF||""; const label=pf?pfName(pf):"tous les portefeuilles";
-  if(!confirm("Calculer / recalculer la paie pour "+label+" ?"))return;
+  if(!await mmConfirm({message:"Calculer / recalculer la paie pour "+label+" ?",danger:false}))return;
   try{ const r=await api("/payroll/runs/"+id+"/compute",{method:"POST",body:JSON.stringify({portfolioId:pf||undefined})}); alert("Paie éditée : "+r.computed+" bulletin(s)."); payRunView(id); }catch(e){ alert(e.message); }
 }
 async function payBulkPdf(id){
@@ -6197,17 +6197,17 @@ async function payBulkPdf(id){
   catch(e){ alert(e.message); }
 }
 async function payCompute(id) {
-  if (!confirm("Calculer/recalculer tous les bulletins de cette paie ?")) return;
+  if (!await mmConfirm({message:"Calculer/recalculer tous les bulletins de cette paie ?",danger:false})) return;
   try { const r = await api(`/payroll/runs/${id}/compute`, { method: "POST" }); alert(`Paie calculée : ${r.computed} bulletin(s).`); payRunView(id); }
   catch (e) { alert(e.message); }
 }
 async function payReopen(id) {
-  if (!confirm("Rouvrir cette période clôturée ?\n\nLes bulletins seront déverrouillés et les cumuls annuels de la période annulés, pour permettre un recalcul. Vous devrez ensuite recalculer puis re-clôturer.")) return;
+  if (!await mmConfirm({message:"Rouvrir cette période clôturée ?\n\nLes bulletins seront déverrouillés et les cumuls annuels de la période annulés, pour permettre un recalcul. Vous devrez ensuite recalculer puis re-clôturer.",danger:false})) return;
   try { await api("/payroll/runs/" + id + "/reopen", { method: "POST" }); alert("Période rouverte. Cliquez « Éditer la paie » / « Calculer » pour recalculer, puis re-clôturez."); payRunView(id); }
   catch (e) { alert(e.message); }
 }
 async function payClose(id) {
-  if (!confirm("Clôturer la période ? Les bulletins seront verrouillés et les cumuls mis à jour.")) return;
+  if (!await mmConfirm({message:"Clôturer la période ? Les bulletins seront verrouillés et les cumuls mis à jour.",danger:false})) return;
   try { await api(`/payroll/runs/${id}/close`, { method: "POST" }); payRunView(id); }
   catch (e) { alert(e.message); }
 }
@@ -6327,7 +6327,7 @@ async function payslipSaveLines(id) {
   const send = (force) =>api(`/payroll/payslips/${id}/lines`, { method: "PUT", body: JSON.stringify({ lines: PAYSLIP_EDIT, force }) });
   try { await send(false); PAYSLIP_EDIT = null; PAYSLIP_EDIT_ID = null; payslipView(id); }
   catch (e) {
-    if (e.requiresConfirmation) { if (confirm(e.warning || e.message)) { try { await send(true); PAYSLIP_EDIT = null; PAYSLIP_EDIT_ID = null; payslipView(id); } catch (e2) { alert(e2.message); } } }
+    if (e.requiresConfirmation) { if (await mmConfirm({title:"Confirmer la correction",message:e.warning || e.message,confirmLabel:"Appliquer"})) { try { await send(true); PAYSLIP_EDIT = null; PAYSLIP_EDIT_ID = null; payslipView(id); } catch (e2) { alert(e2.message); } } }
     else alert(e.message);
   }
 }
@@ -7275,7 +7275,7 @@ async function billingValidate() {
   try { await api("/billing/sheets/" + BILL_SHEET.id + "/validate", { method: "POST" }); billingSheetOpen(BILL_SHEET.id); } catch (e) { alert(e.message); }
 }
 async function billingCarry() {
-  if (!confirm("Reprendre les lignes du mois précédent ? (remplace les lignes actuelles)")) return;
+  if (!await mmConfirm({message:"Reprendre les lignes du mois précédent ? (remplace les lignes actuelles)",danger:false})) return;
   try { const s = await api("/billing/sheets/" + BILL_SHEET.id + "/carry-forward", { method: "POST" }); BILL_SHEET = s; billingSheetOpen(s.id); } catch (e) { alert(e.message); }
 }
 async function billingImportPaie() {
@@ -7820,7 +7820,7 @@ async function billingCompSave(id) {
   catch (e) { const el = document.getElementById("cpErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
 async function billingCompDel(id, code) {
-  if (!confirm("Supprimer le composant " + code + " ? (les formules d'annexe qui l'utilisent renverront 0)")) return;
+  if (!await mmConfirm({message:"Supprimer le composant " + code + " ? (les formules d'annexe qui l'utilisent renverront 0)",danger:true})) return;
   try { await api("/billing/components/" + id, { method: "DELETE" }); billingCfgView(); } catch (e) { alert(e.message); }
 }
 function billingCompImport() {
@@ -7886,7 +7886,7 @@ function billLFRenderCustom() {
 function billTok(code){ return `<code style="cursor:pointer;background:var(--nav-active-bg);padding:1px 5px;border-radius:4px;margin:1px 2px;display:inline-block" title="Copier" onclick="billCopyTok('${code}')">${code}</code>`; }
 function billCopyTok(code){ try{ navigator.clipboard && navigator.clipboard.writeText(code); }catch(e){} const el=document.getElementById("tpHint"); if(el){el.textContent="Copié : "+code;setTimeout(()=>el.textContent="",1400);} }
 async function billingGenAnnexe(cid){
-  if(!confirm("Générer / mettre à jour l'annexe de ce client à partir de ses composants activés ?\n(Les colonnes = champs de ligne + composants activés + totaux cascade.)")) return;
+  if(!await mmConfirm({message:"Générer / mettre à jour l'annexe de ce client à partir de ses composants activés ?\n(Les colonnes = champs de ligne + composants activés + totaux cascade.)",danger:false})) return;
   try{ const t=await api("/billing/contracts/"+cid+"/generate-annexe",{method:"POST"});
     alert("Annexe générée : "+(t.columns||[]).length+" colonnes. Vous pouvez l'ajuster dans les modèles."); billingTemplatesView(); }
   catch(e){ alert(e.message); }
@@ -7986,11 +7986,11 @@ function invoiceRows(list) {
 }
 async function invoiceDuplicate(id){ try { const c = await api("/billing/invoices/"+id+"/duplicate",{method:"POST"}); invoiceOpen(c.id); } catch(e){ alert(e.message); } }
 async function invoiceDelete(id, number, posted){
-  if (posted) { if (!confirm(`⚠ La facture ${number} est COMPTABILISÉE.\nLa supprimer laissera une écriture comptable orpheline. Contre-passez plutôt l'écriture en comptabilité.\n\nForcer la suppression quand même ? (ADM uniquement)`)) return; }
-  else { if (!confirm(`Supprimer la facture ${number} ? Cette action est journalisée.`)) return; }
+  if (posted) { if (!await mmConfirm({message:`⚠ La facture ${number} est COMPTABILISÉE.\nLa supprimer laissera une écriture comptable orpheline. Contre-passez plutôt l'écriture en comptabilité.\n\nForcer la suppression quand même ? (ADM uniquement)`,danger:true})) return; }
+  else { if (!await mmConfirm({message:`Supprimer la facture ${number} ? Cette action est journalisée.`,danger:true})) return; }
   try { await api("/billing/invoices/"+id+(posted?"?force=1":""),{method:"DELETE"});
     if (typeof INV_EDIT==="object" && INV_EDIT && INV_EDIT.id===id) invoicesView(); else invoicesView(); }
-  catch(e){ if (e.message && /comptabilis/i.test(e.message)) { if (confirm(e.message+"\n\nForcer (ADM) ?")) { try{ await api("/billing/invoices/"+id+"?force=1",{method:"DELETE"}); invoicesView(); }catch(e2){ alert(e2.message);} } } else alert(e.message); }
+  catch(e){ if (e.message && /comptabilis/i.test(e.message)) { if (await mmConfirm({message:e.message+"\n\nForcer (ADM) ?",danger:false})) { try{ await api("/billing/invoices/"+id+"?force=1",{method:"DELETE"}); invoicesView(); }catch(e2){ alert(e2.message);} } } else alert(e.message); }
 }
 async function invoiceCreate() {
   const g = (x) => (document.getElementById(x) || {}).value;
@@ -8087,7 +8087,7 @@ async function invoiceValidate() {
   catch (e) { alert(e.message); }
 }
 async function invoiceConfirmReceipt() {
-  const mode = confirm("Le client a-t-il reçu une COPIE PHYSIQUE ?\n\nOK = physique - Annuler = numérique") ? "physique" : "numerique";
+  const mode = await mmConfirm({message:"Le client a-t-il reçu une COPIE PHYSIQUE ?\n\nOK = physique - Annuler = numérique",danger:false}) ? "physique" : "numerique";
   const ref = prompt("Référence de la preuve de réception (bordereau, email, accusé) - optionnel :") || "";
   try { await api("/billing/invoices/" + INV_EDIT.id + "/confirm-receipt", { method: "POST", body: JSON.stringify({ mode, ref }) });
     alert("Réception confirmée. La facture est maintenant comptabilisée."); INV_EDIT = await api("/billing/invoices/" + INV_EDIT.id); invoiceOpen(INV_EDIT.id); }
@@ -8678,7 +8678,7 @@ async function acctCloseExercise(id,year){
   document.body.appendChild(bg);
 }
 async function acctCloseConfirm(id,year){
-  if(!confirm("Clôturer DÉFINITIVEMENT l'exercice "+year+" ? Cette action est irréversible : les écritures seront verrouillées.")) return;
+  if(!await mmConfirm({message:"Clôturer DÉFINITIVEMENT l'exercice "+year+" ? Cette action est irréversible : les écritures seront verrouillées.",danger:true})) return;
   try{ const r=await api("/accounting/exercises/"+id+"/close",{method:"POST"}); const bgm=document.querySelector(".modal-bg"); if(bgm)bgm.remove(); alert("Exercice "+year+" clôturé.\nRésultat : "+fCFA(r.resultat)+" FCFA.\nÀ-nouveaux "+(year+1)+" générés."); acctClotureView(); }
   catch(e){ const el=document.getElementById("cloErr"); if(el){ el.textContent=e.message; el.classList.remove("hidden"); } else alert(e.message); }
 }
@@ -8690,20 +8690,20 @@ async function acctCloseJournals(){
   if((mode==="periode"||mode==="partielle")&&!period){ alert("Indiquez le mois (jusqu'au mois inclus)."); return; }
   if(mode==="partielle"&&!journals.length){ alert("Sélectionnez au moins un journal."); return; }
   let msg="Clôturer - "+({periode:"par période",partielle:"partielle",totale:"totale"}[mode])+(period?(" jusqu'à "+period+" inclus"):"")+(mode==="partielle"?(" - journaux : "+journals.join(", ")):"")+" ?\nAction IRRÉVERSIBLE : les écritures validées du périmètre seront verrouillées.";
-  if(!confirm(msg)) return;
+  if(!await mmConfirm({title:"Clôture",message:msg,confirmLabel:"Clôturer",danger:true})) return;
   const doClose=async(force)=>{ const r=await api("/accounting/close-journals",{method:"POST",body:JSON.stringify({mode,period,journals,force:!!force})}); alert(r.locked+" écriture(s) verrouillée(s)."+(r.periodLock?("\nVerrou de période : jusqu'à "+r.periodLock+" inclus."):"")); acctClotureView(); };
   try{ await doClose(false); }
-  catch(e){ if(/brouillon/i.test(e.message)&&confirm(e.message+"\n\nForcer la clôture (les brouillons resteront non clôturés) ?")){ try{ await doClose(true); }catch(e2){ alert(e2.message); } } else alert(e.message); }
+  catch(e){ if(/brouillon/i.test(e.message)&&await mmConfirm({message:e.message+"\n\nForcer la clôture (les brouillons resteront non clôturés) ?",danger:false})){ try{ await doClose(true); }catch(e2){ alert(e2.message); } } else alert(e.message); }
 }
 function acctCloseJrModeChange(){ const m=(document.getElementById("cljMode")||{}).value; const w=document.getElementById("cljPerWrap"); if(w)w.style.display=(m==="partielle")?"":"none"; }
 async function acctCloseOneJournal(){
   const code=(document.getElementById("cljJr")||{}).value; const m=(document.getElementById("cljMode")||{}).value||"complete";
   const period=m==="partielle"?((document.getElementById("cljPer")||{}).value||""):"";
   if(m==="partielle"&&!period){ alert("Indiquez le mois (jusqu'au mois inclus)."); return; }
-  if(!confirm("Clôturer le journal "+code+" - "+(m==="partielle"?("jusqu'à "+period+" inclus"):"complet (tout le journal)")+" ?\nAction IRRÉVERSIBLE : les écritures validées seront verrouillées.")) return;
+  if(!await mmConfirm({message:"Clôturer le journal "+code+" - "+(m==="partielle"?("jusqu'à "+period+" inclus"):"complet (tout le journal)")+" ?\nAction IRRÉVERSIBLE : les écritures validées seront verrouillées.",danger:false})) return;
   const doClose=async(force)=>{ const r=await api("/accounting/close-journals",{method:"POST",body:JSON.stringify({mode:"partielle",journals:[code],period,force:!!force})}); alert(r.locked+" écriture(s) verrouillée(s) sur le journal "+code+"."); acctClotureView(); };
   try{ await doClose(false); }
-  catch(e){ if(/brouillon/i.test(e.message)&&confirm(e.message+"\n\nForcer ?")){ try{ await doClose(true); }catch(e2){ alert(e2.message); } } else alert(e.message); }
+  catch(e){ if(/brouillon/i.test(e.message)&&await mmConfirm({message:e.message+"\n\nForcer ?",danger:false})){ try{ await doClose(true); }catch(e2){ alert(e2.message); } } else alert(e.message); }
 }
 function acctFec(){ const y=(document.getElementById("fecY")||{}).value||new Date().getFullYear(); payDownload("/accounting/fec?year="+y,"FEC_"+y+".txt"); }
 
@@ -8859,7 +8859,7 @@ async function acctTiersSave(id){
   catch(e){ const el=document.getElementById("tpErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function acctTiersDelete(id){
-  if(!confirm("Supprimer ce tiers du référentiel ? (les écritures ne sont pas modifiées)")) return;
+  if(!await mmConfirm({message:"Supprimer ce tiers du référentiel ? (les écritures ne sont pas modifiées)",danger:true})) return;
   try{ await api("/accounting/third-parties/"+id,{method:"DELETE"}); document.querySelector(".modal-bg").remove(); acctTiersView(); }
   catch(e){ alert(e.message); }
 }
@@ -9018,7 +9018,7 @@ async function acctBankDoMatch(){
   const sel=window._bankSel||{}; if(!sel.book||!sel.bank) return;
   const bk=window._BANK.book.find(l=>l.lineId===sel.book);
   const kl=window._BANK.bank.find(l=>l.id===sel.bank);
-  if(bk && kl && bk.net!==kl.amount && !confirm(`Montants différents (${fCFA(bk.net)} vs ${fCFA(kl.amount)}). Pointer quand même ?`)) return;
+  if(bk && kl && bk.net!==kl.amount && !await mmConfirm({title:"Montants différents",message:`${fCFA(bk.net)} vs ${fCFA(kl.amount)}. Pointer quand même ?`,confirmLabel:"Pointer"})) return;
   try{ await api("/accounting/bank/match",{method:"POST",body:JSON.stringify({account:window._BANK.acc,bankLineId:sel.bank,entryId:bk?bk.entryId:"",lineId:sel.book})});
     window._bankSel={}; acctBankView(); }catch(e){ alert(e.message); }
 }
@@ -9392,8 +9392,8 @@ async function acctImpDoImport(){
   const data=acctImpCollect(); if(!data.length){ alert("Aucune ligne exploitable - vérifiez le mapping et les colonnes obligatoires (*)."); return; }
   const type=window._imp.type;
   const ep={entries:"/accounting/import/entries",accounts:"/accounting/import/accounts",tiers:"/accounting/import/tiers",balance:"/accounting/import/balance"}[type];
-  if(type==='entries' && !confirm(data.length+" ligne(s) FEC seront regroupées en écritures et importées. Continuer ?")) return;
-  if(type==='balance' && !confirm(data.length+" compte(s) : une écriture d'à-nouveaux (reprise des soldes) sera générée. Continuer ?")) return;
+  if(type==='entries' && !await mmConfirm({message:data.length+" ligne(s) FEC seront regroupées en écritures et importées. Continuer ?",danger:false})) return;
+  if(type==='balance' && !await mmConfirm({message:data.length+" compte(s) : une écriture d'à-nouveaux (reprise des soldes) sera générée. Continuer ?",danger:false})) return;
   const body=type==='balance'?{rows:data,date:window._IMPDATE||""}:{rows:data};
   try{ const r=await api(ep,{method:"POST",body:JSON.stringify(body)});
     let msg;
@@ -10114,7 +10114,7 @@ async function smqDocOpen(id){
 }
 async function smqRevAct(rid,act,docId){
   const msg={submit:"Passer en vérifié ?",approve:"Approuver et mettre en vigueur ? (les versions antérieures deviendront obsolètes)",obsolete:"Rendre cette version obsolète ?"}[act];
-  if(!confirm(msg))return;
+  if(!await mmConfirm({message:msg,danger:false}))return;
   try{ await api("/smq/revisions/"+rid+"/"+act,{method:"POST"}); smqDocOpen(docId); }catch(e){ alert(e.message); }
 }
 async function smqRevEdit(rid,docId){
@@ -11690,7 +11690,7 @@ async function epiEdit(idv,qty,date,employeeId,name){
   catch(e){ alert(e.message); }
 }
 async function epiDel(idv,employeeId,name){
-  if(!confirm("Supprimer cette remise ? Le stock sera restauré."))return;
+  if(!await mmConfirm({message:"Supprimer cette remise ? Le stock sera restauré.",danger:true}))return;
   try{ await api("/stock/epi/issue/"+idv,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await stockEpiView(); epiHistory(employeeId,name); }
   catch(e){ alert(e.message); }
 }
@@ -12706,7 +12706,7 @@ async function stockSOSubmit(){ const g=(x)=>(document.getElementById(x)||{}).va
 }
 async function stockSODeliver(id,ref){ if(!await mmConfirm({message:"Livrer le reliquat de la commande "+ref+" ? Le stock sera décrémenté et une vente créée.",danger:false})) return;
   try{ const r=await api("/stock/so/"+id+"/deliver",{method:"POST",body:JSON.stringify({})}); alert("Livré - vente "+r.saleRef+" créée."); stockSOView(); }
-  catch(e){ if(/insuffisant/i.test(e.message)&&confirm(e.message+"\n\nForcer la livraison (stock négatif) ?")){ try{ const r=await api("/stock/so/"+id+"/deliver",{method:"POST",body:JSON.stringify({allowNegative:true})}); alert("Livré - vente "+r.saleRef); stockSOView(); }catch(e2){ alert(e2.message);} } else alert(e.message); } }
+  catch(e){ if(/insuffisant/i.test(e.message)&&await mmConfirm({message:e.message+"\n\nForcer la livraison (stock négatif) ?",danger:false})){ try{ const r=await api("/stock/so/"+id+"/deliver",{method:"POST",body:JSON.stringify({allowNegative:true})}); alert("Livré - vente "+r.saleRef); stockSOView(); }catch(e2){ alert(e2.message);} } else alert(e.message); } }
 async function stockSODelete(id){ if(!await mmConfirm({message:"Supprimer cette commande ?",danger:true})) return; try{ await api("/stock/so/"+id,{method:"DELETE"}); stockSOView(); }catch(e){ alert(e.message); } }
 
 /* ---- Toutes les ventes ---- */
