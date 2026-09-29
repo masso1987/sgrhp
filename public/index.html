@@ -6351,8 +6351,8 @@ async function payJournal(id) {
 }
 /* ================= Paramètres paie (config + rubriques) ============= */
 async function payconfigView() {
-  const [cfg, rubs, models] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques"), api("/payroll/models")]);
-  PAY_MODELS = models;
+  const [cfg, rubs, models, csts] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques"), api("/payroll/models"), api("/payroll/constantes").catch(()=>[])]);
+  PAY_MODELS = models; PAY_CST = csts || [];
   const num = (path, val) => `<input type="number" step="any" data-cfg="${path}" value="${val}" style="max-width:110px">`;
   view.innerHTML = `<h1>Paramètres paie</h1>
   <div class="note">Barèmes et taux (Cameroun) - modifiables. Ils s'appliquent au prochain calcul de paie.</div>
@@ -6418,10 +6418,64 @@ async function payconfigView() {
     </div>
     <div class="note" style="margin-bottom:8px">Les rubriques sont votre baseline modifiable. Une rubrique déjà utilisée
     dans des bulletins calculés est verrouillée : la modifier affecte toute la paie et exige une confirmation.</div>
-    <div id="rubList"></div></div>`;
-  PAY_RUBS = rubs; rubRender("");
+    <div id="rubList"></div></div>
+
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">CONSTANTES DE PAIE (${(csts||[]).length}) — référentiel Sage</b>
+    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn p sm" onclick="cstModal()">+ Créer une constante</button>
+      <button class="btn ghost sm" onclick="cstImportCatalogue()">Importer le catalogue (759)</button>
+      <input id="cstSearch" placeholder="Rechercher (code ou libellé)…" style="max-width:320px;margin:0" oninput="cstRender(this.value)">
+      <select id="cstType" style="margin:0" onchange="cstRender(document.getElementById('cstSearch').value)"><option value="">Tous les types</option>${[...new Set((csts||[]).map(c=>c.type))].sort().map(t=>`<option>${esc(t)}</option>`).join("")}</select>
+    </div>
+    <div class="note" style="margin-bottom:8px">Chaque constante porte un code, un type et une valeur. Cliquez une valeur pour la modifier — elle est reprise dans les formules des rubriques (Nombre / Base / Taux).</div>
+    <div id="cstList"></div></div>
+
+  <datalist id="cstCodes">${(csts||[]).map(c=>`<option value="${esc(c.code)}">${esc(c.label)}</option>`).join("")}</datalist>`;
+  PAY_RUBS = rubs; rubRender(""); cstRender("");
 }
-let PAY_RUBS = [];
+let PAY_RUBS = [], PAY_CST = [];
+function cstValueOf(code){ const c=(PAY_CST||[]).find(x=>String(x.code).toUpperCase()===String(code||"").toUpperCase()); return c?c:null; }
+function cstRender(q){
+  q=(q||"").toLowerCase(); const type=(document.getElementById("cstType")||{}).value||"";
+  let list=(PAY_CST||[]).filter(c=>(!q||(c.code+" "+c.label).toLowerCase().includes(q))&&(!type||c.type===type));
+  const total=list.length; const shown=list.slice(0,200);
+  document.getElementById("cstList").innerHTML=`<table><tr><th>Code</th><th>Libellé</th><th>Type</th><th class="r">Valeur</th><th></th></tr>`+
+    shown.map(c=>`<tr>
+      <td><b>${esc(c.code)}</b></td><td>${esc(c.label)}</td>
+      <td><span class="tag gray">${esc(c.type||"")}</span></td>
+      <td class="r"><input type="number" step="any" value="${c.valeur!=null?c.valeur:""}" placeholder="—" data-cst="${c.id}" style="width:120px;text-align:right;margin:0;padding:3px" onchange="cstSaveVal('${c.id}',this.value)"></td>
+      <td>${c.system?'<span class="tag gray" title="Constante système">sys</span>':`<button class="btn ghost sm" style="color:var(--red)" onclick="cstDelete('${c.id}')">Suppr.</button>`}</td></tr>`).join("")+
+    `</table>`+(total>shown.length?`<div class="note-inline" style="margin-top:6px">${shown.length} affichées sur ${total} — affinez la recherche.</div>`:`<div class="note-inline" style="margin-top:6px">${total} constante(s).</div>`);
+}
+async function cstSaveVal(id,val){
+  try{ const c=await api("/payroll/constantes/"+id,{method:"PUT",body:JSON.stringify({valeur:val})}); const i=(PAY_CST||[]).findIndex(x=>x.id===id); if(i>=0) PAY_CST[i]=c; }
+  catch(e){ alert(e.message); }
+}
+async function cstDelete(id){ if(!confirm("Supprimer cette constante ?")) return; try{ await api("/payroll/constantes/"+id,{method:"DELETE"}); PAY_CST=PAY_CST.filter(x=>x.id!==id); cstRender(document.getElementById("cstSearch").value); }catch(e){ alert(e.message); } }
+async function cstImportCatalogue(){ if(!confirm("Importer le catalogue de constantes Sage ?\n\nLes constantes déjà présentes ne seront pas dupliquées.")) return; try{ const r=await api("/payroll/constantes/import-catalogue",{method:"POST"}); alert(`${r.added} constante(s) ajoutée(s). Total : ${r.total}.`); payconfigView(); }catch(e){ alert(e.message); } }
+function cstModal(c){
+  const isEdit=!!c; c=c||{type:"Valeur"};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:440px"><b>${isEdit?"Modifier":"Créer"} une constante</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Code</label><input id="csCode" value="${esc(c.code||"")}" ${isEdit?"disabled":""}></div>
+      <div><label>Type</label><select id="csType">${["Valeur","Prédéfini","Calcul","Individuel","Cumul","Rubrique","Réponse","Test","Tranche","Système"].map(x=>`<option ${x===c.type?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div style="grid-column:1/3"><label>Libellé</label><input id="csLabel" value="${esc(c.label||"")}"></div>
+      <div><label>Valeur</label><input id="csVal" type="number" step="any" value="${c.valeur!=null?c.valeur:""}"></div>
+    </div>
+    <div class="err hidden" id="csErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="cstSave('${isEdit?c.id:""}')">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function cstSave(id){
+  const body={ code:csCode.value.trim().toUpperCase(), label:csLabel.value.trim(), type:csType.value, valeur:csVal.value };
+  try{ if(id) await api("/payroll/constantes/"+id,{method:"PUT",body:JSON.stringify(body)}); else await api("/payroll/constantes",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); payconfigView(); }
+  catch(e){ csErr.textContent=e.message; csErr.classList.remove("hidden"); }
+}
 async function rubImportCatalogue() {
   if (!confirm("Importer le catalogue Sage complet (163 rubriques) ?\n\nLes rubriques déjà présentes ne seront pas dupliquées.")) return;
   try { const r = await api("/payroll/rubriques/import-catalogue", { method: "POST" });
@@ -6457,9 +6511,11 @@ function rubModal(r) {
       <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}"></div>
       <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
       <div><label>Formule</label><select id="rmFormula">${["Nombre x Base","Base x Taux","Nombre x Base x Taux","Montant pris tel quel","Barème"].map(f =>opt(f, r.formula)).join("")}</select></div>
-      <div><label>Base (constante)</label><input id="rmBase" value="${esc(r.base || "")}" placeholder="ex. NETCOTI, SALJOURN"></div>
+      <div><label>Nombre <span class="note-inline">(constante / valeur)</span></label><input id="rmNombre" list="cstCodes" value="${esc(r.nombre || "")}" placeholder="ex. NBREJOUT, 30" oninput="rmCstHint(this,'rmNbHint')"><div id="rmNbHint" class="note-inline"></div></div>
+      <div><label>Base <span class="note-inline">(constante / valeur)</span></label><input id="rmBase" list="cstCodes" value="${esc(r.base || "")}" placeholder="ex. SALJOURN, PRIMASTREI" oninput="rmCstHint(this,'rmBaHint')"><div id="rmBaHint" class="note-inline"></div></div>
       <div><label>Taux %</label><input id="rmTaux" type="number" step="any" value="${r.taux != null ? r.taux : ""}"></div>
       <div><label>Sens</label><select id="rmSens">${opt("GAIN", r.sens)}${opt("RETENUE", r.sens)}${opt("PATRONAL", r.sens)}</select></div>
+      <div style="grid-column:1/3"><label>Compte comptable (paie) <span class="note-inline">synchronisé avec Comptabilité → Rubriques-Comptes</span></label><input id="rmCompte" list="acctCodes" value="" placeholder="ex. 661110"></div>
       <div style="display:flex;gap:14px;align-items:end;padding-bottom:6px">
         <label class="chk" style="margin:0"><input type="checkbox" id="rmCnps" ${r.cnps ? "checked" : ""}><span>Soumis CNPS</span></label>
         <label class="chk" style="margin:0"><input type="checkbox" id="rmImpo" ${r.impo ? "checked" : ""}><span>Soumis IRPP</span></label></div>
@@ -6471,15 +6527,26 @@ function rubModal(r) {
       <button class="btn p sm" onclick="rubSave('${isEdit ? r.id : ""}', ${isEdit && r.inUse})">Enregistrer</button></div></div>`;
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   document.body.appendChild(bg);
+  if (isEdit && r.id) { api("/payroll/rubriques/" + r.id + "/compte").then(m => { const el = document.getElementById("rmCompte"); if (el) el.value = m.account || ""; }).catch(() => {}); }
+  ["rmNombre", "rmBase"].forEach(idn => { const el = document.getElementById(idn); if (el && el.value) rmCstHint(el, idn === "rmNombre" ? "rmNbHint" : "rmBaHint"); });
+}
+function rmCstHint(inp, hintId) {
+  const h = document.getElementById(hintId); if (!h) return;
+  const c = (typeof cstValueOf === "function") ? cstValueOf(inp.value) : null;
+  h.innerHTML = c ? `→ <b>${esc(c.label)}</b> · ${esc(c.type)}${c.valeur != null ? ` · valeur ${c.valeur}` : ""}` : "";
 }
 async function rubSave(id, needForce) {
   const body = { code: rmCode.value.trim(), label: rmLabel.value.trim(), family: rmFamily.value,
-    formula: rmFormula.value, base: rmBase.value.trim(), taux: rmTaux.value, sens: rmSens.value,
+    formula: rmFormula.value, base: rmBase.value.trim(), nombre: rmNombre.value.trim(), taux: rmTaux.value, sens: rmSens.value,
     cnps: rmCnps.checked, impo: rmImpo.checked };
   if (needForce) { if (!document.getElementById("rmForce").checked) { rmErr.textContent = "Cochez la confirmation pour modifier une rubrique utilisée."; rmErr.classList.remove("hidden"); return; } body.force = true; }
+  const compte = (document.getElementById("rmCompte") || {}).value;
   try {
-    if (id) await api("/payroll/rubriques/" + id, { method: "PUT", body: JSON.stringify(body) });
-    else await api("/payroll/rubriques", { method: "POST", body: JSON.stringify(body) });
+    let saved;
+    if (id) saved = await api("/payroll/rubriques/" + id, { method: "PUT", body: JSON.stringify(body) });
+    else saved = await api("/payroll/rubriques", { method: "POST", body: JSON.stringify(body) });
+    // Synchronise le compte comptable (dans les deux sens via /accounting/rubrique-map)
+    if (compte !== undefined && (saved && saved.id)) { try { await api("/payroll/rubriques/" + saved.id + "/compte", { method: "PUT", body: JSON.stringify({ account: (compte || "").trim() }) }); } catch (_) {} }
     document.querySelector(".modal-bg").remove(); payconfigView();
   } catch (e) {
     if (e.requiresConfirmation) { rmErr.textContent = e.warning || e.message; rmErr.classList.remove("hidden"); }

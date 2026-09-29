@@ -474,6 +474,83 @@ router.delete("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   res.json({ ok: true });
 });
 
+/* ============================ CONSTANTES (référentiel Sage T_CST) ============================ */
+router.get("/constantes", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const q = String(req.query.q || "").toLowerCase().trim();
+  const type = String(req.query.type || "").trim();
+  let list = mine(db.payConstantes, req);
+  if (q) list = list.filter(c => (`${c.code} ${c.label}`).toLowerCase().includes(q));
+  if (type) list = list.filter(c => String(c.type) === type);
+  list = list.slice().sort((a, b) => String(a.code).localeCompare(String(b.code), "fr", { sensitivity: "base" }));
+  res.json(list);
+});
+router.post("/constantes", allow("RP", "ADM"), (req, res) => {
+  const b = req.body || {}; const code = String(b.code || "").trim().toUpperCase();
+  if (!code) return res.status(400).json({ error: "Code constante obligatoire" });
+  if (mine(db.payConstantes, req).some(c => String(c.code).toUpperCase() === code))
+    return res.status(409).json({ error: `La constante ${code} existe déjà` });
+  const c = stamp({ id: id("cst"), code, label: b.label || "", type: b.type || "Valeur", typeNum: b.typeNum || 4,
+    valeur: b.valeur === "" || b.valeur == null ? null : Number(b.valeur),
+    active: true, system: false, createdAt: new Date().toISOString() }, req);
+  db.payConstantes.push(c); save();
+  audit(req.user, "CREATED", "PayConstante", c.id, { code, valeur: c.valeur });
+  res.status(201).json(c);
+});
+router.put("/constantes/:id", allow("RP", "ADM"), (req, res) => {
+  const c = mine(db.payConstantes, req).find(x => x.id === req.params.id);
+  if (!c) return res.status(404).json({ error: "Constante introuvable" });
+  const b = req.body || {}; const before = { valeur: c.valeur, label: c.label };
+  if (b.label !== undefined) c.label = b.label;
+  if (b.type !== undefined) c.type = b.type;
+  if (b.valeur !== undefined) c.valeur = (b.valeur === "" || b.valeur == null) ? null : Number(b.valeur);
+  if (b.active !== undefined) c.active = !!b.active;
+  save();
+  audit(req.user, "UPDATED", "PayConstante", c.id, { code: c.code, before, after: { valeur: c.valeur } });
+  res.json(c);
+});
+router.delete("/constantes/:id", allow("RP", "ADM"), (req, res) => {
+  const c = mine(db.payConstantes, req).find(x => x.id === req.params.id);
+  if (!c) return res.status(404).json({ error: "Introuvable" });
+  if (c.system) return res.status(409).json({ error: "Constante système - désactivez-la plutôt que de la supprimer." });
+  db.payConstantes.splice(db.payConstantes.indexOf(c), 1); save();
+  audit(req.user, "DELETED", "PayConstante", c.id, { code: c.code });
+  res.json({ ok: true });
+});
+router.post("/constantes/import-catalogue", allow("RP", "ADM"), (req, res) => {
+  const CONSTANTES = require("../payroll/constantes.seed");
+  const have = new Set(mine(db.payConstantes, req).map(c => String(c.code).toUpperCase()));
+  let added = 0;
+  for (const c of CONSTANTES) {
+    if (have.has(String(c.code).toUpperCase())) continue;
+    db.payConstantes.push(stamp({ id: id("cst"), code: c.code, label: c.label, type: c.type, typeNum: c.typeNum,
+      valeur: c.valeur != null ? c.valeur : null, active: true, system: true, createdAt: new Date().toISOString() }, req));
+    added++;
+  }
+  if (added) save();
+  audit(req.user, "IMPORTED", "PayConstante", "catalogue", { added });
+  res.json({ ok: true, added, total: mine(db.payConstantes, req).length });
+});
+
+/* --- Compte comptable d'une rubrique (synchronisé avec la table Rubriques→Comptes de la compta) --- */
+function _armap(req) { return db.acctRubriqueMap.filter(x => (x.tenantId || "t1") === (req.user.tenantId || "t1")); }
+router.get("/rubriques/:id/compte", allow("RP", "ADM", "CD"), (req, res) => {
+  const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Rubrique introuvable" });
+  const m = _armap(req).find(x => String(x.code) === String(r.code));
+  res.json({ code: r.code, account: m ? m.account : "", label: m ? m.label : r.label, mapped: !!m });
+});
+router.put("/rubriques/:id/compte", allow("RP", "ADM", "CD"), (req, res) => {
+  const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Rubrique introuvable" });
+  const account = String((req.body && req.body.account) || "").trim();
+  let m = _armap(req).find(x => String(x.code) === String(r.code));
+  if (m) { m.account = account; if (!m.label) m.label = r.label; }
+  else { m = stamp({ id: id("armap"), code: String(r.code), account, label: r.label }, req); db.acctRubriqueMap.push(m); }
+  save();
+  audit(req.user, "SYNCED", "AcctRubriqueMap", m.id, { code: r.code, account, from: "paie" });
+  res.json({ code: r.code, account: m.account, label: m.label, mapped: true });
+});
+
 /* Bulletins modèles */
 router.get("/models", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.bulletinModels, req)));
 router.post("/models", allow("RP", "ADM"), (req, res) => {

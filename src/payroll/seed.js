@@ -6,9 +6,10 @@
 const { db, save, id } = require("../store");
 const { DEFAULT_CONFIG } = require("./engine");
 const CATALOGUE = require("./rubriques.seed");
+const CONSTANTES = require("./constantes.seed");
 
 function seedPayroll(tid) {
-  for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls"])
+  for (const k of ["payrollConfig", "payRubriques", "payConstantes", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls"])
     if (!db[k]) db[k] = [];
   const has = (coll) => (db[coll] || []).some(x => (x.tenantId || "t1") === tid);
 
@@ -24,6 +25,17 @@ function seedPayroll(tid) {
         formula: r.formula, base: r.base || null, nombre: r.nombre || null,
         taux: r.taux != null ? r.taux : null, tauxPat: r.tauxPat != null ? r.tauxPat : null,
         cnps: !!r.cnps, impo: !!r.impo, sens: r.sens || "GAIN",
+        active: true, system: true, createdAt: new Date().toISOString(),
+      });
+  }
+
+  // 2b) Constantes catalogue (référentiel Sage T_CST) — baseline système, valeur éditable.
+  if (!has("payConstantes")) {
+    for (const c of CONSTANTES)
+      db.payConstantes.push({
+        id: id("cst"), tenantId: tid, code: c.code, label: c.label,
+        type: c.type, typeNum: c.typeNum,
+        valeur: c.valeur != null ? c.valeur : null,
         active: true, system: true, createdAt: new Date().toISOString(),
       });
   }
