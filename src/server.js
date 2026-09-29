@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-25 - SORT-64 (listes salaries triees alphabetiquement par nom affiche (Prenom Nom), groupees par client A->Z: roster paie (corrige le tri par ID de portefeuille), lignes du bordereau, dossiers du personnel)";
+const BUILD_VERSION = "2026-09-25 - UX-65 (corriger bulletin: Nombre & Base editables avec recalcul auto du gain; bandeaux .note modernises (fini le jaune); feedback survol/clic boutons; oeil afficher/masquer mot de passe; barre de chargement globale, ecrans vide/erreur, overlay hors-ligne avec logo anime)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
