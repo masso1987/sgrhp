@@ -75,6 +75,13 @@ label{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700
 .btn[disabled],.btn:disabled{opacity:.5;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
 tr[onclick]{cursor:pointer;transition:background .12s ease}
 tr[onclick]:hover{background:var(--nav-active-bg)}
+.rowmenu-btn{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;border-radius:6px;color:var(--muted);transition:background .12s,color .12s}
+.rowmenu-btn::-webkit-details-marker{display:none}
+.rowmenu-btn:hover{background:var(--nav-active-bg);color:var(--accent)}
+.rowmenu[open]>.rowmenu-btn{background:var(--nav-active-bg);color:var(--accent)}
+.paytab{padding:9px 14px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;display:inline-flex;align-items:center;gap:6px;transition:color .12s}
+.paytab:hover{color:var(--text)}
+.paytab.on{color:var(--nav-active-color);font-weight:600;border-bottom-color:var(--nav-active-border)}
 /* Password reveal */
 .pw-wrap{position:relative;display:inline-block;width:100%}
 .pw-wrap>input{width:100%;padding-right:40px;box-sizing:border-box}
@@ -1099,6 +1106,34 @@ function armIdle(mins) {
 
 
 function togglePw(el){ const inp=el.parentNode.querySelector("input"); if(!inp) return; const show=inp.type==="password"; inp.type=show?"text":"password"; el.style.color=show?"var(--accent)":""; }
+/* ---- Reusable UI: icons, row action menu (⋮), styled confirm dialog ---- */
+function ICO(n){ const P={edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',trash:'<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',dots:'<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',plus:'<path d="M12 5v14M5 12h14"/>'}; return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${P[n]||''}</svg>`; }
+function rowActions(items){
+  return `<details class="rowmenu"><summary class="rowmenu-btn" title="Actions">${ICO('dots')}</summary><div class="rowmenu-pop">`+
+    items.filter(Boolean).map(it=> it==='-' ? '<hr>' :
+      `<a onclick="this.closest('details').open=false;${it.onclick}" style="display:flex;align-items:center;gap:9px;${it.danger?'color:var(--red)':''}">${ICO(it.icon)} ${esc(it.label)}</a>`).join('')+
+    `</div></details>`;
+}
+function mmConfirm(opts){
+  opts=opts||{}; const danger=!!opts.danger;
+  return new Promise(res=>{
+    const bg=document.createElement("div"); bg.className="modal-bg";
+    bg.innerHTML=`<div class="modal" style="max-width:420px">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="flex:0 0 38px;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:${danger?'#fee2e2':'#e1f5ee'};color:${danger?'#b91c1c':'#0f6e56'}">${danger?ICO('trash'):ICO('info')}</div>
+        <div><div style="font-weight:600;font-size:14px">${esc(opts.title||'Confirmer')}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5">${esc(opts.message||'')}</div></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn ghost sm" data-x="0">${esc(opts.cancelLabel||'Annuler')}</button>
+        <button class="btn ${danger?'':'p'} sm" data-x="1" ${danger?'style="background:var(--red);color:#fff"':''}>${esc(opts.confirmLabel||'Confirmer')}</button>
+      </div></div>`;
+    const done=v=>{ if(bg.parentNode) bg.remove(); res(v); };
+    bg.addEventListener("click",e=>{ if(e.target===bg) return done(false); const b=e.target.closest("[data-x]"); if(b) done(b.dataset.x==="1"); });
+    document.addEventListener("keydown",function esc2(ev){ if(ev.key==="Escape"){ document.removeEventListener("keydown",esc2); done(false); } });
+    document.body.appendChild(bg); const cb=bg.querySelector('[data-x="1"]'); if(cb) cb.focus();
+  });
+}
 /* ---- State screens + global loading / offline (micro-UX 150-300ms) ---- */
 function mmLoading(msg){ return `<div class="mm-empty"><span class="mm-spin"></span><div style="font-weight:600;color:#475569">${esc(msg||"Chargement…")}</div></div>`; }
 function mmEmpty(msg, sub){ return `<div class="mm-empty"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg><div style="font-weight:600;color:#475569">${esc(msg||"Aucune donnée")}</div>${sub?`<div style="font-size:11.5px">${esc(sub)}</div>`:""}</div>`; }
@@ -6352,10 +6387,33 @@ async function payJournal(id) {
 /* ================= Paramètres paie (config + rubriques) ============= */
 async function payconfigView() {
   const [cfg, rubs, models, csts] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques"), api("/payroll/models"), api("/payroll/constantes").catch(()=>[])]);
-  PAY_MODELS = models; PAY_CST = csts || [];
-  const num = (path, val) => `<input type="number" step="any" data-cfg="${path}" value="${val}" style="max-width:110px">`;
+  PAY_MODELS = models; PAY_CST = csts || []; PAY_RUBS = rubs; window._PAYCFG = cfg;
+  const tab = window._payTab || "baremes";
   view.innerHTML = `<h1>Paramètres paie</h1>
-  <div class="note">Barèmes et taux (Cameroun) - modifiables. Ils s'appliquent au prochain calcul de paie.</div>
+  <div class="note">Configurez les barèmes, rubriques, constantes et modèles de bulletin. Les changements s'appliquent au prochain calcul de paie.</div>
+  <div style="display:flex;gap:2px;border-bottom:1px solid var(--line);margin:12px 0 14px;flex-wrap:wrap">
+    <div class="paytab" data-tab="baremes" onclick="payShowTab('baremes')">Barèmes &amp; taux</div>
+    <div class="paytab" data-tab="rubriques" onclick="payShowTab('rubriques')">Rubriques <span style="font-size:11px;opacity:.7">${rubs.length}</span></div>
+    <div class="paytab" data-tab="constantes" onclick="payShowTab('constantes')">Constantes <span style="font-size:11px;opacity:.7">${(csts||[]).length}</span></div>
+    <div class="paytab" data-tab="modeles" onclick="payShowTab('modeles')">Modèles <span style="font-size:11px;opacity:.7">${models.length}</span></div>
+  </div>
+  <div id="payTab"></div>
+  <datalist id="cstCodes">${(csts||[]).map(c=>`<option value="${esc(c.code)}">${esc(c.label)}</option>`).join("")}</datalist>`;
+  payShowTab(tab);
+}
+function payShowTab(name){
+  window._payTab = name;
+  document.querySelectorAll(".paytab").forEach(e=>e.classList.toggle("on", e.dataset.tab===name));
+  const cont=document.getElementById("payTab"); if(!cont) return;
+  cont.classList.remove("mm-fade"); void cont.offsetWidth; cont.classList.add("mm-fade");
+  if(name==="rubriques"){ cont.innerHTML = payRubriquesHTML(); rubRender((document.getElementById("rubSearch")||{}).value||""); }
+  else if(name==="constantes"){ cont.innerHTML = payConstantesHTML(); cstRender(""); }
+  else if(name==="modeles"){ cont.innerHTML = payModelesHTML(PAY_MODELS); }
+  else { cont.innerHTML = payBaremesHTML(window._PAYCFG); }
+}
+function payBaremesHTML(cfg){
+  const num = (path, val) => `<input type="number" step="any" data-cfg="${path}" value="${val}" style="max-width:110px">`;
+  return `
   <div class="panel"><b style="font-size:12px;color:var(--muted)">MODÈLE DU BULLETIN DE PAIE</b>
     <div style="display:flex;gap:10px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">
       <div><label>Design du bulletin (PDF)</label>
@@ -6400,59 +6458,88 @@ async function payconfigView() {
   </div>
   <div class="panel"><button class="btn p" onclick="paySaveConfig()">Enregistrer les paramètres</button>
     <span class="err hidden" id="cfgErr" style="margin-left:10px"></span>
-    <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>
-
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">BULLETINS MODÈLES (${models.length})</b>
-    <div style="margin:8px 0"><button class="btn p sm" onclick="modelModal()">+ Créer un modèle</button></div>
-    <table><tr><th>Code</th><th>Libellé</th><th>Type</th><th>Heures/mois</th><th>Rubriques</th><th></th></tr>
+    <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>`;
+}
+function payModelesHTML(models){
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <b style="font-size:12px;color:var(--muted)">BULLETINS MODÈLES (${models.length})</b>
+    <button class="btn p sm" onclick="modelModal()">${ICO('plus')} Créer un modèle</button></div>
+    <table style="margin-top:8px"><tr><th>Code</th><th>Libellé</th><th>Type</th><th>Heures/mois</th><th>Rubriques</th><th style="width:40px"></th></tr>
     ${models.map(m => `<tr><td><b>${esc(m.code)}</b></td><td>${esc(m.label)}</td><td>${esc(m.type||"Mensuel")}</td>
       <td>${m.monthlyHours||173.33}</td><td>${(m.lines||[]).length}</td>
-      <td><button class="btn ghost sm" onclick='modelModal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>Modifier</button></td></tr>`).join("")}
-    </table></div>
-
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">RUBRIQUES DE PAIE (${rubs.length})</b>
-    <div style="margin:8px 0;display:flex;gap:8px;align-items:center">
-      <button class="btn p sm" onclick="rubModal()">+ Créer une rubrique</button>
-      <button class="btn ghost sm" onclick="rubImportCatalogue()">Importer le catalogue Sage (163)</button>
-      <input id="rubSearch" placeholder="Rechercher (code ou libellé)…" style="max-width:320px;margin:0" oninput="rubRender(this.value)">
-    </div>
-    <div class="note" style="margin-bottom:8px">Les rubriques sont votre baseline modifiable. Une rubrique déjà utilisée
-    dans des bulletins calculés est verrouillée : la modifier affecte toute la paie et exige une confirmation.</div>
-    <div id="rubList"></div></div>
-
-  <div class="panel"><b style="font-size:12px;color:var(--muted)">CONSTANTES DE PAIE (${(csts||[]).length}) — référentiel Sage</b>
-    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn p sm" onclick="cstModal()">+ Créer une constante</button>
-      <button class="btn ghost sm" onclick="cstImportCatalogue()">Importer le catalogue (759)</button>
-      <input id="cstSearch" placeholder="Rechercher (code ou libellé)…" style="max-width:320px;margin:0" oninput="cstRender(this.value)">
-      <select id="cstType" style="margin:0" onchange="cstRender(document.getElementById('cstSearch').value)"><option value="">Tous les types</option>${[...new Set((csts||[]).map(c=>c.type))].sort().map(t=>`<option>${esc(t)}</option>`).join("")}</select>
-    </div>
-    <div class="note" style="margin-bottom:8px">Chaque constante porte un code, un type et une valeur. Cliquez une valeur pour la modifier — elle est reprise dans les formules des rubriques (Nombre / Base / Taux).</div>
-    <div id="cstList"></div></div>
-
-  <datalist id="cstCodes">${(csts||[]).map(c=>`<option value="${esc(c.code)}">${esc(c.label)}</option>`).join("")}</datalist>`;
-  PAY_RUBS = rubs; rubRender(""); cstRender("");
+      <td style="text-align:center">${rowActions([{icon:"edit",label:"Modifier",onclick:`modelEdit('${m.id}')`},{icon:"copy",label:"Dupliquer",onclick:`modelDuplicate('${m.id}')`}])}</td></tr>`).join("")||'<tr><td colspan="6" class="note-inline">Aucun modèle.</td></tr>'}
+    </table></div>`;
 }
+function modelEdit(id){ const m=(PAY_MODELS||[]).find(x=>x.id===id); if(m) modelModal(m); }
+async function modelDuplicate(id){ const m=(PAY_MODELS||[]).find(x=>x.id===id); if(!m) return; let code=(m.code+"_COPIE"), i=2; while((PAY_MODELS||[]).some(x=>String(x.code)===code)){ code=m.code+"_COPIE"+i; i++; } try{ await api("/payroll/models",{method:"POST",body:JSON.stringify({code,label:m.label+" (copie)",type:m.type,monthlyHours:m.monthlyHours,lines:m.lines})}); payconfigView(); }catch(e){ alert(e.message); } }
+function payRubriquesHTML(){
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <b style="font-size:12px;color:var(--muted)">RUBRIQUES DE PAIE (${PAY_RUBS.length})</b>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="rubSearch" placeholder="Rechercher code ou libellé…" style="max-width:260px;margin:0" oninput="rubRender(this.value)">
+      <button class="btn ghost sm" onclick="rubImportCatalogue()">${ICO('copy')} Importer catalogue</button>
+      <button class="btn p sm" onclick="rubModal()">${ICO('plus')} Créer une rubrique</button></div></div>
+    <div class="note" style="margin:8px 0">Votre baseline modifiable. Une rubrique déjà utilisée dans des bulletins calculés est verrouillée : la modifier affecte toute la paie et exige une confirmation.</div>
+    <div id="rubList"></div></div>`;
+}
+function payConstantesHTML(){
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <b style="font-size:12px;color:var(--muted)">CONSTANTES DE PAIE (${(PAY_CST||[]).length}) — référentiel Sage</b>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="cstSearch" placeholder="Rechercher code ou libellé…" style="max-width:240px;margin:0" oninput="cstRender(this.value)">
+      <select id="cstType" style="margin:0" onchange="cstRender(document.getElementById('cstSearch').value)"><option value="">Tous les types</option>${[...new Set((PAY_CST||[]).map(c=>c.type))].sort().map(t=>`<option>${esc(t)}</option>`).join("")}</select>
+      <button class="btn ghost sm" onclick="cstImportCatalogue()">${ICO('copy')} Importer</button>
+      <button class="btn p sm" onclick="cstModal()">${ICO('plus')} Nouvelle constante</button></div></div>
+    <div class="note" style="margin:8px 0">Chaque constante porte un code, un type et une valeur, reprise dans les formules des rubriques (Nombre / Base / Taux). La colonne « Utilisée » indique combien de rubriques la référencent.</div>
+    <div id="cstList"></div></div>`;
+}
+
 let PAY_RUBS = [], PAY_CST = [];
 function cstValueOf(code){ const c=(PAY_CST||[]).find(x=>String(x.code).toUpperCase()===String(code||"").toUpperCase()); return c?c:null; }
+function cstUsage(code){ code=String(code||"").toUpperCase(); return (PAY_RUBS||[]).filter(r=>[r.base,r.nombre,r.taux].some(v=>v!=null&&String(v).toUpperCase()===code)); }
 function cstRender(q){
   q=(q||"").toLowerCase(); const type=(document.getElementById("cstType")||{}).value||"";
   let list=(PAY_CST||[]).filter(c=>(!q||(c.code+" "+c.label).toLowerCase().includes(q))&&(!type||c.type===type));
   const total=list.length; const shown=list.slice(0,200);
-  document.getElementById("cstList").innerHTML=`<table><tr><th>Code</th><th>Libellé</th><th>Type</th><th class="r">Valeur</th><th></th></tr>`+
-    shown.map(c=>`<tr>
+  document.getElementById("cstList").innerHTML=`<table><tr><th>Code</th><th>Libellé</th><th>Type</th><th class="r">Valeur</th><th style="text-align:center">Utilisée</th><th style="width:40px"></th></tr>`+
+    shown.map(c=>{ const u=cstUsage(c.code).length;
+      const acts=[{icon:"edit",label:"Modifier",onclick:`cstEdit('${c.id}')`},{icon:"copy",label:"Dupliquer",onclick:`cstDuplicate('${c.id}')`}];
+      if(u) acts.push({icon:"link",label:`Voir les ${u} rubrique(s)`,onclick:`cstViewUsage('${esc(c.code)}')`});
+      acts.push("-"); acts.push({icon:"trash",label:c.system?"Désactiver":"Supprimer",danger:true,onclick:`cstDelete('${c.id}')`});
+      return `<tr>
       <td><b>${esc(c.code)}</b></td><td>${esc(c.label)}</td>
       <td><span class="tag gray">${esc(c.type||"")}</span></td>
       <td class="r"><input type="number" step="any" value="${c.valeur!=null?c.valeur:""}" placeholder="—" data-cst="${c.id}" style="width:120px;text-align:right;margin:0;padding:3px" onchange="cstSaveVal('${c.id}',this.value)"></td>
-      <td>${c.system?'<span class="tag gray" title="Constante système">sys</span>':`<button class="btn ghost sm" style="color:var(--red)" onclick="cstDelete('${c.id}')">Suppr.</button>`}</td></tr>`).join("")+
+      <td style="text-align:center">${u?`<span class="tag blue" style="cursor:pointer" onclick="cstViewUsage('${esc(c.code)}')" title="Voir les rubriques">${u} rubr.</span>`:'<span class="note-inline">—</span>'}</td>
+      <td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")+
     `</table>`+(total>shown.length?`<div class="note-inline" style="margin-top:6px">${shown.length} affichées sur ${total} — affinez la recherche.</div>`:`<div class="note-inline" style="margin-top:6px">${total} constante(s).</div>`);
 }
+function cstEdit(id){ const c=(PAY_CST||[]).find(x=>x.id===id); if(c) cstModal(c); }
 async function cstSaveVal(id,val){
   try{ const c=await api("/payroll/constantes/"+id,{method:"PUT",body:JSON.stringify({valeur:val})}); const i=(PAY_CST||[]).findIndex(x=>x.id===id); if(i>=0) PAY_CST[i]=c; }
   catch(e){ alert(e.message); }
 }
-async function cstDelete(id){ if(!confirm("Supprimer cette constante ?")) return; try{ await api("/payroll/constantes/"+id,{method:"DELETE"}); PAY_CST=PAY_CST.filter(x=>x.id!==id); cstRender(document.getElementById("cstSearch").value); }catch(e){ alert(e.message); } }
-async function cstImportCatalogue(){ if(!confirm("Importer le catalogue de constantes Sage ?\n\nLes constantes déjà présentes ne seront pas dupliquées.")) return; try{ const r=await api("/payroll/constantes/import-catalogue",{method:"POST"}); alert(`${r.added} constante(s) ajoutée(s). Total : ${r.total}.`); payconfigView(); }catch(e){ alert(e.message); } }
+async function cstDuplicate(id){
+  const c=(PAY_CST||[]).find(x=>x.id===id); if(!c) return;
+  let code=(c.code+"_COPIE").slice(0,24), i=2; while((PAY_CST||[]).some(x=>String(x.code).toUpperCase()===code.toUpperCase())){ code=(c.code+"_COPIE"+i).slice(0,24); i++; }
+  try{ await api("/payroll/constantes",{method:"POST",body:JSON.stringify({code,label:c.label,type:c.type,valeur:c.valeur})}); payconfigView(); }
+  catch(e){ alert(e.message); }
+}
+function cstViewUsage(code){
+  const rubs=cstUsage(code);
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:520px"><b>Rubriques utilisant « ${esc(code)} »</b>
+    <div style="margin-top:10px;max-height:52vh;overflow:auto">${rubs.length?`<table><tr><th>Code</th><th>Libellé</th><th>Emplacement</th></tr>`+rubs.map(r=>{ const where=[]; if(String(r.nombre||"").toUpperCase()===code.toUpperCase())where.push("Nombre"); if(String(r.base||"").toUpperCase()===code.toUpperCase())where.push("Base"); if(String(r.taux||"").toUpperCase()===code.toUpperCase())where.push("Taux"); return `<tr><td><b>${esc(r.code)}</b></td><td>${esc(r.label)}</td><td><span class="tag blue">${where.join(", ")}</span></td></tr>`; }).join("")+`</table>`:'<div class="note-inline">Aucune rubrique ne référence cette constante.</div>'}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); }); document.body.appendChild(bg);
+}
+async function cstDelete(id){
+  const c=(PAY_CST||[]).find(x=>x.id===id); const sys=c&&c.system;
+  const ok=await mmConfirm({title:sys?"Désactiver la constante":"Supprimer la constante",message:sys?`« ${c?c.code:''} » est une constante système : elle sera désactivée, pas supprimée.`:`Supprimer « ${c?c.code:''} » ? Cette action est définitive.`,confirmLabel:sys?"Désactiver":"Supprimer",danger:!sys});
+  if(!ok) return;
+  try{ if(sys){ await api("/payroll/constantes/"+id,{method:"PUT",body:JSON.stringify({active:false})}); } else { await api("/payroll/constantes/"+id,{method:"DELETE"}); PAY_CST=PAY_CST.filter(x=>x.id!==id); } cstRender((document.getElementById("cstSearch")||{}).value||""); }catch(e){ alert(e.message); }
+}
+async function cstImportCatalogue(){ if(!await mmConfirm({title:"Importer le catalogue",message:"Importer le catalogue de constantes Sage ? Les constantes déjà présentes ne seront pas dupliquées.",confirmLabel:"Importer"})) return; try{ const r=await api("/payroll/constantes/import-catalogue",{method:"POST"}); payconfigView(); }catch(e){ alert(e.message); } }
 function cstModal(c){
   const isEdit=!!c; c=c||{type:"Valeur"};
   const bg=document.createElement("div"); bg.className="modal-bg";
@@ -6477,9 +6564,8 @@ async function cstSave(id){
   catch(e){ csErr.textContent=e.message; csErr.classList.remove("hidden"); }
 }
 async function rubImportCatalogue() {
-  if (!confirm("Importer le catalogue Sage complet (163 rubriques) ?\n\nLes rubriques déjà présentes ne seront pas dupliquées.")) return;
-  try { const r = await api("/payroll/rubriques/import-catalogue", { method: "POST" });
-    alert(`${r.added} rubrique(s) ajoutée(s). Total dans le catalogue : ${r.total}.`); payconfigView(); }
+  if (!await mmConfirm({title:"Importer le catalogue Sage",message:"Importer les 163 rubriques du catalogue Sage ? Les rubriques déjà présentes ne seront pas dupliquées.",confirmLabel:"Importer"})) return;
+  try { await api("/payroll/rubriques/import-catalogue", { method: "POST" }); payconfigView(); }
   catch (e) { alert(e.message); }
 }
 function rubRender(q) {
@@ -6493,10 +6579,24 @@ function rubRender(q) {
       <td>${esc(r.family)}</td><td style="font-size:12px">${esc(r.formula)}</td><td>${esc(r.base || "-")}</td>
       <td>${r.taux != null ? r.taux + "%" : "-"}</td>
       <td>${r.cnps ? "" : "-"}</td><td>${r.impo ? "" : "-"}</td>
-      <td><button class="btn ghost sm" onclick='rubModal(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Modifier</button></td></tr>`).join("");
+      <td style="text-align:center">${rowActions([{icon:"edit",label:"Modifier",onclick:`rubEdit('${r.id}')`},{icon:"copy",label:"Dupliquer",onclick:`rubDuplicate('${r.id}')`},"-",{icon:"trash",label:r.inUse?"Supprimer (verrouillée)":"Supprimer",danger:true,onclick:`rubDelete('${r.id}')`}])}</td></tr>`).join("");
   rubList.innerHTML = order.map(g => `<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${esc(g)} <span class="tag gray">${groups[g].length}</span></div>
-    <table><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Base</th><th>Taux</th><th>CNPS</th><th>IRPP</th><th></th></tr>${rowsFor(groups[g])}</table></div>`).join("")
+    <table><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Base</th><th>Taux</th><th>CNPS</th><th>IRPP</th><th style="width:40px"></th></tr>${rowsFor(groups[g])}</table></div>`).join("")
     || '<small style="color:var(--muted)">Aucune rubrique.</small>';
+}
+function rubEdit(id){ const r=(PAY_RUBS||[]).find(x=>x.id===id); if(r) rubModal(r); }
+async function rubDuplicate(id){
+  const r=(PAY_RUBS||[]).find(x=>x.id===id); if(!r) return;
+  let code=(r.code+"_COPIE").slice(0,24), i=2; while((PAY_RUBS||[]).some(x=>String(x.code).toUpperCase()===code.toUpperCase())){ code=(r.code+"_COPIE"+i).slice(0,24); i++; }
+  try{ await api("/payroll/rubriques",{method:"POST",body:JSON.stringify({code,label:r.label+" (copie)",family:r.family,formula:r.formula,base:r.base,nombre:r.nombre,taux:r.taux,sens:r.sens,cnps:r.cnps,impo:r.impo})}); payconfigView(); }
+  catch(e){ alert(e.message); }
+}
+async function rubDelete(id){
+  const r=(PAY_RUBS||[]).find(x=>x.id===id); if(!r) return;
+  const ok=await mmConfirm({title:"Supprimer la rubrique",message:`Supprimer « ${r.code} ${r.label} » ?${r.inUse?" Elle est utilisée dans des bulletins calculés — la suppression peut casser des recalculs.":""}`,confirmLabel:"Supprimer",danger:true});
+  if(!ok) return;
+  try{ await api("/payroll/rubriques/"+id+(r.inUse?"?force=1":""),{method:"DELETE"}); payconfigView(); }
+  catch(e){ if(e.requiresConfirmation){ if(await mmConfirm({title:"Confirmer la suppression",message:e.warning||e.message,confirmLabel:"Supprimer quand même",danger:true})){ try{ await api("/payroll/rubriques/"+id+"?force=1",{method:"DELETE"}); payconfigView(); }catch(e2){ alert(e2.message); } } } else alert(e.message); }
 }
 function rubModal(r) {
   const isEdit = !!r; r = r || { family: "BRUT", formula: "Nombre x Base", sens: "GAIN", cnps: true, impo: true };

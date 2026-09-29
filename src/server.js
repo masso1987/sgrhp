@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-29 - PAIE-66 (Parametres paie: liste des Constantes (759, importee de Sage T_CST) avec valeur editable + CRUD; rubrique: elements constitutifs Nombre/Base avec selecteur de constante et apercu, champ Compte comptable synchronise avec Comptabilite Rubriques-Comptes)";
+const BUILD_VERSION = "2026-09-29 - UX-67 (Parametres paie reorganise en onglets Baremes/Rubriques/Constantes/Modeles; constantes liees aux rubriques (badge Utilisee + vue des rubriques); CRUD complet constantes (modifier/dupliquer/supprimer); menu d action ⋮ moderne + boite de confirmation stylisee sur rubriques, constantes et modeles)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
