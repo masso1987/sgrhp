@@ -195,7 +195,7 @@ function login(req, res) {
   }
 
   user.failedLogins = 0; user.lockedUntil = null; user.tempPasswordExpires = null; save();
-  const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: user.tenantId || "t1" },
+  const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: user.tenantId || "t1", tv: user.tokenVersion || 0 },
     SECRET, { expiresIn: `${policy().sessionHours}h` });
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" }, "LOGIN", "User", user.id, {});
   try { recordLogin(user, req); } catch (e) {}
@@ -217,6 +217,11 @@ function authenticate(req, res, next) {
       lastSeen.delete(req.user.id);
       try { closeLoginSession(req.user.id, "idle"); } catch (e) {}
       return res.status(401).json({ error: "Session expirée pour inactivité - reconnectez-vous", idle: true });
+    }
+    const _u = db.users.find(x => x.id === req.user.id);
+    if (_u) {
+      if (_u.active === false) { try { closeLoginSession(req.user.id, "suspended"); } catch (e) {} return res.status(401).json({ error: "Compte suspendu par un administrateur." }); }
+      if ((req.user.tv || 0) !== (_u.tokenVersion || 0)) { try { closeLoginSession(req.user.id, "disconnected"); } catch (e) {} return res.status(401).json({ error: "Session fermée par un administrateur - reconnectez-vous." }); }
     }
     lastSeen.set(req.user.id, Date.now());
     next();

@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-29 - SYNC-69 (synchronisation des fichiers: miroir des fichiers televerses vers SFTP/S3/Azure/local, mode off/manuel/auto avec intervalle, statut synchronises/en attente/echecs, diff par taille+date, notifications d echec)";
+const BUILD_VERSION = "2026-09-29 - MT-71 (sauvegarde/stockage/sync multi-tenant: admin=son tenant, super-admin=par tenant + plateforme; restauration d un tenant sans impact sur les autres (instantane de securite); config stockage/plannings/sync par tenant; super-admin: utilisateurs par entreprise, suspendre (bloque connexion) et deconnecter (invalide la session via tokenVersion))";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
