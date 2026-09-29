@@ -1107,7 +1107,7 @@ function armIdle(mins) {
 
 function togglePw(el){ const inp=el.parentNode.querySelector("input"); if(!inp) return; const show=inp.type==="password"; inp.type=show?"text":"password"; el.style.color=show?"var(--accent)":""; }
 /* ---- Reusable UI: icons, row action menu (⋮), styled confirm dialog ---- */
-function ICO(n){ const P={edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',trash:'<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',dots:'<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',download:'<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>',lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'}; return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${P[n]||''}</svg>`; }
+function ICO(n){ const P={edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',trash:'<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',dots:'<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',download:'<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>',lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',file:'<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>',logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'}; return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${P[n]||''}</svg>`; }
 function rowActions(items){
   return `<details class="rowmenu"><summary class="rowmenu-btn" title="Actions">${ICO('dots')}</summary><div class="rowmenu-pop">`+
     items.filter(Boolean).map(it=> it==='-' ? '<hr>' :
@@ -5784,9 +5784,7 @@ function armRender(){
   const rows=(window._ARM||[]).filter(r=>!q||((r.code+" "+(r.account||"")+" "+(r.label||"")).toLowerCase().indexOf(q)>=0));
   document.getElementById("armList").innerHTML=`<table><tr><th>Code</th><th>Compte</th><th>Intitulé</th><th></th></tr>
     ${rows.map(r=>`<tr><td><b>${esc(r.code)}</b></td><td>${esc(r.account||"")}</td><td>${esc(r.label||"")}</td>
-      <td><button class="btn ghost sm" onclick="armOpen('${r.id}')">Modifier</button>
-        <button class="btn ghost sm" onclick="armDup('${r.id}')">Dupliquer</button>
-        <button class="btn ghost sm" style="color:var(--red)" onclick="armDel('${r.id}')">Suppr.</button></td></tr>`).join("")||'<tr><td colspan="4" style="color:var(--muted)">Aucune ligne.</td></tr>'}</table>`;
+      <td style="text-align:center">${rowActions([{icon:"edit",label:"Modifier",onclick:`armOpen('${r.id}')`},{icon:"copy",label:"Dupliquer",onclick:`armDup('${r.id}')`},"-",{icon:"trash",label:"Supprimer",danger:true,onclick:`armDel('${r.id}')`}])}</td></tr>`).join("")||'<tr><td colspan="4" style="color:var(--muted)">Aucune ligne.</td></tr>'}</table>`;
 }
 function armOpen(id){
   const r=id?((window._ARM||[]).find(x=>x.id===id)||{}):{code:"",account:"",label:""};
@@ -7319,8 +7317,7 @@ async function billingCfgView() {
     ${contracts.map(c => `<tr><td><b>${esc(c.clientName)}</b></td><td>${esc(c.clientCode || "")}</td><td>${esc(c.billingType)}</td>
       <td>${c.tvaExonere ? "exonérée" : ((c.rates.tva * 100).toFixed(2) + " %")}</td>
       <td>${(c.rates.fraisGestion * 100).toFixed(0)} %</td><td>÷${c.rates.congesDivisor}</td>
-      <td style="white-space:nowrap"><button class="btn ghost sm" title="Générer l'annexe depuis les composants" onclick='billingGenAnnexe(${JSON.stringify(c.id)})'>Annexe</button>
-        <button class="btn ghost sm" onclick='billingContractModal(${JSON.stringify(c.id)})'>Modifier</button></td></tr>`).join("") || '<tr><td colspan="7" style="color:var(--muted)">Aucun client.</td></tr>'}
+      <td style="text-align:center">${rowActions([{icon:"file",label:"Générer l'annexe",onclick:`billingGenAnnexe('${c.id}')`},{icon:"edit",label:"Modifier",onclick:`billingContractModal('${c.id}')`}])}</td></tr>`).join("") || '<tr><td colspan="7" style="color:var(--muted)">Aucun client.</td></tr>'}
     </table></div>
   <div class="panel"><b>Catalogue des composants (${comps.length})</b>
     <span style="float:right;display:flex;gap:6px">
@@ -7330,8 +7327,7 @@ async function billingCfgView() {
     <table style="margin-top:6px"><tr><th>Code</th><th>Libellé</th><th>Saisie</th><th>Formule</th><th>Étape</th><th>Taux</th><th></th></tr>
     ${comps.map(c => `<tr><td><code>${esc(c.code)}</code></td><td>${esc(c.label)}</td><td>${esc(c.inputMode)}</td>
       <td>${esc(c.formula)}</td><td><span class="tag gray">${esc(c.stage)}</span></td><td>${c.taux != null ? (c.taux) : ""}</td>
-      <td style="white-space:nowrap"><button class="btn ghost sm" onclick='billingCompModal(${JSON.stringify(c.id)})'>Modifier</button>
-        <button class="btn ghost sm" style="color:var(--red)" onclick='billingCompDel(${JSON.stringify(c.id)},${JSON.stringify(c.code)})'>Suppr.</button></td></tr>`).join("")}
+      <td style="text-align:center">${rowActions([{icon:"edit",label:"Modifier",onclick:`billingCompModal('${c.id}')`},"-",{icon:"trash",label:"Supprimer",danger:true,onclick:`billingCompDel('${c.id}','${esc(c.code)}')`}])}</td></tr>`).join("")}
     </table></div>
   <div class="panel"><b>Champs de ligne (catalogue)</b> <button class="btn p sm" style="float:right" onclick="billLFDefModal()">+ Champ</button>
     <div class="note" style="margin-top:6px">La liste « Champ à afficher » des modèles d'annexe, les cases « Champs de la ligne » des clients et les champs d'identité de l'import proviennent d'ici.</div>
