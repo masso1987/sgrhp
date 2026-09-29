@@ -6052,6 +6052,11 @@ function rubPick(prefix){
     else typeSel.value="PRIME";
     beToggle();
   }
+  // Calcule le montant depuis la formule de la rubrique (constantes) et pré-remplit le champ Montant.
+  api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval").then(ev=>{
+    const val=document.getElementById(prefix+"Val");
+    if(ev && ev.montant>0 && val && (["HS20","HS30","HS40","NUIT","ABSENCE"].indexOf((typeSel||{}).value)<0)){ val.value=ev.montant; }
+  }).catch(()=>{});
 }
 function beToggle() { const t = beType.value, l = document.getElementById("beValLbl");
   l.textContent = ["HS20","HS30","HS40","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)";
@@ -6243,8 +6248,8 @@ async function payslipView(id, edit) {
     <tbody id="payslipBody"></tbody></table>
     ${edit ? `<div style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <b style="font-size:12px;color:var(--muted)">+ Ajouter :</b>
-      <select id="addRub" style="margin:0;max-width:280px">${(() => { const g={},o=[]; PAYSLIP_RUBS.forEach(r=>{const k=r.sectionLabel||"Rubriques";if(!g[k]){g[k]=[];o.push(k);}g[k].push(r);}); const opt=r=>`<option value="${esc(r.code)}" data-kind="${r.family === "COTISATION" ? "IMPOT" : (r.sens === "RETENUE" ? "RETENUE" : "GAIN")}" data-cnps="${r.cnps ? 1 : 0}" data-impo="${r.impo ? 1 : 0}" data-label="${esc(r.label)}">${esc(r.code)} - ${esc(r.label)}</option>`; const mineRs=PAYSLIP_RUBS.filter(r=>r.mine); let html=mineRs.length?`<optgroup label="\u2605 Rubriques du salari\u00e9">`+mineRs.map(opt).join("")+`</optgroup>`:""; html+=o.map(k=>`<optgroup label="${esc(k)}">`+g[k].map(opt).join("")+`</optgroup>`).join(""); return html; })()}</select>
-      <input id="addAmt" type="number" placeholder="Montant" style="margin:0;max-width:130px">
+      <select id="addRub" style="margin:0;max-width:280px" onchange="payslipRubPick()">${(() => { const g={},o=[]; PAYSLIP_RUBS.forEach(r=>{const k=r.sectionLabel||"Rubriques";if(!g[k]){g[k]=[];o.push(k);}g[k].push(r);}); const opt=r=>`<option value="${esc(r.code)}" data-kind="${r.family === "COTISATION" ? "IMPOT" : (r.sens === "RETENUE" ? "RETENUE" : "GAIN")}" data-cnps="${r.cnps ? 1 : 0}" data-impo="${r.impo ? 1 : 0}" data-label="${esc(r.label)}">${esc(r.code)} - ${esc(r.label)}</option>`; const mineRs=PAYSLIP_RUBS.filter(r=>r.mine); let html=mineRs.length?`<optgroup label="\u2605 Rubriques du salari\u00e9">`+mineRs.map(opt).join("")+`</optgroup>`:""; html+=o.map(k=>`<optgroup label="${esc(k)}">`+g[k].map(opt).join("")+`</optgroup>`).join(""); return html; })()}</select>
+      <input id="addAmt" type="number" placeholder="Montant" style="margin:0;max-width:130px"><span id="addRubHint" class="note-inline"></span>
       <button class="btn p sm" onclick="payslipAddRow()">Ajouter la rubrique</button></div>` : ""}
   </div>
   <div class="panel" id="payslipTotals" style="display:flex;gap:24px;flex-wrap:wrap"></div>`;
@@ -6311,14 +6316,30 @@ function payslipEditField(inp) {
   payslipRenderTotals(true, { result: { totals: {} } });
 }
 function payslipRemoveRow(i) { PAYSLIP_EDIT.splice(i, 1); payslipRenderBody(true, { result: { lines: PAYSLIP_EDIT } }); }
+async function payslipRubPick(){
+  const sel=document.getElementById("addRub"); const o=sel&&sel.selectedOptions[0]; const hint=document.getElementById("addRubHint");
+  window._addRubEval=null; if(hint) hint.textContent="";
+  if(!o||!o.value) return;
+  try{ const ev=await api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval");
+    if(ev && ev.montant>0){ window._addRubEval={code:o.value,nombre:ev.nombre,base:ev.base,rate:ev.rate,montant:ev.montant};
+      const amtEl=document.getElementById("addAmt"); if(amtEl) amtEl.value=ev.montant;
+      if(hint) hint.innerHTML="= "+fCFA(ev.montant)+(ev.formula?(" <span style=\"color:var(--muted)\">("+esc(ev.formula)+(ev.base!=null?", base "+fCFA(ev.base):"")+(ev.nombre!=null?" × "+ev.nombre:"")+(ev.taux!=null?" × "+ev.taux+"%":"")+")</span>"):"");
+    } else if(hint){ hint.innerHTML='<span style="color:var(--muted)">Aucune valeur de constante — saisissez le montant.</span>'; }
+  }catch(e){}
+}
 function payslipAddRow() {
   const sel = document.getElementById("addRub"); const o = sel.selectedOptions[0]; if (!o) return;
   const amt = Math.round(Number(document.getElementById("addAmt").value) || 0);
   const kind = o.dataset.kind;
-  PAYSLIP_EDIT.push({ code: o.value, label: o.dataset.label, kind, base: amt, rate: 1,
+  const ev = (window._addRubEval && window._addRubEval.code === o.value) ? window._addRubEval : null;
+  const line = { code: o.value, label: o.dataset.label, kind,
+    nombre: (ev && ev.nombre != null) ? ev.nombre : undefined,
+    base: (ev && ev.base != null) ? ev.base : amt,
+    rate: (ev && ev.rate) ? ev.rate : 1,
     gain: kind === "GAIN" ? amt : 0, retenue: kind !== "GAIN" ? amt : 0, employer: 0,
-    cnps: o.dataset.cnps === "1", impo: o.dataset.impo === "1", manual: true });
-  document.getElementById("addAmt").value = "";
+    cnps: o.dataset.cnps === "1", impo: o.dataset.impo === "1", manual: true };
+  PAYSLIP_EDIT.push(line);
+  document.getElementById("addAmt").value = ""; window._addRubEval=null; const h=document.getElementById("addRubHint"); if(h) h.textContent="";
   payslipRenderBody(true, { result: { lines: PAYSLIP_EDIT } });
 }
 async function payslipSaveLines(id) {

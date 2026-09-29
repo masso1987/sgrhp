@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-29 - UX-70c (boite de confirmation stylisee generalisee a toute l app: 0 confirm() natif restant; RH, portefeuilles, utilisateurs, paie, bordereaux, compta, stock, qualite passent par mmConfirm)";
+const BUILD_VERSION = "2026-09-29 - PAIE-73 (rubriques/constantes fonctionnelles: ajout d une rubrique en paie (corriger + element variable) resout sa formule Nombre/Base/Taux via les valeurs de constantes et calcule le montant automatiquement; modifier la valeur d une constante se repercute a l utilisation; endpoint /rubriques/:id/eval)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

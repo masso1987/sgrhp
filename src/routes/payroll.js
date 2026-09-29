@@ -402,7 +402,35 @@ router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "U
   // d'un drapeau `mine` celles habituellement attribuées au salarié pour les afficher en premier.
   const mineCodes = new Set(employeeRubriques(emp, req).map(r => String(r.code)));
   const all = sortRubriques(mine(db.payRubriques, req));
-  res.json(all.map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel, mine: mineCodes.has(String(r.code)) })));
+  res.json(all.map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel, formula: r.formula || null, base: r.base != null ? r.base : null, nombre: r.nombre != null ? r.nombre : null, taux: r.taux != null ? r.taux : null, mine: mineCodes.has(String(r.code)) })));
+});
+
+/* Résout la formule d'une rubrique (Nombre/Base/Taux pouvant référencer des constantes) en un montant. */
+function constMapOf(req) { const m = {}; for (const c of mine(db.payConstantes, req)) m[String(c.code).toUpperCase()] = (c.valeur == null ? null : Number(c.valeur)); return m; }
+function resolveRubrique(rub, req, ctx) {
+  ctx = ctx || {}; const cm = ctx.constMap || constMapOf(req);
+  const resolve = (x) => {
+    if (x == null || x === "") return null;
+    const sx = String(x).trim();
+    if (sx !== "" && !isNaN(Number(sx))) return Number(sx);        // valeur numérique directe
+    const v = cm[sx.toUpperCase()]; return v == null ? null : v;   // référence de constante
+  };
+  const nombre = resolve(rub.nombre);
+  const base = resolve(rub.base);
+  const taux = rub.taux != null && rub.taux !== "" ? Number(rub.taux) : null; // en %
+  const f = String(rub.formula || "");
+  let montant = 0, rate = 1;
+  if (/Nombre\s*x\s*Base\s*x\s*Taux/i.test(f)) { rate = (taux || 0) / 100; montant = (nombre == null ? 1 : nombre) * (base || 0) * rate; }
+  else if (/Base\s*x\s*Taux/i.test(f)) { rate = (taux || 0) / 100; montant = (base || 0) * rate; }
+  else if (/Nombre\s*x\s*Base/i.test(f)) { montant = (nombre == null ? 1 : nombre) * (base || 0); }
+  else { montant = base != null ? base : 0; }                     // "Montant pris tel quel" / défaut
+  return { nombre: nombre, base: base, rate: taux != null ? taux / 100 : 1, taux: taux, montant: Math.round(montant), formula: rub.formula || null,
+    resolvable: (base != null || nombre != null || taux != null) };
+}
+router.get("/rubriques/:id/eval", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
+  const rub = mine(db.payRubriques, req).find(r => r.id === req.params.id) || mine(db.payRubriques, req).find(r => String(r.code) === String(req.params.id));
+  if (!rub) return res.status(404).json({ error: "Rubrique introuvable" });
+  res.json(Object.assign({ code: rub.code, label: rub.label }, resolveRubrique(rub, req)));
 });
 
 router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
