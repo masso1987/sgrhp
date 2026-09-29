@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-29 - MT-71 (sauvegarde/stockage/sync multi-tenant: admin=son tenant, super-admin=par tenant + plateforme; restauration d un tenant sans impact sur les autres (instantane de securite); config stockage/plannings/sync par tenant; super-admin: utilisateurs par entreprise, suspendre (bloque connexion) et deconnecter (invalide la session via tokenVersion))";
+const BUILD_VERSION = "2026-09-29 - PDF-72 (livre de paie & fiche individuelle annee: nom de l app dynamique (suit le nom defini par le super-admin) au lieu de MBOKA Mon RH fige; en-tete corrige (titre centre borne, societe/nom d app non chevauchants); noms d app dynamiques aussi sur bordereau et compta)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

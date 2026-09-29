@@ -1070,7 +1070,7 @@ router.get("/bordereaux/:id/pdf", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>
   if(sigBap) doc.fillColor(ink).text(`Bon à payer (${sigBap.role}) : ${sigBap.name} le ${sigBap.at.slice(0,16).replace("T"," ")} — empreinte SHA-256 : ${(sigBap.sha256||"").slice(0,24)}…`, M, y, {width:W-2*M});
   else doc.fillColor(grey).text("Bon à payer : en attente (CD / Audit)", M, y);
   y+=15;
-  doc.fillColor(grey).fontSize(7).text("Document généré par SGRHP — MBOKA Mon RH. Toute modification postérieure à la signature est tracée dans le journal d'audit.", M, y, {width:W-2*M});
+  doc.fillColor(grey).fontSize(7).text("Document généré par "+((db.platform&&db.platform.appName)||"MBOKA Mon RH")+". Toute modification postérieure à la signature est tracée dans le journal d'audit.", M, y, {width:W-2*M});
   bEvent(s, req, "BORDEREAU_PDF_GENERE", {}); save();
   doc.end();
 });
@@ -2567,6 +2567,7 @@ router.get("/runs/:id/livre/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (
   const _fmtD=(p)=>{const a=String(p||"").split("-");return a.length>=2?("01/"+a[1]+"/"+String(a[0]).slice(2)):p;};
   const _from=_fmtD(run.period), _to=(()=>{const a=String(run.period).split("-");const y=+a[0],m=+a[1];const dd=new Date(y,m,0).getDate();return String(dd).padStart(2,"0")+"/"+a[1]+"/"+String(y).slice(2);})();
   const x0=20, labelW=150, colW=78;
+  const _app=(db.platform&&db.platform.appName)||"MBOKA Mon RH";
   const totFn=(fn)=>D.cols.reduce((a,c)=>a+fn(c.slip),0);
   const PER = 7, groups = [];
   for (let i = 0; i < D.cols.length; i += PER) groups.push(D.cols.slice(i, i + PER));
@@ -2579,13 +2580,13 @@ router.get("/runs/:id/livre/pdf", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (
     doc.text("Date du jour : "+_d, x0+6, y+6,{lineBreak:false});
     doc.text("Heure : "+_t, x0+6, y+18,{lineBreak:false});
     doc.text("Edition en : Francs", x0+6, y+34,{lineBreak:false});
-    doc.font("Helvetica-Bold").fontSize(14).text("Livre de paie  /  P E R I O D E", x0, y+8,{width:bandW,align:"center"});
-    doc.font("Helvetica").fontSize(8).text("Période du "+_from+" au "+_to, x0, y+28,{width:bandW,align:"center"});
+    doc.font("Helvetica-Bold").fontSize(14).text("Livre de paie  /  P E R I O D E", x0+160, y+8,{width:bandW-320,align:"center",lineBreak:false});
+    doc.font("Helvetica").fontSize(8).text("Période du "+_from+" au "+_to, x0+160, y+28,{width:bandW-320,align:"center",lineBreak:false});
     doc.fontSize(7.5).text("Page : "+page+"/"+groups.length, x0, y+6,{width:bandW-6,align:"right"});
     y+=50;
     doc.rect(x0,y,bandW,14).stroke(); doc.font("Helvetica").fontSize(8);
-    doc.text("Société : "+(tenant.name||""), x0+6, y+3,{lineBreak:false});
-    doc.text("© MBOKA Mon RH   V 1.0", x0, y+3,{width:bandW-6,align:"right"});
+    doc.text("Société : "+(tenant.name||""), x0+6, y+3,{width:bandW-220,lineBreak:false,ellipsis:true});
+    doc.text("© "+_app+"   V 1.0", x0, y+3,{width:bandW-6,align:"right",lineBreak:false});
     y+=14;
     doc.rect(x0,y,bandW,13).stroke();
     doc.font("Helvetica").fontSize(7.5).text("Ventilation par Salarié", x0+6, y+3,{lineBreak:false});
@@ -3013,7 +3014,7 @@ function _moisLabel(p){ const a=String(p||"").split("-"); const m=Number(a[1])||
 function _ficheSagePDF(req, res, opts){
   const emp = opts.emp||{}, slips=(opts.slips||[]).slice().sort((a,b)=>String(a.period).localeCompare(String(b.period)));
   const tenant = (db.tenants||[]).find(t=>t.id===(req.user.tenantId||"t1"))||{name:"Société"};
-  const app = "MBOKA Mon RH";
+  const app = (db.platform&&db.platform.appName)||"MBOKA Mon RH";
   // union des rubriques
   const gainCodes=[], cotisCodes=[], gLbl={}, cLbl={}, gAdv={};
   for(const s of slips) for(const l of (s.result.lines||[])){
@@ -3055,13 +3056,13 @@ function _ficheSagePDF(req, res, opts){
     doc.text("Date du jour  :  "+dstr, mL+6, y+7,{lineBreak:false});
     doc.text("Heure           :  "+tstr, mL+6, y+20,{lineBreak:false});
     doc.text("Edition en    :  Francs", mL+6, y+42,{lineBreak:false});
-    doc.font("Helvetica-Bold").fontSize(16).text("Fiche  individuelle", mL, y+8,{width:cW,align:"center"});
-    doc.font("Helvetica").fontSize(8.5).text("Période  du "+from+"  au "+to, mL, y+30,{width:cW,align:"center"});
+    doc.font("Helvetica-Bold").fontSize(16).text("Fiche  individuelle", mL+150, y+8,{width:cW-300,align:"center",lineBreak:false});
+    doc.font("Helvetica").fontSize(8.5).text("Période  du "+from+"  au "+to, mL+150, y+30,{width:cW-300,align:"center",lineBreak:false});
     doc.fontSize(7.5).text("Page :   "+pageNum, mL, y+7,{width:cW-6,align:"right"});
     y+=58;
     doc.rect(mL,y,cW,15).stroke(); doc.font("Helvetica").fontSize(8);
-    doc.text("Société  :  "+esc0(tenant.name), mL+6, y+4,{lineBreak:false});
-    doc.text("© "+app+"     V 1.0", mL, y+4,{width:cW-6,align:"right"});
+    doc.text("Société  :  "+esc0(tenant.name), mL+6, y+4,{width:cW-200,lineBreak:false,ellipsis:true});
+    doc.text("© "+app+"     V 1.0", mL, y+4,{width:cW-6,align:"right",lineBreak:false});
     y+=15;
     doc.rect(mL,y,cW,15).stroke();
     doc.font("Helvetica").fontSize(8).text("Salarié :   "+salarie, mL+6, y+4,{lineBreak:false});

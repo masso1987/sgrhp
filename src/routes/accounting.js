@@ -1119,7 +1119,7 @@ function _acctReportPDF(req, res, opts) {
     y += 46;
     doc.rect(mL, y, cW, 15).stroke();
     doc.font("Helvetica").fontSize(7.5).fillColor("#000");
-    doc.text("© MBOKA Mon RH - Comptabilité", mL + 7, y + 4, { width: cW * 0.42, lineBreak: false });
+    doc.text("© "+((db.platform&&db.platform.appName)||"MBOKA Mon RH")+" - Comptabilité", mL + 7, y + 4, { width: cW * 0.42, lineBreak: false });
     doc.text("Date de tirage " + dstr + " à " + tstr, mL + cW * 0.42, y + 4, { width: cW * 0.31, align: "center", lineBreak: false });
     y += 15 + 6;
     return y;
