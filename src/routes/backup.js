@@ -17,7 +17,7 @@ const MASK = "••••••";
 const SECRET_FIELDS = ["password", "secretAccessKey", "accountKey", "connectionString", "privateKey"];
 const ADMIN = allow("ADM", "SADM");
 
-function ensure() { for (const k of ["storageBackends", "backupSchedules", "backups", "notifications"]) if (!db[k]) db[k] = []; }
+function ensure() { for (const k of ["storageBackends", "backupSchedules", "backups", "notifications", "fileSyncState", "syncSettings"]) if (!db[k]) db[k] = []; }
 function maskBackend(b) { const c = Object.assign({}, b.config || {}); for (const f of SECRET_FIELDS) if (c[f]) c[f] = MASK; return Object.assign({}, b, { config: c }); }
 function mergeSecrets(existing, incoming) {
   const out = Object.assign({}, incoming || {});
@@ -85,6 +85,7 @@ async function runDueSchedules() {
     if (!s.active) continue;
     if (isDue(s, now)) { s.lastRun = now.toISOString(); save(); await runBackup({ type: "auto", backendId: s.backendId, encrypt: s.encrypt !== false, includeFiles: s.includeFiles !== false, scheduleId: s.id, schedule: s }); }
   }
+  try { await runDueSync(); } catch (e) {}
 }
 function isDue(s, now) {
   const hour = Number(s.hour != null ? s.hour : 2);
@@ -97,6 +98,42 @@ function isDue(s, now) {
   if (s.cadence === "monthly") return now.getDate() === (Number(s.dayOfMonth) || 1);
   return false;
 }
+
+/* ------------------------------ File sync (mirror uploads to a backend) ------------------------------ */
+function syncCfg() { ensure(); if (!db.syncSettings.length) db.syncSettings.push({ id: "synccfg", mode: "off", backendId: null, intervalMin: 60, lastRun: null }); return db.syncSettings[0]; }
+function syncStateMap() { ensure(); const m = {}; for (const r of db.fileSyncState) m[r.path] = r; return m; }
+function syncStatus() {
+  ensure(); const files = backup.scanUploads(); const map = syncStateMap(); let synced = 0, pending = 0, failed = 0;
+  for (const f of files) { const st = map[f.path]; if (st && st.status === "synced" && st.size === f.size && st.mtime === f.mtime) synced++; else if (st && st.status === "failed") failed++; else pending++; }
+  const cfg = syncCfg();
+  return { total: files.length, synced, pending, failed, mode: cfg.mode, backendId: cfg.backendId, intervalMin: cfg.intervalMin, lastRun: cfg.lastRun, backendName: (backendById(cfg.backendId) || defaultBackend() || {}).name || "défaut" };
+}
+async function runSync(opts) {
+  ensure(); opts = opts || {};
+  const cfg = syncCfg();
+  const backend = (opts.backendId && backendById(opts.backendId)) || backendById(cfg.backendId) || defaultBackend();
+  if (!backend) { const e = new Error("Aucune destination de stockage configurée. Ajoutez-en une d'abord."); e.status = 400; throw e; }
+  const adapter = storage.adapterFor(backend);
+  const files = backup.scanUploads(); const map = syncStateMap();
+  let synced = 0, failed = 0, skipped = 0;
+  for (const f of files) {
+    const st = map[f.path];
+    if (st && st.status === "synced" && st.size === f.size && st.mtime === f.mtime && st.backendId === backend.id) { skipped++; continue; }
+    let rec = st; if (!rec) { rec = { id: id("fsx"), path: f.path }; db.fileSyncState.push(rec); }
+    try { await adapter.put("files/" + f.path, backup.readUpload(f.path)); Object.assign(rec, { size: f.size, mtime: f.mtime, status: "synced", backendId: backend.id, syncedAt: new Date().toISOString(), error: null }); synced++; }
+    catch (e) { Object.assign(rec, { size: f.size, mtime: f.mtime, status: "failed", backendId: backend.id, error: e.message }); failed++; }
+  }
+  cfg.lastRun = new Date().toISOString(); save();
+  audit(opts.user || { id: "system", role: "SADM" }, "FILESYNC", "FileSync", backend.id, { synced, failed, skipped, backend: backend.name });
+  if (failed) notifyAdmins(`Synchronisation des fichiers : ${synced} envoyé(s), ${failed} échec(s) vers ${backend.name}.`, "backuphome", false);
+  return { synced, failed, skipped, total: files.length, backendName: backend.name };
+}
+async function runDueSync() { const cfg = syncCfg(); if (cfg.mode !== "auto") return; const iv = Math.max(5, Number(cfg.intervalMin) || 60); const last = cfg.lastRun ? new Date(cfg.lastRun).getTime() : 0; if (Date.now() - last < iv * 60000) return; try { await runSync({}); } catch (e) {} }
+
+router.get("/sync/config", ADMIN, (req, res) => { res.json(syncCfg()); });
+router.put("/sync/config", ADMIN, (req, res) => { const c = syncCfg(); const b = req.body || {}; if (b.mode !== undefined) c.mode = b.mode; if (b.backendId !== undefined) c.backendId = b.backendId || null; if (b.intervalMin !== undefined) c.intervalMin = Math.max(5, Number(b.intervalMin) || 60); save(); audit(req.user, "UPDATED", "SyncConfig", c.id, { mode: c.mode }); res.json(c); });
+router.get("/sync/status", ADMIN, (req, res) => { res.json(syncStatus()); });
+router.post("/sync/run", ADMIN, async (req, res) => { try { const r = await runSync({ backendId: (req.body || {}).backendId, user: req.user }); res.json(r); } catch (e) { res.status(e.status || 500).json({ error: e.message, code: e.code || null }); } });
 
 /* ------------------------------ Storage backends ------------------------------ */
 router.get("/storage-backends", ADMIN, (req, res) => { ensure(); res.json(db.storageBackends.map(maskBackend)); });
@@ -204,3 +241,4 @@ router.post("/restore-upload", ADMIN, upload.single("file"), async (req, res) =>
 module.exports = router;
 module.exports.runBackup = runBackup;
 module.exports.runDueSchedules = runDueSchedules;
+module.exports.runSync = runSync;

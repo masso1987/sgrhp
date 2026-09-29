@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-29 - BACKUP-68 (sauvegarde/restauration BD+fichiers chiffree; stockage configurable Local/SFTP/S3/Azure, secrets chiffres au repos; plannings auto quotidien/hebdo/mensuel + retention GFS/keepN + notifications; instantane de securite avant restauration)";
+const BUILD_VERSION = "2026-09-29 - SYNC-69 (synchronisation des fichiers: miroir des fichiers televerses vers SFTP/S3/Azure/local, mode off/manuel/auto avec intervalle, statut synchronises/en attente/echecs, diff par taille+date, notifications d echec)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();

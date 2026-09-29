@@ -6497,12 +6497,12 @@ function payConstantesHTML(){
 
 let PAY_RUBS = [], PAY_CST = [];
 /* ============================ Sauvegarde & stockage (ADM/SADM) ============================ */
-let BK_BACKENDS=[], BK_SCHED=[], BK_LIST=[];
+let BK_BACKENDS=[], BK_SCHED=[], BK_LIST=[], BK_SYNC={};
 const _mo=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
 const _mb=(n)=>((n||0)/1048576).toFixed(2)+" Mo";
 const STG_TYPES={local:"Disque local (serveur)",sftp:"SFTP (votre serveur)",s3:"Amazon S3 (ou compatible)",azure:"Azure Blob Storage"};
 async function backuphomeView(){
-  [BK_BACKENDS,BK_SCHED,BK_LIST]=await Promise.all([api("/backup/storage-backends").catch(()=>[]),api("/backup/schedules").catch(()=>[]),api("/backup/backups").catch(()=>[])]);
+  [BK_BACKENDS,BK_SCHED,BK_LIST,BK_SYNC]=await Promise.all([api("/backup/storage-backends").catch(()=>[]),api("/backup/schedules").catch(()=>[]),api("/backup/backups").catch(()=>[]),api("/backup/sync/status").catch(()=>({}))]);
   const tab=window._bkTab||"sauv";
   view.innerHTML=`<h1>Sauvegarde &amp; stockage</h1>
   <div class="note">Sauvegardez la base et les fichiers (chiffrés), restaurez, et choisissez où stocker : disque local, votre serveur SFTP, Amazon S3 ou Azure. Les secrets sont chiffrés au repos.</div>
@@ -6510,10 +6510,11 @@ async function backuphomeView(){
     <div class="paytab" data-tab="sauv" onclick="bkShowTab('sauv')">Sauvegardes <span style="font-size:11px;opacity:.7">${BK_LIST.length}</span></div>
     <div class="paytab" data-tab="dest" onclick="bkShowTab('dest')">Destinations <span style="font-size:11px;opacity:.7">${BK_BACKENDS.length}</span></div>
     <div class="paytab" data-tab="plan" onclick="bkShowTab('plan')">Planification <span style="font-size:11px;opacity:.7">${BK_SCHED.length}</span></div>
+    <div class="paytab" data-tab="sync" onclick="bkShowTab('sync')">Synchronisation des fichiers</div>
   </div><div id="bkTab"></div>`;
   bkShowTab(tab);
 }
-function bkShowTab(n){ window._bkTab=n; document.querySelectorAll(".paytab").forEach(e=>e.classList.toggle("on",e.dataset.tab===n)); const c=document.getElementById("bkTab"); if(!c) return; c.classList.remove("mm-fade");void c.offsetWidth;c.classList.add("mm-fade"); c.innerHTML = n==="dest"?bkDestHTML():n==="plan"?bkPlanHTML():bkSauvHTML(); }
+function bkShowTab(n){ window._bkTab=n; document.querySelectorAll(".paytab").forEach(e=>e.classList.toggle("on",e.dataset.tab===n)); const c=document.getElementById("bkTab"); if(!c) return; c.classList.remove("mm-fade");void c.offsetWidth;c.classList.add("mm-fade"); c.innerHTML = n==="dest"?bkDestHTML():n==="plan"?bkPlanHTML():n==="sync"?bkSyncHTML():bkSauvHTML(); }
 function bkBackendOpts(sel){ return `<option value="">Destination active / défaut</option>`+BK_BACKENDS.map(b=>`<option value="${b.id}" ${sel===b.id?"selected":""}>${esc(b.name)} · ${esc(STG_TYPES[b.type]||b.type)}${b.active?" (active)":""}</option>`).join(""); }
 function bkSauvHTML(){
   const rows=BK_LIST.map(b=>{ const st=b.status==="ok"?'<span class="tag green">OK</span>':(b.status==="error"?`<span class="tag" style="background:#fee2e2;color:#b91c1c" title="${esc(b.error||"")}">Échec</span>`:'<span class="tag amber">…</span>');
@@ -6554,6 +6555,26 @@ function bkPlanHTML(){
     <div class="note" style="margin:8px 0">Le serveur déclenche chaque sauvegarde à l'heure choisie et applique la rétention. Notification (cloche) en cas de succès ou d'échec.</div>
     <table><tr><th>Nom</th><th>Cadence</th><th>Destination</th><th>Rétention</th><th>Dernière</th><th style="width:40px"></th></tr>${rows}</table></div>`;
 }
+function bkSyncHTML(){
+  const s=BK_SYNC||{}; const pct=s.total?Math.round((s.synced||0)/s.total*100):0;
+  const card=(lab,val,col)=>`<div style="flex:1;min-width:120px;background:var(--surface-1,#f6f8fb);border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:var(--muted)">${lab}</div><div style="font-size:20px;font-weight:600;${col?`color:${col}`:''}">${val}</div></div>`;
+  return `<div class="panel"><b style="font-size:12px;color:var(--muted)">SYNCHRONISATION DES FICHIERS</b>
+    <div class="note" style="margin:8px 0">Recopie les fichiers téléversés vers une destination (votre serveur SFTP, S3 ou Azure). Utile si un client ne veut pas héberger ses fichiers dans le cloud : tout reste miroité sur son propre serveur.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0">
+      ${card("Fichiers",s.total||0)}${card("Synchronisés",s.synced||0,"var(--green)")}${card("En attente",s.pending||0, (s.pending? "var(--amber)":""))}${card("Échecs",s.failed||0,(s.failed?"var(--red)":""))}
+    </div>
+    <div style="height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:6px 0"><div style="height:100%;width:${pct}%;background:var(--accent)"></div></div>
+    <div class="note-inline">${pct}% synchronisés vers <b>${esc(s.backendName||"défaut")}</b>${s.lastRun?` · dernière synchro ${esc(s.lastRun.replace("T"," ").slice(0,16))}`:""}</div>
+    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:12px">
+      <div><label>Mode</label><select id="syMode"><option value="off" ${s.mode==="off"?"selected":""}>Désactivé</option><option value="manual" ${s.mode==="manual"?"selected":""}>Manuel</option><option value="auto" ${s.mode==="auto"?"selected":""}>Automatique</option></select></div>
+      <div><label>Destination</label><select id="syBackend">${bkBackendOpts(s.backendId)}</select></div>
+      <div><label>Intervalle auto (min)</label><input id="syInterval" type="number" min="5" value="${s.intervalMin||60}" style="max-width:120px"></div>
+      <button class="btn ghost sm" onclick="bkSyncSave()">Enregistrer</button>
+      <button class="btn p sm" onclick="bkSyncNow()">${ICO('refresh')} Synchroniser maintenant</button>
+    </div></div>`;
+}
+async function bkSyncSave(){ try{ await api("/backup/sync/config",{method:"PUT",body:JSON.stringify({mode:document.getElementById("syMode").value,backendId:document.getElementById("syBackend").value||null,intervalMin:Number(document.getElementById("syInterval").value)||60})}); backuphomeView(); }catch(e){ alert(e.message); } }
+async function bkSyncNow(){ const bid=document.getElementById("syBackend").value; try{ const r=await api("/backup/sync/run",{method:"POST",body:JSON.stringify({backendId:bid||null})}); await mmConfirm({title:"Synchronisation terminée",message:`${r.synced} fichier(s) envoyé(s), ${r.skipped} déjà à jour, ${r.failed} échec(s) vers ${r.backendName}.`,confirmLabel:"OK",cancelLabel:"Fermer",danger:!!r.failed}); backuphomeView(); }catch(e){ alert("Échec : "+e.message); } }
 async function bkRun(){ const dest=document.getElementById("bkDest").value; const enc=document.getElementById("bkEnc").checked; const files=document.getElementById("bkFiles").checked;
   try{ const r=await api("/backup/run",{method:"POST",body:JSON.stringify({backendId:dest||null,encrypt:enc,includeFiles:files})}); await mmConfirm({title:"Sauvegarde terminée",message:`Sauvegarde créée (${_mb(r.size)}) vers ${r.backendName}.`,confirmLabel:"OK",cancelLabel:"Fermer"}); backuphomeView(); }
   catch(e){ alert("Échec : "+e.message); } }

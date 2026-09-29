@@ -64,4 +64,14 @@ function restoreArchive(db, buf, save) {
   return { safety: safety.buffer, restoredMeta: payload.meta };
 }
 
-module.exports = { createArchive, parseArchive, applyArchive, restoreArchive, collectUploads, UPLOADS };
+/** Lightweight metadata scan of the uploads dir (no file contents) for sync diffing. */
+function scanUploads() {
+  const out = [];
+  const walk = (dir, rel) => { let ents = []; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+    for (const e of ents) { if (e.name.startsWith(".")) continue; const p = path.join(dir, e.name), r = (rel ? rel + "/" : "") + e.name;
+      if (e.isDirectory()) walk(p, r); else { try { const st = fs.statSync(p); out.push({ path: r, size: st.size, mtime: Math.round(st.mtimeMs) }); } catch (x) {} } } };
+  walk(UPLOADS, ""); return out;
+}
+function readUpload(rel) { return fs.readFileSync(path.join(UPLOADS, rel)); }
+
+module.exports = { createArchive, parseArchive, applyArchive, restoreArchive, collectUploads, scanUploads, readUpload, UPLOADS };
