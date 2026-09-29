@@ -1107,7 +1107,7 @@ function armIdle(mins) {
 
 function togglePw(el){ const inp=el.parentNode.querySelector("input"); if(!inp) return; const show=inp.type==="password"; inp.type=show?"text":"password"; el.style.color=show?"var(--accent)":""; }
 /* ---- Reusable UI: icons, row action menu (⋮), styled confirm dialog ---- */
-function ICO(n){ const P={edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',trash:'<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',dots:'<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',plus:'<path d="M12 5v14M5 12h14"/>'}; return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${P[n]||''}</svg>`; }
+function ICO(n){ const P={edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',trash:'<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',dots:'<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',download:'<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>'}; return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${P[n]||''}</svg>`; }
 function rowActions(items){
   return `<details class="rowmenu"><summary class="rowmenu-btn" title="Actions">${ICO('dots')}</summary><div class="rowmenu-pop">`+
     items.filter(Boolean).map(it=> it==='-' ? '<hr>' :
@@ -1380,6 +1380,7 @@ const NAV = [
   { k: "workflows", label: "Circuits de validation", sec: "Configuration", roles: ["ADM"], grp: "admin" },
   { k: "users", label: "Utilisateurs", sec: "Sécurité & accès", roles: ["ADM"], grp: "admin" },
   { k: "logins", label: "Connexions & sécurité", sec: "Sécurité & accès", roles: ["ADM"], grp: "admin" },
+  { k: "backuphome", label: "Sauvegarde & stockage", sec: "Sécurité & accès", roles: ["ADM","SADM"], grp: "admin" },
 ];
 const NAV_GROUPS = [
   { g: "principal", label: "Gestion Admin." },
@@ -1556,7 +1557,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -6495,6 +6496,158 @@ function payConstantesHTML(){
 }
 
 let PAY_RUBS = [], PAY_CST = [];
+/* ============================ Sauvegarde & stockage (ADM/SADM) ============================ */
+let BK_BACKENDS=[], BK_SCHED=[], BK_LIST=[];
+const _mo=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
+const _mb=(n)=>((n||0)/1048576).toFixed(2)+" Mo";
+const STG_TYPES={local:"Disque local (serveur)",sftp:"SFTP (votre serveur)",s3:"Amazon S3 (ou compatible)",azure:"Azure Blob Storage"};
+async function backuphomeView(){
+  [BK_BACKENDS,BK_SCHED,BK_LIST]=await Promise.all([api("/backup/storage-backends").catch(()=>[]),api("/backup/schedules").catch(()=>[]),api("/backup/backups").catch(()=>[])]);
+  const tab=window._bkTab||"sauv";
+  view.innerHTML=`<h1>Sauvegarde &amp; stockage</h1>
+  <div class="note">Sauvegardez la base et les fichiers (chiffrés), restaurez, et choisissez où stocker : disque local, votre serveur SFTP, Amazon S3 ou Azure. Les secrets sont chiffrés au repos.</div>
+  <div style="display:flex;gap:2px;border-bottom:1px solid var(--line);margin:12px 0 14px;flex-wrap:wrap">
+    <div class="paytab" data-tab="sauv" onclick="bkShowTab('sauv')">Sauvegardes <span style="font-size:11px;opacity:.7">${BK_LIST.length}</span></div>
+    <div class="paytab" data-tab="dest" onclick="bkShowTab('dest')">Destinations <span style="font-size:11px;opacity:.7">${BK_BACKENDS.length}</span></div>
+    <div class="paytab" data-tab="plan" onclick="bkShowTab('plan')">Planification <span style="font-size:11px;opacity:.7">${BK_SCHED.length}</span></div>
+  </div><div id="bkTab"></div>`;
+  bkShowTab(tab);
+}
+function bkShowTab(n){ window._bkTab=n; document.querySelectorAll(".paytab").forEach(e=>e.classList.toggle("on",e.dataset.tab===n)); const c=document.getElementById("bkTab"); if(!c) return; c.classList.remove("mm-fade");void c.offsetWidth;c.classList.add("mm-fade"); c.innerHTML = n==="dest"?bkDestHTML():n==="plan"?bkPlanHTML():bkSauvHTML(); }
+function bkBackendOpts(sel){ return `<option value="">Destination active / défaut</option>`+BK_BACKENDS.map(b=>`<option value="${b.id}" ${sel===b.id?"selected":""}>${esc(b.name)} · ${esc(STG_TYPES[b.type]||b.type)}${b.active?" (active)":""}</option>`).join(""); }
+function bkSauvHTML(){
+  const rows=BK_LIST.map(b=>{ const st=b.status==="ok"?'<span class="tag green">OK</span>':(b.status==="error"?`<span class="tag" style="background:#fee2e2;color:#b91c1c" title="${esc(b.error||"")}">Échec</span>`:'<span class="tag amber">…</span>');
+    const typ=b.type==="auto"?'<span class="tag blue">auto</span>':(b.type==="pre-restore"?'<span class="tag gray">pré-restore</span>':'<span class="tag gray">manuel</span>');
+    const acts=[]; if(b.status==="ok"){ acts.push({icon:"download",label:"Télécharger",onclick:`bkDownload('${b.id}')`}); acts.push({icon:"refresh",label:"Restaurer cette sauvegarde",onclick:`bkRestore('${b.id}')`}); } acts.push("-"); acts.push({icon:"trash",label:"Supprimer",danger:true,onclick:`bkDelete('${b.id}')`});
+    return `<tr><td>${esc((b.createdAt||"").replace("T"," ").slice(0,16))}</td><td>${typ}</td><td>${esc(b.backendName||"")}</td><td>${b.encrypted?'<span class="tag gray">chiffré</span>':"—"}</td><td class="r">${b.size?_mb(b.size):"—"}</td><td>${st}</td><td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")||'<tr><td colspan="7" class="note-inline">Aucune sauvegarde. Lancez-en une ci-dessus.</td></tr>';
+  return `<div class="panel"><b style="font-size:12px;color:var(--muted)">SAUVEGARDER MAINTENANT</b>
+    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:8px">
+      <div><label>Destination</label><select id="bkDest" style="min-width:230px">${bkBackendOpts("")}</select></div>
+      <label class="chk" style="margin:0"><input type="checkbox" id="bkEnc" checked><span>Chiffrer</span></label>
+      <label class="chk" style="margin:0"><input type="checkbox" id="bkFiles" checked><span>Inclure les fichiers</span></label>
+      <button class="btn p sm" onclick="bkRun()">${ICO('download')} Sauvegarder maintenant</button>
+      <button class="btn ghost sm" onclick="bkRestoreUpload()">${ICO('refresh')} Importer &amp; restaurer (.sgbak)</button>
+    </div>
+    <div class="note" style="margin-top:8px">La restauration remplace les données actuelles. Un instantané de sécurité est créé automatiquement avant chaque restauration.</div></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">HISTORIQUE DES SAUVEGARDES (${BK_LIST.length})</b>
+    <table style="margin-top:8px"><tr><th>Date</th><th>Type</th><th>Destination</th><th>Chiffrement</th><th class="r">Taille</th><th>Statut</th><th style="width:40px"></th></tr>${rows}</table></div>`;
+}
+function bkDestHTML(){
+  const rows=BK_BACKENDS.map(b=>{ const acts=[{icon:"refresh",label:"Tester la connexion",onclick:`bkStgTest('${b.id}')`},{icon:"edit",label:"Modifier",onclick:`bkStgModal('${b.id}')`},"-",{icon:"trash",label:"Supprimer",danger:true,onclick:`bkStgDelete('${b.id}')`}];
+    return `<tr><td><b>${esc(b.name)}</b></td><td>${esc(STG_TYPES[b.type]||b.type)}</td><td>${b.active?'<span class="tag green">Active</span>':'<span class="note-inline">—</span>'}</td><td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")||'<tr><td colspan="4" class="note-inline">Aucune destination. Le disque local du serveur est utilisé par défaut.</td></tr>';
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <b style="font-size:12px;color:var(--muted)">DESTINATIONS DE STOCKAGE (${BK_BACKENDS.length})</b>
+    <button class="btn p sm" onclick="bkStgModal()">${ICO('plus')} Ajouter une destination</button></div>
+    <div class="note" style="margin:8px 0">Où stocker les fichiers et les sauvegardes. Choisissez « Active » pour la destination par défaut. Idéal : une copie hors-site (S3/Azure) + une locale (règle 3-2-1).</div>
+    <table><tr><th>Nom</th><th>Type</th><th>État</th><th style="width:40px"></th></tr>${rows}</table></div>`;
+}
+function bkPlanHTML(){
+  const CAD={daily:"Quotidien",weekly:"Hebdomadaire",monthly:"Mensuel"};
+  const rows=BK_SCHED.map(sc=>{ const acts=[{icon:"refresh",label:"Lancer maintenant",onclick:`bkRunSched('${sc.id}')`},{icon:"edit",label:"Modifier",onclick:`bkSchModal('${sc.id}')`},"-",{icon:"trash",label:"Supprimer",danger:true,onclick:`bkSchDelete('${sc.id}')`}];
+    const when=sc.cadence==="weekly"?`${["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"][sc.weekday]||"Lun"} ${String(sc.hour).padStart(2,"0")}h`:sc.cadence==="monthly"?`le ${sc.dayOfMonth} à ${String(sc.hour).padStart(2,"0")}h`:`${String(sc.hour).padStart(2,"0")}h`;
+    const ret=sc.retention&&sc.retention.mode==="keepN"?`garder ${sc.retention.keep}`:`GFS ${(sc.retention||{}).daily||7}/${(sc.retention||{}).weekly||4}/${(sc.retention||{}).monthly||12}`;
+    const dest=(BK_BACKENDS.find(x=>x.id===sc.backendId)||{}).name||"défaut";
+    return `<tr><td><b>${esc(sc.name)}</b> ${sc.active?'<span class="tag green">actif</span>':'<span class="tag gray">off</span>'}</td><td>${CAD[sc.cadence]||sc.cadence} · ${when}</td><td>${esc(dest)}</td><td>${ret}</td><td>${sc.lastRun?esc(sc.lastRun.replace("T"," ").slice(0,16)):"—"}</td><td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")||'<tr><td colspan="6" class="note-inline">Aucune planification. Ajoutez-en une pour automatiser les sauvegardes.</td></tr>';
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <b style="font-size:12px;color:var(--muted)">SAUVEGARDES AUTOMATIQUES (${BK_SCHED.length})</b>
+    <button class="btn p sm" onclick="bkSchModal()">${ICO('plus')} Nouvelle planification</button></div>
+    <div class="note" style="margin:8px 0">Le serveur déclenche chaque sauvegarde à l'heure choisie et applique la rétention. Notification (cloche) en cas de succès ou d'échec.</div>
+    <table><tr><th>Nom</th><th>Cadence</th><th>Destination</th><th>Rétention</th><th>Dernière</th><th style="width:40px"></th></tr>${rows}</table></div>`;
+}
+async function bkRun(){ const dest=document.getElementById("bkDest").value; const enc=document.getElementById("bkEnc").checked; const files=document.getElementById("bkFiles").checked;
+  try{ const r=await api("/backup/run",{method:"POST",body:JSON.stringify({backendId:dest||null,encrypt:enc,includeFiles:files})}); await mmConfirm({title:"Sauvegarde terminée",message:`Sauvegarde créée (${_mb(r.size)}) vers ${r.backendName}.`,confirmLabel:"OK",cancelLabel:"Fermer"}); backuphomeView(); }
+  catch(e){ alert("Échec : "+e.message); } }
+function bkDownload(bid){ fetch("/api/backup/backups/"+bid+"/download",{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>{ if(!r.ok) throw new Error("Téléchargement impossible"); return r.blob(); }).then(b=>{ const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download="sauvegarde.sgbak"; a.click(); URL.revokeObjectURL(u); }).catch(e=>alert(e.message)); }
+async function bkDelete(bid){ if(!await mmConfirm({title:"Supprimer la sauvegarde",message:"Supprimer définitivement cette sauvegarde ?",confirmLabel:"Supprimer",danger:true})) return; try{ await api("/backup/backups/"+bid,{method:"DELETE"}); backuphomeView(); }catch(e){ alert(e.message); } }
+async function bkRestore(bid){
+  const ok=await bkConfirmRestore("Restaurer cette sauvegarde ? Les données actuelles seront remplacées (un instantané de sécurité est créé avant).");
+  if(!ok) return;
+  try{ await api("/backup/restore/"+bid,{method:"POST",body:JSON.stringify({confirm:"RESTAURER"})}); await mmConfirm({title:"Restauration terminée",message:"Les données ont été restaurées. Rechargez l'application.",confirmLabel:"Recharger",cancelLabel:"Plus tard"})&&location.reload(); }
+  catch(e){ alert("Échec : "+e.message); } }
+function bkRestoreUpload(){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=".sgbak,application/octet-stream";
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; if(!await bkConfirmRestore(`Restaurer depuis « ${f.name} » ? Les données actuelles seront remplacées.`)) return;
+    const fd=new FormData(); fd.append("file",f); fd.append("confirm","RESTAURER");
+    try{ const r=await fetch("/api/backup/restore-upload",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok) throw new Error(j.error||"Échec"); await mmConfirm({title:"Restauration terminée",message:"Restauration effectuée. Rechargez l'application.",confirmLabel:"Recharger",cancelLabel:"Plus tard"})&&location.reload(); }catch(e){ alert("Échec : "+e.message); } };
+  inp.click();
+}
+function bkConfirmRestore(msg){ return new Promise(res=>{ const bg=document.createElement("div"); bg.className="modal-bg"; bg.innerHTML=`<div class="modal" style="max-width:440px"><b style="color:var(--red)">Restauration des données</b><div style="font-size:13px;color:var(--muted);margin:8px 0;line-height:1.5">${esc(msg)}</div><label>Tapez <b>RESTAURER</b> pour confirmer</label><input id="bkRcf" placeholder="RESTAURER"><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn ghost sm" data-x="0">Annuler</button><button class="btn sm" style="background:var(--red);color:#fff" data-x="1">Restaurer</button></div></div>`; const done=v=>{ bg.remove(); res(v&&document.getElementById("bkRcf")?false:v); }; bg.addEventListener("click",e=>{ if(e.target===bg) return done(false); const b=e.target.closest("[data-x]"); if(b){ if(b.dataset.x==="1"){ res((bg.querySelector("#bkRcf").value||"").trim()==="RESTAURER"); bg.remove(); } else done(false); } }); document.body.appendChild(bg); });
+}
+async function bkRunSched(sid){ try{ const sc=BK_SCHED.find(x=>x.id===sid); await api("/backup/run",{method:"POST",body:JSON.stringify({backendId:sc?sc.backendId:null,encrypt:sc?sc.encrypt!==false:true,includeFiles:sc?sc.includeFiles!==false:true})}); alert("Sauvegarde lancée."); backuphomeView(); }catch(e){ alert(e.message); } }
+/* --- Destinations (storage backends) --- */
+function bkStgModal(bid){
+  const b=BK_BACKENDS.find(x=>x.id===bid)||{type:"local",config:{}}; const isEdit=!!bid; const t=b.type; const c=b.config||{};
+  const fld=(id,label,val,type)=>`<div><label>${esc(label)}</label><input id="${id}" ${type==="password"?'type="password"':''} value="${esc(val||"")}" ${type==="password"&&isEdit&&val?'placeholder="•••••• (inchangé)"':''}></div>`;
+  const forms={
+    local:()=>fld("f_basePath","Chemin sur le serveur",c.basePath,""),
+    sftp:()=>fld("f_host","Hôte",c.host,"")+fld("f_port","Port (22)",c.port||22,"")+fld("f_user","Utilisateur",c.user,"")+fld("f_password","Mot de passe",c.password,"password")+`<div style="grid-column:1/3"><label>Clé privée (optionnel, à la place du mot de passe)</label><textarea id="f_privateKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----">${esc(c.privateKey&&c.privateKey!=="••••••"?"":"")}</textarea></div>`+fld("f_basePath","Dossier distant (/backups)",c.basePath,""),
+    s3:()=>fld("f_region","Région (us-east-1)",c.region,"")+fld("f_bucket","Bucket",c.bucket,"")+fld("f_accessKeyId","Access Key ID",c.accessKeyId,"")+fld("f_secretAccessKey","Secret Access Key",c.secretAccessKey,"password")+fld("f_endpoint","Endpoint (optionnel, MinIO/R2)",c.endpoint,"")+fld("f_prefix","Préfixe (optionnel)",c.prefix,""),
+    azure:()=>fld("f_accountName","Compte de stockage",c.accountName,"")+fld("f_accountKey","Clé du compte",c.accountKey,"password")+`<div style="grid-column:1/3"><label>Chaîne de connexion (optionnel, remplace compte+clé)</label><input id="f_connectionString" type="password" placeholder="${isEdit?'•••••• (inchangé)':'DefaultEndpointsProtocol=...'}"></div>`+fld("f_container","Container",c.container,"")+fld("f_prefix","Préfixe (optionnel)",c.prefix,""),
+  };
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${isEdit?"Modifier":"Ajouter"} une destination</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Nom</label><input id="f_name" value="${esc(b.name||"")}"></div>
+      <div><label>Type</label><select id="f_type" ${isEdit?"disabled":""} onchange="bkStgFormRender(this.value)">${Object.keys(STG_TYPES).map(k=>`<option value="${k}" ${t===k?"selected":""}>${esc(STG_TYPES[k])}</option>`).join("")}</select></div>
+    </div>
+    <div class="grid2" id="stgForm" style="margin-top:8px"></div>
+    <label class="chk" style="margin-top:8px"><input type="checkbox" id="f_active" ${b.active?"checked":""}><span>Destination active (par défaut)</span></label>
+    <div id="stgTestMsg" class="note-inline" style="margin-top:6px"></div>
+    <div class="err hidden" id="stgErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:12px">
+      <button class="btn ghost sm" onclick="bkStgTestForm()">${ICO('refresh')} Tester</button>
+      <div style="display:flex;gap:8px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="bkStgSave('${isEdit?bid:''}')">Enregistrer</button></div></div></div>`;
+  window._STG_FORMS=forms; bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); }); document.body.appendChild(bg);
+  bkStgFormRender(t);
+}
+function bkStgFormRender(t){ const el=document.getElementById("stgForm"); if(el&&window._STG_FORMS[t]) el.innerHTML=window._STG_FORMS[t](); }
+function bkStgCollect(){ const type=document.getElementById("f_type").value; const g=id=>{ const e=document.getElementById(id); return e?e.value:undefined; };
+  const map={local:["basePath"],sftp:["host","port","user","password","privateKey","basePath"],s3:["region","bucket","accessKeyId","secretAccessKey","endpoint","prefix"],azure:["accountName","accountKey","connectionString","container","prefix"]};
+  const config={}; (map[type]||[]).forEach(k=>{ const v=g("f_"+k); if(v!==undefined&&v!=="") config[k]=v; });
+  return { name:g("f_name")||STG_TYPES[type], type, active:document.getElementById("f_active").checked, config };
+}
+async function bkStgSave(bid){ const body=bkStgCollect(); try{ if(bid) await api("/backup/storage-backends/"+bid,{method:"PUT",body:JSON.stringify(body)}); else await api("/backup/storage-backends",{method:"POST",body:JSON.stringify(body)}); document.querySelector(".modal-bg").remove(); backuphomeView(); }catch(e){ const el=document.getElementById("stgErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+async function bkStgTest(bid){ const m=document.getElementById("bkTab"); try{ const r=await api("/backup/storage-backends/"+bid+"/test",{method:"POST"}); await mmConfirm({title:"Test réussi",message:r.detail||"Connexion OK",confirmLabel:"OK",cancelLabel:"Fermer"}); }catch(e){ await mmConfirm({title:"Échec du test",message:e.message,confirmLabel:"OK",cancelLabel:"Fermer",danger:true}); } }
+async function bkStgTestForm(){ const body=bkStgCollect(); const el=document.getElementById("stgTestMsg"); el.textContent="Test en cours…"; try{ const r=await api("/backup/storage-backends/test",{method:"POST",body:JSON.stringify(body)}); el.style.color="var(--green)"; el.textContent="✓ "+(r.detail||"Connexion OK"); }catch(e){ el.style.color="var(--red)"; el.textContent="✗ "+e.message; } }
+async function bkStgDelete(bid){ if(!await mmConfirm({title:"Supprimer la destination",message:"Supprimer cette destination de stockage ? Les sauvegardes qui y sont stockées ne seront plus téléchargeables via l'app.",confirmLabel:"Supprimer",danger:true})) return; try{ await api("/backup/storage-backends/"+bid,{method:"DELETE"}); backuphomeView(); }catch(e){ alert(e.message); } }
+/* --- Schedules --- */
+function bkSchModal(sid){
+  const sc=BK_SCHED.find(x=>x.id===sid)||{cadence:"daily",hour:2,weekday:1,dayOfMonth:1,encrypt:true,includeFiles:true,active:true,retention:{mode:"gfs",daily:7,weekly:4,monthly:12}}; const isEdit=!!sid; const r=sc.retention||{mode:"gfs"};
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${isEdit?"Modifier":"Nouvelle"} planification</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Nom</label><input id="sc_name" value="${esc(sc.name||"Sauvegarde automatique")}"></div>
+      <div><label>Destination</label><select id="sc_backend">${bkBackendOpts(sc.backendId)}</select></div>
+      <div><label>Cadence</label><select id="sc_cadence" onchange="bkSchWhen(this.value)"><option value="daily" ${sc.cadence==="daily"?"selected":""}>Quotidienne</option><option value="weekly" ${sc.cadence==="weekly"?"selected":""}>Hebdomadaire</option><option value="monthly" ${sc.cadence==="monthly"?"selected":""}>Mensuelle</option></select></div>
+      <div><label>Heure (0–23)</label><input id="sc_hour" type="number" min="0" max="23" value="${sc.hour!=null?sc.hour:2}"></div>
+      <div id="sc_whenBox"></div>
+    </div>
+    <div style="margin-top:10px"><label>Rétention (règle 3-2-1 / GFS)</label>
+      <div class="grid3" style="margin-top:4px">
+        <div><label style="font-size:11px">Quotidiennes gardées</label><input id="sc_rd" type="number" min="1" value="${r.daily!=null?r.daily:7}"></div>
+        <div><label style="font-size:11px">Hebdo gardées</label><input id="sc_rw" type="number" min="0" value="${r.weekly!=null?r.weekly:4}"></div>
+        <div><label style="font-size:11px">Mensuelles gardées</label><input id="sc_rm" type="number" min="0" value="${r.monthly!=null?r.monthly:12}"></div>
+      </div></div>
+    <div style="display:flex;gap:14px;margin-top:10px">
+      <label class="chk" style="margin:0"><input type="checkbox" id="sc_enc" ${sc.encrypt!==false?"checked":""}><span>Chiffrer</span></label>
+      <label class="chk" style="margin:0"><input type="checkbox" id="sc_files" ${sc.includeFiles!==false?"checked":""}><span>Inclure fichiers</span></label>
+      <label class="chk" style="margin:0"><input type="checkbox" id="sc_active" ${sc.active!==false?"checked":""}><span>Actif</span></label>
+    </div>
+    <div class="err hidden" id="scErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="bkSchSave('${isEdit?sid:''}')">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); }); document.body.appendChild(bg); bkSchWhen(sc.cadence, sc);
+}
+function bkSchWhen(cad, sc){ sc=sc||{}; const el=document.getElementById("sc_whenBox"); if(!el) return;
+  if(cad==="weekly") el.innerHTML=`<label>Jour</label><select id="sc_weekday">${["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"].map((d,i)=>`<option value="${i}" ${sc.weekday==i?"selected":""}>${d}</option>`).join("")}</select>`;
+  else if(cad==="monthly") el.innerHTML=`<label>Jour du mois (1–28)</label><input id="sc_dom" type="number" min="1" max="28" value="${sc.dayOfMonth||1}">`;
+  else el.innerHTML="";
+}
+async function bkSchSave(sid){ const g=id=>{ const e=document.getElementById(id); return e?e.value:undefined; };
+  const body={ name:g("sc_name"), backendId:g("sc_backend")||null, cadence:g("sc_cadence"), hour:Number(g("sc_hour")||2), weekday:Number(g("sc_weekday")||1), dayOfMonth:Number(g("sc_dom")||1), encrypt:document.getElementById("sc_enc").checked, includeFiles:document.getElementById("sc_files").checked, active:document.getElementById("sc_active").checked, retention:{mode:"gfs",daily:Number(g("sc_rd")||7),weekly:Number(g("sc_rw")||4),monthly:Number(g("sc_rm")||12)} };
+  try{ if(sid) await api("/backup/schedules/"+sid,{method:"PUT",body:JSON.stringify(body)}); else await api("/backup/schedules",{method:"POST",body:JSON.stringify(body)}); document.querySelector(".modal-bg").remove(); backuphomeView(); }catch(e){ const el=document.getElementById("scErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
+async function bkSchDelete(sid){ if(!await mmConfirm({title:"Supprimer la planification",message:"Supprimer cette sauvegarde automatique ?",confirmLabel:"Supprimer",danger:true})) return; try{ await api("/backup/schedules/"+sid,{method:"DELETE"}); backuphomeView(); }catch(e){ alert(e.message); } }
+
 function cstValueOf(code){ const c=(PAY_CST||[]).find(x=>String(x.code).toUpperCase()===String(code||"").toUpperCase()); return c?c:null; }
 function cstUsage(code){ code=String(code||"").toUpperCase(); return (PAY_RUBS||[]).filter(r=>[r.base,r.nombre,r.taux].some(v=>v!=null&&String(v).toUpperCase()===code)); }
 function cstRender(q){

@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-29 - UX-67 (Parametres paie reorganise en onglets Baremes/Rubriques/Constantes/Modeles; constantes liees aux rubriques (badge Utilisee + vue des rubriques); CRUD complet constantes (modifier/dupliquer/supprimer); menu d action ⋮ moderne + boite de confirmation stylisee sur rubriques, constantes et modeles)";
+const BUILD_VERSION = "2026-09-29 - BACKUP-68 (sauvegarde/restauration BD+fichiers chiffree; stockage configurable Local/SFTP/S3/Azure, secrets chiffres au repos; plannings auto quotidien/hebdo/mensuel + retention GFS/keepN + notifications; instantane de securite avant restauration)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
@@ -228,12 +228,14 @@ app.use("/api/accounting", requireModule("accounting"), require("./routes/accoun
 app.use("/api/stock", requireModule("stock"), require("./routes/stock"));
 app.use("/api/smq", requireModule("quality"), require("./routes/smq"));
 app.use("/api/messages", require("./routes/messages"));
+app.use("/api/backup", require("./routes/backup"));
 
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
 // Rappels d'échéance (documents/CNI/contrats) : une fois par jour + peu après le démarrage.
 setInterval(() => { try { require("./expiry").scanAndRemind(); } catch (e) { console.error(e); } try { require("./expiry").advanceEchelons(); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000);
 setTimeout(() => { try { require("./expiry").scanAndRemind(); } catch (e) {} try { require("./expiry").advanceEchelons(); } catch (e) {} }, 30000);
+setInterval(() => { try { require("./routes/backup").runDueSchedules(); } catch (e) { console.error("[backup]", e.message); } }, 5 * 60 * 1000);
 
 // 404 - JSON for the API, custom page for everything else.
 app.use((req, res, next) => {
