@@ -5809,7 +5809,7 @@ async function armSave(id){
   catch(e){ const el=document.getElementById("armErr"); if(el){el.textContent=e.message; el.classList.remove("hidden");} else alert(e.message); }
 }
 async function armDup(id){ try{ await api("/accounting/rubrique-map/"+id+"/duplicate",{method:"POST"}); acctRubMapView(); }catch(e){ alert(e.message);} }
-async function armDel(id){ if(!confirm("Supprimer cette correspondance ?")) return; try{ await api("/accounting/rubrique-map/"+id,{method:"DELETE"}); acctRubMapView(); }catch(e){ alert(e.message);} }
+async function armDel(id){ if(!await mmConfirm({message:"Supprimer cette correspondance ?",danger:true})) return; try{ await api("/accounting/rubrique-map/"+id,{method:"DELETE"}); acctRubMapView(); }catch(e){ alert(e.message);} }
 async function payEmailPortfolio(runId) {
   const pf = (document.getElementById("emailPf") || {}).value || "";
   const label = pf ? pfName(pf) : "tous les portefeuilles";
@@ -7194,7 +7194,7 @@ async function billPutLines() {
 }
 async function billingSaveLines() { try { await billPutLines(); } catch (e) { alert(e.message); } }
 function billingAddLine() { (BILL_SHEET.lines = BILL_SHEET.lines || []).push({ jours: 30 }); billLineForm(BILL_SHEET.lines.length - 1); }
-async function billingDelLine(i) { if (!confirm("Supprimer cette ligne ?")) return; BILL_SHEET.lines.splice(i, 1); try { await billPutLines(); } catch (e) { alert(e.message); } }
+async function billingDelLine(i) { if (!await mmConfirm({message:"Supprimer cette ligne ?",danger:true})) return; BILL_SHEET.lines.splice(i, 1); try { await billPutLines(); } catch (e) { alert(e.message); } }
 function rerenderBillLines() { const el = document.getElementById("billLines"); if (el) el.innerHTML = billLinesList(BILL_SHEET, true); }
 
 /* ===== SAISIE DES LIGNES : liste + formulaire par ligne (style Odoo) ===== */
@@ -7367,7 +7367,7 @@ async function billLFDefSave(id) {
     document.querySelector(".modal-bg").remove(); billingCfgView(); }
   catch (e) { const el = document.getElementById("lfdErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
-async function billLFDefDel(id) { if (!confirm("Supprimer ce champ du catalogue ?")) return; try { await api("/billing/line-fields/" + id, { method: "DELETE" }); billingCfgView(); } catch (e) { alert(e.message); } }
+async function billLFDefDel(id) { if (!await mmConfirm({message:"Supprimer ce champ du catalogue ?",danger:true})) return; try { await api("/billing/line-fields/" + id, { method: "DELETE" }); billingCfgView(); } catch (e) { alert(e.message); } }
 async function billingContractModal(cid) {
   const comps = await api("/billing/components");
   const c = cid ? await api("/billing/contracts/" + cid) : { rates: {}, clientBlock: {}, bankBlock: {}, components: [], billingType: "MAD", prorate: "base", anciennete: true };
@@ -7737,7 +7737,7 @@ async function billingTplSave(id) {
   catch (e) { const el = document.getElementById("tpErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
 async function billingTplDup(id) { try { await api("/billing/annexe-templates/" + id + "/duplicate", { method: "POST" }); billingTemplatesView(); } catch (e) { alert(e.message); } }
-async function billingTplDel(id) { if (!confirm("Supprimer ce modèle ?")) return; try { await api("/billing/annexe-templates/" + id, { method: "DELETE" }); billingTemplatesView(); } catch (e) { alert(e.message); } }
+async function billingTplDel(id) { if (!await mmConfirm({message:"Supprimer ce modèle ?",danger:true})) return; try { await api("/billing/annexe-templates/" + id, { method: "DELETE" }); billingTemplatesView(); } catch (e) { alert(e.message); } }
 
 /* ---- Contrôle « Annexe (modèle) » sur la fiche ---- */
 async function billTplLoad(sheetId) {
@@ -8137,7 +8137,7 @@ async function imSave(id) {
     else await api("/billing/invoice-models", { method: "POST", body: JSON.stringify(IM_EDIT) });
     document.querySelector(".modal-bg").remove(); invoiceModelsView(); } catch (e) { const el = document.getElementById("imErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
-async function imDel(id) { if (!confirm("Supprimer ce modèle ?")) return; try { await api("/billing/invoice-models/" + id, { method: "DELETE" }); invoiceModelsView(); } catch (e) { alert(e.message); } }
+async function imDel(id) { if (!await mmConfirm({message:"Supprimer ce modèle ?",danger:true})) return; try { await api("/billing/invoice-models/" + id, { method: "DELETE" }); invoiceModelsView(); } catch (e) { alert(e.message); } }
 async function imDup(id) { try { await api("/billing/invoice-models/" + id + "/duplicate", { method: "POST" }); invoiceModelsView(); } catch (e) { alert(e.message); } }
 
 
@@ -9024,7 +9024,7 @@ async function acctBankDoMatch(){
 }
 async function acctBankUnmatch(bankLineId){ try{ await api("/accounting/bank/unmatch",{method:"POST",body:JSON.stringify({bankLineId})}); acctBankView(); }catch(e){ alert(e.message); } }
 async function acctBankAuto(){ try{ const r=await api("/accounting/bank/auto",{method:"POST",body:JSON.stringify({account:window._BANK.acc,tolDays:5})}); alert(r.matched+" mouvement(s) pointé(s) automatiquement."); acctBankView(); }catch(e){ alert(e.message); } }
-async function acctBankClear(){ if(!confirm("Supprimer toutes les lignes de relevé importées pour ce compte ?")) return; try{ await api("/accounting/bank/clear?account="+encodeURIComponent(window._BANK.acc),{method:"POST"}); acctBankView(); }catch(e){ alert(e.message); } }
+async function acctBankClear(){ if(!await mmConfirm({message:"Supprimer toutes les lignes de relevé importées pour ce compte ?",danger:true})) return; try{ await api("/accounting/bank/clear?account="+encodeURIComponent(window._BANK.acc),{method:"POST"}); acctBankView(); }catch(e){ alert(e.message); } }
 
 function acctBankImportModal(){
   const bg=document.createElement("div"); bg.className="modal-bg";
@@ -9506,7 +9506,7 @@ async function stockNotifSave(key){
     alert("Modèle enregistré."); stockNotifView(); }
   catch(e){ const el=document.getElementById("nfErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
-async function stockNotifReset(key){ if(!confirm("Rétablir le modèle par défaut ?"))return;
+async function stockNotifReset(key){ if(!await mmConfirm({message:"Rétablir le modèle par défaut ?",danger:false}))return;
   try{ await api("/stock/notif-templates/"+encodeURIComponent(key),{method:"DELETE"}); stockNotifView(); }catch(e){ alert(e.message); } }
 function stockNotifPreview(){
   const subj=(document.getElementById("nfSubject")||{}).value||"", body=(document.getElementById("nfBody")||{}).value||"";
@@ -9707,7 +9707,7 @@ async function gaView(){
           ${["ADM","CD"].includes(ME.role)?`<button class="btn ghost sm" style="color:var(--red)" onclick="gaDel('${m.id}')">Suppr.</button>`:''}</td></tr>`).join(""):'<tr><td colspan="5" class="note">Aucun modèle.</td></tr>'}
     </table></div>`;
 }
-async function gaDel(id){ if(!confirm("Supprimer ce modèle de liste ?"))return; try{ await api("/ga/"+id,{method:"DELETE"}); gaView(); }catch(e){ alert(e.message); } }
+async function gaDel(id){ if(!await mmConfirm({message:"Supprimer ce modèle de liste ?",danger:true}))return; try{ await api("/ga/"+id,{method:"DELETE"}); gaView(); }catch(e){ alert(e.message); } }
 let _GA_SRC=null;
 async function gaEditView(){
   const id=window._GAID||"";
@@ -9848,7 +9848,7 @@ async function veilleSave(id,btn){
   try{ await api("/smq/veille"+(id?("/"+id):""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqVeilleView(); }
   catch(e){ const el=g("vgErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function veilleDel(id){ if(!confirm("Supprimer cette entrée ?"))return; try{ await api("/smq/veille/"+id,{method:"DELETE"}); smqVeilleView(); }catch(e){ alert(e.message); } }
+async function veilleDel(id){ if(!await mmConfirm({message:"Supprimer cette entrée ?",danger:true}))return; try{ await api("/smq/veille/"+id,{method:"DELETE"}); smqVeilleView(); }catch(e){ alert(e.message); } }
 async function veilleImport(input){ const f=input.files&&input.files[0]; if(!f)return; input.value="";
   const pf=window._VGLPF||""; 
   try{ const r=await smqUploadXlsx("/api/smq/veille/import",f,pf?{portfolioId:pf}:{}); alert(r.added+" entrée(s) importée(s)."); smqVeilleView(); }
@@ -9948,7 +9948,7 @@ async function smqHomeCharts(){
   if(risk){ const b=risk.band||{}; mk("smqRiskCh",{type:"doughnut",data:{labels:["Faible","Moyen","Élevé","Critique"],datasets:[{data:[b.faible||0,b.moyen||0,b.eleve||0,b.critique||0],backgroundColor:["#16a34a","#eab308","#f97316","#dc2626"]}]},options:opt({plugins:{legend:{display:true,position:"right",labels:{boxWidth:10,font:{size:10}}}}})}); }
   if(kpi&&kpi.length){ const f={vert:0,orange:0,rouge:0,gris:0}; kpi.forEach(i=>f[i.feu]=(f[i.feu]||0)+1); mk("smqFeuCh",{type:"doughnut",data:{labels:["Vert","Orange","Rouge","N/A"],datasets:[{data:[f.vert,f.orange,f.rouge,f.gris],backgroundColor:["#16a34a","#f97316","#dc2626","#9ca3af"]}]},options:opt({plugins:{legend:{display:true,position:"right",labels:{boxWidth:10,font:{size:10}}}}})}); }
 }
-async function smqSeedCRHE(){ if(!confirm("Charger la cartographie CIBLE RH (8 processus + 5 axes) ?"))return;
+async function smqSeedCRHE(){ if(!await mmConfirm({message:"Charger la cartographie CIBLE RH (8 processus + 5 axes) ?",danger:false}))return;
   try{ const r=await api("/smq/seed-crhe",{method:"POST"}); window._SMQ._at=0; alert("Modèle chargé : "+r.processes+" processus, "+r.axes+" axes."); smqHome(); }catch(e){ alert(e.message); } }
 
 /* ---------- Cartographie & fiches processus ---------- */
@@ -10007,7 +10007,7 @@ async function smqProcSave(pid,btn){
   try{ await api("/smq/processes"+(pid?"/"+pid:""),{method:pid?"PUT":"POST",body:JSON.stringify(body)}); window._SMQ._at=0; btn.closest(".modal-bg").remove(); smqProcessesView(); }
   catch(e){ const el=document.getElementById("pErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
-async function smqProcDelete(pid){ if(!confirm("Supprimer ce processus ?"))return; try{ await api("/smq/processes/"+pid,{method:"DELETE"}); window._SMQ._at=0; smqProcessesView(); }catch(e){ alert(e.message); } }
+async function smqProcDelete(pid){ if(!await mmConfirm({message:"Supprimer ce processus ?",danger:true}))return; try{ await api("/smq/processes/"+pid,{method:"DELETE"}); window._SMQ._at=0; smqProcessesView(); }catch(e){ alert(e.message); } }
 
 async function smqLivret(pid){
   const d=await api("/smq/processes/"+pid+"/livret").catch(e=>{alert(e.message);return null;}); if(!d)return;
@@ -10121,7 +10121,7 @@ async function smqRevEdit(rid,docId){
   const cont=prompt("Contenu / notes de cette version :"); if(cont===null)return;
   try{ await api("/smq/revisions/"+rid,{method:"PUT",body:JSON.stringify({contenu:cont})}); smqDocOpen(docId); }catch(e){ alert(e.message); }
 }
-async function smqDocDelete(docId){ if(!confirm("Supprimer définitivement ce document et toutes ses versions ?"))return;
+async function smqDocDelete(docId){ if(!await mmConfirm({message:"Supprimer définitivement ce document et toutes ses versions ?",danger:true}))return;
   try{ await api("/smq/documents/"+docId,{method:"DELETE"}); go('smqdocs'); }catch(e){ alert(e.message); } }
 async function smqDocDownload(revId){
   try{ const r=await fetch("/api/smq/revisions/"+revId+"/file",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok) throw new Error("Fichier indisponible");
@@ -10161,7 +10161,7 @@ async function smqDocTypeSave(id,btn){
   if(!body.code||!body.libelle){const e=document.getElementById("tErr");e.textContent="Code et libellé obligatoires";e.classList.remove("hidden");return;}
   try{ await api("/smq/doctypes"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); window._SMQ._at=0; btn.closest(".modal-bg").remove(); smqDocTypesView(); }catch(e){ const el=document.getElementById("tErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
-async function smqDocTypeDel(id){ if(!confirm("Supprimer ce type ?"))return; try{ await api("/smq/doctypes/"+id,{method:"DELETE"}); smqDocTypesView(); }catch(e){ alert(e.message); } }
+async function smqDocTypeDel(id){ if(!await mmConfirm({message:"Supprimer ce type ?",danger:true}))return; try{ await api("/smq/doctypes/"+id,{method:"DELETE"}); smqDocTypesView(); }catch(e){ alert(e.message); } }
 
 /* ---------- Politique & axes stratégiques ---------- */
 async function smqAxesView(){
@@ -10189,7 +10189,7 @@ async function smqAxeSave(id,btn){ const g=(x)=>(document.getElementById(x)||{})
   const body={code:g("aCode"),libelle:g("aLib"),ordre:Number(g("aOrd"))};
   if(!body.libelle){const e=document.getElementById("aErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/axes"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); window._SMQ._at=0; btn.closest(".modal-bg").remove(); smqAxesView(); }catch(e){ const el=document.getElementById("aErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqAxeDel(id){ if(!confirm("Supprimer cet axe ?"))return; try{ await api("/smq/axes/"+id,{method:"DELETE"}); window._SMQ._at=0; smqAxesView(); }catch(e){ alert(e.message); } }
+async function smqAxeDel(id){ if(!await mmConfirm({message:"Supprimer cet axe ?",danger:true}))return; try{ await api("/smq/axes/"+id,{method:"DELETE"}); window._SMQ._at=0; smqAxesView(); }catch(e){ alert(e.message); } }
 async function smqPolicyForm(){
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Nouvelle version de la politique qualité</b>
@@ -10228,7 +10228,7 @@ async function smqStkSave(id,btn){ const g=(x)=>(document.getElementById(x)||{})
   const body={partie:g("sPar"),besoins:g("sBes"),attentes:g("sAtt"),frequenceRevue:g("sFreq")};
   if(!body.partie){const e=document.getElementById("sErr");e.textContent="Partie obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/stakeholders"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqStakeholdersView(); }catch(e){ const el=document.getElementById("sErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqStkDel(id){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/stakeholders/"+id,{method:"DELETE"}); smqStakeholdersView(); }catch(e){ alert(e.message); } }
+async function smqStkDel(id){ if(!await mmConfirm({message:"Supprimer ?",danger:true}))return; try{ await api("/smq/stakeholders/"+id,{method:"DELETE"}); smqStakeholdersView(); }catch(e){ alert(e.message); } }
 
 /* ---------- Domaine d'application & exclusions ---------- */
 async function smqScopeView(){
@@ -10287,7 +10287,7 @@ async function smqIndSave(id,btn){ const g=(x)=>(document.getElementById(x)||{})
   const body={processId:g("iProc")||null,libelle:g("iLib"),modeCalcul:g("iMode"),cible:g("iCib"),unite:g("iUni"),frequence:g("iFreq"),source:g("iSrc")};
   if(!body.libelle){const e=document.getElementById("iErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/indicators"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqIndicatorsView(); }catch(e){ const el=document.getElementById("iErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqIndDel(id){ if(!confirm("Supprimer cet indicateur ?"))return; try{ await api("/smq/indicators/"+id,{method:"DELETE"}); smqIndicatorsView(); }catch(e){ alert(e.message); } }
+async function smqIndDel(id){ if(!await mmConfirm({message:"Supprimer cet indicateur ?",danger:true}))return; try{ await api("/smq/indicators/"+id,{method:"DELETE"}); smqIndicatorsView(); }catch(e){ alert(e.message); } }
 async function smqMeasureForm(id){
   const per=prompt("Période (AAAA-MM ou AAAA-Tn) :",new Date().toISOString().slice(0,7)); if(per===null)return;
   const val=prompt("Valeur mesurée :"); if(val===null)return;
@@ -10407,7 +10407,7 @@ async function smqImpSave(idv){
   try{ await api("/smq/improvements"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); go('smqimprovements'); }
   catch(e){ const el=document.getElementById("fErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
-async function smqImpDel(idv){ if(!confirm("Supprimer cette fiche ?"))return; try{ await api("/smq/improvements/"+idv,{method:"DELETE"}); smqImprovementsView(); }catch(e){ alert(e.message); } }
+async function smqImpDel(idv){ if(!await mmConfirm({message:"Supprimer cette fiche ?",danger:true}))return; try{ await api("/smq/improvements/"+idv,{method:"DELETE"}); smqImprovementsView(); }catch(e){ alert(e.message); } }
 
 async function smqImpDetail(idv){
   await smqLoadRefs();
@@ -10436,7 +10436,7 @@ async function smqImpDetail(idv){
       ${(r.suivantes&&r.suivantes.length)?`<div class="note" style="margin-top:10px">Fiche(s) liée(s) : ${r.suivantes.map(x=>esc(x.ref)).join(", ")}</div>`:''}
     </div>`;
 }
-async function smqImpSpawn(idv){ if(!confirm("Ouvrir une nouvelle fiche liée (efficacité non conforme) ?"))return;
+async function smqImpSpawn(idv){ if(!await mmConfirm({message:"Ouvrir une nouvelle fiche liée (efficacité non conforme) ?",danger:false}))return;
   try{ const r=await api("/smq/improvements/"+idv+"/spawn",{method:"POST"}); smqImpForm(r.id); }catch(e){ alert(e.message); } }
 function smqImpPrint(idv){ const el=document.getElementById("impDoc"); if(!el)return;
   const w=window.open("","_blank"); w.document.write(`<html><head><title>Fiche d'amélioration</title><style>body{font-family:Arial;margin:22mm 14mm;font-size:12px;color:#111}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px;text-align:left}h1{font-size:18px}.note{color:#666;font-size:11px}.tag{padding:1px 6px;border-radius:8px;font-size:11px}</style></head><body>${el.innerHTML.replace(/<button[\s\S]*?<\/button>/g,"")}</body></html>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
@@ -10519,7 +10519,7 @@ async function smqAuditSave(idv,btn){
   try{ await api("/smq/audits"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqAuditsView(); }
   catch(e){ const el=document.getElementById("auErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
-async function smqAuditDel(idv){ if(!confirm("Supprimer cet audit et ses constats ?"))return; try{ await api("/smq/audits/"+idv,{method:"DELETE"}); smqAuditsView(); }catch(e){ alert(e.message); } }
+async function smqAuditDel(idv){ if(!await mmConfirm({message:"Supprimer cet audit et ses constats ?",danger:true}))return; try{ await api("/smq/audits/"+idv,{method:"DELETE"}); smqAuditsView(); }catch(e){ alert(e.message); } }
 
 async function smqAuditOpen(idv){
   await smqLoadRefs();
@@ -10553,8 +10553,8 @@ function smqAudItemRow(it){
       <button class="btn ghost sm" style="padding:2px 6px;font-size:12px;color:var(--red)" onclick="smqAudItemDel('${it.id}')">Suppr.</button></td></tr>`;
 }
 async function smqAudItemSave(id,field,value){ try{ await api("/smq/items/"+id,{method:"PUT",body:JSON.stringify({[field]:value})}); }catch(e){ alert(e.message); } }
-async function smqAudItemDel(id){ if(!confirm("Supprimer cette ligne ?"))return; try{ await api("/smq/items/"+id,{method:"DELETE"}); const tr=document.querySelector('tr[data-it="'+id+'"]'); if(tr)tr.remove(); }catch(e){ alert(e.message); } }
-async function smqAudItemToFiche(id){ if(!confirm("Créer une fiche d'amélioration pour ce constat ?"))return;
+async function smqAudItemDel(id){ if(!await mmConfirm({message:"Supprimer cette ligne ?",danger:true}))return; try{ await api("/smq/items/"+id,{method:"DELETE"}); const tr=document.querySelector('tr[data-it="'+id+'"]'); if(tr)tr.remove(); }catch(e){ alert(e.message); } }
+async function smqAudItemToFiche(id){ if(!await mmConfirm({message:"Créer une fiche d'amélioration pour ce constat ?",danger:false}))return;
   try{ const r=await api("/smq/items/"+id+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
 async function smqAuditGen(idv){
   const scope=prompt("Générer la check-list depuis les clauses.\nPréfixes de clauses (ex. 8,9) ou vide pour toutes :","");
@@ -10669,7 +10669,7 @@ async function smqRiskSave(idv,btn){
   try{ await api("/smq/risks"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqRisksView(); }
   catch(e){ const el=document.getElementById("rErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
-async function smqRiskDel(idv){ if(!confirm("Supprimer cette ligne ?"))return; try{ await api("/smq/risks/"+idv,{method:"DELETE"}); smqRisksView(); }catch(e){ alert(e.message); } }
+async function smqRiskDel(idv){ if(!await mmConfirm({message:"Supprimer cette ligne ?",danger:true}))return; try{ await api("/smq/risks/"+idv,{method:"DELETE"}); smqRisksView(); }catch(e){ alert(e.message); } }
 async function smqUploadXlsx(url,file,fields){
   const fd=new FormData(); fd.append("file",file); if(fields) for(const k in fields) fd.append(k,fields[k]);
   const r=await fetch(url,{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd});
@@ -10681,7 +10681,7 @@ async function smqRiskImport(input){
   try{ const r=await smqUploadXlsx("/api/smq/risks/import",f); alert(r.added+" risque(s)/opportunité(s) importé(s)."); smqRisksView(); }
   catch(e){ alert(e.message); }
 }
-async function smqRiskToFiche(idv){ if(!confirm("Ouvrir une fiche d'amélioration pour traiter ce risque ?"))return;
+async function smqRiskToFiche(idv){ if(!await mmConfirm({message:"Ouvrir une fiche d'amélioration pour traiter ce risque ?",danger:false}))return;
   try{ const r=await api("/smq/risks/"+idv+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
 
 /* ---------- Indicateurs : tableau de bord KPI (feu tricolore + tendance) - remplace la vue simple ---------- */
@@ -10875,7 +10875,7 @@ async function smqSatSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{}
   const body={clientName:g("stCli"),date:g("stDate"),periode:g("stPer"),canal:g("stCan"),score:Number(g("stScore")),scoreMax:Number(g("stMax"))||100,note:g("stNote")};
   if(!body.clientName){const e=document.getElementById("stErr");e.textContent="Client obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/satisfaction"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqSatisfactionView(); }catch(e){ const el=document.getElementById("stErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqSatDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/satisfaction/"+idv,{method:"DELETE"}); smqSatisfactionView(); }catch(e){ alert(e.message); } }
+async function smqSatDel(idv){ if(!await mmConfirm({message:"Supprimer ?",danger:true}))return; try{ await api("/smq/satisfaction/"+idv,{method:"DELETE"}); smqSatisfactionView(); }catch(e){ alert(e.message); } }
 
 const CLAIM_STAT_TAG={ouverte:'<span class="tag" style="background:#dc2626;color:#fff">Ouverte</span>',en_cours:'<span class="tag blue">En cours</span>',resolue:'<span class="tag green">Résolue</span>',cloturee:'<span class="tag" style="background:#16a34a;color:#fff">Clôturée</span>'};
 async function smqClaimsView(){
@@ -10914,8 +10914,8 @@ async function smqClaimSave(idv,btn){ const g=(x)=>(document.getElementById(x)||
   const body={clientName:g("clCli"),date:g("clDate"),objet:g("clObj"),description:g("clDesc"),gravite:g("clGrav"),canal:g("clCan"),statut:g("clStat"),reponse:g("clRep")};
   if(!body.objet){const e=document.getElementById("clErr");e.textContent="Objet obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/claims"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqClaimsView(); }catch(e){ const el=document.getElementById("clErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqClaimDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/claims/"+idv,{method:"DELETE"}); smqClaimsView(); }catch(e){ alert(e.message); } }
-async function smqClaimToFiche(idv){ if(!confirm("Ouvrir une fiche d'amélioration pour cette réclamation ?"))return;
+async function smqClaimDel(idv){ if(!await mmConfirm({message:"Supprimer ?",danger:true}))return; try{ await api("/smq/claims/"+idv,{method:"DELETE"}); smqClaimsView(); }catch(e){ alert(e.message); } }
+async function smqClaimToFiche(idv){ if(!await mmConfirm({message:"Ouvrir une fiche d'amélioration pour cette réclamation ?",danger:false}))return;
   try{ const r=await api("/smq/claims/"+idv+"/to-improvement",{method:"POST"}); alert("Fiche "+r.improvement.ref+" créée."); smqImpForm(r.improvement.id); }catch(e){ alert(e.message); } }
 async function smqClaimAssign(idv){
   const [rows,procs,users]=await Promise.all([api("/smq/claims").catch(()=>[]),api("/smq/processes").catch(()=>[]),api("/smq/users").catch(()=>[])]);
@@ -10952,7 +10952,7 @@ async function smqClaimTreat(idv){
 async function smqClaimTreatSave(idv,btn){ const g=x=>(document.getElementById(x)||{}).value;
   try{ await api("/smq/claims/"+idv+"/treat",{method:"POST",body:JSON.stringify({traitement:g("ctTrt"),reponse:g("ctRep"),statut:g("ctStat")})}); btn.closest(".modal-bg").remove(); smqClaimsView(); }
   catch(e){ const el=document.getElementById("ctErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
-async function smqClaimClose(idv){ if(!confirm("Clôturer cette réclamation ?"))return; try{ await api("/smq/claims/"+idv+"/close",{method:"POST",body:JSON.stringify({})}); smqClaimsView(); }catch(e){ alert(e.message); } }
+async function smqClaimClose(idv){ if(!await mmConfirm({message:"Clôturer cette réclamation ?",danger:false}))return; try{ await api("/smq/claims/"+idv+"/close",{method:"POST",body:JSON.stringify({})}); smqClaimsView(); }catch(e){ alert(e.message); } }
 /* ---------- Évaluations & enquêtes (formulaires partageables) ---------- */
 function evalUrl(tok){ return location.origin + "/eval/" + tok; }
 async function smqEvalsView(){
@@ -10973,8 +10973,8 @@ async function smqEvalsView(){
           <button class="btn ghost sm" style="padding:2px 6px;font-size:12px;color:var(--red)" onclick="smqEvalDel('${f.id}')">Suppr.</button></div></td></tr>`).join("")||'<tr><td colspan="6" class="note">Aucune enquête. Créez-en une pour commencer à collecter des retours.</td></tr>'}</table></div>`;
 }
 function smqEvalCopy(tok){ const u=evalUrl(tok); navigator.clipboard?.writeText(u).then(()=>toast?toast("Lien copié"):alert("Lien copié : "+u),()=>prompt("Copiez le lien :",u)); }
-async function smqEvalRotate(idv){ if(!confirm("Générer un nouveau lien ? L'ancien ne fonctionnera plus."))return; try{ await api("/smq/evals/"+idv+"/rotate-token",{method:"POST"}); smqEvalsView(); }catch(e){ alert(e.message); } }
-async function smqEvalDel(idv){ if(!confirm("Supprimer cette enquête et toutes ses réponses ?"))return; try{ await api("/smq/evals/"+idv,{method:"DELETE"}); smqEvalsView(); }catch(e){ alert(e.message); } }
+async function smqEvalRotate(idv){ if(!await mmConfirm({message:"Générer un nouveau lien ? L'ancien ne fonctionnera plus.",danger:false}))return; try{ await api("/smq/evals/"+idv+"/rotate-token",{method:"POST"}); smqEvalsView(); }catch(e){ alert(e.message); } }
+async function smqEvalDel(idv){ if(!await mmConfirm({message:"Supprimer cette enquête et toutes ses réponses ?",danger:true}))return; try{ await api("/smq/evals/"+idv,{method:"DELETE"}); smqEvalsView(); }catch(e){ alert(e.message); } }
 async function smqEvalForm(idv,type){
   let f={type:type||"client",scaleMax:5,active:true,questions:[]};
   if(idv){ const forms=await api("/smq/evals").catch(()=>[]); f=forms.find(x=>x.id===idv)||f; }
@@ -11108,7 +11108,7 @@ async function smqCompSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{
   const body={employeeId:g("cpEmp")||null,employeeName:g("cpName"),poste:g("cpPoste"),competence:g("cpComp"),niveauRequis:Number(g("cpReq"))||0,niveauActuel:Number(g("cpAct"))||0,habilitation:document.getElementById("cpHab").checked,dateObtention:g("cpObt"),dateExpiration:g("cpExp")};
   if(!body.competence){const e=document.getElementById("cpErr");e.textContent="Compétence obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/competences"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqCompetencesView(); }catch(e){ const el=document.getElementById("cpErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqCompDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/competences/"+idv,{method:"DELETE"}); smqCompetencesView(); }catch(e){ alert(e.message); } }
+async function smqCompDel(idv){ if(!await mmConfirm({message:"Supprimer ?",danger:true}))return; try{ await api("/smq/competences/"+idv,{method:"DELETE"}); smqCompetencesView(); }catch(e){ alert(e.message); } }
 
 /* Évaluation des fournisseurs (lien stock) */
 const SUP_DECISION_TAG={"agréé":'<span class="tag green">Agréé</span>',"sous conditions":'<span class="tag" style="background:#f97316;color:#fff">Sous conditions</span>',"à éviter":'<span class="tag" style="background:#b45309;color:#fff">À éviter</span>',"rejeté":'<span class="tag" style="background:#dc2626;color:#fff">Rejeté</span>'};
@@ -11148,7 +11148,7 @@ async function smqSupSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{}
     criteres:{qualite:Number(g("spQ"))||0,delai:Number(g("spD"))||0,prix:Number(g("spP"))||0,reactivite:Number(g("spR"))||0}};
   if(!body.supplierName){const e=document.getElementById("spErr");e.textContent="Fournisseur obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/supplier-evals"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqSupplierEvalsView(); }catch(e){ const el=document.getElementById("spErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqSupDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/supplier-evals/"+idv,{method:"DELETE"}); smqSupplierEvalsView(); }catch(e){ alert(e.message); } }
+async function smqSupDel(idv){ if(!await mmConfirm({message:"Supprimer ?",danger:true}))return; try{ await api("/smq/supplier-evals/"+idv,{method:"DELETE"}); smqSupplierEvalsView(); }catch(e){ alert(e.message); } }
 
 /* Métrologie / équipements */
 const EQ_STAT_TAG={conforme:'<span class="tag green">Conforme</span>',"à surveiller":'<span class="tag" style="background:#f97316;color:#fff">À surveiller</span>',"hors service":'<span class="tag" style="background:#dc2626;color:#fff">Hors service</span>'};
@@ -11181,7 +11181,7 @@ async function smqEqSave(idv,btn){ const g=(x)=>(document.getElementById(x)||{})
   const body={code:g("eqCode"),localisation:g("eqLoc"),designation:g("eqDes"),dernierEtalonnage:g("eqLast"),frequenceEtalonnageMois:Number(g("eqFreq"))||12,prochainEtalonnage:g("eqNext")||null,statut:g("eqStat")};
   if(!body.designation){const e=document.getElementById("eqErr");e.textContent="Désignation obligatoire";e.classList.remove("hidden");return;}
   try{ await api("/smq/equipment"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqEquipmentView(); }catch(e){ const el=document.getElementById("eqErr");el.textContent=e.message;el.classList.remove("hidden"); } }
-async function smqEqDel(idv){ if(!confirm("Supprimer ?"))return; try{ await api("/smq/equipment/"+idv,{method:"DELETE"}); smqEquipmentView(); }catch(e){ alert(e.message); } }
+async function smqEqDel(idv){ if(!await mmConfirm({message:"Supprimer ?",danger:true}))return; try{ await api("/smq/equipment/"+idv,{method:"DELETE"}); smqEquipmentView(); }catch(e){ alert(e.message); } }
 
 /* ---------- Revue de direction / de processus (§9.3) ---------- */
 function smqRevInputsHtml(a){
@@ -11260,7 +11260,7 @@ async function smqReviewOpen(idv){
       ${r.conclusion?`<h3 style="margin:12px 0 4px">Conclusion</h3><div>${esc(r.conclusion)}</div>`:''}
       ${r.nextDate?`<div class="note" style="margin-top:8px">Prochaine revue : ${esc(r.nextDate)}</div>`:''}</div>`;
 }
-async function smqReviewDel(idv){ if(!confirm("Supprimer cette revue ?"))return; try{ await api("/smq/reviews/"+idv,{method:"DELETE"}); smqReviewsView(); }catch(e){ alert(e.message); } }
+async function smqReviewDel(idv){ if(!await mmConfirm({message:"Supprimer cette revue ?",danger:true}))return; try{ await api("/smq/reviews/"+idv,{method:"DELETE"}); smqReviewsView(); }catch(e){ alert(e.message); } }
 function smqReviewPrint(){ const el=document.getElementById("revDoc"); if(!el)return;
   const w=window.open("","_blank"); w.document.write(`<html><head><title>Revue</title><style>body{font-family:Arial;margin:20mm 14mm;font-size:12px;color:#111}table{border-collapse:collapse;width:100%;margin-top:4px}th,td{border:1px solid #999;padding:4px;text-align:left}h1{font-size:18px}h3{margin:12px 0 4px}.note{color:#666}.tag{padding:1px 6px;border-radius:8px;font-size:11px}</style></head><body>${el.innerHTML.replace(/<button[\s\S]*?<\/button>/g,"")}</body></html>`); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
 
@@ -11444,7 +11444,7 @@ async function smqTdbRemind(idv){
   try{ const r=await api("/smq/tdb/"+idv+"/remind",{method:"POST",body:JSON.stringify({message:msg})}); alert("Rappel envoyé à "+r.sent+" personne(s) (visible dans leur messagerie )."); refreshChatUnread&&refreshChatUnread(); }
   catch(e){ alert(e.message); }
 }
-async function smqTdbDelete(idv){ if(!confirm("Supprimer ce tableau de bord et ses données ?"))return;
+async function smqTdbDelete(idv){ if(!await mmConfirm({message:"Supprimer ce tableau de bord et ses données ?",danger:true}))return;
   try{ await api("/smq/tdb/"+idv,{method:"DELETE"}); go('smqtdb'); }catch(e){ alert(e.message); } }
 async function smqTdbExport(idv){ try{ const r=await fetch("/api/smq/tdb/"+idv+"/export",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Export indisponible");
   const blob=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="TdB.xlsx"; a.click(); }catch(e){ alert(e.message); } }
@@ -11841,7 +11841,7 @@ async function stockProductSave(id){
     document.querySelector(".modal-bg").remove(); stockProductsView(); }
   catch(e){ const el=document.getElementById("pErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stockProductDelete(id){ if(!confirm("Supprimer ce produit ? (l'historique de mouvements est conservé)")) return;
+async function stockProductDelete(id){ if(!await mmConfirm({message:"Supprimer ce produit ? (l'historique de mouvements est conservé)",danger:true})) return;
   try{ await api("/stock/products/"+id,{method:"DELETE"}); document.querySelector(".modal-bg").remove(); stockProductsView(); }catch(e){ alert(e.message); } }
 function _prod(id){ return (window._STK.prods||[]).find(x=>x.id===id); }
 function stockProductLabel(id){ const p=_prod(id); if(!p) return; const code=p.barcode||p.sku||"";
@@ -11964,7 +11964,7 @@ async function stockVariationSave(id){
     document.querySelector(".modal-bg").remove(); stockVariationsView(); }
   catch(e){ err(e.message); }
 }
-async function stockVariationDelete(id){ if(!confirm("Supprimer cette variation ?")) return;
+async function stockVariationDelete(id){ if(!await mmConfirm({message:"Supprimer cette variation ?",danger:true})) return;
   try{ await api("/stock/variations/"+id,{method:"DELETE"}); stockVariationsView(); }catch(e){ alert(e.message); } }
 const stockLocationsView=stkRefView(STK_REF.locations);
 const stockExpenseCatsView=stkRefView(STK_REF.expensecats);
@@ -11987,7 +11987,7 @@ async function stkRefSave(ep,id){
     document.querySelector(".modal-bg").remove(); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations',expensecats:'stockexpensecats'})[ep]); }
   catch(e){ const el=document.getElementById("rfErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stkRefDelete(ep,id){ if(!confirm("Supprimer cet élément ?")) return;
+async function stkRefDelete(ep,id){ if(!await mmConfirm({message:"Supprimer cet élément ?",danger:true})) return;
   try{ await api("/stock/"+ep+"/"+id,{method:"DELETE"}); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations',expensecats:'stockexpensecats'})[ep]); }catch(e){ alert(e.message); } }
 
 /* ---- Mouvements : entrées / sorties (éditeur de lignes) ---- */
@@ -12169,7 +12169,7 @@ async function stockContactSave(id){
     document.querySelector(".modal-bg").remove(); stockContactsView(body.type); }
   catch(e){ const el=document.getElementById("ctErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stockContactDelete(type,id){ if(!confirm("Supprimer ce contact ?")) return;
+async function stockContactDelete(type,id){ if(!await mmConfirm({message:"Supprimer ce contact ?",danger:true})) return;
   try{ await api("/stock/contacts/"+id,{method:"DELETE"}); stockContactsView(type); }catch(e){ alert(e.message); } }
 async function stockContactNew(type,id){ await stockLoadRefs(); if(type==='client'){ window._prefillCust=id; stockSaleForm(); } else { window._prefillSup=id; stockPurchaseForm(); } }
 async function stockContactStatement(id){
@@ -12468,9 +12468,9 @@ async function stockPOSubmit(id){
   try{ if(id) await api("/stock/po/"+id,{method:"PUT",body:JSON.stringify(body)}); else await api("/stock/po",{method:"POST",body:JSON.stringify(body)});
     go('stockpo'); }catch(e){ const el=document.getElementById("poErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stockPOReceive(id,ref){ if(!confirm("Recevoir le reliquat du BC "+ref+" ? Le stock sera incrémenté et un achat créé.")) return;
+async function stockPOReceive(id,ref){ if(!await mmConfirm({message:"Recevoir le reliquat du BC "+ref+" ? Le stock sera incrémenté et un achat créé.",danger:false})) return;
   try{ const r=await api("/stock/po/"+id+"/receive",{method:"POST",body:JSON.stringify({})}); alert("Reçu - achat "+r.purchaseRef+" créé."); stockPOView(); }catch(e){ alert(e.message); } }
-async function stockPODelete(id){ if(!confirm("Supprimer ce BC ?")) return; try{ await api("/stock/po/"+id,{method:"DELETE"}); stockPOView(); }catch(e){ alert(e.message); } }
+async function stockPODelete(id){ if(!await mmConfirm({message:"Supprimer ce BC ?",danger:true})) return; try{ await api("/stock/po/"+id,{method:"DELETE"}); stockPOView(); }catch(e){ alert(e.message); } }
 
 /* ---- Achats (réceptions) ---- */
 async function stockPurchasesView(){
@@ -12640,7 +12640,7 @@ function stockPayModal(id,due){
 async function stockPayDo(id){ const amt=Number((document.getElementById("payAmt")||{}).value)||0;
   try{ await api("/stock/purchases/"+id+"/pay",{method:"POST",body:JSON.stringify({amount:amt})}); document.querySelector(".modal-bg").remove(); stockPurchasesView(); }
   catch(e){ const el=document.getElementById("payErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
-async function stockPurchaseDelete(id){ if(!confirm("Supprimer cet achat ? Le stock reçu sera repris (décrémenté).")) return; try{ await api("/stock/purchases/"+id,{method:"DELETE"}); stockPurchasesView(); }catch(e){ alert(e.message); } }
+async function stockPurchaseDelete(id){ if(!await mmConfirm({message:"Supprimer cet achat ? Le stock reçu sera repris (décrémenté).",danger:true})) return; try{ await api("/stock/purchases/"+id,{method:"DELETE"}); stockPurchasesView(); }catch(e){ alert(e.message); } }
 
 /* ---- Retours d'achat ---- */
 async function stockReturnsView(){
@@ -12704,10 +12704,10 @@ async function stockSOSubmit(){ const g=(x)=>(document.getElementById(x)||{}).va
   try{ await api("/stock/so",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),paymentTerms:g("hdTerms"),deliverTo:g("hdLoc"),deliveryDelay:g("hdDelay"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,replaceId:window._soEditId||"",lines})}); go('stockso'); }
   catch(e){ const el=document.getElementById("soErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stockSODeliver(id,ref){ if(!confirm("Livrer le reliquat de la commande "+ref+" ? Le stock sera décrémenté et une vente créée.")) return;
+async function stockSODeliver(id,ref){ if(!await mmConfirm({message:"Livrer le reliquat de la commande "+ref+" ? Le stock sera décrémenté et une vente créée.",danger:false})) return;
   try{ const r=await api("/stock/so/"+id+"/deliver",{method:"POST",body:JSON.stringify({})}); alert("Livré - vente "+r.saleRef+" créée."); stockSOView(); }
   catch(e){ if(/insuffisant/i.test(e.message)&&confirm(e.message+"\n\nForcer la livraison (stock négatif) ?")){ try{ const r=await api("/stock/so/"+id+"/deliver",{method:"POST",body:JSON.stringify({allowNegative:true})}); alert("Livré - vente "+r.saleRef); stockSOView(); }catch(e2){ alert(e2.message);} } else alert(e.message); } }
-async function stockSODelete(id){ if(!confirm("Supprimer cette commande ?")) return; try{ await api("/stock/so/"+id,{method:"DELETE"}); stockSOView(); }catch(e){ alert(e.message); } }
+async function stockSODelete(id){ if(!await mmConfirm({message:"Supprimer cette commande ?",danger:true})) return; try{ await api("/stock/so/"+id,{method:"DELETE"}); stockSOView(); }catch(e){ alert(e.message); } }
 
 /* ---- Toutes les ventes ---- */
 async function stockSalesView(){
@@ -12847,7 +12847,7 @@ function stockSalePayModal(id,due){ const bg=document.createElement("div"); bg.c
   document.body.appendChild(bg); }
 async function stockSalePayDo(id){ const amt=Number((document.getElementById("spAmt")||{}).value)||0;
   try{ await api("/stock/sales/"+id+"/pay",{method:"POST",body:JSON.stringify({amount:amt})}); document.querySelector(".modal-bg").remove(); stockSalesView(); }catch(e){ const el=document.getElementById("spErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
-async function stockSaleDelete(id){ if(!confirm("Supprimer cette vente ? Le stock vendu sera réintégré.")) return; try{ await api("/stock/sales/"+id,{method:"DELETE"}); stockSalesView(); }catch(e){ alert(e.message); } }
+async function stockSaleDelete(id){ if(!await mmConfirm({message:"Supprimer cette vente ? Le stock vendu sera réintégré.",danger:true})) return; try{ await api("/stock/sales/"+id,{method:"DELETE"}); stockSalesView(); }catch(e){ alert(e.message); } }
 
 /* ---- Devis ---- */
 async function stockQuotesView(){
@@ -12880,9 +12880,9 @@ async function stockQuoteSubmit(){ const g=(x)=>(document.getElementById(x)||{})
   try{ await api("/stock/quotes",{method:"POST",body:JSON.stringify({customerId:g("hdCust"),date:g("hdDate"),ref:g("hdRef"),taxPct:Number(g("plTax"))||0,shippingFee:Number(g("plShip"))||0,replaceId:window._qeEditId||"",lines})}); go('stockquotes'); }
   catch(e){ const el=document.getElementById("qeErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stockQuoteConvert(id,ref){ if(!confirm("Convertir le devis "+ref+" en vente ? Le stock sera décrémenté.")) return;
+async function stockQuoteConvert(id,ref){ if(!await mmConfirm({message:"Convertir le devis "+ref+" en vente ? Le stock sera décrémenté.",danger:false})) return;
   try{ const r=await api("/stock/quotes/"+id+"/convert",{method:"POST",body:JSON.stringify({})}); alert("Converti - vente "+r.saleRef); stockQuotesView(); }catch(e){ alert(e.message); } }
-async function stockQuoteDelete(id){ if(!confirm("Supprimer ce devis ?")) return; try{ await api("/stock/quotes/"+id,{method:"DELETE"}); stockQuotesView(); }catch(e){ alert(e.message); } }
+async function stockQuoteDelete(id){ if(!await mmConfirm({message:"Supprimer ce devis ?",danger:true})) return; try{ await api("/stock/quotes/"+id,{method:"DELETE"}); stockQuotesView(); }catch(e){ alert(e.message); } }
 
 /* ---- Retours de vente ---- */
 async function stockSalesReturnsView(){
@@ -13080,7 +13080,7 @@ async function stockTransferSubmit(){
     go('stocktransfers'); }catch(e){ err(e.message); }
 }
 async function stockTransferStatus(id,st){ try{ await api("/stock/transfers/"+id+"/status",{method:"PUT",body:JSON.stringify({status:st})}); }catch(e){ alert(e.message); stockTransfersView(); } }
-async function stockTransferDelete(id){ if(!confirm("Supprimer ce transfert ?")) return; try{ await api("/stock/transfers/"+id,{method:"DELETE"}); stockTransfersView(); }catch(e){ alert(e.message); } }
+async function stockTransferDelete(id){ if(!await mmConfirm({message:"Supprimer ce transfert ?",danger:true})) return; try{ await api("/stock/transfers/"+id,{method:"DELETE"}); stockTransfersView(); }catch(e){ alert(e.message); } }
 
 /* ================= Bon de commande : Voir / Imprimer / Expédition ================= */
 async function stockCompany(){ if(window._STKCOMPANY) return window._STKCOMPANY;
@@ -13276,7 +13276,7 @@ async function stockExpenseSave(id){
     document.querySelector(".modal-bg").remove(); stockExpensesView(); }
   catch(e){ const el=document.getElementById("exErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stockExpenseDelete(id){ if(!confirm("Supprimer cette dépense ?")) return; try{ await api("/stock/expenses/"+id,{method:"DELETE"}); stockExpensesView(); }catch(e){ alert(e.message); } }
+async function stockExpenseDelete(id){ if(!await mmConfirm({message:"Supprimer cette dépense ?",danger:true})) return; try{ await api("/stock/expenses/"+id,{method:"DELETE"}); stockExpensesView(); }catch(e){ alert(e.message); } }
 
 /* ================= Comptes de paiement ================= */
 const ACC_TYPES={caisse:"Caisse",banque:"Banque",mobile:"Mobile money",autre:"Autre"};
@@ -13313,7 +13313,7 @@ async function stockAccountSave(id){
     document.querySelector(".modal-bg").remove(); stockAccountsView(); }
   catch(e){ const el=document.getElementById("acErr2"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-async function stockAccountDelete(id){ if(!confirm("Supprimer ce compte ?")) return; try{ await api("/stock/accounts/"+id,{method:"DELETE"}); stockAccountsView(); }catch(e){ alert(e.message); } }
+async function stockAccountDelete(id){ if(!await mmConfirm({message:"Supprimer ce compte ?",danger:true})) return; try{ await api("/stock/accounts/"+id,{method:"DELETE"}); stockAccountsView(); }catch(e){ alert(e.message); } }
 async function stockAccountStatement(id){
   const d=await api("/stock/accounts/"+id+"/statement").catch(()=>null); if(!d) return;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockaccounts')">← Comptes</button>
