@@ -10,7 +10,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 const _phone = require("../phone");
-const { computePayslip, seniorityRate } = require("../payroll/engine");
+const { computePayslip, seniorityRate, progressive, bracketAmount } = require("../payroll/engine");
 const crypto = require("crypto");
 let _multer; try { _multer = require("multer"); } catch (e) { _multer = null; }
 const tsUpload = _multer ? _multer({ storage: _multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }) : { single: () => (rq, rs, nx) => nx() };
@@ -73,24 +73,52 @@ function hasPayPerm(req, perm) {
 }
 
 // Recompute all payslip totals from its lines (used after manual edits).
-function recomputePayslip(s) {
+// Après correction manuelle d'un bulletin, on RECALCULE intégralement les cotisations et impôts
+// (CNPS, IRPP, CAC, CFC, RAV, TDL) à partir des gains corrigés, comme le fait le moteur de calcul.
+// Ainsi un bulletin corrigé reste cohérent (pas de taxes figées sur une ancienne base).
+function recomputePayslip(s, req) {
   const L = s.result.lines, t = s.result.totals;
-  const G = L.filter(l => l.kind === "GAIN");
-  const ret = c => (L.find(l => l.code === c) || {}).retenue || 0;
-  const emp = c => (L.find(l => l.code === c) || {}).employer || 0;
-  t.brutTotal = G.reduce((a, l) => a + (l.gain || 0), 0);
-  t.netCotisable = G.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0);
-  t.netImposable = G.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0);
-  t.cnpsSalarie = ret("5000"); t.irpp = ret("5025"); t.cac = ret("5045");
-  t.cfcSalarie = ret("5050"); t.rav = ret("5080"); t.tdl = ret("5090");
-  t.totalImpots = t.irpp + t.cac + t.cfcSalarie + t.rav + t.tdl;
+  const cfg = req ? configOf(req) : require("../payroll/engine").DEFAULT_CONFIG;
+  const r0 = (n) => Math.round(n || 0);
+  const gains = L.filter(l => l.kind === "GAIN");
+  const avs = L.filter(l => l.kind === "AVANTAGE");
+  const transportTaxable = L.reduce((a, l) => a + (Number(l._transportTaxable) || 0), 0);
+  const BRUT = gains.reduce((a, l) => a + (l.gain || 0), 0);
+  const NETCOTI = gains.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0) + avs.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0);
+  const NETIMPO = gains.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0) + avs.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0) + transportTaxable;
+  const BASECF = Math.round(NETIMPO / 1000) * 1000;
+  const cnpsBase = Math.min(NETCOTI, cfg.cnps.ceiling);
+  const pvidE = r0(cnpsBase * cfg.cnps.pvidEmployee), pvidP = r0(cnpsBase * cfg.cnps.pvidEmployer);
+  const pfP = r0(cnpsBase * cfg.cnps.familyEmployer), rpP = r0(cnpsBase * cfg.cnps.workAccidentEmployer);
+  const sni = Math.max(0, NETIMPO * cfg.irpp.fraisProRate - (cfg.irpp.deductPvid ? pvidE : 0) - (cfg.irpp.annualAbatement || 0) / 12);
+  const irpp = r0(progressive(sni, cfg.irpp.brackets));
+  const cac = r0(irpp * cfg.irpp.cacRate);
+  const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0(BRUT * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
+  const salLine = gains.find(l => String(l.code) === "1000");
+  const ravBase = (s.input && s.input.ravBase != null) ? s.input.ravBase : BRUT;
+  const tdlBase = (s.input && s.input.tdlBase != null) ? s.input.tdlBase : (salLine ? (salLine.gain || 0) : BRUT);
+  const rav = bracketAmount(cfg.rav, ravBase), tdl = bracketAmount(cfg.tdl, tdlBase);
+  // Réécrit les lignes statutaires (créées si absentes) pour rester cohérent avec les bases corrigées.
+  const setL = (code, label, kind, patch) => { let l = L.find(x => String(x.code) === code); if (!l) { l = { code, label, kind }; const firstCot = L.findIndex(x => x.kind === "COTIS" || x.kind === "IMPOT"); if (firstCot >= 0) L.splice(firstCot, 0, l); else L.push(l); } Object.assign(l, patch); };
+  setL("5000", "CNPS Pension (PVID)", "COTIS", { base: cnpsBase, rate: cfg.cnps.pvidEmployee, retenue: pvidE, employerRate: cfg.cnps.pvidEmployer, employer: pvidP });
+  setL("5010", "CNPS Prestations familiales", "COTIS", { base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.familyEmployer, employer: pfP });
+  setL("5020", "CNPS Accident de travail", "COTIS", { base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
+  setL("5025", "IRPP", "IMPOT", { base: r0(sni), rate: 0, retenue: irpp });
+  setL("5045", "CAC (10% IRPP)", "IMPOT", { base: irpp, rate: cfg.irpp.cacRate, retenue: cac });
+  setL("5050", "Crédit Foncier (CFC)", "IMPOT", { base: BASECF, rate: cfg.cfc.employee, retenue: cfcE, employerRate: cfg.cfc.employer, employer: cfcP });
+  setL("5070", "FNE", "IMPOT", { base: BRUT, rate: 0, retenue: 0, employerRate: cfg.fne.employer, employer: fneP });
+  setL("5080", "Redevance audiovisuelle (RAV)", "IMPOT", { base: ravBase, rate: 0, retenue: rav });
+  setL("5090", "Taxe communale (TDL)", "IMPOT", { base: tdlBase, rate: 0, retenue: tdl });
+  // Totaux
+  t.brutTotal = BRUT; t.netCotisable = NETCOTI; t.netImposable = NETIMPO; t.baseCF = BASECF;
+  t.cnpsSalarie = pvidE; t.irpp = irpp; t.cac = cac; t.cfcSalarie = cfcE; t.rav = rav; t.tdl = tdl;
+  t.totalImpots = irpp + cac + cfcE + rav + tdl;
   t.autresRetenues = L.filter(l => l.kind === "RETENUE").reduce((a, l) => a + (l.retenue || 0), 0);
-  t.totalRetenues = L.reduce((a, l) => a + (l.retenue || 0), 0);
-  t.chargesPatronales = L.reduce((a, l) => a + (l.employer || 0), 0);
-  t.cnpsPatronal = emp("5000") + emp("5010") + emp("5020");
-  t.cfcPatronal = emp("5060") || emp("5050"); t.fnePatronal = emp("5070");
-  t.netAPayer = t.brutTotal - t.totalRetenues;   // deducts cotisations, impôts AND acomptes/prêts
-  t.coutTotalEmployeur = t.brutTotal + t.chargesPatronales;
+  t.totalRetenues = pvidE + t.totalImpots + t.autresRetenues;
+  t.cnpsPatronal = pvidP + pfP + rpP; t.cfcPatronal = cfcP; t.fnePatronal = fneP;
+  t.chargesPatronales = pvidP + pfP + rpP + cfcP + fneP;
+  t.netAPayer = BRUT - t.totalRetenues;
+  t.coutTotalEmployeur = BRUT + t.chargesPatronales;
 }
 const fmtPeriod = (p) => p; // "YYYY-MM"
 // N° CNPS + clé (dernier chiffre) - ex. « 3511115179 2 » (comme Sage).
@@ -2467,7 +2495,7 @@ router.put("/payslips/:id/lines", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (
       if (o.employer !== undefined) { l.employer = Math.round(Number(o.employer) || 0); l.manual = true; }
     }
   }
-  recomputePayslip(s);
+  recomputePayslip(s, req);
   const t = s.result.totals;
   s.edited = true;
   if (closed) {

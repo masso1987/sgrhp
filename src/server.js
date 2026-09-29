@@ -74,7 +74,7 @@ app.get("/api/legal", (req, res) => {
   const s = require("./routes/settings").settings();
   res.json((s && s.legal) || {});
 });
-const BUILD_VERSION = "2026-09-29 - PAIE-74 (code modifiable sur une rubrique/constante dupliquee ou personnalisee — plus besoin de repartir de zero; code verrouille pour le referentiel Sage (system) et pour une rubrique deja utilisee en paie; unicite verifiee)";
+const BUILD_VERSION = "2026-09-29 - PAIE-75 (correction de bulletin: recalcul integral des cotisations et impots (CNPS, IRPP, CAC, CFC, RAV, TDL) a partir des gains corriges — plus de taxes figees sur une ancienne base; un bulletin corrige redevient coherent, comme un calcul neuf)";
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
