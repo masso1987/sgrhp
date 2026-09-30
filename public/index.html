@@ -5024,6 +5024,7 @@ async function saveTemplates() {
 /* Module Paie (Payroll) - SGRHP                                      */
 /* ================================================================= */
 const fCFA = n => (Math.round(n || 0)).toLocaleString("fr-FR");
+const fCFA2 = n => (Math.round((n || 0) * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function canRunPay() { return ME.role === "ADM" || (ME.permissions || []).includes("payroll.run"); }
 const MONTHS_FR_UI=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 function annexeFileName(client, period, ext){ const [y,m]=String(period).split("-"); return `Annexe Mensuelle - ${client} ${MONTHS_FR_UI[(+m||1)-1]||""} ${y}.${ext}`; }
@@ -6060,7 +6061,7 @@ function bulletinRenderTab() {
 function bulletinCalcule(slip) {
   const t = slip.result.totals;
   const line = l => `<tr><td>${esc(l.code)}${l.manual ? " " : ""}</td><td>${esc(l.label)}</td>
-    <td style="text-align:right">${l.base ? fCFA(l.base) : ""}</td><td style="text-align:right">${l.rate && l.rate !== 1 ? (l.rate * 100).toFixed(2) + "%" : ""}</td>
+    <td style="text-align:right">${l.base ? fCFA2(l.base) : ""}</td><td style="text-align:right">${l.rate && l.rate !== 1 ? (l.rate * 100).toFixed(2) + "%" : ""}</td>
     <td style="text-align:right;color:var(--green)">${l.gain ? fCFA(l.gain) : ""}</td>
     <td style="text-align:right;color:var(--red)">${l.retenue ? fCFA(l.retenue) : ""}</td>
     <td style="text-align:right;color:var(--muted)">${l.employer ? fCFA(l.employer) : ""}</td></tr>`;
@@ -6317,7 +6318,7 @@ function payslipRenderBody(edit, s) {
   // Nombre / Base éditables en correction : le gain (ou la retenue) est recalculé automatiquement = Nombre × Base × Taux.
   const qty = (l, field, i) =>edit
     ? `<input type="number" step="0.001" data-idx="${i}" data-field="${field}" value="${l[field] != null ? l[field] : ""}" style="width:80px;text-align:right;margin:0;padding:2px" oninput="payslipEditField(this)">`
-    : (l[field] ? fCFA(l[field]) : "");
+    : (l[field] ? (field === "base" ? fCFA2(l[field]) : fCFA(l[field])) : "");
   document.getElementById("payslipBody").innerHTML = rows.map((l, i) => `<tr>
     <td>${esc(l.code)}${l.manual ? ' <span class="tag amber" title="corrigé">corrigé</span>' : ""}</td><td>${esc(rubLbl(l.code, l.label))}</td>
     <td style="text-align:right">${qty(l, "nombre", i)}</td>
