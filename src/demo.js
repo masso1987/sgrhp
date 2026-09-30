@@ -14,6 +14,7 @@ const fs = require("fs");
 const path = require("path");
 const { db, save, id } = require("./store");
 const { hash } = require("./auth");
+const { RUB_LABELS, PROFILE_POOL } = require("./demo.profiles");
 
 const UPLOADS = path.join(__dirname, "..", "uploads");
 const ALL_MODULES = ["hr", "careers", "payroll", "accounting", "invoicing", "stock", "quality"];
@@ -27,7 +28,7 @@ const CLIENTS = ["Cameroon Distribution SARL", "AfriLog Services SA", "Sawa Indu
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function pick(n, i) { return n[i % n.length]; }
-function jitter(v, pct) { const n = Number(v); if (!isFinite(n) || !n) return v; const f = 1 + (Math.random() * 2 - 1) * pct; return Math.round(n * f / 100) * 100; }
+function jitter(v, pct) { const n = Number(v); if (!isFinite(n) || !n) return v; const f = 1 + (Math.random() * 2 - 1) * (pct / 100); return Math.max(0, Math.round(n * f / 100) * 100); }
 function phoneCM() { const p = rand(["65", "67", "68", "69", "62"]); let s = p; while (s.length < 9) s += Math.floor(Math.random() * 10); return "6" + s.slice(1); }
 function niuDemo() { let d = ""; for (let i = 0; i < 12; i++) d += Math.floor(Math.random() * 10); return "M" + d + "P"; }
 function cniDemo() { let d = ""; for (let i = 0; i < 9; i++) d += Math.floor(Math.random() * 10); return d; }
@@ -46,6 +47,79 @@ function templateEmployee(srcTid) {
   };
 }
 
+// Elements de salaire (rubriques) issus du bulletin reel, crees une fois par tenant demo.
+// Codes calcules automatiquement par le moteur (anciennete 1055) ou ponctuels (conges 3702) exclus.
+const _TAG_BY_CODE = { "1000": "salary_base", "3513": "allowance_transport", "3510": "allowance_housing" };
+function ensureDemoSalaryElements(demoId) {
+  const existing = (db.salaryElements || []).filter(e => (e.tenantId || "t1") === demoId);
+  const byCode = new Map(existing.map(e => [e.rubriqueCode, e]));
+  const map = {}; // code -> element name utilise dans emp.salary
+  for (const code of Object.keys(RUB_LABELS)) {
+    if (code === "1055" || code === "3702") continue; // anciennete auto + conges annuels
+    let el = byCode.get(code);
+    if (!el) {
+      el = { id: id("sel"), tenantId: demoId, name: RUB_LABELS[code], rubriqueCode: code, _demoSeed: true };
+      if (_TAG_BY_CODE[code]) el.tag = _TAG_BY_CODE[code];
+      coll("salaryElements").push(el); byCode.set(code, el);
+    }
+    map[code] = el.name;
+  }
+  return map;
+}
+
+function shiftDate(iso, maxDays) {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setDate(d.getDate() + Math.floor((Math.random() * 2 - 1) * maxDays));
+  return d.toISOString().slice(0, 10);
+}
+
+// Construit un salarie fictif a partir d'un profil du bulletin reel (anonymise).
+function demoEmployee(demoId, pfId, idx, city, elMap) {
+  const prof = PROFILE_POOL[idx % PROFILE_POOL.length];
+  const female = idx % 3 === 0;
+  const fn = female ? pick(FIRST_F, idx * 2 + 1) : pick(FIRST_M, idx);
+  const ln = pick(LAST, idx * 5 + 3);
+  const hire = shiftDate(prof.hire, 120);
+  const salary = {};
+  for (const [code, amount] of Object.entries(prof.gains)) {
+    const name = elMap[code]; if (!name) continue;
+    salary[name] = jitter(amount, code === "1000" ? 8 : 12); // legere variation par salarie
+  }
+  return {
+    id: id("emp"), tenantId: demoId, _demoSeed: true, portfolioId: pfId,
+    firstName: fn, lastName: ln, gender: female ? "F" : "M",
+    matricule: "DEMO-" + String(idx + 1).padStart(4, "0"),
+    email: (fn + "." + ln).toLowerCase().replace(/[^a-z.]/g, "") + "@exemple.cm",
+    phone: phoneCM(), cniNumber: cniDemo(), cnps: String(Math.floor(1e10 + Math.random() * 8e10)),
+    birthDate: shiftDate("1988-06-15", 3000), birthPlace: rand(CITIES),
+    address: "Quartier " + rand(["Akwa", "Bonapriso", "Bastos", "Mvog-Ada", "Deido"]) + ", " + city,
+    maritalStatus: prof.sitfam, childrenCount: prof.enf,
+    position: prof.emploi,
+    contract: { type: "CDI", category: prof.cat, classification: prof.emploi, position: prof.emploi,
+      startDate: hire, hireDate: hire, conventionName: "COMMERCE", monthlyDays: 30,
+      baseSalary: salary[elMap["1000"]] || jitter(prof.gains["1000"] || 300000, 8) },
+    hireDate: hire, salary,
+    status: "ACTIVE", photo: undefined, files: [], documents: [],
+  };
+}
+
+// Ajoute des salaries fictifs a un tenant demo jusqu'a atteindre `target`.
+function populateDemo(demoId, target) {
+  const t = (db.tenants || []).find(x => x.id === demoId);
+  if (!t || !t.isDemo) { const e = new Error("Compte demo introuvable"); e.status = 404; throw e; }
+  target = Math.max(1, Math.min(500, Number(target) || 100));
+  const elMap = ensureDemoSalaryElements(demoId);
+  let pf = (db.portfolios || []).find(x => (x.tenantId || "t1") === demoId);
+  if (!pf) { pf = { id: id("pf"), tenantId: demoId, name: "Portefeuille Demo", code: "PF-DEMO", required: ["III","IV","V","IX","X"], requiredCreation: ["V"], _demoSeed: true }; coll("portfolios").push(pf); }
+  const city = t.hqCity || "Douala";
+  const current = (db.employees || []).filter(e => (e.tenantId || "t1") === demoId);
+  const start = current.length;
+  let added = 0;
+  for (let i = start; i < target; i++) { coll("employees").push(demoEmployee(demoId, pf.id, i, city, elMap)); added++; }
+  save();
+  return { total: start + added, added, target };
+}
+
 function activeDemoCount() { return (db.tenants || []).filter(t => t.isDemo).length; }
 function createDemo(opts, actor) {
   opts = opts || {};
@@ -55,7 +129,7 @@ function createDemo(opts, actor) {
   }
   const srcTid = opts.srcTid || "t1";
   const days = Math.max(1, Math.min(365, Number(opts.days) || 30));
-  const nEmp = Math.max(1, Math.min(50, Number(opts.employeeCount) || 8));
+  const nEmp = Math.max(1, Math.min(200, Number(opts.employeeCount) || 8));
   const now = new Date();
   const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
   const demoId = id("ten");
@@ -91,27 +165,8 @@ function createDemo(opts, actor) {
     required: ["III", "IV", "V", "IX", "X"], requiredCreation: ["V"], _demoSeed: true };
   coll("portfolios").push(pf);
 
-  const tpl = templateEmployee(srcTid);
-  const cats = ["Employe", "Agent de maitrise", "Cadre", "Ouvrier"];
-  for (let i = 0; i < nEmp; i++) {
-    const female = i % 3 === 0;
-    const fn = female ? pick(FIRST_F, i) : pick(FIRST_M, i);
-    const ln = pick(LAST, i * 3 + 1);
-    const e = JSON.parse(JSON.stringify(tpl));
-    e.id = id("emp"); e.tenantId = demoId; e._demoSeed = true;
-    e.portfolioId = pf.id;
-    e.firstName = fn; e.lastName = ln; e.gender = female ? "F" : "M";
-    e.matricule = "DEMO-" + String(i + 1).padStart(4, "0");
-    e.email = (fn + "." + ln).toLowerCase().replace(/[^a-z.]/g, "") + "@exemple.cm";
-    e.phone = phoneCM(); e.cniNumber = cniDemo(); e.cnps = String(Math.floor(1e10 + Math.random() * 8e10));
-    e.birthPlace = rand(CITIES); e.address = "Quartier " + rand(["Akwa", "Bonapriso", "Bastos", "Mvog-Ada", "Deido"]) + ", " + city;
-    e.contract = e.contract || {};
-    e.contract.category = pick(cats, i);
-    if (e.contract.baseSalary != null) e.contract.baseSalary = jitter(e.contract.baseSalary || 250000, 25);
-    else if (e.salary != null) e.salary = jitter(e.salary, 25);
-    e.photo = undefined; e.files = []; e.documents = [];
-    coll("employees").push(e);
-  }
+  const elMap = ensureDemoSalaryElements(demoId);
+  for (let i = 0; i < nEmp; i++) coll("employees").push(demoEmployee(demoId, pf.id, i, city, elMap));
 
   save();
   return {
@@ -188,4 +243,4 @@ function extendDemo(tid, days) {
   return t.demoExpiresAt;
 }
 
-module.exports = { createDemo, purgeDemo, sweepExpiredDemos, isExpiredDemo, extendDemo, activeDemoCount, ALL_MODULES, MAX_DEMOS };
+module.exports = { createDemo, populateDemo, purgeDemo, sweepExpiredDemos, isExpiredDemo, extendDemo, activeDemoCount, ALL_MODULES, MAX_DEMOS };

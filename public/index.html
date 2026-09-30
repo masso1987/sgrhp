@@ -4648,13 +4648,14 @@ async function tenantsView() {
     <td><button class="btn ghost sm" onclick="tenantForm('${t.id}')">Modifier</button>
       <button class="btn ghost sm" onclick="tenantUsers('${t.id}','${t.name.replace(/'/g,"")}')">Utilisateurs</button>
       <button class="btn ghost sm" onclick="tenantToggle('${t.id}','${t.status}')">${t.status==="ACTIVE"?"Suspendre":"Réactiver"}</button>${t.isDemo?`
+      <button class="btn ghost sm" onclick="tenantDemoPopulate('${t.id}')">Peupler</button>
       <button class="btn ghost sm" onclick="tenantDemoExtend('${t.id}')">Prolonger</button>
       <button class="btn ghost sm" style="color:var(--red)" onclick="tenantDemoPurge('${t.id}','${t.name.replace(/'/g,"")}')">Purger</button>`:""}</td></tr>`).join("")}
   </table></div>`;
 }
 async function tenantDemoCreate(){
   const days = prompt("Duree de validite du compte demo (jours) :", "30"); if(days===null) return;
-  const nb = prompt("Nombre de salaries fictifs a generer :", "8"); if(nb===null) return;
+  const nb = prompt("Nombre de salaries fictifs a generer :", "100"); if(nb===null) return;
   try{
     const r = await api("/tenants/demo",{method:"POST",body:JSON.stringify({days:Number(days)||30, employeeCount:Number(nb)||8})});
     const bg=document.createElement("div"); bg.className="modal-bg";
@@ -4670,6 +4671,12 @@ async function tenantDemoCreate(){
     document.body.appendChild(bg);
     tenantsView();
   }catch(e){ alert(e.message); }
+}
+async function tenantDemoPopulate(id){
+  const n = prompt("Nombre total de salaries fictifs a atteindre (donnees paie realistes issues d'un bulletin type) :", "100"); if(n===null) return;
+  try{ const r=await api("/tenants/demo/"+id+"/populate",{method:"POST",body:JSON.stringify({target:Number(n)||100})});
+    alert("Compte demo peuple : "+r.total+" salaries (+"+r.added+")."); tenantsView(); }
+  catch(e){ alert(e.message); }
 }
 async function tenantDemoExtend(id){
   const days = prompt("Prolonger le compte demo de combien de jours ?", "30"); if(days===null) return;

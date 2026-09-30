@@ -172,6 +172,13 @@ router.post("/demo", allow("SADM"), (req, res) => {
     res.status(e.status || 500).json({ error: e.message || "Erreur lors de la creation du compte demo" });
   }
 });
+router.post("/demo/:id/populate", allow("SADM"), (req, res) => {
+  try {
+    const r = demo.populateDemo(req.params.id, (req.body || {}).target);
+    audit(req.user, "UPDATED", "DemoTenant", req.params.id, { populatedTo: r.total, added: r.added });
+    res.json(r);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+});
 router.post("/demo/:id/extend", allow("SADM"), (req, res) => {
   const exp = demo.extendDemo(req.params.id, (req.body || {}).days);
   if (!exp) return res.status(404).json({ error: "Compte démo introuvable" });
