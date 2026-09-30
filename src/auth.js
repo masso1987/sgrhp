@@ -34,6 +34,7 @@ const lastSeen = new Map();
 function touchActivity(userId) { lastSeen.set(userId, Date.now()); }
 /* Presence sans WebSocket : actif si une requête a eu lieu récemment. */
 function isRecentlyActive(userId, windowMs) { const t = lastSeen.get(userId); return !!t && (Date.now() - t) < (windowMs || 70000); }
+function markOffline(userId) { lastSeen.delete(userId); }
 
 /* ---------- Journal des connexions (IP, appareil, localisation) ---------- */
 function clientIp(req) {
@@ -319,5 +320,5 @@ function totpDisable(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { login, logout, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive, newConfirmToken, confirmAccount,
+module.exports = { login, logout, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive, markOffline, newConfirmToken, confirmAccount,
   totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor, clientIp, parseUA, SECRET };

@@ -11,7 +11,7 @@ const router = require("express").Router();
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
-const { hash, passwordPolicy } = require("../auth");
+const { hash, passwordPolicy, isRecentlyActive, markOffline } = require("../auth");
 
 /* Catalogue of platform modules. HR & Careers ship first; others are placeholders. */
 const MODULES = [
@@ -137,22 +137,22 @@ router.get("/", allow("SADM"), (req, res) => {
 router.get("/users", allow("SADM"), (req, res) => {
   const tmap = {}; (db.tenants || []).forEach(t => { tmap[t.id] = t.name || t.id; });
   const tid = req.query.tenantId;
-  let list = (db.users || []).filter(u => u.role !== "SADM");
+  let list = (db.users || []).filter(u => u.role !== "SADM" && isRecentlyActive(u.id));
   if (tid) list = list.filter(u => (u.tenantId || "t1") === tid);
-  const out = list.map(u => ({ id: u.id, fullName: u.fullName, email: u.email, role: u.role, tenantId: u.tenantId || "t1", tenantName: tmap[u.tenantId || "t1"] || (u.tenantId || "t1"), active: u.active !== false, disconnected: false, lastLoginAt: u.lastLoginAt || null }))
+  const out = list.map(u => ({ id: u.id, fullName: u.fullName, email: u.email, role: u.role, tenantId: u.tenantId || "t1", tenantName: tmap[u.tenantId || "t1"] || (u.tenantId || "t1"), active: u.active !== false, connected: true, lastLoginAt: u.lastLoginAt || null }))
     .sort((a, b) => String(a.tenantName).localeCompare(String(b.tenantName)) || String(a.fullName || "").localeCompare(String(b.fullName || "")));
   res.json({ tenants: (db.tenants || []).map(t => ({ id: t.id, name: t.name || t.id })), users: out });
 });
 router.post("/users/:id/pause", allow("SADM"), (req, res) => {
   const u = (db.users || []).find(x => x.id === req.params.id); if (!u || u.role === "SADM") return res.status(404).json({ error: "Utilisateur introuvable" });
   const paused = (req.body && req.body.paused) !== false;
-  u.active = !paused; if (paused) u.tokenVersion = (u.tokenVersion || 0) + 1; // suspend also kills any live session
+  u.active = !paused; if (paused) { u.tokenVersion = (u.tokenVersion || 0) + 1; try { markOffline(u.id); } catch (e) {} } // suspendre coupe la session en cours et retire de la liste des connectés
   save(); audit(req.user, paused ? "USER_SUSPENDED" : "USER_REACTIVATED", "User", u.id, { tenant: u.tenantId });
   res.json({ id: u.id, active: u.active });
 });
 router.post("/users/:id/disconnect", allow("SADM"), (req, res) => {
   const u = (db.users || []).find(x => x.id === req.params.id); if (!u || u.role === "SADM") return res.status(404).json({ error: "Utilisateur introuvable" });
-  u.tokenVersion = (u.tokenVersion || 0) + 1; save(); // invalidates existing tokens; account stays active
+  u.tokenVersion = (u.tokenVersion || 0) + 1; try { markOffline(u.id); } catch (e) {} save(); // invalide les jetons + retire de la liste des connectés (le compte reste actif)
   audit(req.user, "USER_DISCONNECTED", "User", u.id, { tenant: u.tenantId });
   res.json({ id: u.id, ok: true });
 });

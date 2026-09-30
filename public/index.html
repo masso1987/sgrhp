@@ -92,6 +92,14 @@ tr[onclick]:hover{background:var(--nav-active-bg)}
 @keyframes mmbar{0%{left:-42%}100%{left:100%}}
 @keyframes mmfade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @keyframes mmpulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.09);opacity:1}}
+@keyframes mmLogoBeat{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes mmLogoRing{to{transform:rotate(360deg)}}
+@keyframes mmLogoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.mm-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:56px 16px;min-height:200px;text-align:center;animation:mmfade .22s ease}
+.mm-logo-wrap{position:relative;width:76px;height:76px;display:flex;align-items:center;justify-content:center;animation:mmLogoFloat 2.4s ease-in-out infinite}
+.mm-logo-wrap::before{content:"";position:absolute;inset:-9px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);border-right-color:var(--accent);animation:mmLogoRing .9s linear infinite}
+.mm-logo-wrap img{width:52px;height:52px;border-radius:14px;object-fit:contain;box-shadow:0 6px 18px rgba(0,0,0,.12);animation:mmLogoBeat 1.4s ease-in-out infinite}
+.mm-loading .mm-msg{font-weight:600;color:#475569;font-size:13px;letter-spacing:.2px}
 .mm-fade{animation:mmfade .2s ease}
 .mm-spin{width:20px;height:20px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:mmspin .7s linear infinite;display:inline-block;vertical-align:middle}
 .mm-empty,.mm-error{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:40px 16px;text-align:center;color:var(--muted);animation:mmfade .22s ease}
@@ -1145,7 +1153,7 @@ function mmConfirm(opts){
   });
 }
 /* ---- State screens + global loading / offline (micro-UX 150-300ms) ---- */
-function mmLoading(msg){ return `<div class="mm-empty"><span class="mm-spin"></span><div style="font-weight:600;color:#475569">${esc(msg||"Chargement…")}</div></div>`; }
+function mmLoading(msg){ return `<div class="mm-loading"><div class="mm-logo-wrap"><img src="${(typeof appLogoSrc==="function")?appLogoSrc():""}" alt=""></div><div class="mm-msg">${esc(msg||"Chargement…")}</div></div>`; }
 function mmEmpty(msg, sub){ return `<div class="mm-empty"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg><div style="font-weight:600;color:#475569">${esc(msg||"Aucune donnée")}</div>${sub?`<div style="font-size:11.5px">${esc(sub)}</div>`:""}</div>`; }
 function mmError(msg, retry){ return `<div class="mm-error"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><div style="font-weight:600">${esc(msg||"Une erreur est survenue")}</div>${retry?`<button class="btn ghost sm" onclick="${retry}">Réessayer</button>`:""}</div>`; }
 (function(){
@@ -1586,7 +1594,7 @@ const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueVie
   if (_v) _v.innerHTML = mmLoading();
   const _rk = (typeof arg === "string" || typeof arg === "number") ? `go('${k}',${JSON.stringify(arg)})` : `go('${k}')`;
   let _res; try { _res = _fn(arg); } catch (e) { if (_v) _v.innerHTML = mmError((e && e.message) || "Erreur", _rk); return; }
-  if (_res && typeof _res.catch === "function") _res.catch(e => { const v = document.getElementById("view"); if (v && v.querySelector(".mm-spin")) v.innerHTML = mmError((e && e.message) || "Erreur de chargement", _rk); });
+  if (_res && typeof _res.catch === "function") _res.catch(e => { const v = document.getElementById("view"); if (v && v.querySelector(".mm-loading")) v.innerHTML = mmError((e && e.message) || "Erreur de chargement", _rk); });
 }
 function none() { view.innerHTML = "<h1>Aucun module disponible pour ce rôle</h1><p></p>"; }
 
@@ -6577,22 +6585,23 @@ async function platusersView(){
   PU_DATA=await api("/tenants/users").catch(()=>({tenants:[],users:[]}));
   const f=window._puTenant||"";
   view.innerHTML=`<h1>Utilisateurs &amp; sessions</h1>
-  <div class="note">Vue super-admin de tous les utilisateurs, par entreprise. Vous pouvez <b>suspendre</b> un compte (blocage de connexion, réversible) ou <b>déconnecter</b> une session active immédiatement.</div>
+  <div class="note">Vue super-admin des utilisateurs <b>actuellement connectés</b>, par entreprise. Vous pouvez <b>suspendre</b> un compte (réversible) ou <b>déconnecter</b> sa session : le compte déconnecté disparaît aussitôt de la liste. La liste se rafraîchit automatiquement.</div>
   <div class="panel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <label style="margin:0" class="note-inline">Entreprise</label>
     <select id="puTenant" style="margin:0;min-width:220px" onchange="window._puTenant=this.value;platRender()"><option value="">Toutes les entreprises</option>${(PU_DATA.tenants||[]).map(t=>`<option value="${esc(t.id)}" ${f===t.id?"selected":""}>${esc(t.name)}</option>`).join("")}</select>
     <input id="puSearch" placeholder="Nom, email, rôle…" style="margin:0;max-width:240px" oninput="platRender()">
-    <span id="puCount" class="note-inline" style="margin-left:auto"></span>
+    <button class="btn ghost sm" style="margin:0" onclick="platusersView()">Rafraîchir</button><span id="puCount" class="note-inline" style="margin-left:auto"></span>
   </div>
   <div class="panel"><div id="puList"></div></div>`;
   platRender();
+  clearInterval(window._puTimer); window._puTimer=setInterval(()=>{ if(document.getElementById("puList")){ api("/tenants/users").then(d=>{PU_DATA=d;platRender();}).catch(()=>{}); } else { clearInterval(window._puTimer); } }, 30000);
 }
 function platRender(){
   const f=(document.getElementById("puTenant")||{}).value||""; const q=((document.getElementById("puSearch")||{}).value||"").toLowerCase();
   let list=(PU_DATA.users||[]).filter(u=>(!f||u.tenantId===f)&&(!q||(`${u.fullName} ${u.email} ${u.role}`).toLowerCase().includes(q)));
   const el=document.getElementById("puCount"); if(el) el.textContent=list.length+" utilisateur(s)";
   const rows=list.map(u=>{ const acts=[{icon:u.active?"lock":"refresh",label:u.active?"Suspendre le compte":"Réactiver le compte",danger:u.active,onclick:`puPause('${u.id}',${u.active})`},{icon:"logout",label:"Déconnecter la session",onclick:`puDisconnect('${u.id}')`}];
-    return `<tr><td><b>${esc(u.fullName||"")}</b><div class="note-inline">${esc(u.email||"")}</div></td><td>${esc(u.tenantName||"")}</td><td><span class="tag gray">${esc(u.role||"")}</span></td><td>${u.active?'<span class="tag green">Actif</span>':'<span class="tag" style="background:#fee2e2;color:#b91c1c">Suspendu</span>'}</td><td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")||'<tr><td colspan="5" class="note-inline">Aucun utilisateur.</td></tr>';
+    return `<tr><td><b>${esc(u.fullName||"")}</b><div class="note-inline">${esc(u.email||"")}</div></td><td>${esc(u.tenantName||"")}</td><td><span class="tag gray">${esc(u.role||"")}</span></td><td>${u.active?'<span class="tag green">Actif</span>':'<span class="tag" style="background:#fee2e2;color:#b91c1c">Suspendu</span>'}</td><td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")||'<tr><td colspan="5" class="note-inline">Aucun utilisateur connecté actuellement.</td></tr>';
   document.getElementById("puList").innerHTML=`<table><tr><th>Utilisateur</th><th>Entreprise</th><th>Rôle</th><th>État</th><th style="width:40px"></th></tr>${rows}</table>`;
 }
 async function puPause(uid,active){
@@ -6601,7 +6610,7 @@ async function puPause(uid,active){
 }
 async function puDisconnect(uid){
   const ok=await mmConfirm({title:"Déconnecter la session",message:"Fermer immédiatement la session active de cet utilisateur ? Le compte reste actif : il pourra se reconnecter.",confirmLabel:"Déconnecter",danger:true});
-  if(!ok) return; try{ await api("/tenants/users/"+uid+"/disconnect",{method:"POST"}); await mmConfirm({title:"Session fermée",message:"La session a été invalidée ; l'utilisateur devra se reconnecter.",confirmLabel:"OK",cancelLabel:"Fermer"}); }catch(e){ alert(e.message); }
+  if(!ok) return; try{ await api("/tenants/users/"+uid+"/disconnect",{method:"POST"}); platusersView(); }catch(e){ alert(e.message); }
 }
 /* ============================ Sauvegarde & stockage (ADM/SADM) ============================ */
 let BK_BACKENDS=[], BK_SCHED=[], BK_LIST=[], BK_SYNC={}, BK_SCOPES={tenants:[]};
