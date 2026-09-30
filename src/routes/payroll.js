@@ -418,10 +418,10 @@ function rubriqueInUse(rub, req) {
     (s.status === "CALCULATED" || s.status === "CLOSED") &&
     Array.isArray(s.result && s.result.lines) && s.result.lines.some(l => l.code === rub.code));
 }
-const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active"];
+const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active", "prorata"];
 
 router.get("/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =>
-  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, inUse: rubriqueInUse(r, req) })))));
+  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, prorata: rubProrates(r), inUse: rubriqueInUse(r, req) })))));
 // Rubriques attribuées à un salarié (pour le calcul à l'envers et les éléments variables), triées.
 router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
@@ -430,17 +430,28 @@ router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "U
   // d'un drapeau `mine` celles habituellement attribuées au salarié pour les afficher en premier.
   const mineCodes = new Set(employeeRubriques(emp, req).map(r => String(r.code)));
   const all = sortRubriques(mine(db.payRubriques, req));
-  res.json(all.map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel, formula: r.formula || null, base: r.base != null ? r.base : null, nombre: r.nombre != null ? r.nombre : null, taux: r.taux != null ? r.taux : null, mine: mineCodes.has(String(r.code)) })));
+  res.json(all.map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel, formula: r.formula || null, base: r.base != null ? r.base : null, nombre: r.nombre != null ? r.nombre : null, taux: r.taux != null ? r.taux : null, prorata: rubProrates(r), mine: mineCodes.has(String(r.code)) })));
 });
 
 /* Résout la formule d'une rubrique (Nombre/Base/Taux pouvant référencer des constantes) en un montant. */
 function constMapOf(req) { const m = {}; for (const c of mine(db.payConstantes, req)) m[String(c.code).toUpperCase()] = (c.valeur == null ? null : Number(c.valeur)); return m; }
-// Une rubrique est « liée à une constante » si sa base ou son nombre référence un code de constante
-// (chaîne non numérique). De telles rubriques ont une valeur fixe et ne doivent PAS être proratisées ;
-// toutes les autres rubriques sont proratisées quand le nombre de jours travaillés < 30.
-function _isConstRef(x) { return x != null && x !== "" && isNaN(Number(String(x).trim())); }
-function isConstLinked(rub) { return !!(rub && (_isConstRef(rub.base) || _isConstRef(rub.nombre))); }
-function rubProrates(rub) { return !isConstLinked(rub); } // défaut: proratise, sauf si valeur liée à une constante
+// Proratisation au prorata des jours de présence (comme la « base de calcul » de Sage).
+// C'est un réglage PAR RUBRIQUE (rub.prorata), modifiable dans Paramètres > Rubriques.
+// - Si rub.prorata est défini (true/false), il fait foi.
+// - Sinon, valeur par défaut raisonnable : les gains sont proratisés, sauf les familles à
+//   montant fixe (ancienneté, rappels, soldes, indemnités de rupture, bonus, quote-parts).
+//   Les retenues/cotisations ne sont jamais proratisées ici (calculées sur base × taux).
+function defaultProrata(rub) {
+  if (!rub) return true;                                   // élément ad hoc sans rubrique -> proratisé
+  if ((rub.sens || "GAIN") !== "GAIN") return false;       // retenues/cotisations : non applicable
+  const L = String(rub.label || "").toLowerCase();
+  if (/anciennet|rappel|solde de tout|licenciement|fin de carri|bonus|quote.?part|naissance/.test(L)) return false;
+  return true;                                             // salaire, sursalaire, primes/indemnités de présence
+}
+function rubProrates(rub) {
+  if (rub && rub.prorata !== undefined && rub.prorata !== null) return !!rub.prorata; // réglage explicite
+  return defaultProrata(rub);
+}
 function resolveRubrique(rub, req, ctx) {
   ctx = ctx || {}; const cm = ctx.constMap || constMapOf(req);
   const resolve = (x) => {
@@ -477,6 +488,7 @@ router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
     taux: b.taux != null && b.taux !== "" ? Number(b.taux) : null,
     tauxPat: b.tauxPat != null && b.tauxPat !== "" ? Number(b.tauxPat) : null,
     cnps: !!b.cnps, impo: !!b.impo, sens: b.sens || "GAIN",
+    prorata: (b.prorata !== undefined ? !!b.prorata : defaultProrata({ sens: b.sens || "GAIN", label: b.label })),
     active: true, system: false, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.payRubriques.push(r); save();
   audit(req.user, "CREATED", "PayRubrique", r.id, { code: r.code, label: r.label });
