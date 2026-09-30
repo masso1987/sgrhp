@@ -441,12 +441,18 @@ function constMapOf(req) { const m = {}; for (const c of mine(db.payConstantes, 
 // - Sinon, valeur par défaut raisonnable : les gains sont proratisés, sauf les familles à
 //   montant fixe (ancienneté, rappels, soldes, indemnités de rupture, bonus, quote-parts).
 //   Les retenues/cotisations ne sont jamais proratisées ici (calculées sur base × taux).
+// Règle Sage (vérifiée sur T_RUB) : une rubrique est proratisée au prorata des jours de présence
+// UNIQUEMENT si sa quantité (Nombre) est une constante de JOURS travaillés/payés
+// (NBREJOUT, NJOURP, NJOUTRAP, NOMJOUFE, NJOUNUITR…). Les rubriques à montant fixe (Nombre nul :
+// ancienneté, rappels, primes forfaitaires) ou calculées sur des HEURES ne sont pas proratisées ici.
+function _isDayCountConst(x) {
+  const s = String(x == null ? "" : x).toUpperCase().trim();
+  return /JOU/.test(s) && !/HEU|HS/.test(s); // contient JOUR/JOU (jours) mais pas HEU/HS (heures)
+}
 function defaultProrata(rub) {
-  if (!rub) return true;                                   // élément ad hoc sans rubrique -> proratisé
+  if (!rub) return false;                                  // sans rubrique -> comportement Sage : fixe
   if ((rub.sens || "GAIN") !== "GAIN") return false;       // retenues/cotisations : non applicable
-  const L = String(rub.label || "").toLowerCase();
-  if (/anciennet|rappel|solde de tout|licenciement|fin de carri|bonus|quote.?part|naissance/.test(L)) return false;
-  return true;                                             // salaire, sursalaire, primes/indemnités de présence
+  return _isDayCountConst(rub.nombre);                     // proratisé ssi Nombre = constante de jours
 }
 function rubProrates(rub) {
   if (rub && rub.prorata !== undefined && rub.prorata !== null) return !!rub.prorata; // réglage explicite
@@ -488,7 +494,7 @@ router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
     taux: b.taux != null && b.taux !== "" ? Number(b.taux) : null,
     tauxPat: b.tauxPat != null && b.tauxPat !== "" ? Number(b.tauxPat) : null,
     cnps: !!b.cnps, impo: !!b.impo, sens: b.sens || "GAIN",
-    prorata: (b.prorata !== undefined ? !!b.prorata : defaultProrata({ sens: b.sens || "GAIN", label: b.label })),
+    prorata: (b.prorata !== undefined ? !!b.prorata : defaultProrata({ sens: b.sens || "GAIN", nombre: b.nombre })),
     active: true, system: false, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.payRubriques.push(r); save();
   audit(req.user, "CREATED", "PayRubrique", r.id, { code: r.code, label: r.label });

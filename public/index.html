@@ -6908,6 +6908,8 @@ async function rubDelete(id){
   try{ await api("/payroll/rubriques/"+id+(r.inUse?"?force=1":""),{method:"DELETE"}); payconfigView(); }
   catch(e){ if(e.requiresConfirmation){ if(await mmConfirm({title:"Confirmer la suppression",message:e.warning||e.message,confirmLabel:"Supprimer quand même",danger:true})){ try{ await api("/payroll/rubriques/"+id+"?force=1",{method:"DELETE"}); payconfigView(); }catch(e2){ alert(e2.message); } } } else alert(e.message); }
 }
+function rmDayConst(v){ const s=String(v||"").toUpperCase(); return /JOU/.test(s) && !/HEU|HS/.test(s); }
+function rmSyncProrata(){ const cb=document.getElementById("rmProrata"); const nb=(document.getElementById("rmNombre")||{}).value; if(cb && cb.dataset.auto==="1") cb.checked=rmDayConst(nb); }
 function rubModal(r) {
   const isEdit = !!r; r = r || { family: "BRUT", formula: "Nombre x Base", sens: "GAIN", cnps: true, impo: true };
   const opt = (v, cur) => `<option ${v === cur ? "selected" : ""}>${v}</option>`;
@@ -6921,7 +6923,7 @@ function rubModal(r) {
       <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}"></div>
       <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
       <div><label>Formule</label><select id="rmFormula">${["Nombre x Base","Base x Taux","Nombre x Base x Taux","Montant pris tel quel","Barème"].map(f =>opt(f, r.formula)).join("")}</select></div>
-      <div><label>Nombre <span class="note-inline">(constante / valeur)</span></label><input id="rmNombre" list="cstCodes" value="${esc(r.nombre || "")}" placeholder="ex. NBREJOUT, 30" oninput="rmCstHint(this,'rmNbHint')"><div id="rmNbHint" class="note-inline"></div></div>
+      <div><label>Nombre <span class="note-inline">(constante / valeur)</span></label><input id="rmNombre" list="cstCodes" value="${esc(r.nombre || "")}" placeholder="ex. NBREJOUT, 30" oninput="rmCstHint(this,'rmNbHint');rmSyncProrata()"><div id="rmNbHint" class="note-inline"></div></div>
       <div><label>Base <span class="note-inline">(constante / valeur)</span></label><input id="rmBase" list="cstCodes" value="${esc(r.base || "")}" placeholder="ex. SALJOURN, PRIMASTREI" oninput="rmCstHint(this,'rmBaHint')"><div id="rmBaHint" class="note-inline"></div></div>
       <div><label>Taux %</label><input id="rmTaux" type="number" step="any" value="${r.taux != null ? r.taux : ""}"></div>
       <div><label>Sens</label><select id="rmSens">${opt("GAIN", r.sens)}${opt("RETENUE", r.sens)}${opt("PATRONAL", r.sens)}</select></div>
@@ -6930,8 +6932,8 @@ function rubModal(r) {
         <label class="chk" style="margin:0"><input type="checkbox" id="rmCnps" ${r.cnps ? "checked" : ""}><span>Soumis CNPS</span></label>
         <label class="chk" style="margin:0"><input type="checkbox" id="rmImpo" ${r.impo ? "checked" : ""}><span>Soumis IRPP</span></label></div>
       <div style="grid-column:1/3;display:flex;align-items:center;gap:8px;padding-top:2px">
-        <label class="chk" style="margin:0"><input type="checkbox" id="rmProrata" ${r.prorata !== false ? "checked" : ""}><span>Proratiser au prorata des jours de présence</span></label>
-        <span class="note-inline" title="Comme la base de calcul de Sage : si coché, la rubrique est réduite quand le salarié n'a pas travaillé le mois complet (montant × jours/30). Décochez pour un montant fixe (ancienneté, rappels, primes forfaitaires liées à une constante…).">?</span></div>
+        <label class="chk" style="margin:0"><input type="checkbox" id="rmProrata" data-auto="${isEdit ? "0" : "1"}" ${(isEdit ? (r.prorata !== false) : false) ? "checked" : ""} onchange="this.dataset.auto='0'"><span>Proratiser au prorata des jours de présence</span></label>
+        <span class="note-inline" title="Règle Sage : proratisé quand la quantité (Nombre) est une constante de JOURS travaillés (NBREJOUT, NJOURP, NJOUTRAP, NOMJOUFE…). Décochez pour un montant fixe (ancienneté, rappels, primes forfaitaires) ; les heures supp. ne se proratisent pas ici.">?</span></div>
     </div>
     ${isEdit && r.inUse ? `<label class="chk" style="margin-top:8px;color:var(--red)"><input type="checkbox" id="rmForce"><span>Je confirme : appliquer malgré l'impact sur la paie</span></label>` : ""}
     <div class="err hidden" id="rmErr" style="margin-top:6px"></div>
@@ -6942,6 +6944,7 @@ function rubModal(r) {
   document.body.appendChild(bg);
   if (isEdit && r.id) { api("/payroll/rubriques/" + r.id + "/compte").then(m => { const el = document.getElementById("rmCompte"); if (el) el.value = m.account || ""; }).catch(() => {}); }
   ["rmNombre", "rmBase"].forEach(idn => { const el = document.getElementById(idn); if (el && el.value) rmCstHint(el, idn === "rmNombre" ? "rmNbHint" : "rmBaHint"); });
+  rmSyncProrata();
 }
 function rmCstHint(inp, hintId) {
   const h = document.getElementById(hintId); if (!h) return;
