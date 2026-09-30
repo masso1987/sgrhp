@@ -234,6 +234,8 @@ app.use("/api/backup", require("./routes/backup"));
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
 // Rappels d'échéance (documents/CNI/contrats) : une fois par jour + peu après le démarrage.
 setInterval(() => { try { require("./expiry").scanAndRemind(); } catch (e) { console.error(e); } try { require("./expiry").advanceEchelons(); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000);
+setInterval(() => { try { require("./demo").sweepExpiredDemos(); } catch (e) { console.error("[demo]", e.message); } }, 6 * 60 * 60 * 1000);
+try { require("./demo").sweepExpiredDemos(); } catch (e) {}
 setTimeout(() => { try { require("./expiry").scanAndRemind(); } catch (e) {} try { require("./expiry").advanceEchelons(); } catch (e) {} }, 30000);
 setInterval(() => { try { require("./routes/backup").runDueSchedules(); } catch (e) { console.error("[backup]", e.message); } }, 5 * 60 * 1000);
 

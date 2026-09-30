@@ -4628,18 +4628,51 @@ async function tenantsView() {
   <div class="panel"><b style="font-size:12px;color:var(--muted)">ADOPTION DES MODULES</b>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
       ${ov.moduleAdoption.map(m=>`<span class="tag ${m.count?'blue':'gray'}">${esc(m.label)}: ${m.count}</span>`).join(" ")}</div></div>
-  <button class="btn p" style="margin-bottom:12px" onclick="tenantForm()">+ Nouvelle entreprise</button>
+  <div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn p" onclick="tenantForm()">+ Nouvelle entreprise</button><button class="btn ghost" onclick="tenantDemoCreate()" title="Compte de demonstration : tous les modules, donnees fictives, expiration">+ Compte demo</button></div>
   <div class="panel"><table><tr><th>Entreprise</th><th>Forme</th><th>NIU</th><th>Ville</th><th>Modules</th><th>Effectif</th><th>Statut</th><th></th></tr>
   ${list.map(t => `<tr>
     <td>${t.logo?`<img src="${t.logo}" style="height:20px;vertical-align:middle;margin-right:6px">`:""}<b>${esc(t.name)}</b>${t.acronym?` <span class="tag gray">${esc(t.acronym)}</span>`:""}</td>
     <td>${t.legalForm||"-"}</td><td>${esc(t.niu||"-")}</td><td>${esc(t.hqCity||"-")}</td>
     <td>${(t.modules||[]).map(m=>`<span class="tag blue" style="margin:1px">${(TEN_MODULES.find(x=>x.key===m)||{}).label||m}</span>`).join(" ")}</td>
     <td>${t.employees}</td>
-    <td><span class="tag ${t.status==="ACTIVE"?"green":"red"}">${t.status==="ACTIVE"?"Actif":"Suspendu"}</span></td>
+    <td><span class="tag ${t.status==="ACTIVE"?"green":"red"}">${t.status==="ACTIVE"?"Actif":"Suspendu"}</span>${t.isDemo?`<br><span class="tag ${new Date(t.demoExpiresAt)<new Date()?"red":"orange"}" title="Compte demo - expiration">DEMO - ${t.demoExpiresAt?new Date(t.demoExpiresAt).toLocaleDateString("fr-FR"):"-"}</span>`:""}</td>
     <td><button class="btn ghost sm" onclick="tenantForm('${t.id}')">Modifier</button>
       <button class="btn ghost sm" onclick="tenantUsers('${t.id}','${t.name.replace(/'/g,"")}')">Utilisateurs</button>
-      <button class="btn ghost sm" onclick="tenantToggle('${t.id}','${t.status}')">${t.status==="ACTIVE"?"Suspendre":"Réactiver"}</button></td></tr>`).join("")}
+      <button class="btn ghost sm" onclick="tenantToggle('${t.id}','${t.status}')">${t.status==="ACTIVE"?"Suspendre":"Réactiver"}</button>${t.isDemo?`
+      <button class="btn ghost sm" onclick="tenantDemoExtend('${t.id}')">Prolonger</button>
+      <button class="btn ghost sm" style="color:var(--red)" onclick="tenantDemoPurge('${t.id}','${t.name.replace(/'/g,"")}')">Purger</button>`:""}</td></tr>`).join("")}
   </table></div>`;
+}
+async function tenantDemoCreate(){
+  const days = prompt("Duree de validite du compte demo (jours) :", "30"); if(days===null) return;
+  const nb = prompt("Nombre de salaries fictifs a generer :", "8"); if(nb===null) return;
+  try{
+    const r = await api("/tenants/demo",{method:"POST",body:JSON.stringify({days:Number(days)||30, employeeCount:Number(nb)||8})});
+    const bg=document.createElement("div"); bg.className="modal-bg";
+    bg.innerHTML=`<div class="modal" style="max-width:460px">
+      <h3 style="margin:0 0 8px">Compte demo cree</h3>
+      <div style="font-size:13px;line-height:1.6">Entreprise : <b>${esc(r.tenant.name)}</b><br>Tous les modules actives - ${r.employees} salaries fictifs<br>Expire le : <b>${new Date(r.expiresAt).toLocaleDateString("fr-FR")}</b></div>
+      <div style="margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2)">
+        <b style="font-size:12px;color:var(--muted)">IDENTIFIANTS DE CONNEXION</b><br>
+        Email : <code>${esc(r.admin.email)}</code><br>Mot de passe : <code>${esc(r.admin.tempPassword)}</code>
+        <div class="note" style="font-size:11px;margin-top:6px">Notez ces identifiants : le mot de passe n'est affiche qu'une seule fois. Les donnees creees dans ce compte seront effacees a l'expiration.</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn p sm" onclick="this.closest('.modal-bg').remove()">J'ai note</button></div></div>`;
+    document.body.appendChild(bg);
+    tenantsView();
+  }catch(e){ alert(e.message); }
+}
+async function tenantDemoExtend(id){
+  const days = prompt("Prolonger le compte demo de combien de jours ?", "30"); if(days===null) return;
+  try{ const r=await api("/tenants/demo/"+id+"/extend",{method:"POST",body:JSON.stringify({days:Number(days)||30})});
+    alert("Nouvelle date d'expiration : "+new Date(r.demoExpiresAt).toLocaleDateString("fr-FR")); tenantsView(); }
+  catch(e){ alert(e.message); }
+}
+async function tenantDemoPurge(id,name){
+  if(!await mmConfirm({message:"Purger definitivement le compte demo "+name+" ? Toutes ses donnees (depart et tests) seront effacees.",danger:true,confirmLabel:"Purger"})) return;
+  try{ const r=await api("/tenants/demo/"+id+"/purge",{method:"POST"});
+    alert("Compte demo purge ("+r.rowsRemoved+" enregistrements)."); tenantsView(); }
+  catch(e){ alert(e.message); }
 }
 function pbPickLogo(inp){ const f=inp.files&&inp.files[0]; if(!f) return;
   if(f.size>200000){ alert("Logo trop volumineux (max ~200 Ko)."); inp.value=""; return; }

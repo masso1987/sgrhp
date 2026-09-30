@@ -157,6 +157,27 @@ router.post("/users/:id/disconnect", allow("SADM"), (req, res) => {
   res.json({ id: u.id, ok: true });
 });
 
+const demo = require("../demo");
+// --- Comptes de démonstration (SADM) ---
+router.post("/demo", allow("SADM"), (req, res) => {
+  const b = req.body || {};
+  const r = demo.createDemo({ days: b.days, employeeCount: b.employeeCount, companyName: b.companyName, adminEmail: b.adminEmail, adminPassword: b.adminPassword }, req.user);
+  audit(req.user, "CREATED", "DemoTenant", r.tenant.id, { expiresAt: r.expiresAt, employees: r.employees });
+  res.status(201).json(r);
+});
+router.post("/demo/:id/extend", allow("SADM"), (req, res) => {
+  const exp = demo.extendDemo(req.params.id, (req.body || {}).days);
+  if (!exp) return res.status(404).json({ error: "Compte démo introuvable" });
+  audit(req.user, "UPDATED", "DemoTenant", req.params.id, { demoExpiresAt: exp });
+  res.json({ id: req.params.id, demoExpiresAt: exp });
+});
+router.post("/demo/:id/purge", allow("SADM"), (req, res) => {
+  const r = demo.purgeDemo(req.params.id);
+  if (!r.ok) return res.status(404).json({ error: "Compte démo introuvable" });
+  audit(req.user, "DELETED", "DemoTenant", req.params.id, r);
+  res.json(r);
+});
+
 router.get("/:id", allow("SADM"), (req, res) => {
   const t = tenants().find(x => x.id === req.params.id);
   if (!t) return res.status(404).json({ error: "Tenant introuvable" });

@@ -159,6 +159,7 @@ function login(req, res) {
     if (user.confirmed === false) return fail("Compte non confirmé - cliquez le lien de confirmation envoyé par email.", 403);
     return fail("Compte désactivé - contactez votre administrateur.", 403);
   }
+  try { if (require("./demo").isExpiredDemo(user)) return fail("Compte de démonstration expiré - les données ont été (ou seront) effacées.", 403); } catch (e) {}
   if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
     const mins = Math.ceil((new Date(user.lockedUntil) - Date.now()) / 60000);
     return fail(`Compte temporairement verrouillé - réessayez dans ${mins} min`, 423);
