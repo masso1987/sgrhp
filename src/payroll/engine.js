@@ -60,7 +60,7 @@ const DEFAULT_CONFIG = {
     { upTo: 250000, amount: 1500 }, { upTo: 300000, amount: 2000 }, { upTo: 1e12, amount: 2250 },
   ],
 
-  overtime: { tier1Rate: 0.20, tier2Rate: 0.30, tier3Rate: 0.40, nightRate: 0.50 },
+  overtime: { tier1Rate: 0.20, tier2Rate: 0.30, tier3Rate: 0.40, nightRate: 0.50, hundredRate: 1.00 },
   // Seniority (^^ANCTAUX): 4% at 2 years, +2%/year, capped.
   seniority: { startYears: 2, startRate: 0.04, perYearRate: 0.02, maxRate: 1.0 }, // Code du travail : 4% à 2 ans, +2%/an, sans plafond conventionnel
   leave: {
@@ -154,11 +154,15 @@ function computePayslip(input, configOverride) {
   const _anBase = (input.ancienneteBase != null && Number(input.ancienneteBase) > 0) ? Number(input.ancienneteBase) : baseSalary;
   if (senR > 0) add({ code: "1040", label: "Prime d'ancienneté", kind: "GAIN", base: _anBase, rate: senR, gain: r0(_anBase * senR), cnps: true, impo: true });
   const ot = overtime || {};
-  const otL = (h, rate, code, label) => { if (h) add({ code, label, kind: "GAIN", nombre: h, base: r0(hourlyRate), rate: 1 + rate, gain: r0(h * hourlyRate * (1 + rate)), hours: h, cnps: true, impo: true }); };
-  otL(ot.tier1, cfg.overtime.tier1Rate, "1081", "Heures supp. (+20%)");
-  otL(ot.tier2, cfg.overtime.tier2Rate, "1082", "Heures supp. (+30%)");
-  otL(ot.tier3, cfg.overtime.tier3Rate, "1083", "Heures supp. (+40%)");
-  otL(ot.night, cfg.overtime.nightRate, "1084", "Heures de nuit (+50%)");
+  // Codes Sage (vérifiés sur bulletins réels) : +20%=1083, +30%=1088, +40%=1092, +50%=1096, +100%=2000.
+  // Le libellé et le taux affiché suivent le taux réel configuré (ex. SIC CACAO : +25% -> "125%").
+  const otL = (h, rate, code) => { if (h) { const mult = 1 + rate; add({ code, label: "Heures supp. " + Math.round(mult * 100) + "%", kind: "GAIN", nombre: h, base: Math.round(hourlyRate * 100) / 100, rate: mult, taux: Math.round(mult * 100), gain: r0(h * hourlyRate * mult), hours: h, cnps: true, impo: true }); } };
+  const _otc = cfg.overtime || {};
+  otL(ot.tier1, _otc.tier1Rate != null ? _otc.tier1Rate : 0.20, "1083");
+  otL(ot.tier2, _otc.tier2Rate != null ? _otc.tier2Rate : 0.30, "1088");
+  otL(ot.tier3, _otc.tier3Rate != null ? _otc.tier3Rate : 0.40, "1092");
+  otL(ot.night, _otc.nightRate != null ? _otc.nightRate : 0.50, "1096");
+  otL(ot.hundred, _otc.hundredRate != null ? _otc.hundredRate : 1.00, "2000");
   const _d2 = (x) => Math.round((x / (standardDays || 30)) * 100) / 100; // équivalent journalier
   for (const g of gains) if (g && g.amount) {
     const doPr = !!(g.prorate && PRORATA < 1); const pr = doPr ? PRORATA : 1;

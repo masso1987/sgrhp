@@ -266,7 +266,7 @@ function elementsToInput(emp, period, req, opts) {
   // 1) recurring structure from the HR dossier
   const struct = structureToInput(emp, req);
   const gains = [...struct.gains], nonTaxable = [], otherDeductions = [], avantages = [];
-  const overtime = { tier1: 0, tier2: 0, tier3: 0, night: 0, sundayHoliday: 0 };
+  const overtime = { tier1: 0, tier2: 0, tier3: 0, night: 0, hundred: 0, sundayHoliday: 0 };
   let absenceDays = 0;
   // 2) variable elements entered for this period (on top of the structure)
   const els = mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
@@ -288,6 +288,7 @@ function elementsToInput(emp, period, req, opts) {
       case "HS20": overtime.tier1 += Number(e.hours || 0); break;
       case "HS30": overtime.tier2 += Number(e.hours || 0); break;
       case "HS40": overtime.tier3 += Number(e.hours || 0); break;
+      case "HS100": overtime.hundred += Number(e.hours || 0); break;
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
       case "AVANTAGE": { const f = _flags(e, true, false); avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
@@ -868,7 +869,7 @@ router.post("/bordereau-fields", allow("ADM"), (req,res)=>{
   if(!b.label) return res.status(400).json({error:"Libellé requis"});
   const kind = b.kind==="HOURS" ? "HOURS" : "AMOUNT";
   if(kind==="AMOUNT" && !b.rubriqueCode) return res.status(400).json({error:"Rubrique requise pour un montant"});
-  if(kind==="HOURS" && !["HS20","HS30","HS40","NUIT"].includes(b.overtimeType)) return res.status(400).json({error:"Type d'heures requis (HS20/HS30/HS40/NUIT)"});
+  if(kind==="HOURS" && !["HS20","HS30","HS40","HS100","NUIT"].includes(b.overtimeType)) return res.status(400).json({error:"Type d'heures requis (HS20/HS30/HS40/HS100/NUIT)"});
   const key = "c_"+id("f").slice(-6);
   const f=stamp({ id:id("bfld"), key, label:String(b.label).slice(0,40), kind,
     rubriqueCode: kind==="AMOUNT"?String(b.rubriqueCode):"", overtimeType: kind==="HOURS"?b.overtimeType:"",
@@ -1687,7 +1688,7 @@ router.post("/runs/:id/timesheet", allow("RP", "ADM", "GPF", "CD", "RJ"), tsUplo
   const pick = (obj, tests) => { for (const key of Object.keys(obj)) { const nk = norm(key); if (tests.some(t => t(nk))) return obj[key]; } return undefined; };
   const num = (v) => { const n = Number(String(v == null ? "" : v).replace(",", ".").replace(/[^0-9.\-]/g, "")); return isNaN(n) ? 0 : n; };
   const empByMat = {}; mine(db.employees, req).forEach(e => { if (e.matricule) empByMat[String(e.matricule).trim()] = e; });
-  const TS_TYPES = ["JOURS", "ABSENCE", "HS20", "HS30", "HS40", "NUIT"];
+  const TS_TYPES = ["JOURS", "ABSENCE", "HS20", "HS30", "HS40", "HS100", "NUIT"];
   let matched = 0, notFound = [];
   for (const row of rows) {
     const mat = String(pick(row, [nk => nk === "matricule" || nk === "mat"]) || "").trim();

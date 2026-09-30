@@ -5062,7 +5062,7 @@ async function bordFieldsView(){
         <div><label>Libellé (colonne)</label><input id="bfLabel" placeholder="ex. Prime de salissure" style="margin:0;min-width:180px"></div>
         <div><label>Type</label><select id="bfKind" onchange="bordFieldKindChange()" style="margin:0"><option value="AMOUNT">Montant (prime)</option><option value="HOURS">Heures</option></select></div>
         <div id="bfMapAmount"><label>Rubrique de paie</label><select id="bfRub" style="margin:0;min-width:220px">${(rubs||[]).filter(r=>r.active!==false&&(r.sens||'GAIN')==='GAIN').map(r=>`<option value="${r.code}">${esc(r.code)} · ${esc(r.label)}</option>`).join("")}</select></div>
-        <div id="bfMapHours" style="display:none"><label>Type d'heures</label><select id="bfOt" style="margin:0"><option value="HS20">HS 120%</option><option value="HS30">HS 130%</option><option value="HS40">HS 140%</option><option value="NUIT">Nuit</option></select></div>
+        <div id="bfMapHours" style="display:none"><label>Type d'heures</label><select id="bfOt" style="margin:0"><option value="HS20">HS 120%</option><option value="HS30">HS 130%</option><option value="HS40">HS 140%</option><option value="HS100">HS 200%</option><option value="NUIT">Nuit</option></select></div>
         <div><label>Client</label><select id="bfPf" style="margin:0;min-width:160px"><option value="">Tous les clients</option>${(PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
         <button class="btn p sm" onclick="bordFieldCreate()">+ Ajouter</button></div>
       <div class="err hidden" id="bfErr" style="margin-top:6px"></div>
@@ -5072,7 +5072,7 @@ async function bordFieldsView(){
       ${fields.length?fields.map(f=>`<tr>
         <td><b>${esc(f.label)}</b></td>
         <td>${f.kind==='HOURS'?'Heures':'Montant'}</td>
-        <td>${f.kind==='HOURS'?({HS20:'HS 120%',HS30:'HS 130%',HS40:'HS 140%',NUIT:'Nuit'}[f.overtimeType]||f.overtimeType):(esc(f.rubriqueCode)+' · '+esc(f.rubriqueLabel||''))}</td>
+        <td>${f.kind==='HOURS'?({HS20:'HS 120%',HS30:'HS 130%',HS40:'HS 140%',HS100:'HS 200%',NUIT:'Nuit'}[f.overtimeType]||f.overtimeType):(esc(f.rubriqueCode)+' · '+esc(f.rubriqueLabel||''))}</td>
         <td>${esc(pfName(f.portfolioId))}</td>
         <td><button class="btn ghost sm" style="color:var(--red)" onclick="bordFieldDelete('${f.id}')">Supprimer</button></td></tr>`).join(""):'<tr><td colspan="5" class="note-inline">Aucune colonne personnalisée. Les colonnes standard (présence, HS, primes) restent toujours disponibles.</td></tr>'}
       </table></div>
@@ -6043,7 +6043,7 @@ function bulletinRenderTab() {
         <div><label>Type</label><select id="beType" onchange="beToggle()">
           <option value="PRIME">Prime</option><option value="INDEMNITE">Indemnité (non imposable)</option>
           <option value="HS20">Heures supp. +20%</option><option value="HS30">Heures supp. +30%</option><option value="HS40">Heures supp. +40%</option>
-          <option value="NUIT">Heures de nuit +50%</option><option value="ABSENCE">Absence (jours)</option>
+          <option value="NUIT">Heures de nuit +50%</option><option value="HS100">Heures supp. +100%</option><option value="ABSENCE">Absence (jours)</option>
           <option value="ACOMPTE">Acompte</option><option value="PRET">Remboursement prêt</option><option value="RETENUE">Retenue diverse</option><option value="AVANTAGE">Avantage en nature</option><option value="TREIZE">13e mois</option><option value="RAPPEL">Rappel de salaire</option></select></div>
         <div><label>Rubrique (référentiel)</label><select id="beRub" onchange="rubPick('be')" style="min-width:220px"><option value="">— choisir —</option></select><input type="hidden" id="beCode"></div>
         <div><label>Libellé</label><input id="beLabel" placeholder="ex. Prime de rendement" style="min-width:150px"></div>
@@ -6104,11 +6104,11 @@ function rubPick(prefix){
   const _wd=(document.getElementById("beJours")||{}).value; const _wdq=_wd?("&workedDays="+encodeURIComponent(_wd)):"";
   api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval"+(_emp?("?"+_emp+_wdq):"")).then(ev=>{
     const val=document.getElementById(prefix+"Val");
-    if(ev && ev.montant>0 && val && (["HS20","HS30","HS40","NUIT","ABSENCE"].indexOf((typeSel||{}).value)<0)){ val.value=ev.montant; }
+    if(ev && ev.montant>0 && val && (["HS20","HS30","HS40","HS100","NUIT","ABSENCE"].indexOf((typeSel||{}).value)<0)){ val.value=ev.montant; }
   }).catch(()=>{});
 }
 function beToggle() { const t = beType.value, l = document.getElementById("beValLbl");
-  l.textContent = ["HS20","HS30","HS40","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)";
+  l.textContent = ["HS20","HS30","HS40","HS100","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)";
   const fl = document.getElementById("beFlags"); if(fl) fl.style.display = ["PRIME","INDEMNITE","AVANTAGE","RAPPEL","TREIZE"].includes(t) ? "" : "none"; }
 async function bulletinAddEl(ev, period, empId) {
   ev.preventDefault(); const t = beType.value;
@@ -6121,7 +6121,7 @@ async function bulletinAddEl(ev, period, empId) {
     if (impo) body.impo = impo.checked; if (cnps) body.cnps = cnps.checked;
   }
   const v = Number(beVal.value || 0);
-  if (["HS20","HS30","HS40","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
+  if (["HS20","HS30","HS40","HS100","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
   try { await api("/payroll/elements", { method: "POST", body: JSON.stringify(body) });
     const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els; bulletinRenderEls(els);
     beVal.value = ""; beLabel.value = ""; if (codeEl) codeEl.value = ""; const rs=document.getElementById("beRub"); if(rs) rs.value=""; }
@@ -6193,6 +6193,7 @@ function payElementsForm(run) {
       <option value="HS30">Heures supp. +30%</option>
       <option value="HS40">Heures supp. +40%</option>
       <option value="NUIT">Heures de nuit +50%</option>
+      <option value="HS100">Heures supp. +100%</option>
       <option value="ABSENCE">Absence (jours)</option>
       <option value="ACOMPTE">Acompte</option>
       <option value="PRET">Remboursement prêt</option>
@@ -6206,7 +6207,7 @@ function payElementsForm(run) {
 }
 function peToggle() {
   const t = peType.value, lbl = document.getElementById("peValLbl");
-  if (["HS20", "HS30", "HS40", "NUIT"].includes(t)) lbl.textContent = "Heures";
+  if (["HS20", "HS30", "HS40", "HS100", "NUIT"].includes(t)) lbl.textContent = "Heures";
   else if (t === "ABSENCE") lbl.textContent = "Jours";
   else lbl.textContent = "Montant (XAF)";
 }
@@ -6215,7 +6216,7 @@ async function payAddElement(ev, period) {
   const t = peType.value;
   const body = { employeeId: peEmp.value, period, type: t, label: peLabel.value || peType.selectedOptions[0].text };
   const v = Number(peVal.value || 0);
-  if (["HS20", "HS30", "HS40", "NUIT"].includes(t)) body.hours = v;
+  if (["HS20", "HS30", "HS40", "HS100", "NUIT"].includes(t)) body.hours = v;
   else if (t === "ABSENCE") body.days = v;
   else body.amount = v;
   try {
