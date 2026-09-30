@@ -839,18 +839,77 @@ router.post("/invoice-models/:id/duplicate", allow("ADM"), (req, res) => {
 /* ---- Factures ---- */
 const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid);
 // Numéro de facture : séquence MENSUELLE (réinitialisée chaque mois) et robuste aux suppressions (max+1, jamais réutilisé).
-function _nextInvoiceNumber(req, contract, period) {
-  // Format : {séquence}/{n° client}/{mois}/{année}  - ex. 00001/029/09/2026
-  // La séquence s'incrémente PAR CLIENT et PAR MOIS (réinitialisée chaque mois), robuste aux suppressions (max+1).
-  const [yy, mm] = String(period || new Date().toISOString().slice(0, 7)).split("-");
-  const cnum = String((contract && contract.invoiceSeqPrefix) || "000");
-  const esc = cnum.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const rx = new RegExp("^0*(\\d+)/" + esc + "/" + mm + "/" + yy + "$");
-  let max = 0;
-  for (const x of mine(db.billingInvoices, req)) { const m = rx.exec(x.number || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
-  for (const x of mine(db.billingSheets, req)) { const m = rx.exec(x.invoiceNumber || ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
-  return String(max + 1).padStart(3, "0") + "/" + cnum + "/" + mm + "/" + yy;
+/* ------- Numérotation configurable des factures (jetons dynamiques) ------- */
+const _MOISABR = ["JAN","FEV","MAR","AVR","MAI","JUN","JUL","AOU","SEP","OCT","NOV","DEC"];
+const INV_DEFAULT = { format: "{SEQ:3}/{CODE}/{MM}/{YYYY}", seqWidth: 3, resetScope: "monthly" };
+function billCfg(req) {
+  const tid = (req.user && req.user.tenantId) || "t1";
+  let c = (db.billingConfig || []).find(x => (x.tenantId || "t1") === tid);
+  if (!c) { c = stamp(Object.assign({ id: id("bcfg") }, INV_DEFAULT), req); db.billingConfig = db.billingConfig || []; db.billingConfig.push(c); }
+  return c;
 }
+/** Contexte des jetons pour un client/période donnés. */
+function _invCtx(contract, period, cfg) {
+  const [yy, mm] = String(period || new Date().toISOString().slice(0, 7)).split("-");
+  const code = String((contract && (contract.invoiceSeqPrefix || contract.clientCode)) || "000");
+  return { code, client: String((contract && contract.clientCode) || code), mm, yyyy: yy, yy: String(yy).slice(-2), mmm: _MOISABR[(Number(mm) || 1) - 1] || "", seqWidth: cfg ? cfg.seqWidth : 3 };
+}
+/** Développe un format en remplaçant les jetons ; SEQ=null laisse un repère pour construire le motif. */
+function expandInvoiceFormat(fmt, ctx, seqVal) {
+  return String(fmt || INV_DEFAULT.format).replace(/\{([A-Z]+)(?::(\d+))?\}/g, (m, tok, w) => {
+    switch (tok) {
+      case "SEQ": return seqVal == null ? "\x00SEQ\x00" : String(seqVal).padStart(Number(w) || ctx.seqWidth || 3, "0");
+      case "CODE": return ctx.code || "";
+      case "CLIENT": return ctx.client || ctx.code || "";
+      case "MM": return ctx.mm || "";
+      case "YYYY": return ctx.yyyy || "";
+      case "YY": return ctx.yy || "";
+      case "MMM": return ctx.mmm || "";
+      default: return m;
+    }
+  });
+}
+function _nextInvoiceNumber(req, contract, period) {
+  const cfg = billCfg(req);
+  const ctx = _invCtx(contract, period, cfg);
+  // Portée de réinitialisation de la séquence : le motif « fixe » (hors SEQ) sert à isoler la série.
+  let scopeFmt = cfg.format;
+  if (cfg.resetScope === "yearly") { /* le mois ne fait pas partie de la série */ }
+  const tmpl = expandInvoiceFormat(cfg.format, ctx, null);           // ...\x00SEQ\x00...
+  const esc = tmpl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // motif de comparaison selon la portée : yearly -> ignore le mois ; global -> ignore mois+année
+  let rxStr = esc.replace(/\x00SEQ\x00/, "0*(\\d+)");
+  if (cfg.resetScope === "yearly") rxStr = rxStr.replace(new RegExp("(?<=^|\\D)" + ctx.mm + "(?=\\D|$)"), "\\d{2}");
+  const rx = new RegExp("^" + rxStr + "$");
+  let max = 0;
+  const scan = (v) => { const m = rx.exec(v || ""); if (m && m[1] != null) max = Math.max(max, parseInt(m[1], 10)); };
+  for (const x of mine(db.billingInvoices, req)) scan(x.number);
+  for (const x of mine(db.billingSheets, req)) scan(x.invoiceNumber);
+  return expandInvoiceFormat(cfg.format, ctx, max + 1);
+}
+/* Config API */
+router.get("/number-config", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const c = billCfg(req); save();
+  res.json({ format: c.format, seqWidth: c.seqWidth, resetScope: c.resetScope,
+    tokens: [
+      { t: "{SEQ:3}", d: "Séquence (largeur configurable, ex. 3 → 001)" },
+      { t: "{CODE}", d: "Code / n° du client (préfixe de séquence)" },
+      { t: "{CLIENT}", d: "Code client" },
+      { t: "{MM}", d: "Mois de la prestation (2 chiffres)" },
+      { t: "{YYYY}", d: "Année de la prestation (4 chiffres)" },
+      { t: "{YY}", d: "Année (2 chiffres)" },
+      { t: "{MMM}", d: "Mois abrégé (JAN, FEV…)" },
+    ],
+    sample: _nextInvoiceNumber(req, { invoiceSeqPrefix: "701", clientCode: "701" }, "2026-09") });
+});
+router.put("/number-config", allow("ADM", "CD"), (req, res) => {
+  const c = billCfg(req); const b = req.body || {};
+  if (b.format !== undefined) c.format = String(b.format).slice(0, 80) || INV_DEFAULT.format;
+  if (b.seqWidth !== undefined) c.seqWidth = Math.min(10, Math.max(1, Number(b.seqWidth) || 3));
+  if (b.resetScope !== undefined && ["monthly", "yearly", "never"].includes(b.resetScope)) c.resetScope = b.resetScope;
+  save(); audit(req.user, "UPDATED", "BillingConfig", c.id, { format: c.format });
+  res.json({ format: c.format, seqWidth: c.seqWidth, resetScope: c.resetScope, sample: _nextInvoiceNumber(req, { invoiceSeqPrefix: "701", clientCode: "701" }, "2026-09") });
+});
 router.get("/dashboard", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   const invs = mine(db.billingInvoices, req).map(withInvTotals);
   const val = invs.filter(i => i.status === "validated");

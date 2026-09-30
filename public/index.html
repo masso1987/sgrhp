@@ -7362,6 +7362,9 @@ async function billingCfgView() {
       <td>${(c.rates.fraisGestion * 100).toFixed(0)} %</td><td>÷${c.rates.congesDivisor}</td>
       <td style="text-align:center">${rowActions([{icon:"file",label:"Générer l'annexe",onclick:`billingGenAnnexe('${c.id}')`},{icon:"edit",label:"Modifier",onclick:`billingContractModal('${c.id}')`}])}</td></tr>`).join("") || '<tr><td colspan="7" style="color:var(--muted)">Aucun client.</td></tr>'}
     </table></div>
+  <div class="panel" id="invNumPanel"><b>Numérotation des factures</b>
+    <div class="note" style="margin-top:6px">Composez librement le format du numéro de facture à l'aide des jetons ci-dessous. Le format actuel de l'application est conservé par défaut. Cliquez un jeton pour l'insérer.</div>
+    <div id="invNumBody" style="margin-top:8px;color:var(--muted)">Chargement…</div></div>
   <div class="panel"><b>Catalogue des composants (${comps.length})</b>
     <span style="float:right;display:flex;gap:6px">
       <button class="btn ghost sm" onclick="billingCompImport()">Importer (Odoo/CSV)</button>
@@ -7379,6 +7382,52 @@ async function billingCfgView() {
       <td style="white-space:nowrap"><button class="btn ghost sm" onclick='billLFDefModal(${JSON.stringify(f.id)})'>Modifier</button>
         <button class="btn ghost sm" style="color:var(--red)" onclick='billLFDefDel(${JSON.stringify(f.id)})'>Suppr.</button></td></tr>`).join("")}
     </table></div>`;
+  billNumLoad();
+}
+async function billNumLoad() {
+  const box = document.getElementById("invNumBody"); if (!box) return;
+  let cfg; try { cfg = await api("/billing/number-config"); } catch (e) { box.textContent = e.message; return; }
+  window.__invCfg = cfg;
+  const chips = (cfg.tokens || []).map(t => `<button type="button" class="btn ghost sm" style="margin:2px" title="${esc(t.d)}" onclick="billNumInsert('${t.t}')">${esc(t.t)}</button>`).join("");
+  box.innerHTML = `
+    <div class="grid2" style="align-items:end">
+      <div style="grid-column:1/-1"><label>Format du numéro</label>
+        <input id="invFmt" value="${esc(cfg.format)}" oninput="billNumPreview()" style="font-family:monospace">
+        <div style="margin-top:6px">${chips}</div></div>
+      <div><label>Largeur de la séquence</label><input id="invSeqW" type="number" min="1" max="10" value="${cfg.seqWidth}" oninput="billNumPreview()"></div>
+      <div><label>Réinitialisation de la séquence</label>
+        <select id="invReset" onchange="billNumPreview()">
+          <option value="monthly" ${cfg.resetScope==="monthly"?"selected":""}>Chaque mois</option>
+          <option value="yearly" ${cfg.resetScope==="yearly"?"selected":""}>Chaque année</option>
+          <option value="never" ${cfg.resetScope==="never"?"selected":""}>Jamais (continue)</option>
+        </select></div>
+    </div>
+    <div class="note" style="margin-top:8px">Aperçu (client 701, sept. 2026) : <code id="invPrev" style="font-size:15px">${esc(cfg.sample||"")}</code></div>
+    <div style="margin-top:10px"><button class="btn p sm" onclick="billNumSave()">Enregistrer le format</button></div>`;
+}
+function billNumInsert(tok) {
+  const el = document.getElementById("invFmt"); if (!el) return;
+  const s0 = el.selectionStart ?? el.value.length, e0 = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0, s0) + tok + el.value.slice(e0); el.focus();
+  const pos = s0 + tok.length; el.setSelectionRange(pos, pos); billNumPreview();
+}
+function billNumPreview() {
+  const fmt = (document.getElementById("invFmt")||{}).value || "";
+  const w = Math.max(1, Math.min(10, +(document.getElementById("invSeqW")||{}).value || 3));
+  const ctx = { CODE:"701", CLIENT:"701", MM:"09", YYYY:"2026", YY:"26", MMM:"SEP" };
+  const out = fmt.replace(/\{([A-Z]+)(?::(\d+))?\}/g, (m,t,ww) => {
+    if (t==="SEQ") return String(1).padStart(+ww||w,"0");
+    return ctx[t] !== undefined ? ctx[t] : m; });
+  const pv = document.getElementById("invPrev"); if (pv) pv.textContent = out;
+}
+async function billNumSave() {
+  const body = { format:(document.getElementById("invFmt")||{}).value,
+    seqWidth:+(document.getElementById("invSeqW")||{}).value||3,
+    resetScope:(document.getElementById("invReset")||{}).value };
+  try { const r = await api("/billing/number-config", { method:"PUT", body:JSON.stringify(body) });
+    const pv=document.getElementById("invPrev"); if(pv&&r.sample) pv.textContent=r.sample;
+    if (window.mmToast) mmToast("Format de numérotation enregistré"); }
+  catch (e) { alert(e.message); }
 }
 async function billLoadFieldCatalog() {
   try { const r = await api("/billing/line-fields"); if (Array.isArray(r) && r.length) { window.BILL_LF_DEFS = r; LF_KNOWN = r.map(f => ({ key: f.key, label: f.label, type: f.type })); } } catch (e) {}
