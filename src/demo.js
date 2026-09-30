@@ -17,6 +17,7 @@ const { hash } = require("./auth");
 
 const UPLOADS = path.join(__dirname, "..", "uploads");
 const ALL_MODULES = ["hr", "careers", "payroll", "accounting", "invoicing", "stock", "quality"];
+const MAX_DEMOS = Math.max(1, Number(process.env.DEMO_MAX) || 5); // nombre max de comptes demo actifs simultanement
 
 const FIRST_M = ["Jean", "Paul", "Samuel", "Emmanuel", "Serge", "Blaise", "Aristide", "Cedric", "Landry", "Boris", "Thierry", "Franck"];
 const FIRST_F = ["Marie", "Chantal", "Solange", "Nadege", "Estelle", "Bertille", "Larissa", "Carine", "Josiane", "Prisca", "Rachel", "Yolande"];
@@ -45,8 +46,13 @@ function templateEmployee(srcTid) {
   };
 }
 
+function activeDemoCount() { return (db.tenants || []).filter(t => t.isDemo).length; }
 function createDemo(opts, actor) {
   opts = opts || {};
+  if (activeDemoCount() >= MAX_DEMOS) {
+    const err = new Error("Limite atteinte : " + MAX_DEMOS + " comptes de demonstration maximum. Purgez-en un avant d'en creer un nouveau.");
+    err.status = 409; throw err;
+  }
   const srcTid = opts.srcTid || "t1";
   const days = Math.max(1, Math.min(365, Number(opts.days) || 30));
   const nEmp = Math.max(1, Math.min(50, Number(opts.employeeCount) || 8));
@@ -182,4 +188,4 @@ function extendDemo(tid, days) {
   return t.demoExpiresAt;
 }
 
-module.exports = { createDemo, purgeDemo, sweepExpiredDemos, isExpiredDemo, extendDemo, ALL_MODULES };
+module.exports = { createDemo, purgeDemo, sweepExpiredDemos, isExpiredDemo, extendDemo, activeDemoCount, ALL_MODULES, MAX_DEMOS };

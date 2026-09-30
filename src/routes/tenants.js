@@ -159,11 +159,18 @@ router.post("/users/:id/disconnect", allow("SADM"), (req, res) => {
 
 const demo = require("../demo");
 // --- Comptes de démonstration (SADM) ---
+router.get("/demo/quota", allow("SADM"), (req, res) => {
+  res.json({ used: demo.activeDemoCount(), max: demo.MAX_DEMOS, remaining: Math.max(0, demo.MAX_DEMOS - demo.activeDemoCount()) });
+});
 router.post("/demo", allow("SADM"), (req, res) => {
   const b = req.body || {};
-  const r = demo.createDemo({ days: b.days, employeeCount: b.employeeCount, companyName: b.companyName, adminEmail: b.adminEmail, adminPassword: b.adminPassword }, req.user);
-  audit(req.user, "CREATED", "DemoTenant", r.tenant.id, { expiresAt: r.expiresAt, employees: r.employees });
-  res.status(201).json(r);
+  try {
+    const r = demo.createDemo({ days: b.days, employeeCount: b.employeeCount, companyName: b.companyName, adminEmail: b.adminEmail, adminPassword: b.adminPassword }, req.user);
+    audit(req.user, "CREATED", "DemoTenant", r.tenant.id, { expiresAt: r.expiresAt, employees: r.employees });
+    res.status(201).json(r);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || "Erreur lors de la creation du compte demo" });
+  }
 });
 router.post("/demo/:id/extend", allow("SADM"), (req, res) => {
   const exp = demo.extendDemo(req.params.id, (req.body || {}).days);

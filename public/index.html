@@ -4610,6 +4610,7 @@ let TEN_MODULES = null, TEN_FORMS = null;
 async function tenantsView() {
   if (!TEN_MODULES) [TEN_MODULES, TEN_FORMS] = await Promise.all([api("/tenants/modules"), api("/tenants/legal-forms")]);
   const [list, ov] = await Promise.all([api("/tenants"), api("/tenants/stats/overview")]);
+  let _dq={used:0,max:0,remaining:0}; try{ _dq=await api("/tenants/demo/quota"); }catch(e){}
   let _pb={appName:"",appLogo:""}; try{ _pb=await api("/tenants/platform-branding"); }catch(e){}
   window._PB_LOGO=undefined;
   view.innerHTML = `<h1>Plateforme - entreprises clientes</h1>
@@ -4636,7 +4637,7 @@ async function tenantsView() {
   <div class="panel"><b style="font-size:12px;color:var(--muted)">ADOPTION DES MODULES</b>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
       ${ov.moduleAdoption.map(m=>`<span class="tag ${m.count?'blue':'gray'}">${esc(m.label)}: ${m.count}</span>`).join(" ")}</div></div>
-  <div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn p" onclick="tenantForm()">+ Nouvelle entreprise</button><button class="btn ghost" onclick="tenantDemoCreate()" title="Compte de demonstration : tous les modules, donnees fictives, expiration">+ Compte demo</button></div>
+  <div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn p" onclick="tenantForm()">+ Nouvelle entreprise</button><button class="btn ghost" onclick="tenantDemoCreate()" ${_dq.remaining<=0?"disabled title=\"Limite atteinte - purgez un compte demo pour en creer un nouveau\"":"title=\"Compte de demonstration : tous les modules, donnees fictives, expiration\""}>+ Compte demo (${_dq.used}/${_dq.max})</button></div>
   <div class="panel"><table><tr><th>Entreprise</th><th>Forme</th><th>NIU</th><th>Ville</th><th>Modules</th><th>Effectif</th><th>Statut</th><th></th></tr>
   ${list.map(t => `<tr>
     <td>${t.logo?`<img src="${t.logo}" style="height:20px;vertical-align:middle;margin-right:6px">`:""}<b>${esc(t.name)}</b>${t.acronym?` <span class="tag gray">${esc(t.acronym)}</span>`:""}</td>
