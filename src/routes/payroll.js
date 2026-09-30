@@ -367,11 +367,13 @@ function reverseSolve(emp, period, req, targetNet, code, label, cnps, impo) {
 function rubSection(r) {
   const n = parseInt(String(r.code), 10) || 0;
   if (r.sens === "PATRONAL") return { key: "patronal", order: 4, label: "Charges patronales" };
-  if (r.family === "BRUT" || r.sens === "GAIN") return { key: "gains", order: 1, label: "Gains" };
-  if (r.family === "COTISATION") return (n >= 5025)
+  // Le regroupement suit la FAMILLE choisie (modifiable) ; à défaut, on déduit de la nature (sens).
+  const fam = r.family || (r.sens === "RETENUE" ? "NON_SOUMISE" : "BRUT");
+  if (fam === "COTISATION") return (n >= 5025)
     ? { key: "impots", order: 3, label: "Impôts & taxes" }
     : { key: "cotisations", order: 2, label: "Cotisations sociales" };
-  return { key: "retenues", order: 5, label: "Retenues & éléments non soumis" };
+  if (fam === "NON_SOUMISE") return { key: "retenues", order: 5, label: "Retenues & éléments non soumis" };
+  return { key: "gains", order: 1, label: "Gains" }; // BRUT
 }
 function rubSortKey(r) { const s = rubSection(r); return s.order * 1e7 + (parseInt(String(r.code), 10) || 0); }
 function sortRubriques(list) {
