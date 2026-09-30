@@ -253,8 +253,8 @@ function structureToInput(emp, req) {
     if (code === "1000" || el.tag === "salary_base" || /salaire de base/i.test(el.name || "")) { baseSalary = amount; continue; }
     // La prime d'ancienneté est calculée automatiquement par le moteur (Arrêté n°019 MTPS : % du salaire minimum de la catégorie). On ignore donc toute valeur saisie manuellement (codes 1040/1055 ou libellé « ancienneté »).
     if (code === "1040" || code === "1055" || /anciennet/i.test(el.name || "")) continue;
-    if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount, prorate: true }; continue; }
-    gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount, prorate: true,
+    if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount, prorate: rubProrates(rub) }; continue; }
+    gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount, prorate: rubProrates(rub),
       cnps: rub ? !!rub.cnps : true, impo: rub ? !!rub.impo : true });
   }
   if (!baseSalary) baseSalary = baseSalaryOf(emp, req); // fallback to the salary grid
@@ -280,8 +280,8 @@ function elementsToInput(emp, period, req, opts) {
   };
   for (const e of els) {
     switch (e.type) {
-      case "PRIME": { const f = _flags(e, true, true); gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
-      case "INDEMNITE": { const f = _flags(e, false, false); if (!f.impo && !f.cnps) nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount) }); else gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
+      case "PRIME": { const f = _flags(e, true, true); gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo, prorate: rubProrates(_rubOf(e.code)) }); break; }
+      case "INDEMNITE": { const f = _flags(e, false, false); const _pr = rubProrates(_rubOf(e.code)); if (!f.impo && !f.cnps) nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount), prorate: _pr }); else gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo, prorate: _pr }); break; }
       case "ACOMPTE": otherDeductions.push({ code: e.code && String(e.code) !== "ACOMPTE" ? String(e.code) : "7000", label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
       case "PRET": otherDeductions.push({ code: e.code && String(e.code) !== "PRET" ? String(e.code) : "7010", label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
       case "RETENUE": otherDeductions.push({ code: e.code && String(e.code) !== "RETENUE" ? String(e.code) : "7030", label: e.label || "Retenue diverse", amount: Number(e.amount) }); break;
@@ -291,8 +291,8 @@ function elementsToInput(emp, period, req, opts) {
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
       case "AVANTAGE": { const f = _flags(e, true, false); avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
-      case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)) }); break; }
-      case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount) }); break;
+      case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)), prorate: rubProrates(_rubOf("2514")) }); break; }
+      case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount), prorate: rubProrates(_rubOf("2035")) }); break;
       default: break;
     }
   }
@@ -435,6 +435,12 @@ router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "U
 
 /* Résout la formule d'une rubrique (Nombre/Base/Taux pouvant référencer des constantes) en un montant. */
 function constMapOf(req) { const m = {}; for (const c of mine(db.payConstantes, req)) m[String(c.code).toUpperCase()] = (c.valeur == null ? null : Number(c.valeur)); return m; }
+// Une rubrique est « liée à une constante » si sa base ou son nombre référence un code de constante
+// (chaîne non numérique). De telles rubriques ont une valeur fixe et ne doivent PAS être proratisées ;
+// toutes les autres rubriques sont proratisées quand le nombre de jours travaillés < 30.
+function _isConstRef(x) { return x != null && x !== "" && isNaN(Number(String(x).trim())); }
+function isConstLinked(rub) { return !!(rub && (_isConstRef(rub.base) || _isConstRef(rub.nombre))); }
+function rubProrates(rub) { return !isConstLinked(rub); } // défaut: proratise, sauf si valeur liée à une constante
 function resolveRubrique(rub, req, ctx) {
   ctx = ctx || {}; const cm = ctx.constMap || constMapOf(req);
   const resolve = (x) => {
