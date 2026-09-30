@@ -1875,31 +1875,6 @@ async function empSave(editId) {
   } catch (err) { fErr.textContent = err.message; fErr.classList.remove("hidden"); }
 }
 
-async function empDetail(id) {
-  const e = await api("/employees/" + id);
-  const canEdit = ["GPF","ADM"].includes(ME.role);
-  view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
-    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)}</h1>
-    <div class="panel"><b style="font-size:12px;color:var(--muted)">PERSONAL & CONTRACT</b>
-    <div class="grid3" style="margin-top:8px;font-size:13px">
-      <div><label>Portefeuille</label><div>${pfName(e.portfolioId)}</div></div>
-      <div><label>Embauché le</label><div>${e.hireDate}</div></div>
-      <div><label>Né(e) le</label><div>${e.birthDate} - ${esc(e.birthPlace || "-")}</div></div>
-      <div><label>CNI</label><div>${esc(e.cniNumber)} (exp. ${e.cniExpiry})</div></div>
-      <div><label>CNPS</label><div>${esc(e.cnpsNumber || "-")}${e.cnpsKey?" clé "+esc(e.cnpsKey):""}</div></div>
-      <div><label>Personne à contacter en cas d'urgence</label><div>${e.emergencyName || e.emergencyContact || "-"}${e.emergencyPhone ? " - " + e.emergencyPhone : ""}</div></div>
-      <div><label>Contrat</label><div>${e.contract?.type || "-"} - ${e.contract?.paymentMethod || ""}<br>
-  <small style="color:var(--muted)">${e.contract?.type === "CDI" ? "durée indéterminée" : e.contract?.endDate ? "fin le " + e.contract.endDate : ""}</small></div></div>
-    </div></div>
-    <div class="note">Pièces obligatoires héritées du portefeuille <b>${pfName(e.portfolioId)}</b>. La CNI est obligatoire pour tous les portefeuilles. Every upload/download is logged.</div>
-    <div class="panel">${e.checklist.slice().sort(docSort).map((c, i) => `
-      <div class="doc-row"><div><b>${i + 1}.</b> ${esc(docLabelL(c))} <small style="color:var(--muted)">(${c.formats})</small>
-        ${c.locked ? '<span class="tag red">'+tt("OBLIGATOIRE","REQUIRED")+'</span>' : (c.atCreation ? '<span class="tag red">'+tt("À la création","At creation")+'</span>' : '<span class="tag" style="background:#e5edff;color:#3730a3">'+tt("À fournir","To provide")+'</span>')}</div>
-      <div>${c.uploaded
-        ? `<span class="tag green">${tt("Déposée","Uploaded")}</span> ${fileBtns(e, c.code)}`
-        : canEdit ? uploadForm(e.id, c.code) : (c.atCreation ? '<span class="tag amber">'+tt("Manquante","Missing")+'</span>' : '<span class="tag" style="background:#fff7ed;color:#b45309">'+tt("En attente","Pending")+'</span>')}</div></div>`).join("")}
-    </div>`;
-}
 const fileBtns = (e, code) =>e.files.filter(f =>f.docType === code)
   .map(f => `<button class="btn ghost sm" onclick="dl('${e.id}','${f.id}','${esc(f.fileName)}')">${esc(f.fileName)}</button>`).join(" ");
 const uploadForm = (empId, code) => `
@@ -2987,7 +2962,7 @@ async function fichesView() {
       <div><label>${k}</label><textarea data-fp="${f.id}" data-k="${k}" rows="3" ${canUp ? "" : "readonly"}
         style="font-size:12px">${esc(f.extracted[k] || "")}</textarea></div>`).join("")}
     </div>
-    ${canUp ? `<button class="btn p sm" onclick="fpSave('${f.id}')">Enregistrer les corrections</button>` : ""}</div>`).join("")
+    ${canUp ? `<button class="btn p sm" onclick="ficheFieldsSave('${f.id}')">Enregistrer les corrections</button>` : ""}</div>`).join("")
   || '<div class="panel">Aucune fiche pour le moment.</div>'}`;
 }
 async function fpUp(ev) {
@@ -3000,7 +2975,7 @@ async function fpUp(ev) {
   catch (e) { fpErr.textContent = e.message; fpErr.classList.remove("hidden"); }
   return false;
 }
-async function fpSave(id) {
+async function ficheFieldsSave(id) {
   const body = {};
   view.querySelectorAll(`textarea[data-fp="${id}"]`).forEach(t =>body[t.dataset.k] = t.value);
   await api(`/fiches/${id}`, { method: "PUT", body: JSON.stringify(body) });
@@ -10401,43 +10376,7 @@ async function smqScopeSave(){
 }
 
 /* ---------- Indicateurs ---------- */
-async function smqIndicatorsView(){
-  await smqLoadRefs();
-  const inds=await api("/smq/indicators").catch(()=>[]);
-  const procs=window._SMQ.procs||[];
-  view.innerHTML=`<h1>Indicateurs de performance</h1>
-    <div style="margin-bottom:8px"><button class="btn p" onclick="smqIndForm()">+ Indicateur</button></div>
-    <div class="panel"><table style="width:100%"><tr><th>Processus</th><th>Indicateur</th><th>Mode de calcul</th><th class="r">Cible</th><th>Fréquence</th><th>Source</th><th></th></tr>
-      ${inds.map(i=>`<tr><td>${esc((procs.find(p=>p.id===i.processId)||{}).code||"")}</td><td>${esc(i.libelle)}</td><td>${esc(i.modeCalcul||"")}</td><td class="r">${esc(i.cible||"")}${i.unite?" "+esc(i.unite):""}</td><td>${esc(i.frequence||"")}</td><td>${i.source==="auto"?'<span class="tag blue">Auto</span>':'<span class="tag gray">Manuel</span>'}</td>
-        <td><button class="btn ghost sm" onclick="smqMeasureForm('${i.id}')">＋ Mesure</button> <button class="btn ghost sm" onclick="smqIndForm('${i.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="smqIndDel('${i.id}')">Suppr.</button></td></tr>`).join("")||'<tr><td colspan="7" class="note">Aucun indicateur.</td></tr>'}</table>
-      <div class="note" style="margin-top:8px">Les indicateurs « Auto » (branchés sur Facturation, Paie, Comptabilité, RH) seront calculés automatiquement en phase Instrumentation.</div></div>`;
-}
-async function smqIndForm(id){
-  await smqLoadRefs();
-  const inds=id?await api("/smq/indicators").catch(()=>[]):[]; const i=id?inds.find(x=>x.id===id):{};
-  const procs=window._SMQ.procs||[];
-  const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${id?"Modifier":"Nouvel"} indicateur</b>
-    <label>Processus</label><select id="iProc"><option value="">-</option>${procs.map(p=>`<option value="${p.id}" ${i.processId===p.id?"selected":""}>${esc(p.code)} - ${esc(p.intitule)}</option>`).join("")}</select>
-    <label>Libellé *</label><input id="iLib" value="${esc(i.libelle||"")}">
-    <label>Mode de calcul</label><input id="iMode" value="${esc(i.modeCalcul||"")}" placeholder="100 × (conformes / total)">
-    <div class="grid2"><div><label>Cible</label><input id="iCib" value="${esc(i.cible||"")}"></div><div><label>Unité</label><input id="iUni" value="${esc(i.unite||"%")}"></div></div>
-    <div class="grid2"><div><label>Fréquence</label><select id="iFreq">${["mensuel","trimestriel","annuel"].map(f=>`<option ${i.frequence===f?"selected":""}>${f}</option>`).join("")}</select></div>
-      <div><label>Source</label><select id="iSrc"><option value="manuel" ${i.source!=="auto"?"selected":""}>Manuel</option><option value="auto" ${i.source==="auto"?"selected":""}>Auto (à brancher)</option></select></div></div>
-    <div class="err hidden" id="iErr"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqIndSave('${id||""}',this)">Enregistrer</button></div></div>`;
-  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
-}
-async function smqIndSave(id,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
-  const body={processId:g("iProc")||null,libelle:g("iLib"),modeCalcul:g("iMode"),cible:g("iCib"),unite:g("iUni"),frequence:g("iFreq"),source:g("iSrc")};
-  if(!body.libelle){const e=document.getElementById("iErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
-  try{ await api("/smq/indicators"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqIndicatorsView(); }catch(e){ const el=document.getElementById("iErr");el.textContent=e.message;el.classList.remove("hidden"); } }
 async function smqIndDel(id){ if(!await mmConfirm({message:"Supprimer cet indicateur ?",danger:true}))return; try{ await api("/smq/indicators/"+id,{method:"DELETE"}); smqIndicatorsView(); }catch(e){ alert(e.message); } }
-async function smqMeasureForm(id){
-  const per=prompt("Période (AAAA-MM ou AAAA-Tn) :",new Date().toISOString().slice(0,7)); if(per===null)return;
-  const val=prompt("Valeur mesurée :"); if(val===null)return;
-  try{ await api("/smq/indicators/"+id+"/measures",{method:"POST",body:JSON.stringify({periode:per,valeur:Number(val)})}); alert("Mesure enregistrée."); }catch(e){ alert(e.message); }
-}
 
 /* ---------- Fiches d'amélioration (NC / actions correctives / vérification) ---------- */
 const IMP_STATUT_TAG={ouverte:'<span class="tag" style="background:#dc2626;color:#fff">Ouverte</span>',analyse:'<span class="tag" style="background:#b45309;color:#fff">Analyse</span>',traitement:'<span class="tag blue">Traitement</span>',verification:'<span class="tag" style="background:#7c3aed;color:#fff">Vérification</span>',cloturee:'<span class="tag green">Clôturée</span>'};
@@ -10831,34 +10770,6 @@ async function smqRiskToFiche(idv){ if(!await mmConfirm({message:"Ouvrir une fic
 
 /* ---------- Indicateurs : tableau de bord KPI (feu tricolore + tendance) - remplace la vue simple ---------- */
 const FEU={vert:"#16a34a",orange:"#f97316",rouge:"#dc2626",gris:"#9ca3af"};
-async function smqIndicatorsView(){
-  await smqLoadRefs();
-  const rows=await api("/smq/indicators-kpi").catch(()=>[]);
-  const byProc={}; rows.forEach(r=>{ (byProc[r.processCode||"-"]=byProc[r.processCode||"-"]||[]).push(r); });
-  view.innerHTML=`<h1>Indicateurs - tableau de bord</h1>
-    <div style="margin-bottom:8px"><button class="btn p" onclick="smqIndForm()">+ Indicateur</button></div>
-    ${rows.length?Object.keys(byProc).sort().map(pc=>`<div class="panel" style="margin-bottom:10px"><b>${esc(pc==="-"?"Sans processus":pc)}</b>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-        ${byProc[pc].map(i=>`<div style="flex:1;min-width:240px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--bg)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div style="font-weight:600">${esc(i.libelle)}</div>
-            <span style="width:12px;height:12px;border-radius:50%;background:${FEU[i.feu]}" title="${i.feu}"></span></div>
-          <div class="note" style="font-size:11px">${esc(i.modeCalcul||"")}</div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px">
-            <div><span style="font-size:24px;font-weight:700">${i.derniere?esc(String(i.derniere.valeur)):"-"}</span><span class="note" style="font-size:12px">${i.unite?" "+esc(i.unite):""}</span>
-              <div class="note" style="font-size:11px">Cible ${i.sens==="baisse"?"≤":"≥"} ${esc(i.cible||"-")}${i.unite?" "+esc(i.unite):""} - ${esc(i.frequence||"")}${i.source==="auto"?' - <span style="color:var(--accent)">auto</span>':''}</div></div>
-            <div style="display:flex;gap:2px">
-              <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqKpiTrend('${i.id}')">Voir</button>
-              <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqMeasureForm('${i.id}')">＋</button>
-              <button class="btn ghost sm" style="padding:2px 6px;font-size:11px" onclick="smqIndForm('${i.id}')">Modifier</button></div></div>
-          <div style="position:relative;height:40px;margin-top:6px"><canvas id="spark_${i.id}"></canvas></div></div>`).join("")}</div></div>`).join(""):'<div class="panel note">Aucun indicateur. Créez-en un lié à un processus.</div>'}
-    <div class="note" style="margin-top:6px">Les indicateurs « auto » (Facturation, Paie, Comptabilité, RH) seront calculés automatiquement en phase Instrumentation (4bis).</div>`;
-  // sparklines
-  if(rows.some(r=>r.serie&&r.serie.length)&&await ensureChartJs()&&window.Chart){
-    rows.forEach(i=>{ const c=document.getElementById("spark_"+i.id); if(!c||!i.serie.length)return;
-      new window.Chart(c,{type:"line",data:{labels:i.serie.map(m=>m.periode),datasets:[{data:i.serie.map(m=>m.valeur),borderColor:FEU[i.feu],backgroundColor:"transparent",borderWidth:2,pointRadius:2,tension:.3}]},options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}},maintainAspectRatio:false}}); });
-  }
-}
 async function smqKpiTrend(id){
   const [inds,ms]=await Promise.all([api("/smq/indicators").catch(()=>[]),api("/smq/indicators/"+id+"/measures").catch(()=>[])]);
   const i=inds.find(x=>x.id===id)||{};
@@ -10895,27 +10806,6 @@ async function smqMeasureSave(id,btn){
   catch(e){ const el=document.getElementById("mErr");el.textContent=e.message;el.classList.remove("hidden"); }
 }
 /* override : ajoute le sens (hausse/baisse) au formulaire d'indicateur */
-async function smqIndForm(id){
-  await smqLoadRefs();
-  const inds=id?await api("/smq/indicators").catch(()=>[]):[]; const i=id?inds.find(x=>x.id===id):{};
-  const procs=window._SMQ.procs||[];
-  const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${id?"Modifier":"Nouvel"} indicateur</b>
-    <label>Processus</label><select id="iProc"><option value="">-</option>${procs.map(p=>`<option value="${p.id}" ${i.processId===p.id?"selected":""}>${esc(p.code)} - ${esc(p.intitule)}</option>`).join("")}</select>
-    <label>Libellé *</label><input id="iLib" value="${esc(i.libelle||"")}">
-    <label>Mode de calcul</label><input id="iMode" value="${esc(i.modeCalcul||"")}" placeholder="100 × (conformes / total)">
-    <div class="grid3"><div><label>Cible</label><input id="iCib" value="${esc(i.cible||"")}"></div><div><label>Unité</label><input id="iUni" value="${esc(i.unite||"%")}"></div>
-      <div><label>Sens</label><select id="iSens"><option value="hausse" ${i.sens!=="baisse"?"selected":""}>À la hausse (≥ cible)</option><option value="baisse" ${i.sens==="baisse"?"selected":""}>À la baisse (≤ cible)</option></select></div></div>
-    <div class="grid2"><div><label>Fréquence</label><select id="iFreq">${["mensuel","trimestriel","annuel"].map(f=>`<option ${i.frequence===f?"selected":""}>${f}</option>`).join("")}</select></div>
-      <div><label>Source</label><select id="iSrc"><option value="manuel" ${i.source!=="auto"?"selected":""}>Manuel</option><option value="auto" ${i.source==="auto"?"selected":""}>Auto (à brancher)</option></select></div></div>
-    <div class="err hidden" id="iErr"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="smqIndSave('${id||""}',this)">Enregistrer</button></div></div>`;
-  bg.addEventListener("click",e=>{if(e.target===bg)bg.remove();});document.body.appendChild(bg);
-}
-async function smqIndSave(id,btn){ const g=(x)=>(document.getElementById(x)||{}).value;
-  const body={processId:g("iProc")||null,libelle:g("iLib"),modeCalcul:g("iMode"),cible:g("iCib"),unite:g("iUni"),sens:g("iSens"),frequence:g("iFreq"),source:g("iSrc")};
-  if(!body.libelle){const e=document.getElementById("iErr");e.textContent="Libellé obligatoire";e.classList.remove("hidden");return;}
-  try{ await api("/smq/indicators"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqIndicatorsView(); }catch(e){ const el=document.getElementById("iErr");el.textContent=e.message;el.classList.remove("hidden"); } }
 
 /* ---------- Phase 4bis : instrumentation auto des KPI (surcharge finale) ---------- */
 window._SMQ_METRICS=null;
