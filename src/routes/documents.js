@@ -18,7 +18,7 @@ router.get("/queue", allow("CD", "RJ", "RQ", "ADM"), (req, res) => {
 // All documents (dashboard/history)
 router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   wf.slaScan();
-  let list = db.documents.map(wf.withTimer);
+  let list = mine(db.documents, req).map(wf.withTimer);
   if (req.user.role === "GPF") list = list.filter(d => d.createdById === req.user.id);
   res.json(list.reverse());
 });
@@ -26,7 +26,7 @@ router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
 // Generated documents - visible to EVERY role once the workflow is complete (§5.2).
 // Each entry is linked to its employee so any account can find it by person.
 router.get("/generated", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
-  const list = db.documents
+  const list = mine(db.documents, req)
     .filter(d => d.status === "GENERATED")
     .map(d => {
       const emp = mine(db.employees, req).find(e => e.id === d.refId);

@@ -81,7 +81,8 @@ function createDemo(opts, actor) {
   coll("users").push(admin);
 
   const pf = { id: id("pf"), tenantId: demoId, name: "Portefeuille Demo - " + city, code: "PF-DEMO",
-    clientName: rand(CLIENTS), city, manager: t.legalRep, _demoSeed: true };
+    clientName: rand(CLIENTS), city, manager: t.legalRep,
+    required: ["III", "IV", "V", "IX", "X"], requiredCreation: ["V"], _demoSeed: true };
   coll("portfolios").push(pf);
 
   const tpl = templateEmployee(srcTid);

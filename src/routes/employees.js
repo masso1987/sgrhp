@@ -208,7 +208,7 @@ router.get("/:id/files/:fileId/download", allow("GPF", "CD", "RJ", "ADM"), (req,
 function checklist(emp) {
   const pf = db.portfolios.find(p => p.id === emp.portfolioId);
   const uploaded = new Set(db.files.filter(f => f.employeeId === emp.id).map(f => f.docType));
-  const required = pf ? pf.required : ["V"];
+  const required = (pf && Array.isArray(pf.required) && pf.required.length) ? pf.required : ["V"];
   const rc = new Set((pf && pf.requiredCreation) || ["V"]);
   return required.map(code => {
     const dt = db.docTypes.find(d => d.code === code);
