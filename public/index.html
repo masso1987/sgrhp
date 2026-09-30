@@ -211,7 +211,17 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 .launcher-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;padding:20px 40px 50px;max-width:1200px;margin:0 auto;width:100%}
 .app-tile{background:var(--panel,#fff);border:1px solid var(--border,#e6e8f2);border-radius:14px;padding:20px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:transform .12s,box-shadow .12s;text-align:center}
 .app-tile:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(40,50,90,.14)}
-.app-ico{width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12)}
+.app-ico{width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:transform .28s cubic-bezier(.34,1.56,.64,1),box-shadow .2s}
+.app-tile:hover .app-ico{transform:scale(1.12) rotate(-4deg);box-shadow:0 8px 20px rgba(0,0,0,.22)}
+.app-tile:hover .app-lbl{color:var(--nav-active-color,#065f46)}
+.app-tile:active{transform:translateY(-1px) scale(.98)}
+.app-tile.dragging{opacity:.45;transform:scale(.96)}
+.app-tile.drag-over{outline:2px dashed var(--accent,#10b981);outline-offset:3px}
+.app-tile .app-drag{position:absolute;top:8px;right:10px;color:var(--muted,#9aa0ae);opacity:0;transition:opacity .15s;font-size:14px;cursor:grab}
+.app-tile{position:relative}
+.app-tile:hover .app-drag{opacity:.7}
+@keyframes appPop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
+.launcher-grid .app-tile{animation:appPop .26s ease both}
 .app-lbl{font-size:14px;color:var(--text,#2b2f45);font-weight:600}
 .app-desc{font-size:11.5px;color:var(--muted,#6b7280);line-height:1.35}
 @media(max-width:640px){.launcher-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));padding:10px 16px 40px;gap:8px}.app-ico{width:52px;height:52px;font-size:26px}}
@@ -1505,8 +1515,11 @@ const GROUP_DESC = {
 };
 function showLauncher(){
   const el=document.getElementById("launcher"); if(!el) return;
-  const tiles=(NAV_PRESENT||[]).map(G=>{ const m=GROUP_META[G.g]||{svg:"",c:"#6366f1"}; const d=GROUP_DESC[G.g]||"";
-    return `<div class="app-tile" onclick="enterModule('${G.g}')"><div class="app-ico" style="background:${m.c}">${m.svg}</div>
+  const _ord=launcherOrder(); const _sorted=(NAV_PRESENT||[]).slice().sort((a,b)=>{ const ia=_ord.indexOf(a.g), ib=_ord.indexOf(b.g); return (ia<0?999:ia)-(ib<0?999:ib); });
+  const tiles=_sorted.map(G=>{ const m=GROUP_META[G.g]||{svg:"",c:"#6366f1"}; const d=GROUP_DESC[G.g]||"";
+    return `<div class="app-tile" draggable="true" data-g="${G.g}" onclick="enterModule('${G.g}')" ondragstart="tileDragStart(event)" ondragover="tileDragOver(event)" ondragleave="tileDragLeave(event)" ondrop="tileDrop(event)" ondragend="tileDragEnd(event)" title="Glissez pour réorganiser">
+      <span class="app-drag" aria-hidden="true">⠿</span>
+      <div class="app-ico" style="background:${m.c}">${m.svg}</div>
       <div class="app-lbl">${esc(G.label)}</div>${d?`<div class="app-desc">${esc(d)}</div>`:""}</div>`;
   }).join("");
   const closeBtn = window.CURRENT_VIEW ? `<button class="launcher-close" onclick="hideLauncher()">Fermer</button>` : "";
@@ -1527,6 +1540,15 @@ function showLauncher(){
 function launcherPlaceholder(){ const v=document.getElementById("view"); if(v&&!window.CURRENT_VIEW) v.innerHTML=`<div style="height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);gap:12px"><div style="font-size:15px">Choisissez une application pour commencer.</div><button class="btn p" onclick="showLauncher()">Ouvrir les applications</button></div>`; }
 function hideLauncher(){ const el=document.getElementById("launcher"); if(el) el.classList.add("hidden"); if(!window.CURRENT_VIEW) launcherPlaceholder(); }
 function enterModule(g){ hideLauncher(); goGroup(g); }
+let _dragG=null;
+function launcherOrder(){ let saved=[]; try{ saved=JSON.parse(localStorage.getItem("launcherOrder")||"[]"); }catch(e){} const present=(NAV_PRESENT||[]).map(G=>G.g); return saved.filter(g=>present.includes(g)).concat(present.filter(g=>!saved.includes(g))); }
+function tileDragStart(e){ _dragG=e.currentTarget.dataset.g; e.currentTarget.classList.add("dragging"); try{ e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", _dragG); }catch(_){} }
+function tileDragOver(e){ e.preventDefault(); try{ e.dataTransfer.dropEffect="move"; }catch(_){} const t=e.currentTarget; if(t && t.dataset.g!==_dragG) t.classList.add("drag-over"); }
+function tileDragLeave(e){ e.currentTarget.classList.remove("drag-over"); }
+function tileDrop(e){ e.preventDefault(); e.stopPropagation(); const t=e.currentTarget; const targetG=t&&t.dataset.g; t&&t.classList.remove("drag-over"); const dg=_dragG||(e.dataTransfer&&e.dataTransfer.getData("text/plain")); if(!dg||!targetG||dg===targetG){ _dragG=null; return; }
+  let order=launcherOrder(); order=order.filter(g=>g!==dg); let idx=order.indexOf(targetG); if(idx<0) idx=order.length; order.splice(idx,0,dg);
+  try{ localStorage.setItem("launcherOrder", JSON.stringify(order)); }catch(_){} _dragG=null; showLauncher(); }
+function tileDragEnd(){ _dragG=null; document.querySelectorAll(".app-tile").forEach(t=>t.classList.remove("dragging","drag-over")); }
 // Poll the profile so access changes made by an admin/super-admin (modules, rights)
 // take effect live - no re-login required.
 function startAccessPolling() {
