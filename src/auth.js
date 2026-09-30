@@ -108,6 +108,11 @@ function closeLoginSession(userId, reason) {
 function logout(req, res) { try { closeLoginSession(req.user.id, "logout"); } catch (e) {} res.json({ ok: true }); }
 function twoFaRequiredFor(user) {
   const p = policy();
+  // Les comptes de démonstration n'exigent jamais la 2FA (sauf si l'utilisateur l'a activée lui-même).
+  try {
+    const t = (db.tenants || []).find(x => x.id === (user.tenantId || "t1"));
+    if (t && t.isDemo && !user.totpEnabled) return false;
+  } catch (e) {}
   return user.totpEnabled || p.require2faForAll || (p.require2faForAdmins && user.role === "ADM");
 }
 
