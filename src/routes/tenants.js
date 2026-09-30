@@ -133,6 +133,30 @@ router.get("/", allow("SADM"), (req, res) => {
     users: db.users.filter(u => u.tenantId === t.id).length })));
 });
 
+/* ---------------- SADM : utilisateurs par tenant + suspendre / déconnecter ---------------- */
+router.get("/users", allow("SADM"), (req, res) => {
+  const tmap = {}; (db.tenants || []).forEach(t => { tmap[t.id] = t.name || t.id; });
+  const tid = req.query.tenantId;
+  let list = (db.users || []).filter(u => u.role !== "SADM");
+  if (tid) list = list.filter(u => (u.tenantId || "t1") === tid);
+  const out = list.map(u => ({ id: u.id, fullName: u.fullName, email: u.email, role: u.role, tenantId: u.tenantId || "t1", tenantName: tmap[u.tenantId || "t1"] || (u.tenantId || "t1"), active: u.active !== false, disconnected: false, lastLoginAt: u.lastLoginAt || null }))
+    .sort((a, b) => String(a.tenantName).localeCompare(String(b.tenantName)) || String(a.fullName || "").localeCompare(String(b.fullName || "")));
+  res.json({ tenants: (db.tenants || []).map(t => ({ id: t.id, name: t.name || t.id })), users: out });
+});
+router.post("/users/:id/pause", allow("SADM"), (req, res) => {
+  const u = (db.users || []).find(x => x.id === req.params.id); if (!u || u.role === "SADM") return res.status(404).json({ error: "Utilisateur introuvable" });
+  const paused = (req.body && req.body.paused) !== false;
+  u.active = !paused; if (paused) u.tokenVersion = (u.tokenVersion || 0) + 1; // suspend also kills any live session
+  save(); audit(req.user, paused ? "USER_SUSPENDED" : "USER_REACTIVATED", "User", u.id, { tenant: u.tenantId });
+  res.json({ id: u.id, active: u.active });
+});
+router.post("/users/:id/disconnect", allow("SADM"), (req, res) => {
+  const u = (db.users || []).find(x => x.id === req.params.id); if (!u || u.role === "SADM") return res.status(404).json({ error: "Utilisateur introuvable" });
+  u.tokenVersion = (u.tokenVersion || 0) + 1; save(); // invalidates existing tokens; account stays active
+  audit(req.user, "USER_DISCONNECTED", "User", u.id, { tenant: u.tenantId });
+  res.json({ id: u.id, ok: true });
+});
+
 router.get("/:id", allow("SADM"), (req, res) => {
   const t = tenants().find(x => x.id === req.params.id);
   if (!t) return res.status(404).json({ error: "Tenant introuvable" });
@@ -467,30 +491,6 @@ router.put("/superadmins/:uid/status", allow("SADM"), (req, res) => {
   u.active = active; save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { active, platform: true });
   res.json({ id: u.id, active: u.active });
-});
-
-/* ---------------- SADM : utilisateurs par tenant + suspendre / déconnecter ---------------- */
-router.get("/users", allow("SADM"), (req, res) => {
-  const tmap = {}; (db.tenants || []).forEach(t => { tmap[t.id] = t.name || t.id; });
-  const tid = req.query.tenantId;
-  let list = (db.users || []).filter(u => u.role !== "SADM");
-  if (tid) list = list.filter(u => (u.tenantId || "t1") === tid);
-  const out = list.map(u => ({ id: u.id, fullName: u.fullName, email: u.email, role: u.role, tenantId: u.tenantId || "t1", tenantName: tmap[u.tenantId || "t1"] || (u.tenantId || "t1"), active: u.active !== false, disconnected: false, lastLoginAt: u.lastLoginAt || null }))
-    .sort((a, b) => String(a.tenantName).localeCompare(String(b.tenantName)) || String(a.fullName || "").localeCompare(String(b.fullName || "")));
-  res.json({ tenants: (db.tenants || []).map(t => ({ id: t.id, name: t.name || t.id })), users: out });
-});
-router.post("/users/:id/pause", allow("SADM"), (req, res) => {
-  const u = (db.users || []).find(x => x.id === req.params.id); if (!u || u.role === "SADM") return res.status(404).json({ error: "Utilisateur introuvable" });
-  const paused = (req.body && req.body.paused) !== false;
-  u.active = !paused; if (paused) u.tokenVersion = (u.tokenVersion || 0) + 1; // suspend also kills any live session
-  save(); audit(req.user, paused ? "USER_SUSPENDED" : "USER_REACTIVATED", "User", u.id, { tenant: u.tenantId });
-  res.json({ id: u.id, active: u.active });
-});
-router.post("/users/:id/disconnect", allow("SADM"), (req, res) => {
-  const u = (db.users || []).find(x => x.id === req.params.id); if (!u || u.role === "SADM") return res.status(404).json({ error: "Utilisateur introuvable" });
-  u.tokenVersion = (u.tokenVersion || 0) + 1; save(); // invalidates existing tokens; account stays active
-  audit(req.user, "USER_DISCONNECTED", "User", u.id, { tenant: u.tenantId });
-  res.json({ id: u.id, ok: true });
 });
 
 module.exports = { router, MODULES, LEGAL_FORMS, platformCfg };
