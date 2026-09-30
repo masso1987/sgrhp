@@ -6315,9 +6315,11 @@ function payslipRenderBody(edit, s) {
     ? `<input type="number" step="1" data-idx="${i}" data-field="${field}" value="${l[field] || 0}" style="width:92px;text-align:right;margin:0;padding:2px" oninput="payslipEditAmt(this)">`
     : (l[field] ? fCFA(l[field]) : "");
   // Nombre / Base éditables en correction : le gain (ou la retenue) est recalculé automatiquement = Nombre × Base × Taux.
+  // Nombre : entier affiché tel quel (26), ratio de prorata affiché avec décimales (0,87). Base : 2 décimales.
+  const fNb = (v) => { const n = Number(v); return Number.isInteger(n) ? fCFA(n) : n.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); };
   const qty = (l, field, i) =>edit
     ? `<input type="number" step="0.001" data-idx="${i}" data-field="${field}" value="${l[field] != null ? l[field] : ""}" style="width:80px;text-align:right;margin:0;padding:2px" oninput="payslipEditField(this)">`
-    : (l[field] ? (field === "base" ? fCFA2(l[field]) : fCFA(l[field])) : "");
+    : (l[field] ? (field === "base" ? fCFA2(l[field]) : fNb(l[field])) : "");
   document.getElementById("payslipBody").innerHTML = rows.map((l, i) => `<tr>
     <td>${esc(l.code)}${l.manual ? ' <span class="tag amber" title="corrigé">corrigé</span>' : ""}</td><td>${esc(rubLbl(l.code, l.label))}</td>
     <td style="text-align:right">${qty(l, "nombre", i)}</td>

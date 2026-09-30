@@ -163,17 +163,18 @@ function computePayslip(input, configOverride) {
   otL(ot.tier3, _otc.tier3Rate != null ? _otc.tier3Rate : 0.40, "1092");
   otL(ot.night, _otc.nightRate != null ? _otc.nightRate : 0.50, "1096");
   otL(ot.hundred, _otc.hundredRate != null ? _otc.hundredRate : 1.00, "2000");
-  const _d2 = (x) => Math.round((x / (standardDays || 30)) * 100) / 100; // équivalent journalier
+  // Affichage des lignes proratisées : Nombre = ratio de présence (ex. 26/30 = 0,867) et Base = montant
+  // mensuel plein — comme avant. Le montant (gain) reste inchangé = Base × ratio.
   for (const g of gains) if (g && g.amount) {
     const doPr = !!(g.prorate && PRORATA < 1); const pr = doPr ? PRORATA : 1;
     add({ code: g.code || "2000", label: g.label || "Prime", kind: "GAIN",
-      nombre: doPr ? workedDays : 1, base: doPr ? _d2(g.amount) : g.amount, rate: 1,
+      nombre: doPr ? r3(pr) : 1, base: g.amount, rate: 1,
       gain: r0(g.amount * pr), cnps: g.cnps !== false, impo: g.impo !== false });
   }
   for (const n of nonTaxable) if (n && n.amount) {
     const doPr = !!(n.prorate && PRORATA < 1); const pr = doPr ? PRORATA : 1;
     add({ code: n.code || "3000", label: n.label || "Indemnité", kind: "GAIN",
-      nombre: doPr ? workedDays : 1, base: doPr ? _d2(n.amount) : n.amount, rate: 1,
+      nombre: doPr ? r3(pr) : 1, base: n.amount, rate: 1,
       gain: r0(n.amount * pr), cnps: false, impo: false });
   }
 
@@ -184,7 +185,7 @@ function computePayslip(input, configOverride) {
     const pr = (transport.prorate && PRORATA < 1) ? PRORATA : 1;
     const amt = r0(fullAmt * pr);
     transportTaxable = Math.max(0, amt - (cfg.transportExemptionCap || 0));
-    const _tpr = (transport.prorate && PRORATA < 1); add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: _tpr ? workedDays : 1, base: _tpr ? _d2(fullAmt) : fullAmt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
+    const _tpr = (transport.prorate && PRORATA < 1); add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: _tpr ? r3(pr) : 1, base: fullAmt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
   }
 
   // Avantages en nature: valued benefit - taxable (and optionally cotisable) but NOT
