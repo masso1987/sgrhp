@@ -6009,6 +6009,7 @@ async function dupOpen(empId){
 let BULLETIN_CTX = {};
 function bulletinRenderTab() {
   const { runId, empId, run, emp, slip, els, open } = BULLETIN_CTX;
+  window._payEmp = empId;
   const box = document.getElementById("bulletinTab"); if (!box) return;
   if (BULLETIN_TAB === "structure") {
     const sal = emp.salary || {};
@@ -6098,8 +6099,10 @@ function rubPick(prefix){
     else typeSel.value="PRIME";
     beToggle();
   }
-  // Calcule le montant depuis la formule de la rubrique (constantes) et pré-remplit le champ Montant.
-  api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval").then(ev=>{
+  // Calcule le montant depuis la formule de la rubrique (constantes + salaire employé) et pré-remplit le champ Montant.
+  const _emp=window._payEmp?("employeeId="+encodeURIComponent(window._payEmp)):"";
+  const _wd=(document.getElementById("beJours")||{}).value; const _wdq=_wd?("&workedDays="+encodeURIComponent(_wd)):"";
+  api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval"+(_emp?("?"+_emp+_wdq):"")).then(ev=>{
     const val=document.getElementById(prefix+"Val");
     if(ev && ev.montant>0 && val && (["HS20","HS30","HS40","NUIT","ABSENCE"].indexOf((typeSel||{}).value)<0)){ val.value=ev.montant; }
   }).catch(()=>{});
@@ -6268,6 +6271,7 @@ function rubLbl(code, fb){ return (RUB_LABELS && RUB_LABELS[String(code)]) || fb
 let PAYSLIP_EDIT = null, PAYSLIP_EDIT_ID = null, PAYSLIP_RUBS = [];
 async function payslipView(id, edit) {
   const s = await api("/payroll/payslips/" + id);
+  window._payEmp = s.employeeId;
   await rubLabelsMap();
   const canEdit = ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit");
   if (edit) {
@@ -6366,7 +6370,7 @@ async function payslipRubPick(){
   const sel=document.getElementById("addRub"); const o=sel&&sel.selectedOptions[0]; const hint=document.getElementById("addRubHint");
   window._addRubEval=null; if(hint) hint.textContent="";
   if(!o||!o.value) return;
-  try{ const ev=await api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval");
+  try{ const _emp=window._payEmp?("?employeeId="+encodeURIComponent(window._payEmp)):""; const ev=await api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval"+_emp);
     if(ev && ev.montant>0){ window._addRubEval={code:o.value,nombre:ev.nombre,base:ev.base,rate:ev.rate,montant:ev.montant};
       const amtEl=document.getElementById("addAmt"); if(amtEl) amtEl.value=ev.montant;
       if(hint) hint.innerHTML="= "+fCFA(ev.montant)+(ev.formula?(" <span style=\"color:var(--muted)\">("+esc(ev.formula)+(ev.base!=null?", base "+fCFA(ev.base):"")+(ev.nombre!=null?" × "+ev.nombre:"")+(ev.taux!=null?" × "+ev.taux+"%":"")+")</span>"):"");

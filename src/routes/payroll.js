@@ -435,6 +435,26 @@ router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "U
 
 /* Résout la formule d'une rubrique (Nombre/Base/Taux pouvant référencer des constantes) en un montant. */
 function constMapOf(req) { const m = {}; for (const c of mine(db.payConstantes, req)) m[String(c.code).toUpperCase()] = (c.valeur == null ? null : Number(c.valeur)); return m; }
+// Constantes DYNAMIQUES dérivées du salarié (comme Sage : SALHOR = salaire horaire, SALJOURN =
+// salaire journalier, NBREJOUT/NJOURP = jours de présence). Elles n'ont pas de valeur fixe stockée ;
+// on les calcule ici à partir du salaire de base de l'employé pour que les rubriques (heures supp.
+// sur SALHOR/SALBHOR, primes sur SALJOURN, etc.) se calculent automatiquement.
+function dynamicConstMap(req, emp, opts) {
+  const cm = constMapOf(req); opts = opts || {};
+  if (!emp) return cm;
+  const cfg = configOf(req);
+  const sd = Number(cfg.standardMonthlyDays) || 30;
+  const sh = Number(cfg.standardMonthlyHours) || 173.33;
+  const bs = Number(baseSalaryOf(emp, req)) || 0;
+  const wd = (opts.workedDays != null && opts.workedDays !== "") ? Number(opts.workedDays) : sd;
+  const hourly = sh ? Math.round((bs / sh) * 100) / 100 : 0;
+  const daily = sd ? Math.round((bs / sd) * 100) / 100 : 0;
+  const setIfEmpty = (k, v) => { if (cm[k] == null) cm[k] = v; }; // ne pas écraser une constante réellement valorisée
+  ["SALHOR", "SALHOR0", "SALHOR1", "SALBHOR", "SALHOSCH"].forEach(k => setIfEmpty(k, hourly)); // taux horaire
+  ["SALJOURN", "SALJOUR", "SALJOUR1"].forEach(k => setIfEmpty(k, daily));                       // taux journalier
+  ["NBREJOUT", "NJOURP", "NJOUTRAP", "NJOUNUITR"].forEach(k => setIfEmpty(k, wd));               // jours de présence
+  return cm;
+}
 // Proratisation au prorata des jours de présence (comme la « base de calcul » de Sage).
 // C'est un réglage PAR RUBRIQUE (rub.prorata), modifiable dans Paramètres > Rubriques.
 // - Si rub.prorata est défini (true/false), il fait foi.
@@ -466,7 +486,7 @@ function resolveRubrique(rub, req, ctx) {
     if (sx !== "" && !isNaN(Number(sx))) return Number(sx);        // valeur numérique directe
     const v = cm[sx.toUpperCase()]; return v == null ? null : v;   // référence de constante
   };
-  const nombre = resolve(rub.nombre);
+  const nombre = (ctx.nombre != null && ctx.nombre !== "") ? Number(ctx.nombre) : resolve(rub.nombre);
   const base = resolve(rub.base);
   const taux = rub.taux != null && rub.taux !== "" ? Number(rub.taux) : null; // en %
   const f = String(rub.formula || "");
@@ -481,7 +501,11 @@ function resolveRubrique(rub, req, ctx) {
 router.get("/rubriques/:id/eval", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const rub = mine(db.payRubriques, req).find(r => r.id === req.params.id) || mine(db.payRubriques, req).find(r => String(r.code) === String(req.params.id));
   if (!rub) return res.status(404).json({ error: "Rubrique introuvable" });
-  res.json(Object.assign({ code: rub.code, label: rub.label }, resolveRubrique(rub, req)));
+  const ctx = {};
+  const emp = req.query.employeeId ? mine(db.employees, req).find(e => e.id === req.query.employeeId) : null;
+  if (emp) ctx.constMap = dynamicConstMap(req, emp, { workedDays: req.query.workedDays });
+  if (req.query.nombre != null && req.query.nombre !== "" && !isNaN(Number(req.query.nombre))) ctx.nombre = Number(req.query.nombre);
+  res.json(Object.assign({ code: rub.code, label: rub.label }, resolveRubrique(rub, req, ctx)));
 });
 
 router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
