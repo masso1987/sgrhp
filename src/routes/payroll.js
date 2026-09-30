@@ -546,6 +546,23 @@ router.post("/rubriques/import-catalogue", allow("RP", "ADM"), (req, res) => {
   res.json({ ok: true, added, total: mine(db.payRubriques, req).length });
 });
 
+// Recalcule les bulletins (des périodes NON clôturées) qui utilisent une rubrique donnée,
+// après modification de cette rubrique (libellé, prorata, taux, flags…). Les bulletins corrigés
+// manuellement (edited) ne sont PAS écrasés : ils sont comptés à part pour information.
+function recomputeAffectedPayslips(req, code) {
+  let recomputed = 0, skippedEdited = 0, closed = 0;
+  const runById = {}; for (const r of mine(db.payRuns, req)) runById[r.id] = r;
+  for (const sp of mine(db.payslips, req)) {
+    const run = runById[sp.runId]; if (!run) continue;
+    const lines = (sp.result && sp.result.lines) || [];
+    if (!lines.some(l => String(l.code) === String(code))) continue;
+    if (run.status === "CLOSED") { closed++; continue; }
+    if (sp.edited) { skippedEdited++; continue; }
+    const emp = mine(db.employees, req).find(e => e.id === sp.employeeId); if (!emp) continue;
+    try { const { input, result } = computeFor(emp, run.period, req); sp.input = input; sp.result = result; sp.status = "CALCULATED"; sp.recomputedAt = new Date().toISOString(); recomputed++; } catch (e) {}
+  }
+  return { recomputed, skippedEdited, closed };
+}
 router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Rubrique introuvable" });
@@ -571,9 +588,12 @@ router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
       : (f === "cnps" || f === "impo" || f === "active") ? !!b[f] : b[f];
   }
   save();
+  // Répercuter la modification sur les bulletins déjà calculés (périodes ouvertes, hors corrections manuelles).
+  const recompute = recomputeAffectedPayslips(req, before.code);
+  if (recompute.recomputed) save();
   audit(req.user, inUse ? "FORCED_CHANGE" : "UPDATED", "PayRubrique", r.id,
-    { code: r.code, inUse, before: { label: before.label, taux: before.taux, cnps: before.cnps, impo: before.impo } });
-  res.json({ ...r, inUse });
+    { code: r.code, inUse, recomputed: recompute.recomputed, before: { label: before.label, taux: before.taux, cnps: before.cnps, impo: before.impo } });
+  res.json({ ...r, inUse, recompute });
 });
 
 router.delete("/rubriques/:id", allow("RP", "ADM"), (req, res) => {

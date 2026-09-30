@@ -6943,7 +6943,15 @@ async function rubSave(id, needForce) {
     else saved = await api("/payroll/rubriques", { method: "POST", body: JSON.stringify(body) });
     // Synchronise le compte comptable (dans les deux sens via /accounting/rubrique-map)
     if (compte !== undefined && (saved && saved.id)) { try { await api("/payroll/rubriques/" + saved.id + "/compte", { method: "PUT", body: JSON.stringify({ account: (compte || "").trim() }) }); } catch (_) {} }
-    document.querySelector(".modal-bg").remove(); payconfigView();
+    document.querySelector(".modal-bg").remove();
+    const rc = saved && saved.recompute;
+    if (rc && (rc.recomputed || rc.skippedEdited || rc.closed)) {
+      let msg = rc.recomputed + " bulletin(s) recalculé(s) avec la modification.";
+      if (rc.skippedEdited) msg += "\n" + rc.skippedEdited + " bulletin(s) corrigé(s) manuellement : non modifiés (recalculez-les à la main si besoin).";
+      if (rc.closed) msg += "\n" + rc.closed + " bulletin(s) de période clôturée : inchangés.";
+      alert(msg);
+    }
+    payconfigView();
   } catch (e) {
     if (e.requiresConfirmation) { rmErr.textContent = e.warning || e.message; rmErr.classList.remove("hidden"); }
     else { rmErr.textContent = e.message; rmErr.classList.remove("hidden"); }
