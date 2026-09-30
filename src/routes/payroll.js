@@ -710,6 +710,20 @@ router.put("/models/:id", allow("RP", "ADM"), (req, res) => {
 });
 
 /* ======================= VARIABLE ELEMENTS ===================== */
+// Recalcule automatiquement le bulletin d'un salarié après modification d'un élément variable
+// (jours travaillés, prime, heure supp., absence…) pour une période NON clôturée. Les bulletins
+// corrigés manuellement (edited) ne sont pas écrasés.
+function recomputeEmployeePayslip(req, employeeId, period) {
+  const run = mine(db.payRuns, req).find(r => r.period === period && r.status !== "CLOSED");
+  if (!run) return { recomputed: false };
+  const sp = mine(db.payslips, req).find(x => x.runId === run.id && x.employeeId === employeeId);
+  if (!sp) return { recomputed: false };
+  if (sp.edited) return { recomputed: false, skippedEdited: true };
+  const emp = mine(db.employees, req).find(e => e.id === employeeId);
+  if (!emp) return { recomputed: false };
+  try { const { input, result } = computeFor(emp, run.period, req); sp.input = input; sp.result = result; sp.status = "CALCULATED"; sp.recomputedAt = new Date().toISOString(); return { recomputed: true }; }
+  catch (e) { return { recomputed: false, error: e.message }; }
+}
 router.get("/elements", allow("RP", "ADM", "GPF", "CD", "RJ"), (req, res) => {
   const { period, employeeId } = req.query;
   let list = mine(db.payElements, req);
@@ -731,15 +745,17 @@ router.post("/elements", allow("RP", "ADM", "GPF"), (req, res) => {
     impo: _impo, cnps: _cnps,
     createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.payElements.push(e); save();
-  audit(req.user, "CREATED", "PayElement", e.id, { period: e.period, type: e.type, employeeId: e.employeeId });
-  res.status(201).json(e);
+  const rc = recomputeEmployeePayslip(req, e.employeeId, e.period); if (rc.recomputed) save();
+  audit(req.user, "CREATED", "PayElement", e.id, { period: e.period, type: e.type, employeeId: e.employeeId, recomputed: rc.recomputed });
+  res.status(201).json(Object.assign({}, e, { recompute: rc }));
 });
 router.delete("/elements/:id", allow("RP", "ADM", "GPF"), (req, res) => {
   const el = mine(db.payElements, req).find(x => x.id === req.params.id);
   if (!el) return res.status(404).json({ error: "Introuvable" });
   if (runLocked(el.period, req)) return res.status(409).json({ error: "Période clôturée" });
   db.payElements.splice(db.payElements.indexOf(el), 1); save();
-  res.json({ ok: true });
+  const rc = recomputeEmployeePayslip(req, el.employeeId, el.period); if (rc.recomputed) save();
+  res.json({ ok: true, recompute: rc });
 });
 
 function runLocked(period, req) {

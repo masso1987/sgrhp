@@ -6124,9 +6124,8 @@ async function bulletinAddEl(ev, period, empId) {
   const v = Number(beVal.value || 0);
   if (["HS20","HS30","HS40","HS100","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
   try { await api("/payroll/elements", { method: "POST", body: JSON.stringify(body) });
-    const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els; bulletinRenderEls(els);
-    beVal.value = ""; beLabel.value = ""; if (codeEl) codeEl.value = ""; const rs=document.getElementById("beRub"); if(rs) rs.value=""; }
-  catch (e) { beErr.textContent = e.message; beErr.classList.remove("hidden"); }
+    bulletinView(BULLETIN_CTX.runId, empId);
+  } catch (e) { beErr.textContent = e.message; beErr.classList.remove("hidden"); }
 }
 async function bulletinSetJours(period, empId) {
   const days = Number(document.getElementById("beJours").value);
@@ -6134,9 +6133,10 @@ async function bulletinSetJours(period, empId) {
   try {
     const existing = (BULLETIN_CTX.els || []).filter(e =>e.type === "JOURS");
     for (const e of existing) await api("/payroll/elements/" + e.id, { method: "DELETE" });
-    await api("/payroll/elements", { method: "POST", body: JSON.stringify({ employeeId: empId, period, type: "JOURS", label: "Jours travaillés", days }) });
-    const els = await api(`/payroll/elements?period=${period}&employeeId=${empId}`); BULLETIN_CTX.els = els;
-    alert("Jours travaillés enregistrés : " + days + " j. Recalculez le bulletin pour appliquer.");
+    const r = await api("/payroll/elements", { method: "POST", body: JSON.stringify({ employeeId: empId, period, type: "JOURS", label: "Jours travaillés", days }) });
+    const rc = r && r.recompute;
+    if (rc && rc.skippedEdited) alert("Jours travaillés enregistrés : " + days + " j. Bulletin corrigé manuellement : non recalculé automatiquement (recalculez-le à la main si besoin).");
+    bulletinView(BULLETIN_CTX.runId, empId);
   } catch (e) { alert(e.message); }
 }
 function bulletinRenderEls(all) {
@@ -6151,8 +6151,7 @@ function bulletinRenderEls(all) {
 async function bulletinDelEl(id) {
   if (!await mmConfirm({message:"Supprimer cet élément variable ?",danger:true})) return;
   try { await api("/payroll/elements/" + id, { method: "DELETE" });
-    const { run, empId } = BULLETIN_CTX; const els = await api(`/payroll/elements?period=${run.period}&employeeId=${empId}`);
-    BULLETIN_CTX.els = els; bulletinRenderEls(els); } catch (e) { alert(e.message); }
+    bulletinView(BULLETIN_CTX.runId, BULLETIN_CTX.empId); } catch (e) { alert(e.message); }
 }
 async function loanRender(empId) {
   const box = document.getElementById("loList"); if (!box) return;
