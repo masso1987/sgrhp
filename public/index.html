@@ -1975,7 +1975,7 @@ async function portfolios() {
         <div style="display:flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:3px 8px">
           <label class="chk" style="flex:1;padding:0"><input type="checkbox" data-pfsel="${esc(el.name)}" ${(pf.salaryElements || []).includes(el.name) ? "checked" : ""}>
             <span>${esc(el.name)}${el.rubriqueCode ? ` <span class="tag gray">rub. ${esc(el.rubriqueCode)}</span>` : ""}</span></label>
-          <button class="btn ghost sm" title="Supprimer du catalogue" onclick="rubDelete('${el.id}')" style="color:var(--red);padding:2px 7px">Supprimer du catalogue</button></div>`).join("") : '<small style="color:var(--muted)">Aucune rubrique dans le catalogue. Créez-en une ci-dessus.</small>'}</div>
+          <button class="btn ghost sm" title="Supprimer du catalogue" onclick="pfSalElDelete('${el.id}')" style="color:var(--red);padding:2px 7px">Supprimer du catalogue</button></div>`).join("") : '<small style="color:var(--muted)">Aucune rubrique dans le catalogue. Créez-en une ci-dessus.</small>'}</div>
       <button class="btn p sm" style="margin-top:10px" onclick="pfSelSave('${pf.id}')">Enregistrer les rubriques du portefeuille</button>
     </div></div>`;
 }
@@ -2005,7 +2005,7 @@ async function rubCreate(pfId) {
     portfolios();
   } catch (e) { alert(e.message); }
 }
-async function rubDelete(id) {
+async function pfSalElDelete(id) {
   if (!await mmConfirm({message:"Supprimer cette rubrique du catalogue ? Elle sera retirée de tous les portefeuilles.",danger:true})) return;
   try { await api("/config/salary-elements/" + id, { method: "DELETE" }); portfolios(); } catch (e) { alert(e.message); }
 }
