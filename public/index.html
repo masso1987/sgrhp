@@ -305,6 +305,7 @@ const I18N = {
   "Annexes de facturation": "Billing schedules",
   "Audits internes": "Internal audits",
   "Balance": "Trial balance",
+  "Balance des comptes": "Trial balance",
   "Bons de commande": "Purchase orders",
   "Bulletins & traitements": "Payslips & processing",
   "Cartographie & processus": "Mapping & processes",
@@ -1317,7 +1318,7 @@ const NAV = [
   { k: "acctsaisie", label: "Saisie des écritures", sec: "Saisie & suivi", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctsearch", label: "Recherche d'écritures", sec: "Saisie & suivi", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctbank", label: "Rapprochement bancaire", sec: "Saisie & suivi", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
-  { k: "acctbalance", label: "Balance", sec: "États & reporting", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
+  { k: "acctbalance", label: "Balance des comptes", sec: "États & reporting", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctetats", label: "Grand-livre & journaux", sec: "États & reporting", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "accttierstates", label: "États tiers", sec: "États & reporting", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
   { k: "acctlegal", label: "États légaux (TVA, bilan)", sec: "États & reporting", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
@@ -8763,10 +8764,10 @@ function _balRenderBase(m){
     _balAdd(s2,a); _balAdd(s1,a); if(Number(c1)>=1&&Number(c1)<=5)_balAdd(bilan,a); else if(Number(c1)>=6&&Number(c1)<=8)_balAdd(gestion,a);
   });
   flush2(); flush1();
-  const totLine=(lab,t)=>{ const sp=_balSoldeSplit(t); return `<tr class="tot"><td colspan="2">${lab}</td><td class="r">${_SN(t.openD+t.movD)}</td><td class="r">${_SN(t.openC+t.movC)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
+  const totLine=(lab,t)=>{ const sp=_balSoldeSplit(t); return `<tr class="tot grand"><td colspan="2">${lab}</td><td class="r">${_SN(t.openD+t.movD)}</td><td class="r">${_SN(t.openC+t.movC)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
   const bal=_balAccum(); _balAdd(bal,bilan); _balAdd(bal,gestion);
   return `<table>
-    <thead><tr><th rowspan="2">Numéro de<br>compte</th><th rowspan="2">Intitulé des comptes</th><th colspan="2" class="r">Mouvements</th><th colspan="2" class="r">Soldes</th></tr>
+    <thead><tr><th rowspan="2">Numéro de<br>compte</th><th rowspan="2">Intitulé des comptes</th><th colspan="2" class="grp">Mouvements</th><th colspan="2" class="grp">Soldes</th></tr>
       <tr><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead>
     <tbody>${rows}
       ${totLine("Totaux comptes de bilan",bilan)}
@@ -8789,10 +8790,10 @@ function _balRender6(m, prevYE){
     _balAdd(s2,a); _balAdd(s1,a); if(Number(c1)>=1&&Number(c1)<=5)_balAdd(bilan,a); else if(Number(c1)>=6&&Number(c1)<=8)_balAdd(gestion,a);
   });
   flush2(); flush1();
-  const totLine=(lab,t)=>{ const sp=_balSoldeSplit(t); return `<tr class="tot"><td colspan="2">${lab}</td><td class="r">${_SN(t.openD)}</td><td class="r">${_SN(t.openC)}</td><td class="r">${_SN(t.movD)}</td><td class="r">${_SN(t.movC)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
+  const totLine=(lab,t)=>{ const sp=_balSoldeSplit(t); return `<tr class="tot grand"><td colspan="2">${lab}</td><td class="r">${_SN(t.openD)}</td><td class="r">${_SN(t.openC)}</td><td class="r">${_SN(t.movD)}</td><td class="r">${_SN(t.movC)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
   const bal=_balAccum(); _balAdd(bal,bilan); _balAdd(bal,gestion);
   return `<table>
-    <thead><tr><th rowspan="2">Numéro de<br>compte</th><th rowspan="2">Intitulé des comptes</th><th colspan="2" class="r">Mouvements au ${esc(frYE)}</th><th colspan="2" class="r">Mouvements</th><th colspan="2" class="r">Soldes cumulés</th></tr>
+    <thead><tr><th rowspan="2">Numéro de<br>compte</th><th rowspan="2">Intitulé des comptes</th><th colspan="2" class="grp">Mouvements au ${esc(frYE)}</th><th colspan="2" class="grp">Mouvements</th><th colspan="2" class="grp">Soldes cumulés</th></tr>
       <tr><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead>
     <tbody>${rows}
       ${totLine("Totaux comptes de bilan",bilan)}
@@ -8864,7 +8865,7 @@ async function acctEtatsView(){
       <button class="btn ${window._acctEtat==='gl'?'p':'ghost'} sm" onclick="window._acctEtat='gl';acctEtatsView()">Grand-livre</button>
       <button class="btn ${window._acctEtat==='jr'?'p':'ghost'} sm" onclick="window._acctEtat='jr';acctEtatsView()">Journal</button>
       <button class="btn ${window._acctEtat==='age'?'p':'ghost'} sm" onclick="window._acctEtat='age';acctEtatsView()">Balance âgée</button>
-      <button class="btn ghost sm" onclick="go('acctbalance')">Balance</button></div>
+      <button class="btn ghost sm" onclick="go('acctbalance')">Balance des comptes</button></div>
     <div id="acctEtatBox"><small style="color:var(--muted)">Chargement…</small></div>`;
   if(window._acctEtat==='gl') acctLedgerRender();
   else if(window._acctEtat==='jr') acctJournalRender();
@@ -9585,30 +9586,50 @@ function acctPrintWindow(title, bodyHtml, opts){
     : (opts.period?`<div><span class="k">Période</span>&nbsp;&nbsp;<b>${esc(opts.period)}</b></div>`:"");
   const tenue=opts.tenue?`<div style="margin-top:5px">Tenue de compte&nbsp;: ${esc(opts.tenue)}</div>`:`<div style="margin-top:5px">Tenue de compte&nbsp;:</div>`;
   const header=`
-    <table class="rpt-hdr"><tr>
-      <td style="width:30%;vertical-align:top"><b style="font-size:13px">${esc(company)}</b></td>
-      <td style="text-align:center;vertical-align:top"><div class="rpt-title">${esc(title)}</div>${sub?`<div class="rpt-sub">${sub}</div>`:""}</td>
-      <td style="width:28%;vertical-align:top;font-size:11px">${per}${tenue}</td>
-    </tr></table>
-    <table class="rpt-hdr2"><tr>
-      <td style="width:42%">© ${esc(app)} - Comptabilité${build?(" "+esc(build)):""}</td>
-      <td style="text-align:center">Date de tirage ${dt} à ${tm}</td>
-      <td style="text-align:right;width:16%">Page&nbsp;: <span class="pg"></span></td>
-    </tr></table>`;
+    <div class="rpt-head">
+      <div class="rpt-head-main">
+        <div class="rpt-company"><span class="rpt-company-name">${esc(company)}</span><span class="rpt-company-sub">Comptabilité</span></div>
+        <div class="rpt-titlewrap"><div class="rpt-title">${esc(title)}</div>${sub?`<div class="rpt-sub">${sub}</div>`:""}</div>
+        <div class="rpt-meta-right">${per||'<div>&nbsp;</div>'}${tenue}</div>
+      </div>
+      <div class="rpt-accent"></div>
+      <div class="rpt-head-foot">
+        <span>© ${esc(app)}${build?(" · "+esc(build)):""}</span>
+        <span>Date de tirage ${dt} à ${tm}</span>
+        <span>Page&nbsp;<span class="pg"></span></span>
+      </div>
+    </div>`;
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
-    <style>body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:14mm 10mm}
-    .rpt-hdr{width:100%;border:1px solid #000;border-collapse:collapse}
-    .rpt-hdr td{padding:7px 9px}
-    .rpt-title{font-size:19px;font-weight:700;letter-spacing:.3px}
-    .rpt-sub{font-size:11px;color:#333;margin-top:2px;line-height:1.35}
-    .rpt-hdr2{width:100%;border:1px solid #000;border-top:none;border-collapse:collapse;font-size:11px;margin-bottom:12px}
-    .rpt-hdr2 td{padding:3px 9px}
-    .k{color:#333}
-    table.data{width:100%;border-collapse:collapse;margin-top:2px}
-    table.data th,table.data td{border:1px solid #bbb;padding:3px 6px;text-align:left}
-    table.data th{background:#eee}
+    <style>
+    :root{--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--accent:#065f46;--accent-soft:#ecfdf5;--zebra:#f9fafb}
+    *{box-sizing:border-box}
+    body{font-family:"Segoe UI",Helvetica,Arial,sans-serif;font-size:11.5px;color:var(--ink);margin:12mm 10mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rpt-head{margin-bottom:14px}
+    .rpt-head-main{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .rpt-company{display:flex;flex-direction:column}
+    .rpt-company-name{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:.2px}
+    .rpt-company-sub{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:1px}
+    .rpt-titlewrap{text-align:center;flex:1}
+    .rpt-title{font-size:21px;font-weight:700;color:var(--accent);letter-spacing:.3px}
+    .rpt-sub{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.35}
+    .rpt-meta-right{min-width:170px;text-align:right;font-size:10.8px;color:var(--ink);line-height:1.5}
+    .rpt-meta-right .k{color:var(--muted)}
+    .rpt-accent{height:2.5px;background:var(--accent);border-radius:2px;margin:9px 0 0}
+    .rpt-head-foot{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px}
+    table.data{width:100%;border-collapse:collapse;margin-top:4px}
     table.data thead{display:table-header-group}
-    .r{text-align:right}.tot{font-weight:700;background:#f3f3f3}code{font-family:monospace}
+    table.data thead th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#374151;padding:6px 8px;text-align:left;border-bottom:2px solid var(--accent);background:var(--accent-soft)}
+    table.data thead th.grp{text-align:center;border-bottom:1px solid var(--line);background:#fff;color:var(--muted)}
+    table.data thead th.r,table.data td.r{text-align:right}
+    table.data tbody td{padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+    table.data tbody tr:nth-child(even):not(.tot){background:var(--zebra)}
+    table.data td.r,table.data th.r{font-variant-numeric:tabular-nums;white-space:nowrap}
+    .tot{font-weight:600;background:#f3f4f6}
+    .tot td{border-bottom:1px solid #d1d5db}
+    .grand{background:var(--accent-soft);font-weight:700;color:var(--ink)}
+    .grand td{border-top:2px solid var(--accent);border-bottom:none}
+    code{font-family:"Consolas",monospace;font-size:11px}
+    h2{font-size:13px;margin:16px 0 4px;color:var(--accent)}
     @media print{body{margin:12mm 10mm}}
     </style></head><body>${header}${bodyHtml.replace(/<table(?![^>]*class=)/g,'<table class="data"')}
     <script>window.onload=function(){var p=document.querySelector(".pg"); if(p)p.textContent="1"; window.print();}<\/script>
