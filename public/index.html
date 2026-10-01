@@ -8686,7 +8686,14 @@ async function acctBalanceView() {
   const seg=(v,l)=>`<button class="btn ${lvl===v?'p':'ghost'} sm" onclick="window._balLvl='${v}';acctBalanceView()">${l}</button>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">Balance des comptes</h1>
-    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span><button class="btn ghost sm" onclick="acctBalanceCSV()">CSV</button><button class="btn ghost sm" onclick="acctBalancePDF()">PDF</button><button class="btn ghost sm" onclick="acctBalancePrint()">Imprimer</button></div>
+    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span>
+      <label style="font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:4px">Type d'état
+        <select id="balEtat" onchange="window._balEtat=this.value" style="margin:0;height:28px">
+          <option value="base" ${ (window._balEtat||'base')==='base'?'selected':'' }>Base</option>
+          <option value="6col" ${ window._balEtat==='6col'?'selected':'' }>6 colonnes</option>
+        </select></label>
+      <button class="btn p sm" onclick="acctBalanceSagePrint()">Aperçu / Imprimer</button>
+      <button class="btn ghost sm" onclick="acctBalanceCSV()">CSV</button><button class="btn ghost sm" onclick="acctBalancePDF()">PDF</button></div>
     <div class="d2-filters"><div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
       <div class="fld"><label>Du</label><input type="date" value="${window._acctFrom||''}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctBalanceView()"></div>
       <div class="fld"><label>Au</label><input type="date" value="${window._acctTo||''}" onchange="window._acctTo=this.value;window._acctPeriod='';acctBalanceView()"></div>
@@ -8699,6 +8706,100 @@ async function acctBalanceView() {
     <div class="d2-status"><span><span class="k">Lignes :</span> <b>${outRows.length}</b></span><span class="sp"></span><span><span class="k">Total débit :</span> <b>${F(td)}</b></span><span><span class="k">Total crédit :</span> <b>${F(tc)}</b></span><span style="color:${balanced?'var(--nav-active-color)':'var(--red)'}"><b>${balanced?'Balance équilibrée':'Écart '+F(Math.abs(td-tc))}</b></span></div>`;
   window._balPrint={rows:outRows,lvl,td,tc,ts,period};
 }
+/* ===== Balance des comptes - présentation Sage (Type d'état : Base / 6 colonnes) ===== */
+async function _balExercise(){
+  // Détermine la période (début/fin) : filtres Du/Au, sinon mois, sinon exercice courant, sinon année en cours.
+  let start=window._acctFrom||"", end=window._acctTo||"";
+  if(!start && !end && window._acctPeriod){ start=window._acctPeriod+"-01"; const d=new Date(start); end=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10); }
+  if(!start || !end){ try{ const ex=await api("/accounting/exercises"); const cur=(ex||[]).find(e=>e.current)||(ex||[])[0]; if(cur){ start=start||cur.start; end=end||cur.end; } }catch(e){} }
+  if(!start || !end){ const y=new Date().getFullYear(); start=start||(y+"-01-01"); end=end||(y+"-12-31"); }
+  return {start,end};
+}
+function _prevDay(d){ const x=new Date(d+"T00:00:00"); x.setDate(x.getDate()-1); return x.toISOString().slice(0,10); }
+async function _balLabels(){ if(window._balAccLbl) return window._balAccLbl; const m={}; try{ (await api("/accounting/accounts")||[]).forEach(a=>{ m[String(a.number)]=a.label||""; }); }catch(e){} window._balAccLbl=m; return m; }
+async function acctBalanceSagePrint(){
+  const etat=window._balEtat||"base";
+  const {start,end}=await _balExercise();
+  const prevYE=_prevDay(start);
+  // Ouverture (mouvements <= veille du début) + période (début..fin)
+  const [openBal, perBal, lbl] = await Promise.all([
+    api("/accounting/balance?to="+encodeURIComponent(prevYE)).catch(()=>({rows:[]})),
+    api("/accounting/balance?from="+encodeURIComponent(start)+"&to="+encodeURIComponent(end)).catch(()=>({rows:[]})),
+    _balLabels()
+  ]);
+  const model=_balBuildModel(openBal.rows||[], perBal.rows||[], lbl);
+  const body = etat==="6col" ? _balRender6(model, prevYE) : _balRenderBase(model);
+  const frFR=d=>{ try{ return new Date(d+"T00:00:00").toLocaleDateString("fr-FR"); }catch(e){ return d; } };
+  acctPrintWindow("Balance des comptes", body, { subtitle:"Complète", from:frFR(start), to:frFR(end) });
+}
+// Construit le modèle fusionné ouverture+période, trié, avec sous-totaux 2 chiffres + classe, et totaux bilan/gestion/balance.
+function _balBuildModel(openRows, perRows, lbl){
+  const acc={};
+  const touch=a=>acc[a]||(acc[a]={account:a,label:lbl[a]||"",openD:0,openC:0,movD:0,movC:0});
+  (openRows||[]).forEach(r=>{ const a=touch(String(r.account)); a.openD+=r.debit||0; a.openC+=r.credit||0; if(!a.label)a.label=r.label||""; });
+  (perRows||[]).forEach(r=>{ const a=touch(String(r.account)); a.movD+=r.debit||0; a.movC+=r.credit||0; if(!a.label)a.label=r.label||""; });
+  const list=Object.values(acc).filter(a=>Math.round(a.openD||0)||Math.round(a.openC||0)||Math.round(a.movD||0)||Math.round(a.movC||0))
+    .sort((x,y)=>String(x.account).localeCompare(String(y.account)));
+  list.forEach(a=>{ a.cumD=a.openD+a.movD; a.cumC=a.openC+a.movC; const net=a.cumD-a.cumC; a.soldeD=net>0?net:0; a.soldeC=net<0?-net:0; });
+  return {list, lbl};
+}
+function _balAccum(){ return {openD:0,openC:0,movD:0,movC:0,soldeD:0,soldeC:0}; }
+function _balAdd(t,a){ t.openD+=a.openD; t.openC+=a.openC; t.movD+=a.movD; t.movC+=a.movC; t.soldeD+=a.soldeD; t.soldeC+=a.soldeC; }
+function _balSoldeSplit(t){ const net=(t.openD+t.movD)-(t.openC+t.movC); return {d:net>0?net:0,c:net<0?-net:0}; }
+const _SN=n=>{ n=Math.round(Number(n)||0); return n?n.toLocaleString("fr-FR"):""; };
+// --- Rendu BASE : Mouvements (cumulés) + Soldes ---
+function _balRenderBase(m){
+  const lbl=m.lbl;
+  let rows="", class1=null, pfx2=null, s2=_balAccum(), s1=_balAccum(), bilan=_balAccum(), gestion=_balAccum();
+  const lineBase=(num,lab,o,bold)=>{ const d=o.openD+o.movD, c=o.openC+o.movC, sp=_balSoldeSplit(o);
+    return `<tr${bold?' class="tot"':''}><td>${esc(num)}</td><td>${esc(lab||"")}</td><td class="r">${_SN(d)}</td><td class="r">${_SN(c)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
+  const flush2=()=>{ if(pfx2!==null){ rows+=lineBase(pfx2, lbl[pfx2]||"", s2, true); } s2=_balAccum(); };
+  const flush1=()=>{ if(class1!==null){ rows+=lineBase(class1, lbl[class1]||(OHADA_CLASSES[Number(class1)]||""), s1, true); } s1=_balAccum(); };
+  m.list.forEach(a=>{ const c1=String(a.account).charAt(0), p2=String(a.account).slice(0,2);
+    if(pfx2!==null && p2!==pfx2) flush2();
+    if(class1!==null && c1!==class1){ flush1(); }
+    class1=c1; pfx2=p2;
+    rows+=lineBase(a.account,a.label,a);
+    _balAdd(s2,a); _balAdd(s1,a); if(Number(c1)>=1&&Number(c1)<=5)_balAdd(bilan,a); else if(Number(c1)>=6&&Number(c1)<=8)_balAdd(gestion,a);
+  });
+  flush2(); flush1();
+  const totLine=(lab,t)=>{ const sp=_balSoldeSplit(t); return `<tr class="tot"><td colspan="2">${lab}</td><td class="r">${_SN(t.openD+t.movD)}</td><td class="r">${_SN(t.openC+t.movC)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
+  const bal=_balAccum(); _balAdd(bal,bilan); _balAdd(bal,gestion);
+  return `<table>
+    <thead><tr><th rowspan="2">Numéro de<br>compte</th><th rowspan="2">Intitulé des comptes</th><th colspan="2" class="r">Mouvements</th><th colspan="2" class="r">Soldes</th></tr>
+      <tr><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead>
+    <tbody>${rows}
+      ${totLine("Totaux comptes de bilan",bilan)}
+      ${totLine("Totaux comptes de gestion",gestion)}
+      ${totLine("Totaux de la balance",bal)}</tbody></table>`;
+}
+// --- Rendu 6 COLONNES : Mouvements antérieurs + Mouvements période + Soldes cumulés ---
+function _balRender6(m, prevYE){
+  const lbl=m.lbl; const frYE=(()=>{ try{ return new Date(prevYE+"T00:00:00").toLocaleDateString("fr-FR"); }catch(e){ return prevYE; } })();
+  let rows="", class1=null, pfx2=null, s2=_balAccum(), s1=_balAccum(), bilan=_balAccum(), gestion=_balAccum();
+  const line6=(num,lab,o,bold)=>{ const sp=_balSoldeSplit(o);
+    return `<tr${bold?' class="tot"':''}><td>${esc(num)}</td><td>${esc(lab||"")}</td><td class="r">${_SN(o.openD)}</td><td class="r">${_SN(o.openC)}</td><td class="r">${_SN(o.movD)}</td><td class="r">${_SN(o.movC)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
+  const flush2=()=>{ if(pfx2!==null){ rows+=line6(pfx2, lbl[pfx2]||"", s2, true); } s2=_balAccum(); };
+  const flush1=()=>{ if(class1!==null){ rows+=line6(class1, lbl[class1]||(OHADA_CLASSES[Number(class1)]||""), s1, true); } s1=_balAccum(); };
+  m.list.forEach(a=>{ const c1=String(a.account).charAt(0), p2=String(a.account).slice(0,2);
+    if(pfx2!==null && p2!==pfx2) flush2();
+    if(class1!==null && c1!==class1){ flush1(); }
+    class1=c1; pfx2=p2;
+    rows+=line6(a.account,a.label,a);
+    _balAdd(s2,a); _balAdd(s1,a); if(Number(c1)>=1&&Number(c1)<=5)_balAdd(bilan,a); else if(Number(c1)>=6&&Number(c1)<=8)_balAdd(gestion,a);
+  });
+  flush2(); flush1();
+  const totLine=(lab,t)=>{ const sp=_balSoldeSplit(t); return `<tr class="tot"><td colspan="2">${lab}</td><td class="r">${_SN(t.openD)}</td><td class="r">${_SN(t.openC)}</td><td class="r">${_SN(t.movD)}</td><td class="r">${_SN(t.movC)}</td><td class="r">${_SN(sp.d)}</td><td class="r">${_SN(sp.c)}</td></tr>`; };
+  const bal=_balAccum(); _balAdd(bal,bilan); _balAdd(bal,gestion);
+  return `<table>
+    <thead><tr><th rowspan="2">Numéro de<br>compte</th><th rowspan="2">Intitulé des comptes</th><th colspan="2" class="r">Mouvements au ${esc(frYE)}</th><th colspan="2" class="r">Mouvements</th><th colspan="2" class="r">Soldes cumulés</th></tr>
+      <tr><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Débit</th><th class="r">Crédit</th></tr></thead>
+    <tbody>${rows}
+      ${totLine("Totaux comptes de bilan",bilan)}
+      ${totLine("Totaux comptes de gestion",gestion)}
+      ${totLine("Totaux de la balance",bal)}</tbody></table>`;
+}
+
 function acctBalancePrint(){
   const d=window._balPrint||{rows:[]}; const F=fCFA;
   const body=`<table><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
