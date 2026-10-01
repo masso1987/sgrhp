@@ -6907,7 +6907,7 @@ function rubRender(q) {
   const list = PAY_RUBS.filter(r => !q || (r.code + " " + r.label).toLowerCase().includes(q));
   const groups = {}; const order = [];
   list.forEach(r => { const g = r.sectionLabel || "Rubriques"; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(r); });
-  const rowsFor = arr => arr.map(r => `<tr>
+  const rowsFor = arr => arr.map(r => `<tr ondblclick="rubEdit('${r.id}')" style="cursor:pointer" title="Double-cliquez pour ouvrir l'éditeur">
       <td>${esc(r.code)}${r.inUse ? ' <span class="tag amber" title="Utilisée dans la paie - verrouillée">verrouillée</span>' : ""}</td>
       <td><b>${esc(r.label)}</b>${r.system ? ' <span class="tag gray">baseline</span>' : ""}</td>
       <td>${esc(r.family)}</td><td style="font-size:12px">${esc(r.formula)}</td><td>${esc(r.base || "-")}</td>
@@ -6938,39 +6938,111 @@ function rmSyncProrata(){ const cb=document.getElementById("rmProrata"); const n
 function rubModal(r) {
   const isEdit = !!r; r = r || { family: "BRUT", formula: "Nombre x Base", sens: "GAIN", cnps: true, impo: true };
   const opt = (v, cur) => `<option ${v === cur ? "selected" : ""}>${v}</option>`;
+  const tabBtn = (k, lbl) => `<div class="rmTab" data-rt="${k}" onclick="rubTab('${k}')" style="padding:7px 14px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;color:var(--muted)">${lbl}</div>`;
   const bg = document.createElement("div"); bg.className = "modal-bg";
-  bg.innerHTML = `<div class="modal" style="max-width:520px"><b>${isEdit ? "Modifier" : "Créer"} une rubrique</b>
-    ${isEdit && r.inUse ? `<div class="note" style="background:var(--red-bg);border-color:#fca5a5;margin-top:8px">
-      <b>Rubrique utilisée dans des bulletins calculés.</b>Toute modification affectera l'ensemble de la paie
-      et nécessitera un recalcul. Cochez la confirmation ci-dessous pour l'autoriser.</div>` : ""}
-    <div class="grid2" style="margin-top:8px">
-      <div><label>Code ${(isEdit && !r.system && !r.inUse) ? '<span class="note-inline">(modifiable)</span>' : ""}</label><input id="rmCode" value="${esc(r.code || "")}" ${(isEdit && (r.system || r.inUse)) ? "disabled" : ""}></div>
-      <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}"></div>
-      <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
-      <div><label>Formule</label><select id="rmFormula">${["Nombre x Base","Base x Taux","Nombre x Base x Taux","Montant pris tel quel","Barème"].map(f =>opt(f, r.formula)).join("")}</select></div>
-      <div><label>Nombre <span class="note-inline">(constante / valeur)</span></label><input id="rmNombre" list="cstCodes" value="${esc(r.nombre || "")}" placeholder="ex. NBREJOUT, 30" oninput="rmCstHint(this,'rmNbHint');rmSyncProrata()"><div id="rmNbHint" class="note-inline"></div></div>
-      <div><label>Base <span class="note-inline">(constante / valeur)</span></label><input id="rmBase" list="cstCodes" value="${esc(r.base || "")}" placeholder="ex. SALJOURN, PRIMASTREI" oninput="rmCstHint(this,'rmBaHint')"><div id="rmBaHint" class="note-inline"></div></div>
-      <div><label>Taux %</label><input id="rmTaux" type="number" step="any" value="${r.taux != null ? r.taux : ""}"></div>
-      <div><label>Sens</label><select id="rmSens">${opt("GAIN", r.sens)}${opt("RETENUE", r.sens)}${opt("PATRONAL", r.sens)}</select></div>
-      <div style="grid-column:1/3"><label>Compte comptable (paie) <span class="note-inline">synchronisé avec Comptabilité → Rubriques-Comptes</span></label><input id="rmCompte" list="acctCodes" value="" placeholder="ex. 661110"></div>
-      <div style="display:flex;gap:14px;align-items:end;padding-bottom:6px">
-        <label class="chk" style="margin:0"><input type="checkbox" id="rmCnps" ${r.cnps ? "checked" : ""}><span>Soumis CNPS</span></label>
-        <label class="chk" style="margin:0"><input type="checkbox" id="rmImpo" ${r.impo ? "checked" : ""}><span>Soumis IRPP</span></label></div>
-      <div style="grid-column:1/3;display:flex;align-items:center;gap:8px;padding-top:2px">
-        <label class="chk" style="margin:0"><input type="checkbox" id="rmProrata" data-auto="${isEdit ? "0" : "1"}" ${(isEdit ? (r.prorata !== false) : false) ? "checked" : ""} onchange="this.dataset.auto='0'"><span>Proratiser au prorata des jours de présence</span></label>
-        <span class="note-inline" title="Règle Sage : proratisé quand la quantité (Nombre) est une constante de JOURS travaillés (NBREJOUT, NJOURP, NJOUTRAP, NOMJOUFE…). Décochez pour un montant fixe (ancienneté, rappels, primes forfaitaires) ; les heures supp. ne se proratisent pas ici.">?</span></div>
+  bg.innerHTML = `<div class="modal" style="max-width:600px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b>${isEdit ? "Modifier" : "Créer"} une rubrique${isEdit ? ` — <span style="color:var(--muted)">${esc(r.code)}</span>` : ""}</b>
+      ${isEdit ? `<span class="note-inline" id="rmNavPos"></span>` : ""}</div>
+    ${isEdit && r.inUse ? `<div class="note" style="background:var(--red-bg);border-color:#fca5a5;margin-top:8px"><b>Rubrique utilisée dans des bulletins calculés.</b> Toute modification affectera la paie et nécessitera un recalcul (confirmez en bas).</div>` : ""}
+    <div style="display:flex;gap:2px;border-bottom:1px solid var(--line);margin:10px 0 12px;flex-wrap:wrap">
+      ${tabBtn("gen","Général")}${tabBtn("elt","Éléments constitutifs")}${tabBtn("cpt","Comptabilité")}</div>
+
+    <div class="rmPane" data-rp="gen">
+      <div class="grid2">
+        <div><label>Code ${(isEdit && !r.system && !r.inUse) ? '<span class="note-inline">(modifiable)</span>' : ""}</label><input id="rmCode" value="${esc(r.code || "")}" ${(isEdit && (r.system || r.inUse)) ? "disabled" : ""}></div>
+        <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}"></div>
+        <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
+        <div><label>Sens</label><select id="rmSens">${opt("GAIN", r.sens)}${opt("RETENUE", r.sens)}${opt("PATRONAL", r.sens)}</select></div>
+        <div style="display:flex;gap:14px;align-items:end;padding-bottom:6px">
+          <label class="chk" style="margin:0"><input type="checkbox" id="rmCnps" ${r.cnps ? "checked" : ""}><span>Soumis CNPS</span></label>
+          <label class="chk" style="margin:0"><input type="checkbox" id="rmImpo" ${r.impo ? "checked" : ""}><span>Soumis IRPP</span></label></div>
+        <div style="display:flex;align-items:center;gap:8px;padding-bottom:6px">
+          <label class="chk" style="margin:0"><input type="checkbox" id="rmProrata" data-auto="${isEdit ? "0" : "1"}" ${(isEdit ? (r.prorata !== false) : false) ? "checked" : ""} onchange="this.dataset.auto='0'"><span>Proratiser (jours de présence)</span></label>
+          <span class="note-inline" title="Proratisé quand la quantité (Nombre) est une constante de JOURS (NBREJOUT…). Décochez pour un montant fixe.">?</span></div>
+      </div>
     </div>
-    ${isEdit && r.inUse ? `<label class="chk" style="margin-top:8px;color:var(--red)"><input type="checkbox" id="rmForce"><span>Je confirme : appliquer malgré l'impact sur la paie</span></label>` : ""}
+
+    <div class="rmPane" data-rp="elt" style="display:none">
+      <div><label>Formule</label><select id="rmFormula" style="max-width:260px">${["Nombre x Base","Base x Taux","Nombre x Base x Taux","Montant pris tel quel","Barème"].map(f => opt(f, r.formula)).join("")}</select></div>
+      <table style="width:100%;margin-top:10px;font-size:13px"><tr><th style="text-align:left">Nombre</th><th style="text-align:left">Base</th><th style="text-align:left;width:90px">Taux %</th></tr>
+        <tr style="vertical-align:top">
+          <td style="padding-right:8px"><input id="rmNombre" list="cstCodes" value="${esc(r.nombre || "")}" placeholder="ex. NBREJOUT, 30" oninput="rmCstHint(this,'rmNbHint');rmSyncProrata()" style="width:100%">
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px"><div id="rmNbHint" class="note-inline" style="flex:1"></div><button class="btn ghost sm" onclick="rubOpenConst('rmNombre')" title="Ouvrir / éditer la constante">↗ constante</button></div></td>
+          <td style="padding-right:8px"><input id="rmBase" list="cstCodes" value="${esc(r.base || "")}" placeholder="ex. SALJOURN" oninput="rmCstHint(this,'rmBaHint')" style="width:100%">
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px"><div id="rmBaHint" class="note-inline" style="flex:1"></div><button class="btn ghost sm" onclick="rubOpenConst('rmBase')" title="Ouvrir / éditer la constante">↗ constante</button></div></td>
+          <td><input id="rmTaux" type="number" step="any" value="${r.taux != null ? r.taux : ""}" style="width:90px"></td>
+        </tr></table>
+      <div class="note" style="margin-top:8px">Les champs Nombre et Base peuvent référencer une constante (NBREJOUT, SALJOURN, T1IRPP…). Cliquez « ↗ constante » pour l'ouvrir et modifier sa valeur sans quitter cet écran.</div>
+    </div>
+
+    <div class="rmPane" data-rp="cpt" style="display:none">
+      <div><label>Compte comptable (paie) <span class="note-inline">synchronisé avec Comptabilité → Rubriques-Comptes</span></label><input id="rmCompte" list="acctCodes" value="" placeholder="ex. 661110"></div>
+    </div>
+
+    ${isEdit && r.inUse ? `<label class="chk" style="margin-top:10px;color:var(--red)"><input type="checkbox" id="rmForce"><span>Je confirme : appliquer malgré l'impact sur la paie</span></label>` : ""}
     <div class="err hidden" id="rmErr" style="margin-top:6px"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
-      <button class="btn p sm" onclick="rubSave('${isEdit ? r.id : ""}', ${isEdit && r.inUse})">Enregistrer</button></div></div>`;
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:12px">
+      <div>${isEdit ? `<button class="btn ghost sm" onclick="rubNav('${r.id}',-1)">‹ Préc</button> <button class="btn ghost sm" onclick="rubNav('${r.id}',1)">Suiv ›</button>` : ""}</div>
+      <div><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="rubSave('${isEdit ? r.id : ""}', ${isEdit && r.inUse})">Enregistrer</button></div></div>
+  </div>`;
   bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
   document.body.appendChild(bg);
+  rubTab(window._rmTab || "gen");
   if (isEdit && r.id) { api("/payroll/rubriques/" + r.id + "/compte").then(m => { const el = document.getElementById("rmCompte"); if (el) el.value = m.account || ""; }).catch(() => {}); }
   ["rmNombre", "rmBase"].forEach(idn => { const el = document.getElementById(idn); if (el && el.value) rmCstHint(el, idn === "rmNombre" ? "rmNbHint" : "rmBaHint"); });
   rmSyncProrata();
+  if (isEdit) { const i = (PAY_RUBS || []).findIndex(x => x.id === r.id); const pos = document.getElementById("rmNavPos"); if (pos && i >= 0) pos.textContent = (i + 1) + " / " + PAY_RUBS.length; }
 }
+function rubTab(name) {
+  window._rmTab = name;
+  document.querySelectorAll(".rmTab").forEach(e => { const on = e.dataset.rt === name; e.style.borderBottomColor = on ? "var(--primary,#6366f1)" : "transparent"; e.style.fontWeight = on ? "700" : "400"; e.style.color = on ? "var(--text,#111)" : "var(--muted)"; });
+  document.querySelectorAll(".rmPane").forEach(p => { p.style.display = p.dataset.rp === name ? "" : "none"; });
+}
+function rubNav(id, dir) {
+  const list = (PAY_RUBS || []); const i = list.findIndex(x => x.id === id); if (i < 0) return;
+  const n = list[i + dir]; if (!n) return;
+  const bg = document.querySelector(".modal-bg"); if (bg) bg.remove();
+  rubModal(n);
+}
+function rubOpenConst(inputId) {
+  const el = document.getElementById(inputId); if (!el) return; const code = (el.value || "").trim();
+  if (!code) { alert("Saisissez d'abord un code de constante dans ce champ (ex. NBREJOUT)."); return; }
+  if (/^-?\d+([.,]\d+)?$/.test(code)) { alert("« " + code + " » est une valeur numérique, pas une constante."); return; }
+  const c = cstValueOf(code);
+  if (!c) { if (confirm("La constante « " + code.toUpperCase() + " » n'existe pas. La créer ?")) cstStackedModal({ code: code.toUpperCase(), type: "Valeur" }, inputId); return; }
+  cstStackedModal(c, inputId);
+}
+function cstStackedModal(c, fromInput) {
+  const isEdit = !!c.id;
+  const usage = (typeof cstUsage === "function" && c.code) ? cstUsage(c.code) : [];
+  const bg = document.createElement("div"); bg.className = "modal-bg"; bg.style.zIndex = "1200";
+  bg.innerHTML = `<div class="modal" style="max-width:430px"><b>${isEdit ? "Constante" : "Nouvelle constante"}${c.code ? ` — <span style="color:var(--muted)">${esc(c.code)}</span>` : ""}</b>
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Code</label><input id="csCode" value="${esc(c.code || "")}" ${(isEdit && c.system) ? "disabled" : ""}></div>
+      <div><label>Type</label><select id="csType">${["Valeur","Prédéfini","Calcul","Individuel","Cumul","Rubrique","Réponse","Test","Tranche","Système"].map(x => `<option ${x === c.type ? "selected" : ""}>${x}</option>`).join("")}</select></div>
+      <div style="grid-column:1/3"><label>Libellé</label><input id="csLabel" value="${esc(c.label || "")}"></div>
+      <div><label>Valeur</label><input id="csVal" type="number" step="any" value="${c.valeur != null ? c.valeur : ""}"></div>
+    </div>
+    ${usage.length ? `<div class="note" style="margin-top:6px">Utilisée par ${usage.length} rubrique(s) : ${usage.slice(0,6).map(u => esc(u.code)).join(", ")}${usage.length>6?"…":""}</div>` : ""}
+    <div class="err hidden" id="csErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>
+      <button class="btn p sm" onclick="cstStackedSave('${isEdit ? c.id : ""}','${fromInput || ""}')">Enregistrer</button></div></div>`;
+  bg.addEventListener("click", e => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function cstStackedSave(id, fromInput) {
+  const body = { code: document.getElementById("csCode").value.trim().toUpperCase(), label: document.getElementById("csLabel").value.trim(), type: document.getElementById("csType").value, valeur: document.getElementById("csVal").value };
+  try {
+    let saved; if (id) saved = await api("/payroll/constantes/" + id, { method: "PUT", body: JSON.stringify(body) }); else saved = await api("/payroll/constantes", { method: "POST", body: JSON.stringify(body) });
+    const i = (PAY_CST || []).findIndex(x => x.id === saved.id); if (i >= 0) PAY_CST[i] = saved; else (PAY_CST = PAY_CST || []).push(saved);
+    const modals = document.querySelectorAll(".modal-bg"); if (modals.length) modals[modals.length - 1].remove();
+    if (fromInput) { const el = document.getElementById(fromInput); if (el) { el.value = saved.code; rmCstHint(el, fromInput === "rmNombre" ? "rmNbHint" : "rmBaHint"); } }
+  } catch (e) { const er = document.getElementById("csErr"); if (er) { er.textContent = e.message; er.classList.remove("hidden"); } }
+}
+
 function rmCstHint(inp, hintId) {
   const h = document.getElementById(hintId); if (!h) return;
   const c = (typeof cstValueOf === "function") ? cstValueOf(inp.value) : null;
