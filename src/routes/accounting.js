@@ -1119,7 +1119,7 @@ function _acctReportPDF(req, res, opts) {
     y += 46;
     doc.rect(mL, y, cW, 15).stroke();
     doc.font("Helvetica").fontSize(7.5).fillColor("#000");
-    doc.text("© "+((db.platform&&db.platform.appName)||"MBOKA Mon RH")+" - Comptabilité", mL + 7, y + 4, { width: cW * 0.42, lineBreak: false });
+    doc.text(company, mL + 7, y + 4, { width: cW * 0.42, lineBreak: false });
     doc.text("Date de tirage " + dstr + " à " + tstr, mL + cW * 0.42, y + 4, { width: cW * 0.31, align: "center", lineBreak: false });
     y += 15 + 6;
     return y;
@@ -1153,27 +1153,57 @@ const _OHADA_CL = { 1: "Comptes de ressources durables", 2: "Comptes d'actif imm
 router.get("/balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const onlyVal = req.query.all !== "1"; const _from = req.query.from || "", _to = req.query.to || "", period = req.query.period || "";
-  const lvl = req.query.level || "detail";
   const accs = {}; for (const a of mine(db.acctAccounts, req)) accs[a.number] = a.label;
-  const agg = {};
-  for (const e of mine(db.acctEntries, req)) { if (onlyVal && e.status === "draft") continue; if (period && (e.period || "") !== period) continue; if (_from && (e.date || "") < _from) continue; if (_to && (e.date || "") > _to) continue;
-    for (const l of (e.lines || [])) { const a = (agg[l.account] = agg[l.account] || { account: l.account, label: accs[l.account] || "", debit: 0, credit: 0 }); a.debit += R2(l.debit); a.credit += R2(l.credit); } }
-  let base = Object.values(agg).sort((x, y) => String(x.account).localeCompare(String(y.account))).map(a => Object.assign(a, { solde: a.debit - a.credit }));
-  const keyOf = (acc) => lvl === "class" ? String(acc || "0").charAt(0) : lvl === "level2" ? String(acc || "00").slice(0, 2) : String(acc || "");
-  const gmap = new Map();
-  base.forEach(r => { const k = keyOf(r.account); const g = gmap.get(k) || { key: k, account: r.account, label: r.label, debit: 0, credit: 0, solde: 0 }; g.debit += r.debit; g.credit += r.credit; g.solde += r.solde; if (lvl !== "detail") g.label = lvl === "class" ? (_OHADA_CL[Number(k)] || ("Classe " + k)) : ("Comptes " + k + "…"); gmap.set(k, g); });
-  const outRows = [...gmap.values()];
-  const rows = []; let curCl = null, cd = 0, cc = 0, cs = 0, td = 0, tc = 0, ts = 0;
-  const classRow = (cl) => rows.push({ cells: ["", "Classe " + cl + " - " + (_OHADA_CL[Number(cl)] || ""), _pnf(cd), _pnf(cc), _pnf(cs)], bold: true, fill: "#eef2f6" });
-  outRows.forEach(g => { const cl = String(g.account || "0").charAt(0); if (curCl !== null && cl !== curCl && lvl !== "class") { classRow(curCl); cd = cc = cs = 0; } if (cl !== curCl) curCl = cl;
-    const accCell = lvl === "class" ? ("Classe " + g.key) : lvl === "level2" ? (g.key + "xxxx") : g.account;
-    rows.push({ cells: [accCell, g.label || "", _pnf(g.debit), _pnf(g.credit), _pnf(g.solde)], bold: lvl !== "detail" });
-    cd += g.debit; cc += g.credit; cs += g.solde; td += g.debit; tc += g.credit; ts += g.solde; });
-  if (curCl !== null && lvl !== "class") classRow(curCl);
-  rows.push({ cells: ["", "TOTAL GÉNÉRAL", _pnf(td), _pnf(tc), _pnf(ts)], bold: true, fill: "#dfe6ec" });
-  const _lab = { detail: "Balance détaillée par compte", level2: "Balance par niveau (2 chiffres)", class: "Balance synthétique par classe" }[lvl];
-  _acctReportPDF(req, res, { filename: "Balance" + (period ? "_" + period : ""), title: "Balance des comptes", subtitle: _lab + " - rupture par classe OHADA", period: period || "Tout l'exercice", from: _from, to: _to,
-    columns: [{ h: "Compte", w: 70 }, { h: "Intitulé", w: 240 }, { h: "Débit", w: 79, a: "r" }, { h: "Crédit", w: 79, a: "r" }, { h: "Solde", w: 79, a: "r" }], rows });
+  // Début de période (pour l'ouverture = mouvements antérieurs). Déduit de from, sinon du mois, sinon exercice courant.
+  let pStart = _from;
+  if (!pStart && period) pStart = period + "-01";
+  if (!pStart) { const ex = mine(db.acctExercises, req).find(e => e.current) || mine(db.acctExercises, req)[0]; if (ex) pStart = ex.start; }
+  const acc = {};
+  const touch = a => acc[a] || (acc[a] = { account: a, label: accs[a] || "", openD: 0, openC: 0, movD: 0, movC: 0 });
+  for (const e of mine(db.acctEntries, req)) {
+    if (onlyVal && e.status === "draft") continue;
+    const d = e.date || "";
+    if (period && (e.period || "") !== period && !pStart) continue;
+    if (_to && d > _to) continue;
+    for (const l of (e.lines || [])) {
+      const a = touch(l.account);
+      const isOpening = pStart && d && d < pStart;
+      if (isOpening) { a.openD += R2(l.debit); a.openC += R2(l.credit); }
+      else {
+        if (period && (e.period || "") !== period) continue;
+        if (_from && d < _from) continue;
+        a.movD += R2(l.debit); a.movC += R2(l.credit);
+      }
+    }
+  }
+  const list = Object.values(acc)
+    .filter(a => Math.round(a.openD) || Math.round(a.openC) || Math.round(a.movD) || Math.round(a.movC))
+    .sort((x, y) => String(x.account).localeCompare(String(y.account)));
+  const nf = n => { n = Math.round(Number(n) || 0); return n ? _pnf(n) : ""; };
+  const mkAcc = () => ({ openD: 0, openC: 0, movD: 0, movC: 0 });
+  const add = (t, a) => { t.openD += a.openD; t.openC += a.openC; t.movD += a.movD; t.movC += a.movC; };
+  const soldeSplit = t => { const net = (t.openD + t.movD) - (t.openC + t.movC); return { d: net > 0 ? net : 0, c: net < 0 ? -net : 0 }; };
+  const rowCells = (num, lab, t) => { const sp = soldeSplit(t); return [String(num), lab || "", nf(t.openD + t.movD), nf(t.openC + t.movC), nf(sp.d), nf(sp.c)]; };
+  const rows = [];
+  let class1 = null, pfx2 = null, s2 = mkAcc(), s1 = mkAcc(), bilan = mkAcc(), gestion = mkAcc();
+  const flush2 = () => { if (pfx2 !== null) rows.push({ cells: rowCells(pfx2, accs[pfx2] || "", s2), bold: true, fill: "#f3f4f6" }); s2 = mkAcc(); };
+  const flush1 = () => { if (class1 !== null) rows.push({ cells: rowCells(class1, accs[class1] || (_OHADA_CL[Number(class1)] || ""), s1), bold: true, fill: "#eef2f6" }); s1 = mkAcc(); };
+  list.forEach(a => {
+    const c1 = String(a.account).charAt(0), p2 = String(a.account).slice(0, 2);
+    if (pfx2 !== null && p2 !== pfx2) flush2();
+    if (class1 !== null && c1 !== class1) flush1();
+    class1 = c1; pfx2 = p2;
+    rows.push({ cells: rowCells(a.account, a.label, a) });
+    add(s2, a); add(s1, a);
+    const n = Number(c1); if (n >= 1 && n <= 5) add(bilan, a); else if (n >= 6 && n <= 8) add(gestion, a);
+  });
+  flush2(); flush1();
+  const bal = mkAcc(); add(bal, bilan); add(bal, gestion);
+  rows.push({ cells: ["", "Totaux comptes de bilan", nf(bilan.openD + bilan.movD), nf(bilan.openC + bilan.movC), nf(soldeSplit(bilan).d), nf(soldeSplit(bilan).c)], bold: true, fill: "#eef2f6" });
+  rows.push({ cells: ["", "Totaux comptes de gestion", nf(gestion.openD + gestion.movD), nf(gestion.openC + gestion.movC), nf(soldeSplit(gestion).d), nf(soldeSplit(gestion).c)], bold: true, fill: "#eef2f6" });
+  rows.push({ cells: ["", "Totaux de la balance", nf(bal.openD + bal.movD), nf(bal.openC + bal.movC), nf(soldeSplit(bal).d), nf(soldeSplit(bal).c)], bold: true, fill: "#dfe6ec" });
+  _acctReportPDF(req, res, { filename: "Balance" + (period ? "_" + period : ""), title: "Balance des comptes", subtitle: "Balance détaillée", period: (_from || _to) ? "" : (period || "Tout l'exercice"), from: _from, to: _to,
+    columns: [{ h: "Compte", w: 58 }, { h: "Intitulé des comptes", w: 200 }, { h: "Mvt Débit", w: 72, a: "r" }, { h: "Mvt Crédit", w: 72, a: "r" }, { h: "Solde Débit", w: 72, a: "r" }, { h: "Solde Crédit", w: 72, a: "r" }], rows });
 });
 
 router.get("/ledger/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {

@@ -8698,7 +8698,7 @@ async function acctBalanceView() {
     <div class="d2-filters"><div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
       <div class="fld"><label>Du</label><input type="date" value="${window._acctFrom||''}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctBalanceView()"></div>
       <div class="fld"><label>Au</label><input type="date" value="${window._acctTo||''}" onchange="window._acctTo=this.value;window._acctPeriod='';acctBalanceView()"></div>
-      <div class="fld" style="justify-content:end"><span style="font-size:11px;color:var(--muted)">Écritures validées - rupture par classe OHADA.</span></div></div>
+      <div class="fld" style="justify-content:end"><span style="font-size:11px;color:var(--muted)">Écritures validées.</span></div></div>
     <div class="d2-grid"><table><thead><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr></thead><tbody>
       ${outRows.length ? html : '<tr><td colspan="5" style="color:var(--muted)">Aucune écriture validée.</td></tr>'}
       <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAL GÉNÉRAL</td><td class="r">${F(td)}</td><td class="r">${F(tc)}</td>
@@ -8806,8 +8806,7 @@ function acctBalancePrint(){
   const body=`<table><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
     ${d.rows.map(g=>`<tr><td>${esc(g.account||g.key)}</td><td>${esc(g.label||"")}</td><td class="r">${F(g.debit)}</td><td class="r">${F(g.credit)}</td><td class="r">${F(g.solde)}</td></tr>`).join("")}
     <tr class="tot"><td colspan="2">TOTAL GÉNÉRAL</td><td class="r">${F(d.td)}</td><td class="r">${F(d.tc)}</td><td class="r">${F(d.ts)}</td></tr></table>`;
-  const _lab={detail:"Balance détaillée par compte",level2:"Balance par niveau (2 chiffres)",class:"Balance synthétique par classe"}[d.lvl||"detail"];
-  acctPrintWindow("Balance des comptes", body, {subtitle:_lab+"<br>Écritures validées - rupture par classe OHADA", period:d.period||"Tout l'exercice"});
+  acctPrintWindow("Balance des comptes", body, {subtitle:"Balance détaillée", from:window._acctFrom||"", to:window._acctTo||"", period:(!window._acctFrom&&!window._acctTo)?(d.period||"Tout l'exercice"):""});
 }
 function _acctCSV(filename, matrix){
   const q=v=>{ v=(v==null?"":String(v)); return /[";\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
@@ -8815,7 +8814,7 @@ function _acctCSV(filename, matrix){
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=filename; a.click();
 }
 async function acctPDF(url, filename){ try{ const r=await fetch("/api"+url,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok) throw new Error("PDF indisponible ("+r.status+")"); const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=filename; a.click(); }catch(e){ alert(e.message); } }
-function acctBalancePDF(){ const d=window._balPrint||{}; const p=new URLSearchParams(); if(d.lvl)p.set("level",d.lvl); if(d.period)p.set("period",d.period); acctPDF("/accounting/balance/pdf?"+p.toString(),"Balance"+(d.period?"_"+d.period:"")+".pdf"); }
+function acctBalancePDF(){ const d=window._balPrint||{}; const p=new URLSearchParams(); if(d.lvl)p.set("level",d.lvl); if(window._acctFrom)p.set("from",window._acctFrom); if(window._acctTo)p.set("to",window._acctTo); if(!window._acctFrom&&!window._acctTo&&d.period)p.set("period",d.period); const _suf=window._acctFrom||window._acctTo?("_"+(window._acctFrom||"")+"_"+(window._acctTo||"")):(d.period?"_"+d.period:""); acctPDF("/accounting/balance/pdf?"+p.toString(),"Balance"+_suf+".pdf"); }
 function acctLedgerPDF(){ const d=window._glPrint||{}; const p=new URLSearchParams(); p.set("account",d.account||""); if(window._acctFrom)p.set("from",window._acctFrom); if(window._acctTo)p.set("to",window._acctTo); acctPDF("/accounting/ledger/pdf?"+p.toString(),"Grand-livre_"+(d.account||"")+".pdf"); }
 function acctJournalPDF(){ const d=window._jrPrint||{}; const p=new URLSearchParams(); p.set("journal",d.journal||""); if(window._acctFrom)p.set("from",window._acctFrom); if(window._acctTo)p.set("to",window._acctTo); if(!window._acctFrom&&!window._acctTo&&d.period)p.set("period",d.period); acctPDF("/accounting/journal-report/pdf?"+p.toString(),"Journal_"+(d.journal||"")+".pdf"); }
 function acctAgedPDF(){ const d=window._agedPrint||{}; acctPDF("/accounting/aged/pdf?kind="+(d.kind||"client"),"Balance_agee_"+(d.kind||"client")+".pdf"); }
