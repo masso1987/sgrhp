@@ -9574,7 +9574,6 @@ function acctAgedPrint(){
 function acctPrintCompany(){ try{ return (window.ME&&ME.tenantName)|| (window.SETTINGS&&SETTINGS.companyName) || document.title || "Société"; }catch(e){ return "Société"; } }
 function acctPrintWindow(title, bodyHtml, opts){
   opts = opts || {};
-  const w=window.open("","_blank"); if(!w){ alert("Autorisez les fenêtres pop-up pour imprimer."); return; }
   const now=new Date();
   const dt=now.toLocaleDateString("fr-FR"), tm=now.toLocaleTimeString("fr-FR");
   const company=acctPrintCompany();
@@ -9594,12 +9593,12 @@ function acctPrintWindow(title, bodyHtml, opts){
       </div>
       <div class="rpt-accent"></div>
       <div class="rpt-head-foot">
-        <span>© ${esc(app)}${build?(" · "+esc(build)):""}</span>
+        <span>${esc(company)}${build?(" · "+esc(build)):""}</span>
         <span>Date de tirage ${dt} à ${tm}</span>
         <span>Page&nbsp;<span class="pg"></span></span>
       </div>
     </div>`;
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+  const _doc=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
     <style>
     :root{--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--accent:#065f46;--accent-soft:#ecfdf5;--zebra:#f9fafb}
     *{box-sizing:border-box}
@@ -9615,6 +9614,7 @@ function acctPrintWindow(title, bodyHtml, opts){
     .rpt-meta-right{min-width:170px;text-align:right;font-size:10.8px;color:var(--ink);line-height:1.5}
     .rpt-meta-right .k{color:var(--muted)}
     .rpt-accent{height:2.5px;background:var(--accent);border-radius:2px;margin:9px 0 0}
+    .rpt-sep{height:1px;background:linear-gradient(to right,transparent,var(--line) 12%,var(--line) 88%,transparent);margin:2px 0 8px}
     .rpt-head-foot{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px}
     table.data{width:100%;border-collapse:collapse;margin-top:4px}
     table.data thead{display:table-header-group}
@@ -9631,10 +9631,18 @@ function acctPrintWindow(title, bodyHtml, opts){
     code{font-family:"Consolas",monospace;font-size:11px}
     h2{font-size:13px;margin:16px 0 4px;color:var(--accent)}
     @media print{body{margin:12mm 10mm}}
-    </style></head><body>${header}${bodyHtml.replace(/<table(?![^>]*class=)/g,'<table class="data"')}
-    <script>window.onload=function(){var p=document.querySelector(".pg"); if(p)p.textContent="1"; window.print();}<\/script>
-    </body></html>`);
-  w.document.close();
+    </style></head><body>${header}<div class="rpt-sep"></div>${bodyHtml.replace(/<table(?![^>]*class=)/g,'<table class="data"')}</body></html>`;
+  // Impression via iframe même origine (évite la page "about:blank" et le bloqueur de pop-up).
+  const _pg=(_doc).replace('<span class="pg"></span>','1');
+  const ifr=document.createElement("iframe");
+  ifr.setAttribute("aria-hidden","true");
+  ifr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(ifr);
+  let _done=false;
+  const _print=()=>{ if(_done)return; _done=true; try{ ifr.contentWindow.focus(); ifr.contentWindow.print(); }catch(e){} setTimeout(()=>{ try{ ifr.remove(); }catch(e){} }, 1500); };
+  ifr.onload=()=>setTimeout(_print,150);
+  const d=ifr.contentWindow.document; d.open(); d.write(_pg); d.title=title; d.close();
+  if(d.readyState==="complete") setTimeout(_print,250);
 }
 function acctTiersBalancePDF(){ const k=(window._ets&&window._ets.kind)||"all"; acctPDF("/accounting/tiers-balance/pdf?kind="+k,"Balance_tiers_"+k+".pdf"); }
 function acctTiersGLPDF(){ const k=(window._ets&&window._ets.kind)||"all"; acctPDF("/accounting/tiers-gl/pdf?kind="+k,"Grand-livre_tiers_"+k+".pdf"); }
