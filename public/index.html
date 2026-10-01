@@ -9571,7 +9571,7 @@ function acctAgedPrint(){
   const now=new Date().toLocaleDateString("fr-FR");
   acctPrintWindow("Balance Âgée", body, {subtitle:"D'après date d'échéance<br>Sur la date la plus lointaine ("+(d.kind==="fournisseur"?"Fournisseurs 401":"Clients 411")+")", to:now});
 }
-function acctPrintCompany(){ try{ return (window.ME&&ME.tenantName)|| (window.SETTINGS&&SETTINGS.companyName) || document.title || "Société"; }catch(e){ return "Société"; } }
+function acctPrintCompany(){ try{ return (window.ME&&ME.tenantName) || (window.BRANDING&&BRANDING.companyName) || (window.SETTINGS&&SETTINGS.companyName) || (window.ME&&ME.companyName) || "Société"; }catch(e){ return "Société"; } }
 function acctPrintWindow(title, bodyHtml, opts){
   opts = opts || {};
   const now=new Date();
@@ -9614,7 +9614,7 @@ function acctPrintWindow(title, bodyHtml, opts){
     .rpt-meta-right{min-width:170px;text-align:right;font-size:10.8px;color:var(--ink);line-height:1.5}
     .rpt-meta-right .k{color:var(--muted)}
     .rpt-accent{height:2.5px;background:var(--accent);border-radius:2px;margin:9px 0 0}
-    .rpt-sep{height:1px;background:linear-gradient(to right,transparent,var(--line) 12%,var(--line) 88%,transparent);margin:2px 0 8px}
+    .rpt-sep{height:1px;background:linear-gradient(to right,transparent 0,#cbd5e1 6%,#cbd5e1 94%,transparent 100%);margin:7px 0 10px}
     .rpt-head-foot{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px}
     table.data{width:100%;border-collapse:collapse;margin-top:4px}
     table.data thead{display:table-header-group}
