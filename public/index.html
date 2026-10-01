@@ -272,9 +272,14 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 <div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">Menu</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>MBOKA Mon RH</span><span class="b" data-brand-tag></span></div>
   <button class="apps-btn" title="Applications" onclick="showLauncher()">Apps</button>
   <div class="modbar" id="modbar"></div>
+  <div id="gsWrap" style="position:relative;flex:1;max-width:340px;margin:0 10px">
+    <input id="gsInput" autocomplete="off" placeholder="Rechercher rubrique / constante…" oninput="gsSearch(this.value)" onfocus="gsSearch(this.value)" onkeydown="if(event.key==='Escape'){gsClose();this.blur();}" style="width:100%;height:30px;padding:4px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.15);color:#fff;font-size:13px">
+    <div id="gsResults" class="hidden" style="position:absolute;top:34px;left:0;right:0;max-height:62vh;overflow:auto;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);z-index:120"></div>
+  </div>
   <div style="font-size:13px;display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="width:52px;height:28px;padding:2px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.15);color:#fff;font-size:12px;cursor:pointer;flex:0 0 auto">
       <option value="fr">FR</option><option value="en">EN</option></select><span id="chatBell" style="cursor:pointer;position:relative;display:inline-flex;align-items:center" onclick="go('discussion')" title="Messages"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="m4 6 8 6 8-6"/></svg><span id="chatBadge" style="display:none;position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 4px;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:700;line-height:16px;text-align:center"></span></span><span id="bell" style="cursor:pointer" onclick="showNotifs()" title="Notifications">Notifications</span><span id="who"></span><button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
+<style>#gsInput::placeholder{color:rgba(255,255,255,.7)}#gsResults .gs-item:hover{background:var(--nav-active-bg)}@media(max-width:760px){#gsWrap{max-width:150px;margin:0 6px}}</style>
 <div class="layout">
   <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
   <div class="sidebar" id="nav"></div>
@@ -6122,6 +6127,29 @@ async function rubAfterSave(){
   PE_RUBS=null;
   if(document.getElementById("rubList")) rubRender((document.getElementById("rubSearch")||{}).value||"");
 }
+/* ===== Recherche globale rubriques/constantes (barre du haut, disponible partout) ===== */
+async function gsEnsureData(){
+  if(!PAY_RUBS || !PAY_RUBS.length){ try{ PAY_RUBS = await api("/payroll/rubriques"); }catch(e){ PAY_RUBS=PAY_RUBS||[]; } }
+  if(!PAY_CST || !PAY_CST.length){ try{ PAY_CST = await api("/payroll/constantes"); }catch(e){ PAY_CST=PAY_CST||[]; } }
+}
+async function gsSearch(q){
+  const box=document.getElementById("gsResults"); if(!box) return;
+  q=(q||"").trim().toLowerCase();
+  if(q.length<1){ gsClose(); return; }
+  await gsEnsureData();
+  const rubs=(PAY_RUBS||[]).filter(r=>(((r.code||"")+" "+(r.label||"")).toLowerCase().includes(q))).slice(0,8);
+  const csts=(PAY_CST||[]).filter(c=>(((c.code||"")+" "+(c.label||"")).toLowerCase().includes(q))).slice(0,8);
+  if(!rubs.length && !csts.length){ box.innerHTML=`<div style="padding:10px 12px;color:var(--muted);font-size:13px">Aucun résultat pour « ${esc(q)} »</div>`; box.classList.remove("hidden"); return; }
+  const sec=t=>`<div style="padding:6px 12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;background:var(--zebra)">${t}</div>`;
+  const rrow=r=>`<div class="gs-item" onmousedown="event.preventDefault()" onclick="gsOpenRub('${r.id}')" style="padding:8px 12px;cursor:pointer;display:flex;gap:8px;align-items:center;font-size:13px"><b style="min-width:52px">${esc(r.code)}</b><span style="flex:1">${esc(r.label||"")}</span><span class="note-inline">rubrique · ${esc(r.family||"")}</span></div>`;
+  const crow=c=>`<div class="gs-item" onmousedown="event.preventDefault()" onclick="gsOpenCst('${c.id}')" style="padding:8px 12px;cursor:pointer;display:flex;gap:8px;align-items:center;font-size:13px"><b style="min-width:52px">${esc(c.code)}</b><span style="flex:1">${esc(c.label||"")}</span><span class="note-inline">constante · ${esc(c.type||"")}${c.valeur!=null?" · "+c.valeur:""}</span></div>`;
+  box.innerHTML=(rubs.length?sec("Rubriques ("+rubs.length+")")+rubs.map(rrow).join(""):"")+(csts.length?sec("Constantes ("+csts.length+")")+csts.map(crow).join(""):"");
+  box.classList.remove("hidden");
+}
+function gsClose(){ const b=document.getElementById("gsResults"); if(b) b.classList.add("hidden"); }
+function gsOpenRub(id){ gsClose(); const r=(PAY_RUBS||[]).find(x=>x.id===id); if(r&&typeof rubModal==="function") rubModal(r); }
+function gsOpenCst(id){ gsClose(); const c=(PAY_CST||[]).find(x=>x.id===id); if(c&&typeof cstStackedModal==="function") cstStackedModal(c); }
+document.addEventListener("click",function(e){ const w=document.getElementById("gsWrap"); if(w && !w.contains(e.target)) gsClose(); });
 async function fillRubPicker(prefix){
   const sel = document.getElementById(prefix+"Rub"); if(!sel) return;
   const rubs = await loadPeRubs();
@@ -6894,6 +6922,7 @@ async function cstDelete(id){
 async function cstImportCatalogue(){ if(!await mmConfirm({title:"Importer le catalogue",message:"Importer le catalogue de constantes Sage ? Les constantes déjà présentes ne seront pas dupliquées.",confirmLabel:"Importer"})) return; try{ const r=await api("/payroll/constantes/import-catalogue",{method:"POST"}); payconfigView(); }catch(e){ alert(e.message); } }
 function cstModal(c){
   const isEdit=!!c; c=c||{type:"Valeur"};
+  const _use=(isEdit && typeof cstUsage==="function" && c.code)?cstUsage(c.code):[];
   const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:440px"><b>${isEdit?"Modifier":"Créer"} une constante</b>
     <div class="grid2" style="margin-top:8px">
@@ -6902,6 +6931,7 @@ function cstModal(c){
       <div style="grid-column:1/3"><label>Libellé</label><input id="csLabel" value="${esc(c.label||"")}"></div>
       <div><label>Valeur</label><input id="csVal" type="number" step="any" value="${c.valeur!=null?c.valeur:""}"></div>
     </div>
+    ${_use.length ? `<div style="margin-top:8px"><div class="note-inline" style="margin-bottom:4px">Utilisée par ${_use.length} rubrique(s) — cliquez pour ouvrir :</div><div style="display:flex;flex-wrap:wrap;gap:4px">${_use.slice(0,24).map(u=>`<button class="btn ghost sm" onclick="payOpenRubrique('${esc(u.code)}')" title="${esc(u.label||"")}">${esc(u.code)}</button>`).join("")}${_use.length>24?'<span class="note-inline">…</span>':""}</div></div>` : ""}
     <div class="err hidden" id="csErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
@@ -7043,7 +7073,7 @@ function cstStackedModal(c, fromInput) {
       <div style="grid-column:1/3"><label>Libellé</label><input id="csLabel" value="${esc(c.label || "")}"></div>
       <div><label>Valeur</label><input id="csVal" type="number" step="any" value="${c.valeur != null ? c.valeur : ""}"></div>
     </div>
-    ${usage.length ? `<div class="note" style="margin-top:6px">Utilisée par ${usage.length} rubrique(s) : ${usage.slice(0,6).map(u => esc(u.code)).join(", ")}${usage.length>6?"…":""}</div>` : ""}
+    ${usage.length ? `<div style="margin-top:8px"><div class="note-inline" style="margin-bottom:4px">Utilisée par ${usage.length} rubrique(s) — cliquez pour ouvrir :</div><div style="display:flex;flex-wrap:wrap;gap:4px">${usage.slice(0,24).map(u => `<button class="btn ghost sm" onclick="payOpenRubrique('${esc(u.code)}')" title="${esc(u.label||"")}">${esc(u.code)}</button>`).join("")}${usage.length>24?'<span class="note-inline">…</span>':""}</div></div>` : ""}
     <div class="err hidden" id="csErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>
