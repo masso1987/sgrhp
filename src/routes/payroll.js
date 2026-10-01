@@ -85,7 +85,14 @@ function recomputePayslip(s, req) {
   const transportTaxable = L.reduce((a, l) => a + (Number(l._transportTaxable) || 0), 0);
   const BRUT = gains.reduce((a, l) => a + (l.gain || 0), 0);
   const NETCOTI = gains.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0) + avs.filter(l => l.cnps).reduce((a, l) => a + (l.gain || 0), 0);
-  const NETIMPO = gains.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0) + avs.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0) + transportTaxable;
+  const _housingCode = String((cfg.housing && cfg.housing.code) != null ? cfg.housing.code : "3510");
+  const _housingCapRate = (cfg.housing && cfg.housing.taxableCapRate != null) ? Number(cfg.housing.taxableCapRate) : 0.15;
+  const _salBaseGain = (gains.find(l => String(l.code) === "1000") || {}).gain || 0;
+  const _housingCap = r0(_housingCapRate * _salBaseGain);
+  const NETIMPO = gains.filter(l => l.impo).reduce((a, l) => {
+    if (String(l.code) === _housingCode) { const tx = Math.min(l.gain || 0, _housingCap); l._housingTaxable = tx; l._housingExcluded = r0((l.gain || 0) - tx); return a + tx; }
+    return a + (l.gain || 0);
+  }, 0) + avs.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0) + transportTaxable;
   const BASECF = Math.round(NETIMPO / 1000) * 1000;
   const cnpsBase = Math.min(NETCOTI, cfg.cnps.ceiling);
   const pvidE = r0(cnpsBase * cfg.cnps.pvidEmployee), pvidP = r0(cnpsBase * cfg.cnps.pvidEmployer);

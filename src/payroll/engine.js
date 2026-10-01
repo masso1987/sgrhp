@@ -61,6 +61,11 @@ const DEFAULT_CONFIG = {
     telephone: 0.05,    // Téléphone
   },
 
+  // Plafonnement de la fraction IMPOSABLE de l'indemnité de logement (Art. 33 CGI) : la part
+  // imposable à l'IRPP est limitée à taxableCapRate × salaire de base (proratisé) ; l'excédent
+  // reste au BRUT/NET mais sort de la base IRPP. `code` = rubrique d'indemnité de logement. Éditable.
+  housing: { code: "3510", taxableCapRate: 0.15 },
+
   // RAV - Redevance audiovisuelle (^^CRTV), monthly amount by bracket on SALBASE
   rav: [
     { upTo: 50000, amount: 0 }, { upTo: 100000, amount: 750 }, { upTo: 200000, amount: 1950 },
@@ -235,7 +240,20 @@ function computePayslip(input, configOverride) {
   /* 2) NAMED BASES */
   const BRUT = lines.filter(l => l.kind === "GAIN").reduce((s, l) => s + l.gain, 0);
   const NETCOTI = lines.filter(l => l.kind === "GAIN" && l.cnps).reduce((s, l) => s + l.gain, 0) + avCnps;
-  const NETIMPO = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s, l) => s + l.gain, 0) + transportTaxable + avImpo;
+  // Indemnité de logement : fraction imposable plafonnée à taxableCapRate × salaire de base (proratisé).
+  const _housingCode = String((cfg.housing && cfg.housing.code) != null ? cfg.housing.code : "3510");
+  const _housingCapRate = (cfg.housing && cfg.housing.taxableCapRate != null) ? Number(cfg.housing.taxableCapRate) : 0.15;
+  const _salBaseGain = (lines.find(l => String(l.code) === "1000") || {}).gain || proratedBase || baseSalary;
+  const _housingCap = r0(_housingCapRate * _salBaseGain);
+  const NETIMPO = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s, l) => {
+    if (String(l.code) === _housingCode) {
+      const taxable = Math.min(l.gain, _housingCap);
+      l._housingTaxable = taxable;            // fraction imposable retenue
+      l._housingExcluded = r0(l.gain - taxable); // part exonérée d'IRPP (reste au brut/net)
+      return s + taxable;
+    }
+    return s + l.gain;
+  }, 0) + transportTaxable + avImpo;
   const BASECF = Math.round(NETIMPO / 1000) * 1000;
   const cnpsBase = Math.min(NETCOTI, cfg.cnps.ceiling);
 

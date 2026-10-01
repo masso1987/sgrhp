@@ -6540,7 +6540,9 @@ function payBaremesHTML(cfg){
       <div><label>Nourriture</label>${num("avantagesNature.nourriture", (cfg.avantagesNature&&cfg.avantagesNature.nourriture)!=null?cfg.avantagesNature.nourriture:0.10)}</div>
       <div><label>Domestique / gardien (par pers.)</label>${num("avantagesNature.domestique", (cfg.avantagesNature&&cfg.avantagesNature.domestique)!=null?cfg.avantagesNature.domestique:0.05)}</div>
       <div><label>Téléphone</label>${num("avantagesNature.telephone", (cfg.avantagesNature&&cfg.avantagesNature.telephone)!=null?cfg.avantagesNature.telephone:0.05)}</div>
-    </div></div>
+      <div><label>Plafond imposable logement (% du salaire de base)</label>${num("housing.taxableCapRate", (cfg.housing&&cfg.housing.taxableCapRate)!=null?cfg.housing.taxableCapRate:0.15)}</div>
+    </div>
+    <div class="note" style="margin-top:6px">Indemnité de logement : la fraction imposable à l'IRPP est plafonnée à ce taux × salaire de base ; l'excédent reste au brut/net mais sort de la base IRPP (Art. 33 CGI).</div></div>
   <div class="panel"><button class="btn p" onclick="paySaveConfig()">Enregistrer les paramètres</button>
     <span class="err hidden" id="cfgErr" style="margin-left:10px"></span>
     <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>`;
