@@ -298,7 +298,7 @@ function computePayslip(input, configOverride) {
       cnpsPatronal: pvidP + pfP + rpP, cfcPatronal: cfcP, fnePatronal: fneP,
       chargesPatronales: chargesPat, coutTotalEmployeur: BRUT + chargesPat,
     },
-    meta: { seniorityRate: senR, proratedBase, hourlyRate: r0(hourlyRate), cnpsBase, sni: r0(sni), workedDays, standardDays,
+    meta: { seniorityRate: senR, proratedBase, baseSalary, tdlBase, hourlyRate: r0(hourlyRate), cnpsBase, sni: r0(sni), workedDays, standardDays,
       leaveAccrued: cfg.leave.daysPerMonth,
       leaveDailyRate: r0(baseSalary / (cfg.standardMonthlyDays || 30)),
       leaveProvisionMonthly: r0((baseSalary / (cfg.standardMonthlyDays || 30)) * cfg.leave.daysPerMonth) },

@@ -103,7 +103,13 @@ function recomputePayslip(s, req) {
   const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0(BRUT * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
   const salLine = gains.find(l => String(l.code) === "1000");
   const ravBase = (s.input && s.input.ravBase != null) ? s.input.ravBase : BRUT;
-  const tdlBase = (s.input && s.input.tdlBase != null) ? s.input.tdlBase : (salLine ? (salLine.gain || 0) : BRUT);
+  // TDL (taxe communale) : assise sur le SALAIRE DE BASE MENSUEL (non proratise). Ordre de repli :
+  // tdlBase fige au calcul -> salaire de base mensuel du meta -> (defaut) ligne de salaire.
+  const _meta = (s.result && s.result.meta) || {};
+  const tdlBase = (s.input && s.input.tdlBase != null) ? s.input.tdlBase
+    : (_meta.tdlBase != null ? _meta.tdlBase
+    : (_meta.baseSalary != null ? _meta.baseSalary
+    : (salLine ? (salLine.gain || 0) : BRUT)));
   const rav = bracketAmount(cfg.rav, ravBase), tdl = bracketAmount(cfg.tdl, tdlBase);
   // Réécrit les lignes statutaires (créées si absentes) pour rester cohérent avec les bases corrigées.
   const setL = (code, label, kind, patch) => { let l = L.find(x => String(x.code) === code); if (!l) { l = { code, label, kind }; const firstCot = L.findIndex(x => x.kind === "COTIS" || x.kind === "IMPOT"); if (firstCot >= 0) L.splice(firstCot, 0, l); else L.push(l); } Object.assign(l, patch); };
