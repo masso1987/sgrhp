@@ -8485,6 +8485,22 @@ async function acctHome() {
   }
 }
 
+async function acctCleanupUnnamed(){
+  let pv;
+  try{ pv=await api("/accounting/accounts/unnamed-preview"); }catch(e){ alert(e.message); return; }
+  const del=(pv.deletable||[]), kept=(pv.keptUsed||[]);
+  if(!del.length && !kept.length){ alert("Aucun compte sans intitulé trouvé."); return; }
+  if(!del.length){ alert("Aucun compte supprimable : les "+kept.length+" compte(s) sans intitulé sont utilisés dans des écritures et doivent être renommés (non supprimés) :\n"+kept.join(", ")); return; }
+  let msg="Supprimer "+del.length+" compte(s) sans intitulé réel (libellé vide ou égal au numéro) ?\n\n"+del.slice(0,40).join(", ")+(del.length>40?" …":"");
+  if(kept.length) msg+="\n\n"+kept.length+" compte(s) sans intitulé sont UTILISÉS dans des écritures : ils seront CONSERVÉS (renommez-les plutôt) :\n"+kept.slice(0,40).join(", ")+(kept.length>40?" …":"");
+  const ok=await mmConfirm({title:"Nettoyer les comptes sans intitulé",message:msg,confirmLabel:"Supprimer "+del.length+" compte(s)",danger:true});
+  if(!ok) return;
+  try{ const r=await api("/accounting/accounts/cleanup-unnamed",{method:"POST"});
+    let done=r.deleted+" compte(s) supprimé(s).";
+    if(r.keptUsed&&r.keptUsed.length) done+="\n"+r.keptUsed.length+" conservé(s) car utilisé(s) en écriture (à renommer) : "+r.keptUsed.join(", ");
+    alert(done); acctPlanView();
+  }catch(e){ alert(e.message); }
+}
 async function acctPlanView() {
   const [accs, jrs, taxes] = await Promise.all([api("/accounting/accounts"), api("/accounting/journals"), api("/accounting/taxes")]);
   ACCT_ACCOUNTS = accs; ACCT_JOURNALS = jrs; ACCT_TAXES = taxes;
@@ -8500,6 +8516,7 @@ async function acctPlanView() {
         ${seg('actifs','Actifs')} ${seg('sommeil','En sommeil')} ${seg('tous','Tous')}
         <input placeholder="Rechercher n° / intitulé…" value="${esc(window._acctPlanQ||'')}" oninput="window._acctPlanQ=this.value" onkeydown="if(event.key==='Enter')acctPlanView()" style="margin:0;min-width:220px">
         <span style="flex:1"></span>
+        <button class="btn ghost sm" onclick="acctCleanupUnnamed()" title="Supprimer les comptes sans intitulé réel (libellé vide ou égal au numéro)">Nettoyer comptes sans intitulé</button>
         <button class="btn p sm" onclick="acctAccountModal()">+ Compte</button></div>
       <table style="margin-top:8px"><tr><th>N°</th><th>Intitulé du compte</th><th>Nature</th><th>Statut</th><th></th></tr>
       ${rows.length ? rows.map(a => `<tr${a.active === false ? ' style="opacity:.55"' : ''}><td><code>${esc(a.number)}</code></td><td>${esc(a.label)}</td><td>${natTag(a)}</td>

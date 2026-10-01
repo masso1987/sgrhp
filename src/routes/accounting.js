@@ -87,6 +87,29 @@ function crud(path, col, fields, keyField) {
   });
 }
 crud("accounts", "acctAccounts", ["number", "label", "type", "nature", "reportANouveau", "taxCode", "reportingAccount", "active", "saisirTiers", "saisirQuantite", "echeanceReglement", "lettrageAuto", "lettrageWindow", "analSaisie", "analReport"], "number");
+// Comptes SANS intitulé réel = libellé vide OU égal au numéro (ex. 213101 intitulé "213101").
+function _unnamedAccounts(req){ const no=a=>{ const l=String(a.label||"").trim(); return l===""||l===String(a.number); }; return mine(db.acctAccounts, req).filter(no); }
+function _usedAccountSet(req){ const u=new Set(); for (const e of mine(db.acctEntries, req)) for (const l of (e.lines||[])) u.add(String(l.account)); return u; }
+// Aperçu (dry-run) : ce qui serait supprimé vs conservé (utilisé dans des écritures).
+router.get("/accounts/unnamed-preview", allow("RC", "ADM"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const used=_usedAccountSet(req);
+  const deletable=[], keptUsed=[];
+  for (const a of _unnamedAccounts(req)) (used.has(String(a.number))?keptUsed:deletable).push(a.number);
+  res.json({ deletable, keptUsed });
+});
+// Suppression sécurisée : supprime uniquement les comptes sans intitulé NON utilisés en écriture.
+router.post("/accounts/cleanup-unnamed", allow("RC", "ADM"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  const used=_usedAccountSet(req);
+  let deleted=0; const deletedCodes=[], keptUsed=[];
+  for (const a of _unnamedAccounts(req)) {
+    if (used.has(String(a.number))) { keptUsed.push(a.number); continue; }
+    const i=db.acctAccounts.indexOf(a); if (i>=0){ db.acctAccounts.splice(i,1); deleted++; deletedCodes.push(a.number); }
+  }
+  if (deleted){ save(); audit(req.user, "CLEANUP_UNNAMED_ACCOUNTS", "acctAccounts", "bulk", { deleted, keptUsed: keptUsed.length }); }
+  res.json({ deleted, deletedCodes, keptUsed });
+});
 crud("journals", "acctJournals", ["code", "label", "type", "contraAccount", "analytic", "active", "numerotation", "masquerTotaux"], "code");
 crud("taxes", "acctTaxes", ["code", "label", "rate", "account"], "code");
 crud("third-parties", "acctThirdParties", ["code", "name", "kind", "collectiveAccount", "terms", "niu", "rccm", "abrege", "qualite", "adresse", "ville", "pays", "tel", "email", "siret", "codeNAF", "idTva", "active"], "code");
