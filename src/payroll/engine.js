@@ -23,6 +23,8 @@ const DEFAULT_CONFIG = {
     pvidEmployer: 0.042,      //                          - employeur
     familyEmployer: 0.07,     // 5010 ALLOCATIONS FAMILIALES - employeur
     workAccidentEmployer: 0.025, // 5020 ACCIDENT DE TRAVAIL - employeur (classe société)
+    accidentCeiling: null,    // Plafond assiette ACCIDENT DE TRAVAIL : null/vide = SANS plafond
+                              // (confirme par DIPE reel : AT sur salaire total, PVID/AF plafonnes a 750000)
   },
 
   cfc: { employee: 0.01, employer: 0.015 }, // 5050/5060 Crédit Foncier
@@ -254,18 +256,26 @@ function computePayslip(input, configOverride) {
     }
     return s + l.gain;
   }, 0) + transportTaxable + avImpo;
-  const BASECF = Math.round(NETIMPO / 1000) * 1000;
-  const cnpsBase = Math.min(NETCOTI, cfg.cnps.ceiling);
+  // Surcharges manuelles par bulletin (cas d'une config Sage non standard) : si fournies, elles
+  // remplacent l'assiette calculee. Laisser vide pour le comportement legal par defaut.
+  const NETCOTI_EFF = (input.cnpsBaseOverride != null && input.cnpsBaseOverride !== "") ? Number(input.cnpsBaseOverride) : NETCOTI;
+  const NETIMPO_EFF = (input.taxableBaseOverride != null && input.taxableBaseOverride !== "") ? Number(input.taxableBaseOverride) : NETIMPO;
+  const BASECF = Math.round(NETIMPO_EFF / 1000) * 1000;
+  const cnpsBase = Math.min(NETCOTI_EFF, cfg.cnps.ceiling); // PVID & prestations familiales : plafonnees
+  // Accident de travail (risques pro) : assiette SANS plafond par defaut (confirme par DIPE reel).
+  // Un plafond AT distinct est configurable (cfg.cnps.accidentCeiling) ; vide/null = non plafonne.
+  const _atCeiling = (cfg.cnps.accidentCeiling != null && cfg.cnps.accidentCeiling !== "" && Number(cfg.cnps.accidentCeiling) > 0) ? Number(cfg.cnps.accidentCeiling) : Infinity;
+  const atBase = (input.atBaseOverride != null && input.atBaseOverride !== "") ? Number(input.atBaseOverride) : Math.min(NETCOTI_EFF, _atCeiling);
 
   /* 3) COTISATIONS CNPS */
   const pvidE = r0(cnpsBase * cfg.cnps.pvidEmployee), pvidP = r0(cnpsBase * cfg.cnps.pvidEmployer);
-  const pfP = r0(cnpsBase * cfg.cnps.familyEmployer), rpP = r0(cnpsBase * cfg.cnps.workAccidentEmployer);
+  const pfP = r0(cnpsBase * cfg.cnps.familyEmployer), rpP = r0(atBase * cfg.cnps.workAccidentEmployer);
   add({ code: "5000", label: "CNPS Pension (PVID)", kind: "COTIS", base: cnpsBase, rate: cfg.cnps.pvidEmployee, retenue: pvidE, employerRate: cfg.cnps.pvidEmployer, employer: pvidP });
   add({ code: "5010", label: "CNPS Prestations familiales", kind: "COTIS", base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.familyEmployer, employer: pfP });
-  add({ code: "5020", label: "CNPS Accident de travail", kind: "COTIS", base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
+  add({ code: "5020", label: "CNPS Accident de travail", kind: "COTIS", base: atBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
 
   /* 4) IMPÔTS */
-  const sni = Math.max(0, NETIMPO * cfg.irpp.fraisProRate
+  const sni = Math.max(0, NETIMPO_EFF * cfg.irpp.fraisProRate
     - (cfg.irpp.deductPvid ? pvidE : 0)
     - (cfg.irpp.annualAbatement || 0) / 12);
   const irpp = r0(progressive(sni, cfg.irpp.brackets));
@@ -292,7 +302,7 @@ function computePayslip(input, configOverride) {
   return {
     currency: cfg.currency, lines,
     totals: {
-      brutTotal: BRUT, netCotisable: NETCOTI, netImposable: NETIMPO, baseCF: BASECF,
+      brutTotal: BRUT, netCotisable: NETCOTI_EFF, netImposable: NETIMPO_EFF, baseCF: BASECF,
       cnpsSalarie: pvidE, irpp, cac, cfcSalarie: cfcE, rav, tdl,
       totalImpots, autresRetenues: autres, totalRetenues, netAPayer: BRUT - totalRetenues, avantagesNature: avTotal,
       cnpsPatronal: pvidP + pfP + rpP, cfcPatronal: cfcP, fnePatronal: fneP,

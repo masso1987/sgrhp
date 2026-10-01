@@ -93,11 +93,17 @@ function recomputePayslip(s, req) {
     if (String(l.code) === _housingCode) { const tx = Math.min(l.gain || 0, _housingCap); l._housingTaxable = tx; l._housingExcluded = r0((l.gain || 0) - tx); return a + tx; }
     return a + (l.gain || 0);
   }, 0) + avs.filter(l => l.impo).reduce((a, l) => a + (l.gain || 0), 0) + transportTaxable;
-  const BASECF = Math.round(NETIMPO / 1000) * 1000;
-  const cnpsBase = Math.min(NETCOTI, cfg.cnps.ceiling);
+  // Surcharges manuelles d'assiette (config Sage non standard), figees dans s.input au calcul.
+  const _ov = (s && s.input) || {};
+  const NETCOTI_EFF = (_ov.cnpsBaseOverride != null && _ov.cnpsBaseOverride !== "") ? Number(_ov.cnpsBaseOverride) : NETCOTI;
+  const NETIMPO_EFF = (_ov.taxableBaseOverride != null && _ov.taxableBaseOverride !== "") ? Number(_ov.taxableBaseOverride) : NETIMPO;
+  const BASECF = Math.round(NETIMPO_EFF / 1000) * 1000;
+  const cnpsBase = Math.min(NETCOTI_EFF, cfg.cnps.ceiling);
+  const _atCeiling = (cfg.cnps.accidentCeiling != null && cfg.cnps.accidentCeiling !== "" && Number(cfg.cnps.accidentCeiling) > 0) ? Number(cfg.cnps.accidentCeiling) : Infinity;
+  const atBase = (_ov.atBaseOverride != null && _ov.atBaseOverride !== "") ? Number(_ov.atBaseOverride) : Math.min(NETCOTI_EFF, _atCeiling);
   const pvidE = r0(cnpsBase * cfg.cnps.pvidEmployee), pvidP = r0(cnpsBase * cfg.cnps.pvidEmployer);
-  const pfP = r0(cnpsBase * cfg.cnps.familyEmployer), rpP = r0(cnpsBase * cfg.cnps.workAccidentEmployer);
-  const sni = Math.max(0, NETIMPO * cfg.irpp.fraisProRate - (cfg.irpp.deductPvid ? pvidE : 0) - (cfg.irpp.annualAbatement || 0) / 12);
+  const pfP = r0(cnpsBase * cfg.cnps.familyEmployer), rpP = r0(atBase * cfg.cnps.workAccidentEmployer);
+  const sni = Math.max(0, NETIMPO_EFF * cfg.irpp.fraisProRate - (cfg.irpp.deductPvid ? pvidE : 0) - (cfg.irpp.annualAbatement || 0) / 12);
   const irpp = r0(progressive(sni, cfg.irpp.brackets));
   const cac = r0(irpp * cfg.irpp.cacRate);
   const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0(BRUT * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
@@ -115,7 +121,7 @@ function recomputePayslip(s, req) {
   const setL = (code, label, kind, patch) => { let l = L.find(x => String(x.code) === code); if (!l) { l = { code, label, kind }; const firstCot = L.findIndex(x => x.kind === "COTIS" || x.kind === "IMPOT"); if (firstCot >= 0) L.splice(firstCot, 0, l); else L.push(l); } Object.assign(l, patch); };
   setL("5000", "CNPS Pension (PVID)", "COTIS", { base: cnpsBase, rate: cfg.cnps.pvidEmployee, retenue: pvidE, employerRate: cfg.cnps.pvidEmployer, employer: pvidP });
   setL("5010", "CNPS Prestations familiales", "COTIS", { base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.familyEmployer, employer: pfP });
-  setL("5020", "CNPS Accident de travail", "COTIS", { base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
+  setL("5020", "CNPS Accident de travail", "COTIS", { base: atBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
   setL("5025", "IRPP", "IMPOT", { base: r0(sni), rate: 0, retenue: irpp });
   setL("5045", "CAC (10% IRPP)", "IMPOT", { base: irpp, rate: cfg.irpp.cacRate, retenue: cac });
   setL("5050", "Crédit Foncier (CFC)", "IMPOT", { base: BASECF, rate: cfg.cfc.employee, retenue: cfcE, employerRate: cfg.cfc.employer, employer: cfcP });
@@ -123,7 +129,7 @@ function recomputePayslip(s, req) {
   setL("5080", "Redevance audiovisuelle (RAV)", "IMPOT", { base: ravBase, rate: 0, retenue: rav });
   setL("5090", "Taxe communale (TDL)", "IMPOT", { base: tdlBase, rate: 0, retenue: tdl });
   // Totaux
-  t.brutTotal = BRUT; t.netCotisable = NETCOTI; t.netImposable = NETIMPO; t.baseCF = BASECF;
+  t.brutTotal = BRUT; t.netCotisable = NETCOTI_EFF; t.netImposable = NETIMPO_EFF; t.baseCF = BASECF;
   t.cnpsSalarie = pvidE; t.irpp = irpp; t.cac = cac; t.cfcSalarie = cfcE; t.rav = rav; t.tdl = tdl;
   t.totalImpots = irpp + cac + cfcE + rav + tdl;
   t.autresRetenues = L.filter(l => l.kind === "RETENUE").reduce((a, l) => a + (l.retenue || 0), 0);
@@ -338,6 +344,10 @@ function elementsToInput(emp, period, req, opts) {
     seniorityYears: seniorityYears(emp, period),
     overtime, gains, nonTaxable, avantages, transport: struct.transport, otherDeductions,
     tdlBase: struct.baseSalary,
+    // Surcharges d'assiette par salarie (config Sage non standard) : vide = assiette legale calculee.
+    cnpsBaseOverride: (emp.cnpsBaseOverride != null && emp.cnpsBaseOverride !== "") ? Number(emp.cnpsBaseOverride) : null,
+    taxableBaseOverride: (emp.taxableBaseOverride != null && emp.taxableBaseOverride !== "") ? Number(emp.taxableBaseOverride) : null,
+    atBaseOverride: (emp.atBaseOverride != null && emp.atBaseOverride !== "") ? Number(emp.atBaseOverride) : null,
   };
 }
 function computeFor(emp, period, req, opts) {

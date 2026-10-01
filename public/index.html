@@ -5602,7 +5602,35 @@ async function payFicheLoad(){
   body.innerHTML=`<div class="panel"><div style="margin-bottom:6px"><b>${esc(fi.employee.name)}</b> <span class="note">Matricule ${esc(fi.employee.matricule||'-')} - Catégorie ${esc(fi.employee.category||'-')} - Année ${fi.year}</span></div>
     <div style="overflow:auto"><table style="width:100%;min-width:900px;font-size:12px"><tr><th style="text-align:left">Rubrique</th>${mh}<th class="r">Total</th></tr>
     ${fi.rubriques.length?fi.rubriques.map(rrow).join(""):'<tr><td colspan="14" class="note">Aucun bulletin calculé pour cette année.</td></tr>'}
-    ${fi.summary.map(srow).join("")}</table></div></div>`;
+    ${fi.summary.map(srow).join("")}</table></div></div>
+    ${payFicheOverridesHTML(eid)}`;
+}
+function payFicheOverridesHTML(eid){
+  const e=((window._FIEMPS)||[]).find(x=>x.id===eid)||{};
+  const v=x=>(x!=null&&x!==""?x:"");
+  return `<div class="panel" style="margin-top:10px">
+    <b style="font-size:12px;color:var(--muted)">SURCHARGES D'ASSIETTE (CONFIG SAGE NON STANDARD)</b>
+    <div class="note" style="margin:4px 0 8px">Laissez vide pour l'assiette LÉGALE calculée automatiquement (recommandé). Renseignez une valeur uniquement pour reproduire exactement une paie Sage dont les bases ont été fixées manuellement pour ce salarié. S'applique à chaque bulletin recalculé.</div>
+    <div class="grid3">
+      <div><label>Base CNPS (PVID / prest. fam.)</label><input id="ovCnps" type="number" step="any" value="${v(e.cnpsBaseOverride)}" placeholder="auto"></div>
+      <div><label>Base imposable (IRPP)</label><input id="ovImpo" type="number" step="any" value="${v(e.taxableBaseOverride)}" placeholder="auto"></div>
+      <div><label>Base accident de travail</label><input id="ovAt" type="number" step="any" value="${v(e.atBaseOverride)}" placeholder="auto"></div>
+    </div>
+    <div style="margin-top:8px"><button class="btn p sm" onclick="payFicheSaveOverrides('${eid}')">Enregistrer les surcharges</button>
+      <button class="btn ghost sm" onclick="payFicheClearOverrides('${eid}')" style="margin-left:6px">Tout remettre en auto</button>
+      <span id="ovMsg" style="margin-left:10px;color:var(--green)"></span></div></div>`;
+}
+async function payFicheSaveOverrides(eid){
+  const g=id=>{const el=document.getElementById(id); const x=el?el.value.trim():""; return x===""?null:Number(x);};
+  const body={ cnpsBaseOverride:g("ovCnps"), taxableBaseOverride:g("ovImpo"), atBaseOverride:g("ovAt") };
+  try{ await api("/employees/"+eid,{method:"PUT",body:JSON.stringify(body)});
+    const e=((window._FIEMPS)||[]).find(x=>x.id===eid); if(e)Object.assign(e,body);
+    const m=document.getElementById("ovMsg"); if(m){m.textContent="Enregistré — recalculez les bulletins concernés pour appliquer.";setTimeout(()=>m.textContent="",4000);}
+  }catch(err){ alert(err.message); }
+}
+async function payFicheClearOverrides(eid){
+  ["ovCnps","ovImpo","ovAt"].forEach(id=>{const el=document.getElementById(id); if(el)el.value="";});
+  payFicheSaveOverrides(eid);
 }
 function rgExport(kind, fmt){
   const from=(document.getElementById("rgFrom")||{}).value, to=(document.getElementById("rgTo")||{}).value, pf=(document.getElementById("rgPf")||{}).value||"";
@@ -6514,7 +6542,9 @@ function payBaremesHTML(cfg){
       <div><label>PVID employeur</label>${num("cnps.pvidEmployer", cfg.cnps.pvidEmployer)}</div>
       <div><label>Prestations familiales (emp.)</label>${num("cnps.familyEmployer", cfg.cnps.familyEmployer)}</div>
       <div><label>Risques prof. (emp.)</label>${num("cnps.workAccidentEmployer", cfg.cnps.workAccidentEmployer)}</div>
-    </div></div>
+      <div><label>Plafond assiette accident travail (vide = sans plafond)</label>${num("cnps.accidentCeiling", (cfg.cnps.accidentCeiling!=null?cfg.cnps.accidentCeiling:""))}</div>
+    </div>
+    <div class="note" style="margin-top:6px">PVID et prestations familiales sont plafonnees au plafond mensuel ; l'accident de travail porte sur le salaire cotisable TOTAL (sans plafond par defaut, conforme aux DIPE). Renseignez un plafond ici uniquement si votre config l'exige.</div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">IMPÔTS & AUTRES CAISSES (Trésor - Crédit Foncier - FNE)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>IRPP - frais pro (abattement)</label>${num("irpp.fraisProRate", cfg.irpp.fraisProRate)}</div>
