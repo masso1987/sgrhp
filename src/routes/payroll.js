@@ -291,7 +291,7 @@ function elementsToInput(emp, period, req, opts) {
       case "HS100": overtime.hundred += Number(e.hours || 0); break;
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
-      case "AVANTAGE": { const f = _flags(e, true, false); avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: Number(e.amount), cnps: f.cnps, impo: f.impo }); break; }
+      case "AVANTAGE": { const f = _flags(e, true, false); const _hasAmt = e.amount != null && e.amount !== ""; avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: _hasAmt ? Number(e.amount) : null, type: e.avType || e.type || null, units: e.units != null ? Number(e.units) : null, cnps: f.cnps, impo: f.impo }); break; }
       case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)), prorate: rubProrates(_rubOf("2514")) }); break; }
       case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount), prorate: rubProrates(_rubOf("2035")) }); break;
       default: break;
@@ -2105,8 +2105,13 @@ function drawPayslip(doc, s, emp, tenant) {
   const cell = (x, xe, v, al) => { if (v || v === 0) T(x + 1, y, v, { s: 7.5, w: xe - x - 2, a: al || "right" }); };
   const _isTransportC = (l) => l._transportTaxable !== undefined || String(l.code) === "3513";
   const _allGainsC = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
-  const gains = _allGainsC.filter(l => l.impo || l.cnps || _isTransportC(l));
-  const _nonSoumisC = _allGainsC.filter(l => !(l.impo || l.cnps) && !_isTransportC(l));
+  // Placement d'une ligne (Rémunération vs Éléments non soumis) : suit la FAMILLE de la rubrique.
+  //   NON_SOUMISE -> éléments non soumis ; BRUT/COTISATION -> rémunération ; sinon repli sur les
+  //   drapeaux fiscaux (non imposable ET non cotisable, hors transport).
+  const _famByCodeC = {}; for (const rr of (db.payRubriques || [])) if ((rr.tenantId || "t1") === (s.tenantId || "t1")) _famByCodeC[String(rr.code)] = rr.family;
+  const _isNonSoumisC = (l) => { const f = _famByCodeC[String(l.code)]; if (f === "NON_SOUMISE") return true; if (f === "BRUT" || f === "COTISATION") return false; return !(l.impo || l.cnps) && !_isTransportC(l); };
+  const gains = _allGainsC.filter(l => !_isNonSoumisC(l));
+  const _nonSoumisC = _allGainsC.filter(l => _isNonSoumisC(l));
   const _retenuesC = r.lines.filter(l => l.kind === "RETENUE" && l.retenue);
   const _brutSoumisC = gains.reduce((a, l) => a + (l.gain || 0), 0);
   for (const l of gains) {

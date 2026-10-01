@@ -6530,6 +6530,17 @@ function payBaremesHTML(cfg){
       <div><label>Barème TDL / taxe communale (base → montant)</label>${barTable("tdl", cfg.tdl)}</div>
     </div>
   </div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">AVANTAGES EN NATURE AU FORFAIT (Art. 33 CGI)</b>
+    <div class="note" style="margin:4px 0 8px">Taux forfaitaires appliqués au <b>salaire brut taxable</b>. Un avantage en nature attribué à un salarié sans montant précis est évalué à taux × base taxable. Imposable à l'IRPP ; hors assiette CNPS.</div>
+    <div class="grid3">
+      <div><label>Logement</label>${num("avantagesNature.logement", (cfg.avantagesNature&&cfg.avantagesNature.logement)!=null?cfg.avantagesNature.logement:0.15)}</div>
+      <div><label>Électricité</label>${num("avantagesNature.electricite", (cfg.avantagesNature&&cfg.avantagesNature.electricite)!=null?cfg.avantagesNature.electricite:0.04)}</div>
+      <div><label>Eau</label>${num("avantagesNature.eau", (cfg.avantagesNature&&cfg.avantagesNature.eau)!=null?cfg.avantagesNature.eau:0.02)}</div>
+      <div><label>Véhicule</label>${num("avantagesNature.vehicule", (cfg.avantagesNature&&cfg.avantagesNature.vehicule)!=null?cfg.avantagesNature.vehicule:0.10)}</div>
+      <div><label>Nourriture</label>${num("avantagesNature.nourriture", (cfg.avantagesNature&&cfg.avantagesNature.nourriture)!=null?cfg.avantagesNature.nourriture:0.10)}</div>
+      <div><label>Domestique / gardien (par pers.)</label>${num("avantagesNature.domestique", (cfg.avantagesNature&&cfg.avantagesNature.domestique)!=null?cfg.avantagesNature.domestique:0.05)}</div>
+      <div><label>Téléphone</label>${num("avantagesNature.telephone", (cfg.avantagesNature&&cfg.avantagesNature.telephone)!=null?cfg.avantagesNature.telephone:0.05)}</div>
+    </div></div>
   <div class="panel"><button class="btn p" onclick="paySaveConfig()">Enregistrer les paramètres</button>
     <span class="err hidden" id="cfgErr" style="margin-left:10px"></span>
     <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>`;

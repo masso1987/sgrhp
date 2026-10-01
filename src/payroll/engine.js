@@ -46,6 +46,21 @@ const DEFAULT_CONFIG = {
   // Transport allowance exemption cap (excess is added to NETIMPO). Editable.
   transportExemptionCap: 14500, // Exonération IRPP de la prime de transport (F/mois). La prime de transport est déjà hors assiette CNPS ; seule la fraction au-delà de ce plafond est imposable à l'IRPP.
 
+  // Avantages en nature au forfait - Article 33 du CGI (Cameroun). Taux forfaitaires appliqués au
+  // SALAIRE BRUT TAXABLE EN ESPÈCES. Un avantage fourni sans montant explicite mais avec un `type`
+  // ci-dessous est évalué = taux × base taxable × quantité. Imposable à l'IRPP ; hors assiette CNPS
+  // par défaut (les avantages en nature n'entrent pas dans l'assiette des cotisations). Éditable
+  // dans Paramètres paie > Barèmes & taux.
+  avantagesNature: {
+    logement: 0.15,     // Logement
+    electricite: 0.04,  // Électricité
+    eau: 0.02,          // Eau
+    vehicule: 0.10,     // Véhicule (par véhicule)
+    nourriture: 0.10,   // Nourriture
+    domestique: 0.05,   // Gardien / domestique (par personne)
+    telephone: 0.05,    // Téléphone
+  },
+
   // RAV - Redevance audiovisuelle (^^CRTV), monthly amount by bracket on SALBASE
   rav: [
     { upTo: 50000, amount: 0 }, { upTo: 100000, amount: 750 }, { upTo: 200000, amount: 1950 },
@@ -191,13 +206,30 @@ function computePayslip(input, configOverride) {
   // Avantages en nature: valued benefit - taxable (and optionally cotisable) but NOT
   // paid in cash. Increases NETIMPO/NETCOTI (so IRPP/CNPS rise) without touching brut/net.
   const avantages = input.avantages || input.nonCashBenefits || [];
+  // Base forfaitaire Art. 33 CGI = salaire brut TAXABLE EN ESPÈCES (gains imposables déjà ajoutés
+  // + fraction imposable du transport), avant les avantages en nature eux-mêmes (pas de circularité).
+  const avForfaitBase = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s2, l) => s2 + l.gain, 0) + transportTaxable;
+  const avRates = cfg.avantagesNature || {};
   let avTotal = 0, avImpo = 0, avCnps = 0;
   for (const a of avantages) {
-    if (!a || !a.amount) continue;
-    const amt = r0(a.amount);
-    add({ code: a.code || "4000", label: a.label || "Avantage en nature", kind: "AVANTAGE",
-      nombre: 1, base: amt, rate: 1, gain: amt, avantage: true, cnps: !!a.cnps, impo: a.impo !== false });
-    avTotal += amt; if (a.impo !== false) avImpo += amt; if (a.cnps) avCnps += amt;
+    if (!a) continue;
+    // Montant : explicite si fourni ; sinon évalué au forfait (taux Art.33 × base taxable × quantité).
+    let amt;
+    if (a.amount != null && a.amount !== "") {
+      amt = r0(a.amount);
+    } else if (a.type && avRates[a.type] != null) {
+      const units = (a.units != null && a.units !== "") ? Number(a.units) : 1;
+      amt = r0(avForfaitBase * Number(avRates[a.type]) * units);
+    } else {
+      continue; // ni montant ni type reconnu : on ignore
+    }
+    if (!amt) continue;
+    const label = a.label || (a.type ? ("Avantage en nature - " + a.type) : "Avantage en nature");
+    // Avantages en nature : imposables à l'IRPP par défaut ; hors assiette CNPS sauf cnps explicite.
+    const isImpo = a.impo !== false, isCnps = !!a.cnps;
+    add({ code: a.code || "4000", label, kind: "AVANTAGE",
+      nombre: 1, base: amt, rate: 1, gain: amt, avantage: true, avType: a.type || null, cnps: isCnps, impo: isImpo });
+    avTotal += amt; if (isImpo) avImpo += amt; if (isCnps) avCnps += amt;
   }
 
   /* 2) NAMED BASES */
