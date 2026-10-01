@@ -1176,8 +1176,9 @@ router.get("/balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
       }
     }
   }
+  const _hasLbl = a => { const l = String(a.label || "").trim(); return l !== "" && l !== String(a.account); };
   const list = Object.values(acc)
-    .filter(a => Math.round(a.openD) || Math.round(a.openC) || Math.round(a.movD) || Math.round(a.movC))
+    .filter(a => (Math.round(a.openD) || Math.round(a.openC) || Math.round(a.movD) || Math.round(a.movC)) && _hasLbl(a))
     .sort((x, y) => String(x.account).localeCompare(String(y.account)));
   const nf = n => { n = Math.round(Number(n) || 0); return n ? _pnf(n) : ""; };
   const mkAcc = () => ({ openD: 0, openC: 0, movD: 0, movC: 0 });

@@ -8660,7 +8660,7 @@ async function acctBalanceView() {
   const _bf=window._acctFrom||"", _bt=window._acctTo||"";
   const _bq=(_bf||_bt)?("?"+[_bf?"from="+_bf:"",_bt?"to="+_bt:""].filter(Boolean).join("&")):(period?"?period="+period:"");
   const bal = await api("/accounting/balance"+_bq).catch(() => ({ rows: [], totalDebit: 0, totalCredit: 0, balanced: true }));
-  const rows = (bal.rows || []).slice().sort((a,b)=>String(a.account).localeCompare(String(b.account)));
+  const rows = (bal.rows || []).filter(r=>{ const l=String(r.label||"").trim(); return l!=="" && l!==String(r.account); }).slice().sort((a,b)=>String(a.account).localeCompare(String(b.account)));
   const F=fCFA;
   const classOf=(acc)=>String(acc||"0").charAt(0);
   const keyOf=(acc)=> lvl==="class" ? String(acc||"0").charAt(0) : lvl==="level2" ? String(acc||"00").slice(0,2) : String(acc||"");
@@ -8739,7 +8739,8 @@ function _balBuildModel(openRows, perRows, lbl){
   const touch=a=>acc[a]||(acc[a]={account:a,label:lbl[a]||"",openD:0,openC:0,movD:0,movC:0});
   (openRows||[]).forEach(r=>{ const a=touch(String(r.account)); a.openD+=r.debit||0; a.openC+=r.credit||0; if(!a.label)a.label=r.label||""; });
   (perRows||[]).forEach(r=>{ const a=touch(String(r.account)); a.movD+=r.debit||0; a.movC+=r.credit||0; if(!a.label)a.label=r.label||""; });
-  const list=Object.values(acc).filter(a=>Math.round(a.openD||0)||Math.round(a.openC||0)||Math.round(a.movD||0)||Math.round(a.movC||0))
+  const _hasLbl=a=>{ const l=String(a.label||"").trim(); return l!=="" && l!==String(a.account); };
+  const list=Object.values(acc).filter(a=>(Math.round(a.openD||0)||Math.round(a.openC||0)||Math.round(a.movD||0)||Math.round(a.movC||0)) && _hasLbl(a))
     .sort((x,y)=>String(x.account).localeCompare(String(y.account)));
   list.forEach(a=>{ a.cumD=a.openD+a.movD; a.cumC=a.openC+a.movC; const net=a.cumD-a.cumC; a.soldeD=net>0?net:0; a.soldeC=net<0?-net:0; });
   return {list, lbl};
