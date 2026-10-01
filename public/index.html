@@ -272,14 +272,9 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 <div class="topbar"><button class="menu-btn" aria-label="Menu" onclick="toggleSidebar()">Menu</button><div class="logo"><img data-brand-logo style="height:26px;vertical-align:middle;margin-right:8px;display:none"><span data-brand-name>MBOKA Mon RH</span><span class="b" data-brand-tag></span></div>
   <button class="apps-btn" title="Applications" onclick="showLauncher()">Apps</button>
   <div class="modbar" id="modbar"></div>
-  <div id="gsWrap" style="position:relative;flex:1;max-width:340px;margin:0 10px">
-    <input id="gsInput" autocomplete="off" placeholder="Rechercher rubrique / constante…" oninput="gsSearch(this.value)" onfocus="gsSearch(this.value)" onkeydown="if(event.key==='Escape'){gsClose();this.blur();}" style="width:100%;height:30px;padding:4px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.15);color:#fff;font-size:13px">
-    <div id="gsResults" class="hidden" style="position:absolute;top:34px;left:0;right:0;max-height:62vh;overflow:auto;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);z-index:120"></div>
-  </div>
   <div style="font-size:13px;display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap"><select id="langSel" onchange="setLang(this.value)" title="Langue / Language"
       style="width:52px;height:28px;padding:2px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.15);color:#fff;font-size:12px;cursor:pointer;flex:0 0 auto">
       <option value="fr">FR</option><option value="en">EN</option></select><span id="chatBell" style="cursor:pointer;position:relative;display:inline-flex;align-items:center" onclick="go('discussion')" title="Messages"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="m4 6 8 6 8-6"/></svg><span id="chatBadge" style="display:none;position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 4px;background:#dc2626;color:#fff;border-radius:9px;font-size:10px;font-weight:700;line-height:16px;text-align:center"></span></span><span id="bell" style="cursor:pointer" onclick="showNotifs()" title="Notifications">Notifications</span><span id="who"></span><button class="btn sm ghost" style="color:#fff;border-color:#ffffff55" onclick="logout()">Déconnexion</button></div></div>
-<style>#gsInput::placeholder{color:rgba(255,255,255,.7)}#gsResults .gs-item:hover{background:var(--nav-active-bg)}@media(max-width:760px){#gsWrap{max-width:150px;margin:0 6px}}</style>
 <div class="layout">
   <div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
   <div class="sidebar" id="nav"></div>
@@ -2299,7 +2294,6 @@ async function forgotPassword(){
     e.textContent=j.message||"Si un compte existe pour cet email, les instructions ont été envoyées."; e.classList.remove("hidden");
   }catch(err){ const e=document.getElementById("lErr"); e.textContent="Service indisponible."; e.classList.remove("hidden"); }
 }
-
 /* ================= M2: workflow ================= */
 async function refreshBell() {
   try { const n = await api("/notifications");
@@ -3274,7 +3268,6 @@ async function cnvDelete(id,name){ if(!await mmConfirm({title:"Supprimer la conv
 async function cnvPrefill(id){ if(!await mmConfirm({title:"Pré-remplir la grille",message:"Pré-remplir la grille (cat. 1 à 12, échelons A à F) ? Pour « Commerce » la grille officielle 2024 est appliquée ; sinon un barème indicatif à vérifier. Cela remplace la grille actuelle.",confirmLabel:"Pré-remplir"}))return; try{ await api('/config/conventions/'+id+'/prefill-grid',{method:'POST'}); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvPrefillAll(){ if(!await mmConfirm({title:"Pré-remplir toutes les grilles",message:"Pré-remplir les grilles vides (et par défaut) de toutes les conventions avec un barème indicatif ? Les grilles personnalisées ne sont pas touchées.",confirmLabel:"Pré-remplir"}))return; try{ const r=await api('/config/conventions/prefill-all',{method:'POST',body:JSON.stringify({})}); alert(r.filled+" grille(s) pré-remplie(s)."); conventionsView(); }catch(e){ alert(e.message); } }
 async function cnvSeedCmr(){ if(!await mmConfirm({title:"Importer les conventions",message:"Importer la liste des conventions collectives du Cameroun ? Les conventions déjà présentes seront ignorées.",confirmLabel:"Importer"}))return; try{ const r=await api('/config/conventions/seed-cameroon',{method:'POST'}); alert(r.added+" convention(s) ajoutée(s)."); conventionsView(); }catch(e){ alert(e.message); } }
-
 /* ================= RH : Fiche de Prix (simulateur) ================= */
 function fpMoney(v){ return Math.round(Number(v||0)).toLocaleString('fr-FR')+' F'; }
 async function fichePrixView(){
@@ -3417,7 +3410,6 @@ async function fpSave(){ const g=i=>document.getElementById(i); const sel=g('fpC
 async function fpExport(idv){ try{ const r=await fetch('/api/ficheprix/'+idv+'/export',{headers:{Authorization:'Bearer '+TOKEN}}); if(!r.ok)throw new Error('Export indisponible'); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='fiche_prix.xlsx'; a.click(); }catch(e){ alert(e.message); } }
 async function fpPdf(idv){ try{ const r=await fetch('/api/ficheprix/'+idv+'/pdf',{headers:{Authorization:'Bearer '+TOKEN}}); if(!r.ok)throw new Error('PDF indisponible'); const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='fiche_prix.pdf'; a.click(); }catch(e){ alert(e.message); } }
 async function fpDelete(idv){ if(!await mmConfirm({title:"Supprimer la simulation",message:"Supprimer cette simulation ? Cette action est irréversible.",confirmLabel:"Supprimer",danger:true}))return; try{ await api('/ficheprix/'+idv,{method:'DELETE'}); fichePrixView(); }catch(e){ alert(e.message); } }
-
 /* ================= M5: Career & Performance ================= */
 const RD_TAG = r => ({READY_NOW:'<span class="tag green">Prêt maintenant</span>',READY_1_2Y:'<span class="tag amber">Prêt sous 1-2 ans</span>',TO_DEVELOP:'<span class="tag gray">À développer</span>'}[r]||r);
 let CAR_EMP = null, CAR_TAB = "overview";
@@ -3991,7 +3983,6 @@ async function saveSecurity() {
     alert(t("Paramètres de sécurité enregistrés.")); paramsView(); }
   catch (e) { pSecErr.textContent = e.message; pSecErr.classList.remove("hidden"); }
 }
-
 /* ================= Mon compte (2FA + mot de passe) ================= */
 async function accountView() {
   const me = await api("/me");
@@ -4270,7 +4261,6 @@ async function platformHomeView(){
       ${_admTile(I('<path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/><circle cx="12" cy="12" r="3.2"/>'),"#64748b","Journal d'audit","Traçabilité des actions sur la plateforme.","audit")}
     </div></div>`;
 }
-
 /* ================= Plateforme : administrateurs (SADM) ================= */
 /* ================= Historique des connexions & sécurité ================= */
 function fmtAgo(iso){ if(!iso) return ""; const d=new Date(iso), s=Math.floor((Date.now()-d)/1000);
@@ -4395,7 +4385,6 @@ async function saToggle(uid,active){
   try{ await api("/tenants/superadmins/"+uid+"/status",{method:"PUT",body:JSON.stringify({active})}); superadminsView(); }
   catch(e){ alert(e.message); }
 }
-
 /* ================= Plateforme : mentions légales (SADM) ================= */
 async function legalView(){
   await legalLoadCustom();
@@ -4453,7 +4442,6 @@ async function legalDeleteDoc(){
     await legalLoadCustom(); alert("Document supprimé (retour au défaut)."); legalView(); }
   catch(e){ alert(e.message); }
 }
-
 /* ================= Plateforme : abonnements & licences (SADM) ================= */
 function subXAF(n){ return Number(n||0).toLocaleString('fr-FR')+' FCFA'; }
 function subDaysBadge(st){
@@ -4551,7 +4539,6 @@ async function subsSaveLicense(){
     alert("Licence enregistrée."); subsView(); }
   catch(e){ const el=g("slErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-
 /* ================= Plateforme : tarifs & paiements (SADM) ================= */
 async function pricingView(){
   let pr, mods;
@@ -4584,7 +4571,6 @@ async function pricingSave(){
     alert("Tarifs enregistrés."); pricingView(); }
   catch(e){ const el=g("prErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-
 /* ================= Plateforme : gestion des tenants (SADM) ================= */
 let TEN_MODULES = null, TEN_FORMS = null;
 async function tenantsView() {
@@ -5123,7 +5109,6 @@ function acoMomoHint(){
   if(det && exp && det!==exp){ el.innerHTML=`<span style="color:#d97706">⚠ Numéro <b>${CM.opLabel(det)}</b> mais canal <b>${ch==="OM"?"Orange Money":"MTN Mobile Money"}</b> — vérifiez.</span>`; }
   else { el.innerHTML=`<span style="color:#16a34a">✓ ${CM.opLabel(det||exp)} — ${CM.fmt(num)}</span>`; }
 }
-
 /* ===================== ACOMPTES SUR SALAIRE (registre, façon Excel) ===================== */
 function acoChan(a){ if(a.channel==="OM"||a.channel==="MOMO") return a.channel; const op=CM.operator(a.momo); return op==="ORANGE"?"OM":op==="MTN"?"MOMO":"AUTRE"; }
 function acoGroupTables(list, ctx){
@@ -5264,7 +5249,6 @@ async function acoValidate(id){ try{ await api("/payroll/acomptes/"+id+"/validat
 async function acoUnvalidate(id){ try{ await api("/payroll/acomptes/"+id+"/unvalidate",{method:"POST"}); payAcomptesView(); }catch(e){ alert(e.message); } }
 async function acoValidateBatch(pf,per){ if(!await mmConfirm({title:"Valider les acomptes",message:"Valider tous les acomptes en brouillon de ce filtre ?",confirmLabel:"Valider"})) return; try{ const r=await api("/payroll/acomptes/validate-batch",{method:"POST",body:JSON.stringify({period:per,portfolioId:pf||undefined})}); alert(r.validated+" acompte(s) validé(s)."); payAcomptesView(); }catch(e){ alert(e.message); } }
 async function acoExport(fmt){ const per=window._acoPeriod||new Date().toISOString().slice(0,7); const pf=window._acoPf||""; let url="/api/payroll/acomptes/export?format="+fmt+"&period="+per+(pf?("&portfolioId="+pf):""); try{ const r=await fetch(url,{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok){ let j={};try{j=await r.json();}catch(_){}; throw new Error(j.error||"Erreur export"); } const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); if(fmt==="pdf"){a.target="_blank";}else{a.download="acomptes."+(fmt==="xlsx"?"xlsx":"csv");} a.click(); }catch(e){ alert(e.message); } }
-
 /* ===================== BORDEREAUX D'ÉLÉMENTS & CONTRÔLE (GPF <-> Paie) ===================== */
 function bordKindTag(s){ if(!s||(s.kind||"PRINCIPAL")==="PRINCIPAL") return ""; return `<span class="tag" style="background:#7c3aed;color:#fff" title="Bordereau de régularisation">Complémentaire${s.seq?(" #"+s.seq):""}</span>`; }
 function bordStatusTag(s, ctrl){
@@ -5537,7 +5521,6 @@ async function bordAudit(id){
     <div style="margin-top:12px"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
   document.body.appendChild(bg);
 }
-
 /* ================= Paie : Livre & états (par période) ================= */
 async function payEtatsView(){
   const runs=await api("/payroll/runs").catch(()=>[]);
@@ -6127,29 +6110,7 @@ async function rubAfterSave(){
   PE_RUBS=null;
   if(document.getElementById("rubList")) rubRender((document.getElementById("rubSearch")||{}).value||"");
 }
-/* ===== Recherche globale rubriques/constantes (barre du haut, disponible partout) ===== */
-async function gsEnsureData(){
-  if(!PAY_RUBS || !PAY_RUBS.length){ try{ PAY_RUBS = await api("/payroll/rubriques"); }catch(e){ PAY_RUBS=PAY_RUBS||[]; } }
-  if(!PAY_CST || !PAY_CST.length){ try{ PAY_CST = await api("/payroll/constantes"); }catch(e){ PAY_CST=PAY_CST||[]; } }
-}
-async function gsSearch(q){
-  const box=document.getElementById("gsResults"); if(!box) return;
-  q=(q||"").trim().toLowerCase();
-  if(q.length<1){ gsClose(); return; }
-  await gsEnsureData();
-  const rubs=(PAY_RUBS||[]).filter(r=>(((r.code||"")+" "+(r.label||"")).toLowerCase().includes(q))).slice(0,8);
-  const csts=(PAY_CST||[]).filter(c=>(((c.code||"")+" "+(c.label||"")).toLowerCase().includes(q))).slice(0,8);
-  if(!rubs.length && !csts.length){ box.innerHTML=`<div style="padding:10px 12px;color:var(--muted);font-size:13px">Aucun résultat pour « ${esc(q)} »</div>`; box.classList.remove("hidden"); return; }
-  const sec=t=>`<div style="padding:6px 12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;background:var(--zebra)">${t}</div>`;
-  const rrow=r=>`<div class="gs-item" onmousedown="event.preventDefault()" onclick="gsOpenRub('${r.id}')" style="padding:8px 12px;cursor:pointer;display:flex;gap:8px;align-items:center;font-size:13px"><b style="min-width:52px">${esc(r.code)}</b><span style="flex:1">${esc(r.label||"")}</span><span class="note-inline">rubrique · ${esc(r.family||"")}</span></div>`;
-  const crow=c=>`<div class="gs-item" onmousedown="event.preventDefault()" onclick="gsOpenCst('${c.id}')" style="padding:8px 12px;cursor:pointer;display:flex;gap:8px;align-items:center;font-size:13px"><b style="min-width:52px">${esc(c.code)}</b><span style="flex:1">${esc(c.label||"")}</span><span class="note-inline">constante · ${esc(c.type||"")}${c.valeur!=null?" · "+c.valeur:""}</span></div>`;
-  box.innerHTML=(rubs.length?sec("Rubriques ("+rubs.length+")")+rubs.map(rrow).join(""):"")+(csts.length?sec("Constantes ("+csts.length+")")+csts.map(crow).join(""):"");
-  box.classList.remove("hidden");
-}
-function gsClose(){ const b=document.getElementById("gsResults"); if(b) b.classList.add("hidden"); }
-function gsOpenRub(id){ gsClose(); const r=(PAY_RUBS||[]).find(x=>x.id===id); if(r&&typeof rubModal==="function") rubModal(r); }
-function gsOpenCst(id){ gsClose(); const c=(PAY_CST||[]).find(x=>x.id===id); if(c&&typeof cstStackedModal==="function") cstStackedModal(c); }
-document.addEventListener("click",function(e){ const w=document.getElementById("gsWrap"); if(w && !w.contains(e.target)) gsClose(); });
+
 async function fillRubPicker(prefix){
   const sel = document.getElementById(prefix+"Rub"); if(!sel) return;
   const rubs = await loadPeRubs();
@@ -7447,7 +7408,6 @@ async function billingSaveLines() { try { await billPutLines(); } catch (e) { al
 function billingAddLine() { (BILL_SHEET.lines = BILL_SHEET.lines || []).push({ jours: 30 }); billLineForm(BILL_SHEET.lines.length - 1); }
 async function billingDelLine(i) { if (!await mmConfirm({message:"Supprimer cette ligne ?",danger:true})) return; BILL_SHEET.lines.splice(i, 1); try { await billPutLines(); } catch (e) { alert(e.message); } }
 function rerenderBillLines() { const el = document.getElementById("billLines"); if (el) el.innerHTML = billLinesList(BILL_SHEET, true); }
-
 /* ===== SAISIE DES LIGNES : liste + formulaire par ligne (style Odoo) ===== */
 function billLineComputed(id) { for (const g of Object.values((BILL_SHEET.computed || {}).groups || {})) for (const cl of g) if (cl.id === id) return cl; return null; }
 function billLinesList(s, open) {
@@ -9814,7 +9774,6 @@ function stockNotifPreview(){
   w.document.write(`<html><head><title>Aperçu</title><style>body{font-family:Arial;margin:24px;color:#111}.s{color:#666;font-size:12px}</style></head><body><div class="s">Sujet</div><h3>${esc(fill(subj))}</h3><hr><div>${fill(esc(body)).replace(/\n/g,"<br>")}</div></body></html>`);
   w.document.close();
 }
-
 /* ================= Discussion (messages directs temps réel) ================= */
 window._CHAT = window._CHAT || { peers: [], activeId: null, ws: null, totalUnread: 0, msgs: {} };
 function chatWsUrl(){ const p=location.protocol==="https:"?"wss":"ws"; return p+"://"+location.host+"/ws?token="+encodeURIComponent(TOKEN||""); }
@@ -9971,7 +9930,6 @@ async function chatSend(){
     const arr=window._CHAT.msgs[uid]=window._CHAT.msgs[uid]||[]; if(!arr.some(x=>x.id===m.id)){ arr.push(m); chatRenderThread(); }
   }catch(e){ alert(e.message); }
 }
-
 /* ================= SMQ - Système de Management de la Qualité ================= */
 window._SMQ = window._SMQ || {};
 async function smqLoadRefs(force){
@@ -10090,7 +10048,6 @@ async function gaRun(id){
 function gaExport(id,kind){ const per=window._GAPER||""; const pf=window._GAPF||"";
   payDownload("/ga/"+id+"/export."+kind+"?period="+encodeURIComponent(per)+(pf?"&portfolioId="+pf:""), (kind==="txt"?"GA_"+id+".txt":"GA_"+id+".xlsx"));
 }
-
 /* ================= SMQ : Conformité du personnel ================= */
 function epiToggle(id){const r=document.getElementById(id);if(r)r.style.display=(r.style.display==='none'?'':'none');}
 /* ================= SMQ : Veille réglementaire ================= */
@@ -11836,7 +11793,6 @@ async function smqWorkspaceView(){
       ${Object.keys(p.docsByType||{}).length?`<div class="note" style="margin-top:6px">Documents : ${Object.keys(p.docsByType).map(k=>esc(k)+' ('+p.docsByType[k]+')').join(' - ')}</div>`:''}
     </div>`).join(""):'<div class="panel note">Aucun processus ne vous est attribué. Contactez le responsable SMQ ou administrateur.</div>'}`;
 }
-
 /* ================= Gestion de stock ================= */
 window._STK = window._STK || {};
 function stockRefsReset(){ window._STK={}; window._STKREFS_AT=0; }
@@ -11852,7 +11808,6 @@ async function stockLoadRefs(force){
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
 function stkUnitName(id){ const u=(window._STK.units||[]).find(x=>x.id===id); return u?(u.shortName||u.name):""; }
-
 /* ================= Stock : Dotation EPI ================= */
 async function stockEpiView(){
   const [pfs, epiPfs, data] = await Promise.all([api("/portfolios").catch(()=>[]), api("/stock/epi/portfolios").catch(()=>[]), api("/stock/epi/progress").catch(()=>({perPortfolio:[],total:{},employees:[]}))]);
@@ -12524,7 +12479,6 @@ function _labelWindow(cards){
     </body></html>`);
   w.document.close();
 }
-
 /* ================= Stock : Achats (BC, réceptions, retours) ================= */
 function plProdOpts(cur){ return `<option value="">- produit -</option>`+(window._STK.prods||[]).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)}${p.sku?' ['+esc(p.sku)+']':''}</option>`).join(""); }
 function plNet(l){ const q=Number(l.qty)||0,pu=Number(l.unitCost)||0,d=Number(l.discountPct)||0; return Math.round(q*pu*(1-d/100)); }
@@ -12882,7 +12836,6 @@ async function stockReturnSubmit(){
   try{ await api("/stock/returns",{method:"POST",body:JSON.stringify({supplierId:g("hdSup"),date:g("hdDate"),ref:g("hdRef"),lines})});
     go('stockreturns'); }catch(e){ const el=document.getElementById("reErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-
 /* ================= Stock : Ventes (commande client, ventes, devis, retours, POS) ================= */
 function stCustName(id){ const c=(window._STK.clients||[]).find(x=>x.id===id); return c?c.name:""; }
 
@@ -13156,7 +13109,6 @@ async function stockPOSCheckout(){
   try{ const r=await api("/stock/sales",{method:"POST",body:JSON.stringify(body)}); alert("Vente "+r.ref+" encaissée ("+fCFA(r.total)+")."); window._POS={}; stockPOSRender(); }
   catch(e){ alert(e.message); }
 }
-
 /* ================= Stock : Rapports ================= */
 const STOCK_REPORTS=[
   {k:"product-sales",l:"Vente de produit",f:["date","product","category","brand","customer"],tabs:[["detail","Détaillé"],["cost","Détaillé (à l'achat)"],["grouped","Groupé"],["category","Par catégorie"],["brand","Par marque"]]},
@@ -13246,7 +13198,6 @@ function stockReportPrint(){
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.title)}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px}h1{font-size:16px;margin:0}h2{font-size:13px;margin:12px 0 6px}.sub{color:#555;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #bbb;padding:3px 6px}th{background:#eee}.tot{font-weight:700;background:#f3f3f3}@media print{body{margin:10mm}}</style></head><body><h1>${esc(company)}</h1><div class="sub">édité le ${dt}</div>${body}<script>window.onload=function(){window.print();}<\/script></body></html>`);
   w.document.close();
 }
-
 /* ================= Stock : Transferts de stock ================= */
 const TRF_ST_LABELS={en_cours:"En cours",termine:"Terminé",annule:"Annulé"};
 function trfStTag(st){ const c={en_cours:"#2563eb",termine:"#16a34a",annule:"#9ca3af"}[st]||"#9ca3af"; return `<span class="tag" style="background:${c};color:#fff">${TRF_ST_LABELS[st]||st||'-'}</span>`; }
@@ -13294,7 +13245,6 @@ async function stockTransferSubmit(){
 }
 async function stockTransferStatus(id,st){ try{ await api("/stock/transfers/"+id+"/status",{method:"PUT",body:JSON.stringify({status:st})}); }catch(e){ alert(e.message); stockTransfersView(); } }
 async function stockTransferDelete(id){ if(!await mmConfirm({message:"Supprimer ce transfert ?",danger:true})) return; try{ await api("/stock/transfers/"+id,{method:"DELETE"}); stockTransfersView(); }catch(e){ alert(e.message); } }
-
 /* ================= Bon de commande : Voir / Imprimer / Expédition ================= */
 async function stockCompany(){ if(window._STKCOMPANY) return window._STKCOMPANY;
   try{ const st=await api("/settings"); const lh=(st.branding&&st.branding.letterhead)||{}; const c=Object.assign({},(st.branding&&st.branding.company)||{},lh.company||{}); window._STKCOMPANY=c; return c; }catch(e){ return {}; } }
@@ -13376,7 +13326,6 @@ async function stockPOShippingSave(id){
     document.querySelector(".modal-bg").remove(); stockPOView(); }
   catch(e){ const el=document.getElementById("shErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
-
 /* ================= Documents génériques (achat, vente, commande, devis) ================= */
 const STOCK_DOC={
   purchase:{ep:"purchases",party:"sups",pf:"supplierId",pl:"Fournisseur",title:"Bon de réception / Achat",pay:true,at:"StockPurchase"},
@@ -13441,7 +13390,6 @@ async function stockDocPrint(kind,id){
     <script>window.onload=function(){try{JsBarcode("#docBarcode",${JSON.stringify(d.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
   w.document.close();
 }
-
 /* ================= Dépenses ================= */
 async function stockExpensesView(){
   await stockLoadRefs();
@@ -13490,7 +13438,6 @@ async function stockExpenseSave(id){
   catch(e){ const el=document.getElementById("exErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
 async function stockExpenseDelete(id){ if(!await mmConfirm({message:"Supprimer cette dépense ?",danger:true})) return; try{ await api("/stock/expenses/"+id,{method:"DELETE"}); stockExpensesView(); }catch(e){ alert(e.message); } }
-
 /* ================= Comptes de paiement ================= */
 const ACC_TYPES={caisse:"Caisse",banque:"Banque",mobile:"Mobile money",autre:"Autre"};
 async function stockAccountsView(){
