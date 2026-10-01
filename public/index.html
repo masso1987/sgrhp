@@ -5597,7 +5597,7 @@ async function payFicheLoad(){
   if(pdfB)pdfB.style.display=""; if(xlsB)xlsB.style.display="";
   const F=n=>Math.round(Number(n)||0).toLocaleString('fr-FR');
   const mh=fi.months.map(m=>`<th class="r">${m.slice(0,3)}</th>`).join("");
-  const rrow=r=>`<tr><td style="white-space:nowrap">${esc(r.code?r.code+' ':'')}${esc(r.label)}</td>${r.monthly.map(v=>`<td class="r">${v?F(v):''}</td>`).join("")}<td class="r"><b>${F(r.total)}</b></td></tr>`;
+  const rrow=r=>`<tr ${r.code?`ondblclick="payOpenRubrique('${r.code}')" style="cursor:pointer" title="Double-cliquez pour ouvrir la rubrique"`:""}><td style="white-space:nowrap">${esc(r.code?r.code+' ':'')}${esc(r.label)}</td>${r.monthly.map(v=>`<td class="r">${v?F(v):''}</td>`).join("")}<td class="r"><b>${F(r.total)}</b></td></tr>`;
   const srow=r=>`<tr style="font-weight:700;background:var(--sidebar-bg)"><td>${esc(r.label)}</td>${r.monthly.map(v=>`<td class="r">${v?F(v):''}</td>`).join("")}<td class="r">${F(r.total)}</td></tr>`;
   body.innerHTML=`<div class="panel"><div style="margin-bottom:6px"><b>${esc(fi.employee.name)}</b> <span class="note">Matricule ${esc(fi.employee.matricule||'-')} - Catégorie ${esc(fi.employee.category||'-')} - Année ${fi.year}</span></div>
     <div style="overflow:auto"><table style="width:100%;min-width:900px;font-size:12px"><tr><th style="text-align:left">Rubrique</th>${mh}<th class="r">Total</th></tr>
@@ -6088,7 +6088,8 @@ function bulletinRenderTab() {
 }
 function bulletinCalcule(slip) {
   const t = slip.result.totals;
-  const line = l => `<tr><td>${esc(l.code)}${l.manual ? " " : ""}</td><td>${esc(l.label)}</td>
+  const line = l => `<tr ondblclick="payOpenRubrique('${esc(l.code)}')" style="cursor:pointer" title="Double-cliquez pour ouvrir la rubrique">
+    <td>${esc(l.code)}${l.manual ? " " : ""}</td><td>${esc(l.label)}</td>
     <td style="text-align:right">${l.base ? fCFA2(l.base) : ""}</td><td style="text-align:right">${l.rate && l.rate !== 1 ? (l.rate * 100).toFixed(2) + "%" : ""}</td>
     <td style="text-align:right;color:var(--green)">${l.gain ? fCFA(l.gain) : ""}</td>
     <td style="text-align:right;color:var(--red)">${l.retenue ? fCFA(l.retenue) : ""}</td>
@@ -6104,6 +6105,23 @@ function bulletinCalcule(slip) {
 }
 let PE_RUBS = null;
 async function loadPeRubs(){ if(PE_RUBS) return PE_RUBS; try{ PE_RUBS = await api("/payroll/rubriques"); }catch{ PE_RUBS = []; } return PE_RUBS; }
+// Drill-down générique : ouvre l'éditeur de rubrique (à onglets) depuis n'importe quel écran
+// (bulletin, fiche individuelle…). Charge le référentiel au besoin.
+async function payOpenRubrique(code){
+  if(!code) return;
+  if(!PAY_RUBS || !PAY_RUBS.length){ try{ PAY_RUBS = await api("/payroll/rubriques"); }catch(e){ PAY_RUBS=PAY_RUBS||[]; } }
+  if(!PAY_CST || !PAY_CST.length){ try{ PAY_CST = await api("/payroll/constantes"); }catch(e){ PAY_CST=PAY_CST||[]; } }
+  const r=(PAY_RUBS||[]).find(x=>String(x.code)===String(code));
+  if(!r){ alert("Rubrique "+code+" introuvable dans le référentiel des rubriques."); return; }
+  if(typeof rubModal==="function") rubModal(r);
+}
+// Rafraîchit après enregistrement d'une rubrique SANS quitter l'écran courant
+// (met à jour les caches et re-rend la liste des rubriques seulement si elle est affichée).
+async function rubAfterSave(){
+  try{ PAY_RUBS = await api("/payroll/rubriques"); }catch(e){}
+  PE_RUBS=null;
+  if(document.getElementById("rubList")) rubRender((document.getElementById("rubSearch")||{}).value||"");
+}
 async function fillRubPicker(prefix){
   const sel = document.getElementById(prefix+"Rub"); if(!sel) return;
   const rubs = await loadPeRubs();
@@ -6348,7 +6366,7 @@ function payslipRenderBody(edit, s) {
   const qty = (l, field, i) =>edit
     ? `<input type="number" step="0.001" data-idx="${i}" data-field="${field}" value="${l[field] != null ? l[field] : ""}" style="width:80px;text-align:right;margin:0;padding:2px" oninput="payslipEditField(this)">`
     : (l[field] ? (field === "base" ? fCFA2(l[field]) : fNb(l[field])) : "");
-  document.getElementById("payslipBody").innerHTML = rows.map((l, i) => `<tr>
+  document.getElementById("payslipBody").innerHTML = rows.map((l, i) => `<tr ${!edit ? `ondblclick="payOpenRubrique('${esc(l.code)}')" style="cursor:pointer" title="Double-cliquez pour ouvrir la rubrique"` : ""}>
     <td>${esc(l.code)}${l.manual ? ' <span class="tag amber" title="corrigé">corrigé</span>' : ""}</td><td>${esc(rubLbl(l.code, l.label))}</td>
     <td style="text-align:right">${qty(l, "nombre", i)}</td>
     <td style="text-align:right">${qty(l, "base", i)}</td>
@@ -7068,7 +7086,7 @@ async function rubSave(id, needForce) {
       if (rc.closed) msg += "\n" + rc.closed + " bulletin(s) de période clôturée : inchangés.";
       alert(msg);
     }
-    payconfigView();
+    await rubAfterSave();
   } catch (e) {
     if (e.requiresConfirmation) { rmErr.textContent = e.warning || e.message; rmErr.classList.remove("hidden"); }
     else { rmErr.textContent = e.message; rmErr.classList.remove("hidden"); }
