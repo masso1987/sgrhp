@@ -299,8 +299,15 @@ function elementsToInput(emp, period, req, opts) {
   };
   for (const e of els) {
     switch (e.type) {
-      case "PRIME": { const f = _flags(e, true, true); gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo, prorate: rubProrates(_rubOf(e.code)) }); break; }
-      case "INDEMNITE": { const f = _flags(e, false, false); const _pr = rubProrates(_rubOf(e.code)); if (!f.impo && !f.cnps) nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount), prorate: _pr }); else gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo, prorate: _pr }); break; }
+      case "PRIME": { const f = _flags(e, true, true); const _r = _rubOf(e.code); const _pr = rubProrates(_r);
+        if (_r && _r.family === "NON_SOUMISE") nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount), prorate: _pr });
+        else gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo, prorate: _pr }); break; }
+      case "INDEMNITE": { const f = _flags(e, false, false); const _r = _rubOf(e.code); const _pr = rubProrates(_r); const _fam = _r && _r.family;
+        // Placement par FAMILLE : NON_SOUMISE -> éléments non soumis ; BRUT/COTISATION -> rémunération
+        // (reste dans le BRUT), les cases CNPS/IRPP ne font qu'inclure/exclure des assiettes.
+        // Repli (famille inconnue) : non soumis seulement si ni imposable ni cotisable.
+        if (_fam === "NON_SOUMISE" || (!_fam && !f.impo && !f.cnps)) nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount), prorate: _pr });
+        else gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo, prorate: _pr }); break; }
       case "ACOMPTE": otherDeductions.push({ code: e.code && String(e.code) !== "ACOMPTE" ? String(e.code) : "7000", label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
       case "PRET": otherDeductions.push({ code: e.code && String(e.code) !== "PRET" ? String(e.code) : "7010", label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
       case "RETENUE": otherDeductions.push({ code: e.code && String(e.code) !== "RETENUE" ? String(e.code) : "7030", label: e.label || "Retenue diverse", amount: Number(e.amount) }); break;
