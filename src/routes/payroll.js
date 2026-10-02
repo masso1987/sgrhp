@@ -181,6 +181,19 @@ function configOf(req) {
     c.cnps = Object.assign({}, JSON.parse(JSON.stringify(D.cnps)), { workAccidentEmployer: keepAccident });
     c._statutoryV1Migrated = true; save();
   }
+  // Migration : rétablit le BARÈME IRPP LÉGAL (tranches 10/15/25/35, abattement 30% frais pro,
+  // abattement annuel 500 000, CAC 10%). Corrige les configs dont les tranches IRPP étaient
+  // erronées (IRPP calculé proche de 0). Les autres barèmes (CFC/FNE/RAV/TDL/CNPS) ne sont pas touchés.
+  if (!c._irppLegalV2Migrated) {
+    const Dirpp = require("../payroll/engine").DEFAULT_CONFIG.irpp;
+    const okBr = Array.isArray(c.irpp && c.irpp.brackets) && c.irpp.brackets.length >= 3
+      && Math.abs(Number(c.irpp.brackets[0].rate) - 0.10) < 1e-6
+      && Number(c.irpp.brackets[0].upTo) >= 150000 && Number(c.irpp.brackets[0].upTo) <= 170000;
+    const okFp = Math.abs(Number(c.irpp && c.irpp.fraisProRate) - 0.70) < 1e-6;
+    const okAb = Number(c.irpp && c.irpp.annualAbatement) === 500000;
+    if (!okBr || !okFp || !okAb) { c.irpp = JSON.parse(JSON.stringify(Dirpp)); }
+    c._irppLegalV2Migrated = true; save();
+  }
   // Migration : la prime de salissure/salubrité est un remboursement de frais professionnel
   // -> hors assiette CNPS (comme Sage), mais reste imposable à l'IRPP. Corrige le catalogue stocké.
   if (!c._salissureCnpsMigrated) {

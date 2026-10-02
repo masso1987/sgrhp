@@ -7225,14 +7225,15 @@ async function rubSave(id, needForce) {
 let PAY_MODELS = [];
 function barTable(kind, rows) {
   const vf = kind === "irpp" ? "rate" : "amount";
-  return `<table data-bar="${kind}" style="font-size:12px"><tr><th>Jusqu'à (∞ = vide)</th><th>${kind === "irpp" ? "Taux" : "Montant"}</th><th></th></tr>
+  return `<table data-bar="${kind}" style="font-size:12px"><tr><th>Jusqu'à (∞ = vide)</th><th>${kind === "irpp" ? "Taux %" : "Montant"}</th><th></th></tr>
     ${(rows || []).map(r =>barRow(kind, r, vf)).join("")}</table>
     <button class="btn ghost sm" style="margin-top:4px" onclick="barAdd('${kind}')">+ ligne</button>`;
 }
 function barRow(kind, r, vf) {
   const up = (r.upTo == null || r.upTo >= 1e11) ? "" : r.upTo;
+  const dv = r[vf] != null ? (kind === "irpp" ? Math.round(r[vf] * 1000) / 10 : r[vf]) : "";
   return `<tr><td><input type="number" step="any" data-up value="${up}" placeholder="∞" style="margin:0;max-width:110px;padding:2px"></td>
-    <td><input type="number" step="any" data-val value="${r[vf] != null ? r[vf] : ""}" style="margin:0;max-width:90px;padding:2px"></td>
+    <td><input type="number" step="any" data-val value="${dv}" style="margin:0;max-width:90px;padding:2px"></td>
     <td><button class="btn ghost sm" onclick="this.closest('tr').remove()">Fermer</button></td></tr>`;
 }
 function barAdd(kind) {
@@ -7243,7 +7244,8 @@ function barRead(kind) {
   const vf = kind === "irpp" ? "rate" : "amount";
   const rows = [...document.querySelectorAll(`table[data-bar="${kind}"] tr`)].slice(1);
   return rows.map(tr => {
-    const up = tr.querySelector("[data-up]").value, val = Number(tr.querySelector("[data-val]").value) || 0;
+    const up = tr.querySelector("[data-up]").value; let val = Number(tr.querySelector("[data-val]").value) || 0;
+    if (kind === "irpp") val = val / 100; // le tableau IRPP saisit un TAUX EN % (10 = 10%)
     const o = { upTo: up === "" ? 1e12 : Number(up) }; o[vf] = val; return o;
   }).filter(o =>o[vf] || o.upTo < 1e11).sort((a, b) =>a.upTo - b.upTo);
 }
