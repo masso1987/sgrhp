@@ -828,7 +828,7 @@ module.exports = [
 "nombre": null,
 "taux": null,
 "tauxPat": null,
-"cnps": true,
+"cnps": false,
 "impo": true,
 "sens": "GAIN"
 },
@@ -1322,8 +1322,8 @@ module.exports = [
 "nombre": "NJOURP",
 "taux": null,
 "tauxPat": null,
-"cnps": true,
-"impo": true,
+"cnps": false,
+"impo": false,
 "sens": "GAIN"
 },
 {

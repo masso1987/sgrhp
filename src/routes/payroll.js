@@ -206,6 +206,18 @@ function configOf(req) {
     }
     c._salissureCnpsMigrated = true; if (changed) save(); else save();
   }
+  // Migration : flags légaux de certaines rubriques (conforme Sage / droit camerounais).
+  //  - Indemnité de représentation (3512) : frais professionnel -> NON imposable et NON cotisable.
+  //  - Prime/indemnité d'électricité (2134) : avantage -> HORS assiette CNPS (reste imposable).
+  if (!c._rubFlagsV2Migrated) {
+    for (const r of mine(db.payRubriques, req)) {
+      const isRepr = r.code === "3512" || /repr[ée]sentation/i.test(r.label || "");
+      if (isRepr) { r.impo = false; r.cnps = false; }
+      const isElec = r.code === "2134" || /[ée]lectricit/i.test(r.label || "");
+      if (isElec && r.cnps !== false) { r.cnps = false; if (r.impo == null) r.impo = true; }
+    }
+    c._rubFlagsV2Migrated = true; save();
+  }
   return c;
 }
 function baseSalaryOf(emp, req) {
