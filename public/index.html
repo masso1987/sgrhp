@@ -6115,9 +6115,8 @@ function bulletinRenderTab() {
           <option value="PRIME">Prime</option><option value="INDEMNITE">Indemnité (non imposable)</option>
           <option value="HS20">Heures supp. +20%</option><option value="HS30">Heures supp. +30%</option><option value="HS40">Heures supp. +40%</option>
           <option value="NUIT">Heures de nuit +50%</option><option value="HS100">Heures supp. +100%</option><option value="ABSENCE">Absence (jours)</option>
-          <option value="ACOMPTE">Acompte</option><option value="PRET">Remboursement prêt</option><option value="RETENUE">Retenue diverse</option><option value="AVANTAGE">Avantage en nature</option><option value="TREIZE">13e mois</option><option value="RAPPEL">Rappel de salaire</option></select></div>
+          <option value="ACOMPTE">Acompte</option><option value="PRET">Remboursement prêt</option><option value="RETENUE">Retenue diverse</option><option value="TREIZE">13e mois</option><option value="RAPPEL">Rappel de salaire</option></select></div>
         <div><label>Rubrique (référentiel)</label><select id="beRub" onchange="rubPick('be')" style="min-width:220px"><option value="">— choisir —</option></select><input type="hidden" id="beCode"></div>
-        <div id="beAvnWrap" style="display:none"><label>Avantage en nature</label><select id="beAvn" style="min-width:200px"><option value="">— choisir —</option></select></div>
         <div><label>Libellé</label><input id="beLabel" placeholder="ex. Prime de rendement" style="min-width:150px"></div>
         <div><label id="beValLbl">Montant (XAF)</label><input id="beVal" type="number" min="0" style="max-width:120px"></div>
         <div id="beFlags"><label>Fiscalité</label><div style="display:flex;gap:10px;align-items:center;height:32px"><label style="font-weight:400;font-size:12px"><input type="checkbox" id="beImpo" checked> Imposable</label><label style="font-weight:400;font-size:12px"><input type="checkbox" id="beCnps" checked> CNPS</label></div></div>
@@ -6199,31 +6198,20 @@ function rubPick(prefix){
   }).catch(()=>{});
 }
 function beToggle() { const t = beType.value, l = document.getElementById("beValLbl");
-  l.textContent = ["HS20","HS30","HS40","HS100","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : (t === "AVANTAGE" ? "Montant (vide = forfait)" : "Montant (XAF)");
-  const fl = document.getElementById("beFlags"); if(fl) fl.style.display = ["PRIME","INDEMNITE","AVANTAGE","RAPPEL","TREIZE"].includes(t) ? "" : "none";
-  const av = document.getElementById("beAvnWrap"); if(av){ av.style.display = t === "AVANTAGE" ? "" : "none"; if(t==="AVANTAGE") fillAvnPicker(); } }
-async function fillAvnPicker(){
-  const sel=document.getElementById("beAvn"); if(!sel) return;
-  if(!window._PAYAVN){ try{ window._PAYAVN=await api("/payroll/avantages-nature"); }catch(e){ window._PAYAVN=[]; } }
-  if(sel.dataset.filled) return; sel.dataset.filled="1";
-  const bl={taxable:"brut taxable",salbase:"salaire de base",brut:"brut total"};
-  sel.innerHTML='<option value="">— choisir —</option>'+(window._PAYAVN||[]).filter(a=>a.active!==false).map(a=>`<option value="${esc(a.id)}" data-code="${esc(a.rubriqueCode||a.code)}" data-label="${esc(a.label)}">${esc(a.label)} (${(Number(a.rate)*100).toFixed(1)}% ${esc(bl[a.base]||a.base)})</option>`).join("");
-}
+  l.textContent = ["HS20","HS30","HS40","HS100","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)";
+  const fl = document.getElementById("beFlags"); if(fl) fl.style.display = ["PRIME","INDEMNITE","RAPPEL","TREIZE"].includes(t) ? "" : "none"; }
 async function bulletinAddEl(ev, period, empId) {
   ev.preventDefault(); const t = beType.value;
   const codeEl = document.getElementById("beCode");
   const body = { employeeId: empId, period, type: t, label: beLabel.value || beType.selectedOptions[0].text };
   if (codeEl && codeEl.value) body.code = codeEl.value;
   // Fiscalité explicite pour les éléments monétaires (prime, indemnité, avantage, rappel, 13e)
-  if (["PRIME","INDEMNITE","AVANTAGE","RAPPEL","TREIZE"].includes(t)) {
+  if (["PRIME","INDEMNITE","RAPPEL","TREIZE"].includes(t)) {
     const impo = document.getElementById("beImpo"), cnps = document.getElementById("beCnps");
     if (impo) body.impo = impo.checked; if (cnps) body.cnps = cnps.checked;
   }
-  if (t === "AVANTAGE") { const avSel=document.getElementById("beAvn"); const avId=avSel&&avSel.value;
-    if (avId) { body.avId = avId; const o=avSel.selectedOptions[0]; if(o){ if(!body.code && o.dataset.code) body.code=o.dataset.code; if(!body.label||body.label==="Avantage en nature") body.label=o.dataset.label||body.label; } }
-    const amt=Number(beVal.value||0); if(amt>0) body.amount=amt; } // montant vide = forfait auto
-  else { const v = Number(beVal.value || 0);
-    if (["HS20","HS30","HS40","HS100","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v; }
+  const v = Number(beVal.value || 0);
+  if (["HS20","HS30","HS40","HS100","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
   try { await api("/payroll/elements", { method: "POST", body: JSON.stringify(body) });
     bulletinView(BULLETIN_CTX.runId, empId);
   } catch (e) { beErr.textContent = e.message; beErr.classList.remove("hidden"); }
@@ -6588,39 +6576,30 @@ function payShowTab(name){
   else if(name==="modeles"){ cont.innerHTML = payModelesHTML(PAY_MODELS); }
   else { cont.innerHTML = payBaremesHTML(window._PAYCFG); avnRender(); }
 }
-function _avnBaseLabel(b){ return ({taxable:"Salaire brut taxable", salbase:"Salaire de base", brut:"Brut total"})[b]||b; }
 function avnRender(){
   const box=document.getElementById("avnTable"); if(!box) return;
   const list=window._PAYAVN||[];
-  const rub=c=>{ const r=(PAY_RUBS||[]).find(x=>String(x.code)===String(c)); return c?(esc(c)+(r?" · "+esc(r.label):"")):'<span class="note-inline">—</span>'; };
-  box.innerHTML=`<table style="width:100%;font-size:13px"><tr><th>Libellé</th><th class="r">Taux</th><th>Base</th><th style="text-align:center">CNPS</th><th style="text-align:center">IRPP</th><th>Rubrique liée</th><th style="width:70px"></th></tr>
+  const rub=c=>{ const r=(PAY_RUBS||[]).find(x=>String(x.code)===String(c)); return c?("<b>"+esc(c)+"</b>"+(r?" · "+esc(r.label):"")):'<span class="note-inline">non liée</span>'; };
+  box.innerHTML=`<table style="width:100%;font-size:13px"><tr><th>Rubrique liée</th><th class="r">% imposable (IRPP)</th><th class="r">% cotisable (CNPS)</th><th style="width:70px"></th></tr>
     ${list.length?list.map(a=>`<tr${a.active===false?' style="opacity:.5"':''}>
-      <td><b>${esc(a.label)}</b> <span class="note-inline">${esc(a.code)}</span></td>
-      <td class="r">${(Number(a.rate)*100).toFixed(2)} %</td>
-      <td>${esc(_avnBaseLabel(a.base))}</td>
-      <td style="text-align:center">${a.cnps?"✓":"—"}</td>
-      <td style="text-align:center">${a.impo!==false?"✓":"—"}</td>
-      <td style="font-size:12px">${rub(a.rubriqueCode)}</td>
+      <td>${rub(a.rubriqueCode)}${a.label?' <span class="note-inline">'+esc(a.label)+'</span>':''}</td>
+      <td class="r">${(Number(a.impoRate!=null?a.impoRate:0)*100).toFixed(2)} %</td>
+      <td class="r">${(Number(a.cnpsRate||0)*100).toFixed(2)} %</td>
       <td style="text-align:center;white-space:nowrap"><button class="btn ghost sm" onclick="avnModal('${a.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="avnDelete('${a.id}')">Suppr.</button></td></tr>`).join("")
-      :'<tr><td colspan="7" class="note">Aucun avantage configuré.</td></tr>'}</table>`;
+      :'<tr><td colspan="4" class="note">Aucune rubrique partiellement imposable configurée.</td></tr>'}</table>`;
 }
 function avnModal(idv){
-  const a=idv?((window._PAYAVN||[]).find(x=>x.id===idv)||{}):{base:"taxable",rate:0,impo:true,cnps:false,active:true};
-  const opt=(v,l,cur)=>`<option value="${v}" ${v===cur?"selected":""}>${l}</option>`;
+  const a=idv?((window._PAYAVN||[]).find(x=>x.id===idv)||{}):{impoRate:0.15,cnpsRate:0,active:true};
   const bg=document.createElement("div"); bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:480px"><b>${idv?"Modifier":"Ajouter"} un avantage en nature</b>
-    <div class="grid2" style="margin-top:8px">
-      <div style="grid-column:1/3"><label>Libellé</label><input id="avL" value="${esc(a.label||"")}" placeholder="ex. Logement de fonction"></div>
-      <div><label>Taux (ex. 0,15 = 15%)</label><input id="avR" type="number" step="any" value="${a.rate!=null?a.rate:""}"></div>
-      <div><label>Base de calcul</label><select id="avB">${opt("taxable","Salaire brut taxable",a.base||"taxable")}${opt("salbase","Salaire de base",a.base)}${opt("brut","Brut total",a.base)}</select></div>
-      <div><label>Rubrique liée (optionnel)</label><input id="avRub" list="rubCodes" value="${esc(a.rubriqueCode||"")}" placeholder="ex. 3510"></div>
-      <div><label>Code</label><input id="avC" value="${esc(a.code||"")}" placeholder="auto"></div>
-      <div style="display:flex;gap:14px;align-items:end;padding-bottom:6px">
-        <label class="chk" style="margin:0"><input type="checkbox" id="avImpo" ${a.impo!==false?"checked":""}><span>Imposable IRPP</span></label>
-        <label class="chk" style="margin:0"><input type="checkbox" id="avCnps" ${a.cnps?"checked":""}><span>Soumis CNPS</span></label></div>
+  bg.innerHTML=`<div class="modal" style="max-width:460px"><b>${idv?"Modifier":"Ajouter"} une rubrique partiellement imposable</b>
+    <div class="note" style="margin:4px 0 8px">Seule la fraction indiquée du montant de la rubrique entre dans l'assiette. Le montant total reste payé (brut/net inchangé). Ex. logement 15 000 à 15% imposable → 2 250 imposés.</div>
+    <div class="grid2" style="margin-top:4px">
+      <div style="grid-column:1/3"><label>Rubrique liée</label><input id="avRub" list="rubCodes" value="${esc(a.rubriqueCode||"")}" placeholder="ex. 3510"></div>
+      <div><label>% imposable IRPP (0,15 = 15%)</label><input id="avImpoR" type="number" step="any" value="${a.impoRate!=null?a.impoRate:""}"></div>
+      <div><label>% cotisable CNPS (0 = hors CNPS)</label><input id="avCnpsR" type="number" step="any" value="${a.cnpsRate!=null?a.cnpsRate:0}"></div>
+      <div style="grid-column:1/3"><label>Libellé (optionnel)</label><input id="avL" value="${esc(a.label||"")}" placeholder="auto (nom de la rubrique)"></div>
       <div style="display:flex;align-items:end;padding-bottom:6px"><label class="chk" style="margin:0"><input type="checkbox" id="avAct" ${a.active!==false?"checked":""}><span>Actif</span></label></div>
     </div>
-    <div class="note" style="margin-top:4px">Si une <b>rubrique liée</b> est renseignée, l'avantage s'applique automatiquement dès que cette rubrique est sur le bulletin. Vous pouvez aussi l'attribuer manuellement à un salarié (élément « Avantage en nature »).</div>
     <div class="err hidden" id="avErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
@@ -6629,11 +6608,12 @@ function avnModal(idv){
   document.body.appendChild(bg);
 }
 async function avnSave(idv){
-  const body={ label:document.getElementById("avL").value.trim(), rate:Number(document.getElementById("avR").value)||0,
-    base:document.getElementById("avB").value, rubriqueCode:document.getElementById("avRub").value.trim(),
-    code:document.getElementById("avC").value.trim(), impo:document.getElementById("avImpo").checked,
-    cnps:document.getElementById("avCnps").checked, active:document.getElementById("avAct").checked };
-  if(!body.label){ const e=document.getElementById("avErr"); e.textContent="Libellé requis."; e.classList.remove("hidden"); return; }
+  const body={ rubriqueCode:document.getElementById("avRub").value.trim(),
+    impoRate:Number(document.getElementById("avImpoR").value)||0,
+    cnpsRate:Number(document.getElementById("avCnpsR").value)||0,
+    label:document.getElementById("avL").value.trim(), active:document.getElementById("avAct").checked };
+  if(!body.rubriqueCode){ const e=document.getElementById("avErr"); e.textContent="Rubrique liée obligatoire."; e.classList.remove("hidden"); return; }
+  if(!body.label){ const r=(PAY_RUBS||[]).find(x=>String(x.code)===body.rubriqueCode); body.label=r?r.label:body.rubriqueCode; }
   try{ if(idv) await api("/payroll/avantages-nature/"+idv,{method:"PUT",body:JSON.stringify(body)});
     else await api("/payroll/avantages-nature",{method:"POST",body:JSON.stringify(body)});
     window._PAYAVN=await api("/payroll/avantages-nature").catch(()=>window._PAYAVN);
@@ -6693,12 +6673,10 @@ function payBaremesHTML(cfg){
     </div>
   </div>
   <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <b style="font-size:12px;color:var(--muted)">AVANTAGES EN NATURE AU FORFAIT (Art. 33 CGI)</b>
-      <button class="btn p sm" onclick="avnModal()">${ICO('plus')} Ajouter un avantage</button></div>
-    <div class="note" style="margin:4px 0 8px">Chaque avantage est évalué au forfait = <b>taux × base</b> (base au choix : salaire brut taxable, salaire de base ou brut total). Imposable/CNPS configurables. <b>Rubrique liée</b> : si cette rubrique figure sur le bulletin, l'avantage s'applique automatiquement ; sinon on l'attribue manuellement au salarié.</div>
-    <div id="avnTable"></div>
-    <div class="grid3" style="margin-top:10px"><div><label>Plafond imposable indemnité de logement (% du salaire de base)</label>${num("housing.taxableCapRate", (cfg.housing&&cfg.housing.taxableCapRate)!=null?cfg.housing.taxableCapRate:0.15)}</div></div>
-    <div class="note" style="margin-top:6px">À distinguer des avantages ci-dessus : l'<b>indemnité de logement en espèces</b> est imposable à l'IRPP seulement jusqu'à ce taux × salaire de base ; l'excédent reste au brut/net mais sort de la base IRPP.</div></div>
+      <b style="font-size:12px;color:var(--muted)">RUBRIQUES PARTIELLEMENT IMPOSABLES (avantages)</b>
+      <button class="btn p sm" onclick="avnModal()">${ICO('plus')} Ajouter</button></div>
+    <div class="note" style="margin:4px 0 8px">Pour une rubrique liée, seule la fraction indiquée de son <b>montant</b> entre dans l'assiette : <b>% IRPP × montant</b> pour l'impôt, <b>% CNPS × montant</b> pour la cotisation. Le montant total reste payé (brut/net inchangé) et la rubrique garde sa ligne unique. Exemple : indemnité de logement 15 000 à 15% → 2 250 imposés. La fraction s'applique au montant après proratisation.</div>
+    <div id="avnTable"></div></div>
   <div class="panel"><button class="btn p" onclick="paySaveConfig()">Enregistrer les paramètres</button>
     <span class="err hidden" id="cfgErr" style="margin-left:10px"></span>
     <span id="cfgOk" style="margin-left:10px;color:var(--green)"></span></div>`;

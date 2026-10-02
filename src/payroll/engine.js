@@ -210,67 +210,35 @@ function computePayslip(input, configOverride) {
     const _tpr = (transport.prorate && PRORATA < 1); add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: _tpr ? r3(pr) : 1, base: fullAmt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
   }
 
-  // Avantages en nature: valued benefit - taxable (and optionally cotisable) but NOT
-  // paid in cash. Increases NETIMPO/NETCOTI (so IRPP/CNPS rise) without touching brut/net.
-  const avantages = input.avantages || input.nonCashBenefits || [];
-  // Bases possibles pour le forfait (choisies PAR avantage) :
-  //  - "taxable" : salaire brut TAXABLE en espèces (gains imposables + fraction imposable du transport), Art.33 CGI ;
-  //  - "salbase" : salaire de base (proratisé) ; - "brut" : total des gains en espèces.
-  const avForfaitBase = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s2, l) => s2 + l.gain, 0) + transportTaxable;
-  const _avGainSum = lines.filter(l => l.kind === "GAIN").reduce((s2, l) => s2 + l.gain, 0);
-  const _avSalBase = (lines.find(l => String(l.code) === "1000") || {}).gain || proratedBase || baseSalary;
-  const _avBaseOf = (which) => which === "salbase" ? _avSalBase : which === "brut" ? _avGainSum : avForfaitBase;
-  const avList = cfg.avantagesNatureList || [];               // liste configurable (nouveau)
-  const avByCode = {}; for (const a of avList) avByCode[String(a.code || "").toUpperCase()] = a;
-  const avRatesLegacy = cfg.avantagesNature || {};            // ancien objet type->taux (compat)
-  const _forfait = (cfgAv, units) => r0(_avBaseOf(cfgAv.base) * Number(cfgAv.rate || 0) * (units || 1));
-  let avTotal = 0, avImpo = 0, avCnps = 0;
-  const _emit = (code, label, amt, isCnps, isImpo, avCode) => {
-    if (!amt) return;
-    add({ code: code || "4000", label, kind: "AVANTAGE", nombre: 1, base: amt, rate: 1, gain: amt, avantage: true, avType: avCode || null, cnps: !!isCnps, impo: isImpo !== false });
-    avTotal += amt; if (isImpo !== false) avImpo += amt; if (isCnps) avCnps += amt;
-  };
-  const _appliedCodes = new Set(); // codes d'avantages déjà posés manuellement (pour éviter le doublon auto)
-  // 1) Avantages attribués manuellement (input.avantages)
-  for (const a of avantages) {
-    if (!a) continue;
-    const units = (a.units != null && a.units !== "") ? Number(a.units) : 1;
-    const cfgAv = a.avId ? avList.find(x => x.id === a.avId) : ((a.type || a.code) ? avByCode[String(a.type || a.code).toUpperCase()] : null);
-    let amt, label, isCnps = !!a.cnps, isImpo = a.impo !== false, code = a.code;
-    if (a.amount != null && a.amount !== "") { amt = r0(a.amount); if (cfgAv) { label = a.label || cfgAv.label; code = a.code || cfgAv.code; } }
-    else if (cfgAv) { amt = _forfait(cfgAv, units); label = a.label || ("Avantage en nature - " + cfgAv.label); isCnps = cfgAv.cnps; isImpo = cfgAv.impo !== false; code = a.code || cfgAv.code; }
-    else if (a.type && avRatesLegacy[a.type] != null) { amt = r0(avForfaitBase * Number(avRatesLegacy[a.type]) * units); }
-    else continue;
-    const label2 = label || a.label || (a.type ? ("Avantage en nature - " + a.type) : "Avantage en nature");
-    if (cfgAv) _appliedCodes.add(String(cfgAv.code).toUpperCase());
-    _emit(code, label2, amt, isCnps, isImpo, cfgAv ? cfgAv.code : (a.type || null));
+  // ===== Fractions imposable / cotisable PAR RUBRIQUE (avantages) =====
+  // Une rubrique "liée" (configurée dans avantagesNatureList avec un rubriqueCode) n'entre dans
+  // l'assiette IRPP qu'à hauteur de impoRate × son montant, et dans l'assiette CNPS qu'à hauteur
+  // de cnpsRate × son montant. Ces taux GOUVERNENT (ils remplacent les cases Soumis IRPP/CNPS).
+  // Les rubriques NON liées gardent le tout-ou-rien selon leurs drapeaux. RIEN n'est ajouté au
+  // BRUT ni au NET, et AUCUNE ligne "avantage" n'est créée : seules les assiettes changent.
+  // La fraction s'applique au montant APRÈS proratisation (= le gain de la ligne).
+  const partMap = {};
+  for (const a of (cfg.avantagesNatureList || [])) {
+    if (a.active === false || !a.rubriqueCode) continue;
+    partMap[String(a.rubriqueCode)] = {
+      impoRate: Number(a.impoRate != null ? a.impoRate : (a.rate != null ? a.rate : 1)),
+      cnpsRate: Number(a.cnpsRate != null ? a.cnpsRate : 0),
+    };
   }
-  // 2) Auto-application : tout avantage configuré dont la rubrique liée est présente dans les gains.
-  for (const av of avList) {
-    if (!av.rubriqueCode) continue;
-    if (_appliedCodes.has(String(av.code).toUpperCase())) continue;
-    const present = lines.some(l => l.kind === "GAIN" && String(l.code) === String(av.rubriqueCode));
-    if (!present) continue;
-    _emit(av.code, "Avantage en nature - " + av.label, _forfait(av, 1), av.cnps, av.impo !== false, av.code);
-  }
+  const avTotal = 0; // compat : plus d'avantages en ligne sur le bulletin
 
   /* 2) NAMED BASES */
   const BRUT = lines.filter(l => l.kind === "GAIN").reduce((s, l) => s + l.gain, 0);
-  const NETCOTI = lines.filter(l => l.kind === "GAIN" && l.cnps).reduce((s, l) => s + l.gain, 0) + avCnps;
-  // Indemnité de logement : fraction imposable plafonnée à taxableCapRate × salaire de base (proratisé).
-  const _housingCode = String((cfg.housing && cfg.housing.code) != null ? cfg.housing.code : "3510");
-  const _housingCapRate = (cfg.housing && cfg.housing.taxableCapRate != null) ? Number(cfg.housing.taxableCapRate) : 0.15;
-  const _salBaseGain = (lines.find(l => String(l.code) === "1000") || {}).gain || proratedBase || baseSalary;
-  const _housingCap = r0(_housingCapRate * _salBaseGain);
-  const NETIMPO = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s, l) => {
-    if (String(l.code) === _housingCode) {
-      const taxable = Math.min(l.gain, _housingCap);
-      l._housingTaxable = taxable;            // fraction imposable retenue
-      l._housingExcluded = r0(l.gain - taxable); // part exonérée d'IRPP (reste au brut/net)
-      return s + taxable;
-    }
-    return s + l.gain;
-  }, 0) + transportTaxable + avImpo;
+  const NETCOTI = lines.filter(l => l.kind === "GAIN").reduce((s, l) => {
+    const p = partMap[String(l.code)];
+    if (p) { const part = r0(p.cnpsRate * l.gain); l._cnpsPart = part; return s + part; }
+    return s + (l.cnps ? l.gain : 0);
+  }, 0);
+  const NETIMPO = lines.filter(l => l.kind === "GAIN").reduce((s, l) => {
+    const p = partMap[String(l.code)];
+    if (p) { const part = r0(p.impoRate * l.gain); l._impoPart = part; l._impoExcluded = r0(l.gain - part); return s + part; }
+    return s + (l.impo ? l.gain : 0);
+  }, 0) + transportTaxable;
   // Surcharges manuelles par bulletin (cas d'une config Sage non standard) : si fournies, elles
   // remplacent l'assiette calculee. Laisser vide pour le comportement legal par defaut.
   const NETCOTI_EFF = (input.cnpsBaseOverride != null && input.cnpsBaseOverride !== "") ? Number(input.cnpsBaseOverride) : NETCOTI;
