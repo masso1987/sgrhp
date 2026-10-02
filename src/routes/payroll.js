@@ -317,7 +317,7 @@ function elementsToInput(emp, period, req, opts) {
       case "HS100": overtime.hundred += Number(e.hours || 0); break;
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
-      case "AVANTAGE": { const f = _flags(e, true, false); const _hasAmt = e.amount != null && e.amount !== ""; avantages.push({ code: e.code || "4000", label: e.label || "Avantage en nature", amount: _hasAmt ? Number(e.amount) : null, type: e.avType || e.type || null, units: e.units != null ? Number(e.units) : null, cnps: f.cnps, impo: f.impo }); break; }
+      case "AVANTAGE": { const f = _flags(e, true, false); const _hasAmt = e.amount != null && e.amount !== ""; avantages.push({ avId: e.avId || null, code: e.code || "4000", label: e.label || "Avantage en nature", amount: _hasAmt ? Number(e.amount) : null, type: e.avType || e.code || null, units: e.units != null ? Number(e.units) : null, cnps: f.cnps, impo: f.impo }); break; }
       case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)), prorate: rubProrates(_rubOf("2514")) }); break; }
       case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount), prorate: rubProrates(_rubOf("2035")) }); break;
       default: break;
@@ -358,7 +358,9 @@ function elementsToInput(emp, period, req, opts) {
   };
 }
 function computeFor(emp, period, req, opts) {
-  const cfg = configOf(req);
+  seedAvantagesNature(req);
+  const cfg = Object.assign({}, configOf(req)); // clone : on ne persiste pas la liste sur la config
+  cfg.avantagesNatureList = mine(db.payAvantagesNature, req).filter(a => a.active !== false);
   const input = elementsToInput(emp, period, req, opts);
   const result = computePayslip(input, cfg);
   return { input, result };
@@ -440,6 +442,61 @@ router.put("/config", allow("RP", "ADM"), (req, res) => {
   save();
   audit(req.user, "CONFIG_CHANGED", "PayrollConfig", c.id, { before, after: c });
   res.json(c);
+});
+
+/* ===== Avantages en nature au forfait (Art. 33 CGI) - configurables & liés à une rubrique ===== */
+const AVN_DEFAULTS = [
+  { code: "AVLOG",  label: "Logement",             rate: 0.15, base: "taxable", cnps: false, impo: true, rubriqueCode: "3510", legacy: "logement" },
+  { code: "AVELEC", label: "Électricité",          rate: 0.04, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "electricite" },
+  { code: "AVEAU",  label: "Eau",                  rate: 0.02, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "eau" },
+  { code: "AVVEH",  label: "Véhicule",             rate: 0.10, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "vehicule" },
+  { code: "AVNOUR", label: "Nourriture",           rate: 0.10, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "nourriture" },
+  { code: "AVDOM",  label: "Domestique / gardien", rate: 0.05, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "domestique" },
+  { code: "AVTEL",  label: "Téléphone",            rate: 0.05, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "telephone" },
+];
+function seedAvantagesNature(req) {
+  if (mine(db.payAvantagesNature, req).length) return;
+  const old = (configOf(req).avantagesNature) || {}; // migration depuis l'ancien objet de taux
+  for (const d of AVN_DEFAULTS) {
+    const rate = (d.legacy && old[d.legacy] != null) ? Number(old[d.legacy]) : d.rate;
+    db.payAvantagesNature.push(stamp({ id: id("avn"), code: d.code, label: d.label, rate, base: d.base, cnps: d.cnps, impo: d.impo, rubriqueCode: d.rubriqueCode, active: true, createdAt: new Date().toISOString() }, req));
+  }
+  save();
+}
+router.get("/avantages-nature", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  seedAvantagesNature(req);
+  res.json(mine(db.payAvantagesNature, req).slice().sort((a, b) => String(a.label).localeCompare(String(b.label))));
+});
+router.post("/avantages-nature", allow("RP", "ADM"), (req, res) => {
+  const b = req.body || {};
+  if (!b.label) return res.status(400).json({ error: "Libellé requis" });
+  const code = String(b.code || ("AV" + Date.now().toString(36))).toUpperCase();
+  if (mine(db.payAvantagesNature, req).some(a => String(a.code).toUpperCase() === code)) return res.status(409).json({ error: "Ce code existe déjà" });
+  const rec = stamp({ id: id("avn"), code, label: String(b.label), rate: Number(b.rate) || 0, base: b.base || "taxable", cnps: !!b.cnps, impo: b.impo !== false, rubriqueCode: b.rubriqueCode ? String(b.rubriqueCode) : "", active: b.active !== false, createdAt: new Date().toISOString() }, req);
+  db.payAvantagesNature.push(rec); save(); audit(req.user, "CREATED", "AvantageNature", rec.id, { code });
+  res.status(201).json(rec);
+});
+router.put("/avantages-nature/:id", allow("RP", "ADM"), (req, res) => {
+  const x = mine(db.payAvantagesNature, req).find(a => a.id === req.params.id);
+  if (!x) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  if (b.label !== undefined) x.label = String(b.label);
+  if (b.code !== undefined) x.code = String(b.code).toUpperCase();
+  if (b.rate !== undefined) x.rate = Number(b.rate) || 0;
+  if (b.base !== undefined) x.base = String(b.base);
+  if (b.cnps !== undefined) x.cnps = !!b.cnps;
+  if (b.impo !== undefined) x.impo = b.impo !== false;
+  if (b.rubriqueCode !== undefined) x.rubriqueCode = b.rubriqueCode ? String(b.rubriqueCode) : "";
+  if (b.active !== undefined) x.active = !!b.active;
+  save(); audit(req.user, "UPDATED", "AvantageNature", x.id, {});
+  res.json(x);
+});
+router.delete("/avantages-nature/:id", allow("RP", "ADM"), (req, res) => {
+  const x = mine(db.payAvantagesNature, req).find(a => a.id === req.params.id);
+  if (!x) return res.status(404).json({ error: "Introuvable" });
+  db.payAvantagesNature.splice(db.payAvantagesNature.indexOf(x), 1); save();
+  audit(req.user, "DELETED", "AvantageNature", x.id, {});
+  res.json({ ok: true });
 });
 
 // A rubrique is "in use" once its code appears in any computed/closed payslip.
@@ -775,6 +832,7 @@ router.post("/elements", allow("RP", "ADM", "GPF"), (req, res) => {
     code: b.code || b.type, label: b.label || b.type, amount: b.amount ? Number(b.amount) : undefined,
     hours: b.hours ? Number(b.hours) : undefined, days: b.days ? Number(b.days) : undefined,
     impo: _impo, cnps: _cnps,
+    avId: b.avId || undefined, avType: b.avType || undefined, units: b.units != null && b.units !== "" ? Number(b.units) : undefined,
     createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
   db.payElements.push(e); save();
   const rc = recomputeEmployeePayslip(req, e.employeeId, e.period); if (rc.recomputed) save();

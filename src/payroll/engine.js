@@ -213,30 +213,45 @@ function computePayslip(input, configOverride) {
   // Avantages en nature: valued benefit - taxable (and optionally cotisable) but NOT
   // paid in cash. Increases NETIMPO/NETCOTI (so IRPP/CNPS rise) without touching brut/net.
   const avantages = input.avantages || input.nonCashBenefits || [];
-  // Base forfaitaire Art. 33 CGI = salaire brut TAXABLE EN ESPÈCES (gains imposables déjà ajoutés
-  // + fraction imposable du transport), avant les avantages en nature eux-mêmes (pas de circularité).
+  // Bases possibles pour le forfait (choisies PAR avantage) :
+  //  - "taxable" : salaire brut TAXABLE en espèces (gains imposables + fraction imposable du transport), Art.33 CGI ;
+  //  - "salbase" : salaire de base (proratisé) ; - "brut" : total des gains en espèces.
   const avForfaitBase = lines.filter(l => l.kind === "GAIN" && l.impo).reduce((s2, l) => s2 + l.gain, 0) + transportTaxable;
-  const avRates = cfg.avantagesNature || {};
+  const _avGainSum = lines.filter(l => l.kind === "GAIN").reduce((s2, l) => s2 + l.gain, 0);
+  const _avSalBase = (lines.find(l => String(l.code) === "1000") || {}).gain || proratedBase || baseSalary;
+  const _avBaseOf = (which) => which === "salbase" ? _avSalBase : which === "brut" ? _avGainSum : avForfaitBase;
+  const avList = cfg.avantagesNatureList || [];               // liste configurable (nouveau)
+  const avByCode = {}; for (const a of avList) avByCode[String(a.code || "").toUpperCase()] = a;
+  const avRatesLegacy = cfg.avantagesNature || {};            // ancien objet type->taux (compat)
+  const _forfait = (cfgAv, units) => r0(_avBaseOf(cfgAv.base) * Number(cfgAv.rate || 0) * (units || 1));
   let avTotal = 0, avImpo = 0, avCnps = 0;
+  const _emit = (code, label, amt, isCnps, isImpo, avCode) => {
+    if (!amt) return;
+    add({ code: code || "4000", label, kind: "AVANTAGE", nombre: 1, base: amt, rate: 1, gain: amt, avantage: true, avType: avCode || null, cnps: !!isCnps, impo: isImpo !== false });
+    avTotal += amt; if (isImpo !== false) avImpo += amt; if (isCnps) avCnps += amt;
+  };
+  const _appliedCodes = new Set(); // codes d'avantages déjà posés manuellement (pour éviter le doublon auto)
+  // 1) Avantages attribués manuellement (input.avantages)
   for (const a of avantages) {
     if (!a) continue;
-    // Montant : explicite si fourni ; sinon évalué au forfait (taux Art.33 × base taxable × quantité).
-    let amt;
-    if (a.amount != null && a.amount !== "") {
-      amt = r0(a.amount);
-    } else if (a.type && avRates[a.type] != null) {
-      const units = (a.units != null && a.units !== "") ? Number(a.units) : 1;
-      amt = r0(avForfaitBase * Number(avRates[a.type]) * units);
-    } else {
-      continue; // ni montant ni type reconnu : on ignore
-    }
-    if (!amt) continue;
-    const label = a.label || (a.type ? ("Avantage en nature - " + a.type) : "Avantage en nature");
-    // Avantages en nature : imposables à l'IRPP par défaut ; hors assiette CNPS sauf cnps explicite.
-    const isImpo = a.impo !== false, isCnps = !!a.cnps;
-    add({ code: a.code || "4000", label, kind: "AVANTAGE",
-      nombre: 1, base: amt, rate: 1, gain: amt, avantage: true, avType: a.type || null, cnps: isCnps, impo: isImpo });
-    avTotal += amt; if (isImpo) avImpo += amt; if (isCnps) avCnps += amt;
+    const units = (a.units != null && a.units !== "") ? Number(a.units) : 1;
+    const cfgAv = a.avId ? avList.find(x => x.id === a.avId) : ((a.type || a.code) ? avByCode[String(a.type || a.code).toUpperCase()] : null);
+    let amt, label, isCnps = !!a.cnps, isImpo = a.impo !== false, code = a.code;
+    if (a.amount != null && a.amount !== "") { amt = r0(a.amount); if (cfgAv) { label = a.label || cfgAv.label; code = a.code || cfgAv.rubriqueCode || cfgAv.code; } }
+    else if (cfgAv) { amt = _forfait(cfgAv, units); label = a.label || ("Avantage en nature - " + cfgAv.label); isCnps = cfgAv.cnps; isImpo = cfgAv.impo !== false; code = a.code || cfgAv.rubriqueCode || cfgAv.code; }
+    else if (a.type && avRatesLegacy[a.type] != null) { amt = r0(avForfaitBase * Number(avRatesLegacy[a.type]) * units); }
+    else continue;
+    const label2 = label || a.label || (a.type ? ("Avantage en nature - " + a.type) : "Avantage en nature");
+    if (cfgAv) _appliedCodes.add(String(cfgAv.code).toUpperCase());
+    _emit(code, label2, amt, isCnps, isImpo, cfgAv ? cfgAv.code : (a.type || null));
+  }
+  // 2) Auto-application : tout avantage configuré dont la rubrique liée est présente dans les gains.
+  for (const av of avList) {
+    if (!av.rubriqueCode) continue;
+    if (_appliedCodes.has(String(av.code).toUpperCase())) continue;
+    const present = lines.some(l => l.kind === "GAIN" && String(l.code) === String(av.rubriqueCode));
+    if (!present) continue;
+    _emit(av.rubriqueCode, "Avantage en nature - " + av.label, _forfait(av, 1), av.cnps, av.impo !== false, av.code);
   }
 
   /* 2) NAMED BASES */
