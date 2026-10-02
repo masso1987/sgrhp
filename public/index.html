@@ -2524,6 +2524,7 @@ async function empDetail(id) {
     ${(ME.role === "ADM" || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">Supprimer</button>` : ""}
     <button class="btn ghost sm" onclick="empExport('${e.id}','${esc(e.lastName)}')">Dossier (PDF)</button></span></h1>
     ${rejBanner}
+    ${["GPF","ADM","CD","RJ"].includes(ME.role) ? `<div id="appAcctBox" class="panel"><b style="font-size:12px;color:var(--muted)">COMPTE APPLICATION MOBILE</b><div class="note" style="margin-top:4px">Chargement…</div></div>` : ""}
     ${canEdit && (!doc || doc.status === "DRAFT") ? `
       <button class="btn p" style="margin-bottom:12px" ${complete ? "" : "disabled title='Upload all required documents first'"}
         onclick="empSubmit('${e.id}')">Soumettre pour validation ${complete ? "" : "(pièces incomplètes)"}</button>`
@@ -2576,6 +2577,58 @@ async function empDetail(id) {
         ? `<span class="tag green">${tt("Déposée","Uploaded")}</span> ${fileBtns(e, c.code)}`
         : canEdit ? uploadForm(e.id, c.code) : (c.atCreation ? '<span class="tag amber">'+tt("Manquante","Missing")+'</span>' : '<span class="tag" style="background:#fff7ed;color:#b45309">'+tt("En attente","Pending")+'</span>')}</div></div>`).join("")}
     </div>`;
+  if (document.getElementById("appAcctBox")) empAppAccountLoad(e.id);
+}
+async function empAppAccountLoad(eid){
+  const box=document.getElementById("appAcctBox"); if(!box) return;
+  const canEdit=["GPF","ADM"].includes(ME.role);
+  let a; try{ a=await api("/employees/"+eid+"/app-account"); }catch(err){ box.innerHTML='<b style="font-size:12px;color:var(--muted)">COMPTE APPLICATION MOBILE</b><div class="note" style="margin-top:4px;color:var(--red)">'+esc(err.message)+'</div>'; return; }
+  let body;
+  if(a && a.provisioned){
+    body=`<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:8px">
+      <div><label>Identifiant</label><div><b>${esc(a.login)}</b></div></div>
+      <div><label>Statut</label><div>${a.active?'<span class="tag green">Actif</span>':'<span class="tag" style="background:#9ca3af;color:#fff">Désactivé</span>'}${a.mustChangePwd?' <span class="tag amber">mot de passe à changer</span>':''}</div></div>
+      ${canEdit?`<div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn ghost sm" onclick="empAppAccountReset('${eid}')">Réinitialiser le mot de passe</button>
+        ${a.active?`<button class="btn ghost sm" style="color:var(--red)" onclick="empAppAccountDeactivate('${eid}')">Désactiver</button>`:`<button class="btn ghost sm" onclick="empAppAccountReset('${eid}')">Réactiver + nouveau mot de passe</button>`}
+      </div>`:""}</div>
+      <div class="note" style="margin-top:6px">L'employé se connecte à l'application mobile avec cet identifiant. En cas d'oubli, réinitialisez le mot de passe puis communiquez-lui le nouveau.</div>`;
+  } else {
+    body=`<div class="note" style="margin-top:4px">Aucun compte mobile pour ce salarié.</div>
+      ${canEdit?`<div style="margin-top:8px;display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+        <div><label>Identifiant (optionnel — matricule par défaut)</label><input id="aaLogin" placeholder="${esc(window._aaMatricule||'')}" style="margin:0;min-width:220px"></div>
+        <button class="btn p sm" onclick="empAppAccountCreate('${eid}')">Créer le compte mobile</button></div>`:'<div class="note">Seuls le GPF et l\'administrateur peuvent créer un compte.</div>'}`;
+  }
+  box.innerHTML='<b style="font-size:12px;color:var(--muted)">COMPTE APPLICATION MOBILE</b>'+body;
+}
+function empAppAccountCreds(login, pwd){
+  // Affiche les identifiants à communiquer (le mot de passe n'est montré qu'une seule fois).
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:420px"><b>Identifiants à communiquer à l'employé</b>
+    <div class="note" style="margin-top:6px;background:var(--red-bg);border-color:#fca5a5">Notez-les maintenant : le mot de passe temporaire ne sera plus affiché. L'employé devra le changer à la première connexion.</div>
+    <div style="margin-top:10px;font-size:15px"><label>Identifiant</label><div><b id="aaCredLogin">${esc(login)}</b></div></div>
+    <div style="margin-top:8px;font-size:15px"><label>Mot de passe temporaire</label><div><b id="aaCredPwd" style="font-family:monospace;font-size:17px">${esc(pwd)}</b></div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost sm" onclick="(function(){navigator.clipboard&&navigator.clipboard.writeText('Identifiant: ${esc(login)}\nMot de passe: ${esc(pwd)}');})()">Copier</button>
+      <button class="btn p sm" onclick="this.closest('.modal-bg').remove()">J'ai noté</button></div></div>`;
+  bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function empAppAccountCreate(eid){
+  const login=(document.getElementById("aaLogin")||{}).value||"";
+  try{ const r=await api("/employees/"+eid+"/app-account",{method:"POST",body:JSON.stringify(login?{login}:{})});
+    empAppAccountCreds(r.login, r.temporary_password); empAppAccountLoad(eid);
+  }catch(err){ alert(err.message); }
+}
+async function empAppAccountReset(eid){
+  if(!await mmConfirm({title:"Réinitialiser le mot de passe",message:"Générer un nouveau mot de passe temporaire ? L'ancien et les sessions mobiles en cours seront invalidés.",confirmLabel:"Réinitialiser"})) return;
+  try{ const r=await api("/employees/"+eid+"/app-account/reset",{method:"POST"});
+    empAppAccountCreds(r.login, r.temporary_password); empAppAccountLoad(eid);
+  }catch(err){ alert(err.message); }
+}
+async function empAppAccountDeactivate(eid){
+  if(!await mmConfirm({title:"Désactiver le compte mobile",message:"L'employé ne pourra plus se connecter à l'application. Vous pourrez le réactiver plus tard.",confirmLabel:"Désactiver",danger:true})) return;
+  try{ await api("/employees/"+eid+"/app-account",{method:"DELETE"}); empAppAccountLoad(eid); }catch(err){ alert(err.message); }
 }
 async function empSubmit(id) {
   try { await api(`/employees/${id}/submit`, { method: "POST" });
