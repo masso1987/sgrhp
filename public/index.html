@@ -6592,26 +6592,26 @@ function avnRender(){
   const box=document.getElementById("avnTable"); if(!box) return;
   const list=window._PAYAVN||[];
   const rub=c=>{ const r=(PAY_RUBS||[]).find(x=>String(x.code)===String(c)); return c?("<b>"+esc(c)+"</b>"+(r?" · "+esc(r.label):"")):'<span class="note-inline">non liée</span>'; };
-  box.innerHTML=`<table style="width:100%;font-size:13px"><tr><th>Rubrique liée</th><th class="r">% imposable (IRPP)</th><th class="r">% cotisable (CNPS)</th><th style="width:70px"></th></tr>
+  box.innerHTML=`<table style="width:100%;font-size:13px"><tr><th>Rubrique liée (avantage)</th><th class="r">Taux forfaitaire</th><th style="width:70px"></th></tr>
     ${list.length?list.map(a=>`<tr${a.active===false?' style="opacity:.5"':''}>
       <td>${rub(a.rubriqueCode)}${a.label?' <span class="note-inline">'+esc(a.label)+'</span>':''}</td>
-      <td class="r">${(Number(a.impoRate!=null?a.impoRate:0)*100).toFixed(2)} %</td>
-      <td class="r">${(Number(a.cnpsRate||0)*100).toFixed(2)} %</td>
+      <td class="r">${(Number(a.rate!=null?a.rate:(a.impoRate||0))*100).toFixed(2)} %</td>
       <td style="text-align:center;white-space:nowrap"><button class="btn ghost sm" onclick="avnModal('${a.id}')">Modifier</button> <button class="btn ghost sm" style="color:var(--red)" onclick="avnDelete('${a.id}')">Suppr.</button></td></tr>`).join("")
-      :'<tr><td colspan="4" class="note">Aucune rubrique partiellement imposable configurée.</td></tr>'}</table>`;
+      :'<tr><td colspan="3" class="note">Aucun avantage en nature configuré.</td></tr>'}</table>`;
 }
 function avnModal(idv){
-  const a=idv?((window._PAYAVN||[]).find(x=>x.id===idv)||{}):{impoRate:0.15,cnpsRate:0,active:true};
+  const a=idv?((window._PAYAVN||[]).find(x=>x.id===idv)||{}):{rate:0.15,active:true};
+  const rt=a.rate!=null?a.rate:(a.impoRate!=null?a.impoRate:"");
   const bg=document.createElement("div"); bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:460px"><b>${idv?"Modifier":"Ajouter"} une rubrique partiellement imposable</b>
-    <div class="note" style="margin:4px 0 8px">Seule la fraction indiquée du montant de la rubrique entre dans l'assiette. Le montant total reste payé (brut/net inchangé). Ex. logement 15 000 à 15% imposable → 2 250 imposés.</div>
+  bg.innerHTML=`<div class="modal" style="max-width:460px"><b>${idv?"Modifier":"Ajouter"} un avantage en nature</b>
+    <div class="note" style="margin:4px 0 8px">Part imposable = <b>MIN(taux × base 100% imposable, montant de la rubrique)</b>. La base 100% imposable est la somme des rubriques pleinement imposables (salaire, ancienneté, transport, heures supp…). Ex. logement 15% : MIN(15% × base, montant du logement). Le montant total reste payé ; seule l'assiette IRPP change (la CNPS porte sur le montant complet selon la case CNPS de la rubrique).</div>
     <div class="grid2" style="margin-top:4px">
-      <div style="grid-column:1/3"><label>Rubrique liée</label><input id="avRub" list="rubCodes" value="${esc(a.rubriqueCode||"")}" placeholder="ex. 3510"></div>
-      <div><label>% imposable IRPP (0,15 = 15%)</label><input id="avImpoR" type="number" step="any" value="${a.impoRate!=null?a.impoRate:""}"></div>
-      <div><label>% cotisable CNPS (0 = hors CNPS)</label><input id="avCnpsR" type="number" step="any" value="${a.cnpsRate!=null?a.cnpsRate:0}"></div>
-      <div style="grid-column:1/3"><label>Libellé (optionnel)</label><input id="avL" value="${esc(a.label||"")}" placeholder="auto (nom de la rubrique)"></div>
+      <div style="grid-column:1/3"><label>Rubrique liée (l'avantage)</label><input id="avRub" list="rubCodes" value="${esc(a.rubriqueCode||"")}" placeholder="ex. 3510 (logement)"></div>
+      <div><label>Taux forfaitaire (0,15 = 15%)</label><input id="avR" type="number" step="any" value="${rt}"></div>
       <div style="display:flex;align-items:end;padding-bottom:6px"><label class="chk" style="margin:0"><input type="checkbox" id="avAct" ${a.active!==false?"checked":""}><span>Actif</span></label></div>
+      <div style="grid-column:1/3"><label>Libellé (optionnel)</label><input id="avL" value="${esc(a.label||"")}" placeholder="auto (nom de la rubrique)"></div>
     </div>
+    <div class="note" style="margin-top:4px">Taux usuels : logement 15%, véhicule 10%, domestique 5%, électricité 4%, eau 2%.</div>
     <div class="err hidden" id="avErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
@@ -6621,8 +6621,7 @@ function avnModal(idv){
 }
 async function avnSave(idv){
   const body={ rubriqueCode:document.getElementById("avRub").value.trim(),
-    impoRate:Number(document.getElementById("avImpoR").value)||0,
-    cnpsRate:Number(document.getElementById("avCnpsR").value)||0,
+    rate:Number(document.getElementById("avR").value)||0,
     label:document.getElementById("avL").value.trim(), active:document.getElementById("avAct").checked };
   if(!body.rubriqueCode){ const e=document.getElementById("avErr"); e.textContent="Rubrique liée obligatoire."; e.classList.remove("hidden"); return; }
   if(!body.label){ const r=(PAY_RUBS||[]).find(x=>String(x.code)===body.rubriqueCode); body.label=r?r.label:body.rubriqueCode; }
@@ -6715,9 +6714,9 @@ function payBaremesHTML(cfg){
     </div>
   </div>
   <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <b style="font-size:12px;color:var(--muted)">RUBRIQUES PARTIELLEMENT IMPOSABLES (avantages)</b>
+      <b style="font-size:12px;color:var(--muted)">AVANTAGES EN NATURE (Art. 33 CGI)</b>
       <button class="btn p sm" onclick="avnModal()">${ICO('plus')} Ajouter</button></div>
-    <div class="note" style="margin:4px 0 8px">Pour une rubrique liée, seule la fraction indiquée de son <b>montant</b> entre dans l'assiette : <b>% IRPP × montant</b> pour l'impôt, <b>% CNPS × montant</b> pour la cotisation. Le montant total reste payé (brut/net inchangé) et la rubrique garde sa ligne unique. Exemple : indemnité de logement 15 000 à 15% → 2 250 imposés. La fraction s'applique au montant après proratisation.</div>
+    <div class="note" style="margin:4px 0 8px">Part imposable d'un avantage = <b>MIN(taux × base 100% imposable, montant de la rubrique)</b>. La base 100% imposable = somme des rubriques pleinement imposables (salaire, ancienneté, transport, heures supp.). Exemple (logement 15%, base 353 004, logement 125 000) → MIN(52 951 ; 125 000) = <b>52 951</b> imposés. Le montant total reste payé (brut/net inchangés), une seule ligne ; la CNPS porte sur le montant complet (case CNPS de la rubrique).</div>
     <div id="avnTable"></div></div>
   <div class="panel"><button class="btn p" onclick="paySaveConfig()">Enregistrer les paramètres</button>
     <span class="err hidden" id="cfgErr" style="margin-left:10px"></span>

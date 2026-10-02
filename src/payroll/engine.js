@@ -217,26 +217,28 @@ function computePayslip(input, configOverride) {
   // Les rubriques NON liées gardent le tout-ou-rien selon leurs drapeaux. RIEN n'est ajouté au
   // BRUT ni au NET, et AUCUNE ligne "avantage" n'est créée : seules les assiettes changent.
   // La fraction s'applique au montant APRÈS proratisation (= le gain de la ligne).
-  const partMap = {};
+  // ===== Avantages en nature : évaluation forfaitaire (Art. 33 CGI / modèle DIPE) =====
+  // Une rubrique "avantage" (liée, avec un taux) est imposable à hauteur de
+  //   MIN( taux × BASE100 , montant de la rubrique )
+  // où BASE100 = somme des gains PLEINEMENT imposables (100 %), hors avantages et hors
+  // éléments non imposables. Le montant total reste payé (brut/net inchangés) ; aucune ligne
+  // n'est ajoutée. La CNPS reste sur les MONTANTS COMPLETS (drapeau cnps de la rubrique).
+  const avMap = {}; // rubriqueCode -> taux forfaitaire
   for (const a of (cfg.avantagesNatureList || [])) {
     if (a.active === false || !a.rubriqueCode) continue;
-    partMap[String(a.rubriqueCode)] = {
-      impoRate: Number(a.impoRate != null ? a.impoRate : (a.rate != null ? a.rate : 1)),
-      cnpsRate: Number(a.cnpsRate != null ? a.cnpsRate : 0),
-    };
+    avMap[String(a.rubriqueCode)] = Number(a.rate != null ? a.rate : (a.impoRate != null ? a.impoRate : 0));
   }
   const avTotal = 0; // compat : plus d'avantages en ligne sur le bulletin
 
   /* 2) NAMED BASES */
   const BRUT = lines.filter(l => l.kind === "GAIN").reduce((s, l) => s + l.gain, 0);
-  const NETCOTI = lines.filter(l => l.kind === "GAIN").reduce((s, l) => {
-    const p = partMap[String(l.code)];
-    if (p) { const part = r0(p.cnpsRate * l.gain); l._cnpsPart = part; return s + part; }
-    return s + (l.cnps ? l.gain : 0);
-  }, 0);
+  // CNPS : montants complets selon le drapeau cnps de chaque rubrique (les avantages y entrent en entier s'ils sont cnps).
+  const NETCOTI = lines.filter(l => l.kind === "GAIN" && l.cnps).reduce((s, l) => s + l.gain, 0);
+  // BASE100 = assiette 100 % imposable (gains imposables NON-avantages) + fraction imposable du transport.
+  const BASE100 = lines.filter(l => l.kind === "GAIN" && l.impo && avMap[String(l.code)] == null).reduce((s, l) => s + l.gain, 0) + transportTaxable;
   const NETIMPO = lines.filter(l => l.kind === "GAIN").reduce((s, l) => {
-    const p = partMap[String(l.code)];
-    if (p) { const part = r0(p.impoRate * l.gain); l._impoPart = part; l._impoExcluded = r0(l.gain - part); return s + part; }
+    const rate = avMap[String(l.code)];
+    if (rate != null) { const taxable = Math.min(r0(rate * BASE100), l.gain); l._impoPart = taxable; l._impoExcluded = r0(l.gain - taxable); return s + taxable; }
     return s + (l.impo ? l.gain : 0);
   }, 0) + transportTaxable;
   // Surcharges manuelles par bulletin (cas d'une config Sage non standard) : si fournies, elles

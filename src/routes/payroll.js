@@ -84,11 +84,13 @@ function recomputePayslip(s, req) {
   const avs = L.filter(l => l.kind === "AVANTAGE");
   const transportTaxable = L.reduce((a, l) => a + (Number(l._transportTaxable) || 0), 0);
   const BRUT = gains.reduce((a, l) => a + (l.gain || 0), 0);
-  // Fractions imposable/cotisable par rubrique liée (mêmes règles que le moteur : les taux gouvernent).
-  const _partMap = {};
-  if (req) for (const a of mine(db.payAvantagesNature, req)) { if (a.active === false || !a.rubriqueCode) continue; _partMap[String(a.rubriqueCode)] = { impoRate: Number(a.impoRate != null ? a.impoRate : (a.rate != null ? a.rate : 1)), cnpsRate: Number(a.cnpsRate != null ? a.cnpsRate : 0) }; }
-  const NETCOTI = gains.reduce((acc, l) => { const p = _partMap[String(l.code)]; return acc + (p ? r0(p.cnpsRate * (l.gain || 0)) : (l.cnps ? (l.gain || 0) : 0)); }, 0);
-  const NETIMPO = gains.reduce((acc, l) => { const p = _partMap[String(l.code)]; if (p) { const tx = r0(p.impoRate * (l.gain || 0)); l._impoPart = tx; l._impoExcluded = r0((l.gain || 0) - tx); return acc + tx; } return acc + (l.impo ? (l.gain || 0) : 0); }, 0) + transportTaxable;
+  // Avantages en nature (modèle DIPE) : imposable = MIN(taux x BASE100, montant). BASE100 = gains
+  // 100% imposables (hors avantages) + fraction imposable du transport. CNPS sur montants complets.
+  const _avMap = {};
+  if (req) for (const a of mine(db.payAvantagesNature, req)) { if (a.active === false || !a.rubriqueCode) continue; _avMap[String(a.rubriqueCode)] = Number(a.rate != null ? a.rate : (a.impoRate != null ? a.impoRate : 0)); }
+  const NETCOTI = gains.reduce((acc, l) => acc + (l.cnps ? (l.gain || 0) : 0), 0);
+  const BASE100 = gains.reduce((acc, l) => acc + ((l.impo && _avMap[String(l.code)] == null) ? (l.gain || 0) : 0), 0) + transportTaxable;
+  const NETIMPO = gains.reduce((acc, l) => { const rate = _avMap[String(l.code)]; if (rate != null) { const tx = Math.min(r0(rate * BASE100), l.gain || 0); l._impoPart = tx; l._impoExcluded = r0((l.gain || 0) - tx); return acc + tx; } return acc + (l.impo ? (l.gain || 0) : 0); }, 0) + transportTaxable;
   // Surcharges manuelles d'assiette (config Sage non standard), figees dans s.input au calcul.
   const _ov = (s && s.input) || {};
   const NETCOTI_EFF = (_ov.cnpsBaseOverride != null && _ov.cnpsBaseOverride !== "") ? Number(_ov.cnpsBaseOverride) : NETCOTI;
@@ -454,14 +456,14 @@ router.put("/config", allow("RP", "ADM"), (req, res) => {
 });
 
 /* ===== Avantages en nature au forfait (Art. 33 CGI) - configurables & liés à une rubrique ===== */
+// Avantages en nature (Art. 33 CGI) : imposable = MIN(taux x BASE100, montant de la rubrique).
+// BASE100 = somme des gains 100% imposables (hors avantages). Taux forfaitaires standards :
 const AVN_DEFAULTS = [
-  { code: "AVLOG",  label: "Indemnité de logement", impoRate: 0.15, cnpsRate: 0, rubriqueCode: "3510", legacy: "logement" },
-  { code: "AVELEC", label: "Électricité",           impoRate: 0.04, cnpsRate: 0, rubriqueCode: "", legacy: "electricite" },
-  { code: "AVEAU",  label: "Eau",                   impoRate: 0.02, cnpsRate: 0, rubriqueCode: "", legacy: "eau" },
-  { code: "AVVEH",  label: "Véhicule",              impoRate: 0.10, cnpsRate: 0, rubriqueCode: "", legacy: "vehicule" },
-  { code: "AVNOUR", label: "Nourriture",            impoRate: 0.10, cnpsRate: 0, rubriqueCode: "", legacy: "nourriture" },
-  { code: "AVDOM",  label: "Domestique / gardien",  impoRate: 0.05, cnpsRate: 0, rubriqueCode: "", legacy: "domestique" },
-  { code: "AVTEL",  label: "Téléphone",             impoRate: 0.05, cnpsRate: 0, rubriqueCode: "", legacy: "telephone" },
+  { code: "AVLOG",  label: "Logement",             rate: 0.15, rubriqueCode: "3510", legacy: "logement" },
+  { code: "AVVEH",  label: "Véhicule",             rate: 0.10, rubriqueCode: "", legacy: "vehicule" },
+  { code: "AVDOM",  label: "Domestique / gardien", rate: 0.05, rubriqueCode: "", legacy: "domestique" },
+  { code: "AVELEC", label: "Électricité",          rate: 0.04, rubriqueCode: "", legacy: "electricite" },
+  { code: "AVEAU",  label: "Eau",                  rate: 0.02, rubriqueCode: "", legacy: "eau" },
 ];
 // Modèle "fraction par rubrique" : une rubrique liée n'entre dans l'IRPP qu'à impoRate × montant,
 // et dans la CNPS qu'à cnpsRate × montant. Aucune ligne ajoutée au bulletin ; seules les assiettes changent.
@@ -469,21 +471,19 @@ function seedAvantagesNature(req) {
   if (!mine(db.payAvantagesNature, req).length) {
     const old = (configOf(req).avantagesNature) || {};
     for (const d of AVN_DEFAULTS) {
-      const r = (d.legacy && old[d.legacy] != null) ? Number(old[d.legacy]) : d.impoRate;
-      db.payAvantagesNature.push(stamp({ id: id("avn"), code: d.code, label: d.label, impoRate: r, cnpsRate: d.cnpsRate, rubriqueCode: d.rubriqueCode, active: true, createdAt: new Date().toISOString() }, req));
+      const r = (d.legacy && old[d.legacy] != null) ? Number(old[d.legacy]) : d.rate;
+      db.payAvantagesNature.push(stamp({ id: id("avn"), code: d.code, label: d.label, rate: r, rubriqueCode: d.rubriqueCode, active: true, createdAt: new Date().toISOString() }, req));
     }
     save();
   }
-  // Migration vers le modèle fraction : convertit les anciens champs (rate->impoRate) et relie
-  // l'indemnité de logement (15% imposable sur 3510) si elle n'est pas déjà liée.
+  // Migration vers le modèle "avantage forfait" : champ unique `rate` (depuis impoRate/legacy).
   const c = configOf(req);
-  if (!c._avnFractionMigrated) {
+  if (!c._avnBikMigrated) {
     for (const a of mine(db.payAvantagesNature, req)) {
-      if (a.impoRate == null) a.impoRate = (a.rate != null ? Number(a.rate) : 1);
-      if (a.cnpsRate == null) a.cnpsRate = 0;
-      if (String(a.code).toUpperCase() === "AVLOG" && !a.rubriqueCode) { a.rubriqueCode = "3510"; if (a.impoRate == null || a.impoRate === 1) a.impoRate = 0.15; }
+      if (a.rate == null) a.rate = (a.impoRate != null ? Number(a.impoRate) : 0);
+      if (String(a.code).toUpperCase() === "AVLOG" && !a.rubriqueCode) { a.rubriqueCode = "3510"; if (!a.rate) a.rate = 0.15; }
     }
-    c._avnFractionMigrated = true; save();
+    c._avnBikMigrated = true; save();
   }
 }
 router.get("/avantages-nature", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
@@ -496,8 +496,8 @@ router.post("/avantages-nature", allow("RP", "ADM"), (req, res) => {
   const code = String(b.code || ("AV" + Date.now().toString(36))).toUpperCase();
   if (mine(db.payAvantagesNature, req).some(a => String(a.code).toUpperCase() === code)) return res.status(409).json({ error: "Ce code existe déjà" });
   const rec = stamp({ id: id("avn"), code, label: String(b.label || b.rubriqueCode),
-    impoRate: Number(b.impoRate != null ? b.impoRate : (b.rate != null ? b.rate : 0)) || 0,
-    cnpsRate: Number(b.cnpsRate) || 0, rubriqueCode: String(b.rubriqueCode), active: b.active !== false, createdAt: new Date().toISOString() }, req);
+    rate: Number(b.rate != null ? b.rate : (b.impoRate != null ? b.impoRate : 0)) || 0,
+    rubriqueCode: String(b.rubriqueCode), active: b.active !== false, createdAt: new Date().toISOString() }, req);
   db.payAvantagesNature.push(rec); save(); audit(req.user, "CREATED", "AvantageNature", rec.id, { code, rubriqueCode: rec.rubriqueCode });
   res.status(201).json(rec);
 });
@@ -507,8 +507,7 @@ router.put("/avantages-nature/:id", allow("RP", "ADM"), (req, res) => {
   const b = req.body || {};
   if (b.label !== undefined) x.label = String(b.label);
   if (b.code !== undefined) x.code = String(b.code).toUpperCase();
-  if (b.impoRate !== undefined) x.impoRate = Number(b.impoRate) || 0;
-  if (b.cnpsRate !== undefined) x.cnpsRate = Number(b.cnpsRate) || 0;
+  if (b.rate !== undefined) x.rate = Number(b.rate) || 0;
   if (b.rubriqueCode !== undefined) x.rubriqueCode = b.rubriqueCode ? String(b.rubriqueCode) : "";
   if (b.active !== undefined) x.active = !!b.active;
   save(); audit(req.user, "UPDATED", "AvantageNature", x.id, {});
