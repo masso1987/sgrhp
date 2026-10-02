@@ -284,7 +284,7 @@ function computePayslip(input, configOverride) {
   const ravBase = input.ravBase != null ? input.ravBase : BRUT;      // ^^CRTV keyed on BRUT
   const tdlBase = input.tdlBase != null ? input.tdlBase : baseSalary; // ^^TAXCOM keyed on SALBASE
   const rav = bracketAmount(cfg.rav, ravBase), tdl = bracketAmount(cfg.tdl, tdlBase);
-  add({ code: "5025", label: "IRPP", kind: "IMPOT", base: r0(sni), rate: 0, retenue: irpp });
+  add({ code: "5025", label: "IRPP", kind: "IMPOT", base: null, rate: 0, retenue: irpp }); // IRPP = bareme par tranche : base et taux non affiches (comme Sage)
   add({ code: "5045", label: "CAC (10% IRPP)", kind: "IMPOT", base: irpp, rate: cfg.irpp.cacRate, retenue: cac });
   add({ code: "5050", label: "Crédit Foncier (CFC)", kind: "IMPOT", base: BASECF, rate: cfg.cfc.employee, retenue: cfcE, employerRate: cfg.cfc.employer, employer: cfcP });
   add({ code: "5070", label: "FNE", kind: "IMPOT", base: BRUT, rate: 0, retenue: 0, employerRate: cfg.fne.employer, employer: fneP });

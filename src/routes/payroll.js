@@ -122,7 +122,7 @@ function recomputePayslip(s, req) {
   setL("5000", "CNPS Pension (PVID)", "COTIS", { base: cnpsBase, rate: cfg.cnps.pvidEmployee, retenue: pvidE, employerRate: cfg.cnps.pvidEmployer, employer: pvidP });
   setL("5010", "CNPS Prestations familiales", "COTIS", { base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.familyEmployer, employer: pfP });
   setL("5020", "CNPS Accident de travail", "COTIS", { base: atBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
-  setL("5025", "IRPP", "IMPOT", { base: r0(sni), rate: 0, retenue: irpp });
+  setL("5025", "IRPP", "IMPOT", { base: null, rate: 0, retenue: irpp }); // bareme par tranche : base/taux non affiches
   setL("5045", "CAC (10% IRPP)", "IMPOT", { base: irpp, rate: cfg.irpp.cacRate, retenue: cac });
   setL("5050", "Crédit Foncier (CFC)", "IMPOT", { base: BASECF, rate: cfg.cfc.employee, retenue: cfcE, employerRate: cfg.cfc.employer, employer: cfcP });
   setL("5070", "FNE", "IMPOT", { base: BRUT, rate: 0, retenue: 0, employerRate: cfg.fne.employer, employer: fneP });
@@ -2305,9 +2305,14 @@ function drawPayslipModern(doc, s, emp, tenant) {
   // Classement : éléments soumis (imposables ou cotisables) vs non soumis. Le transport (assiette
   // spécifique) reste dans la rémunération. Les non soumis sont présentés sous le total des cotisations.
   const _isTransport = (l) => l._transportTaxable !== undefined || String(l.code) === "3513";
+  // Placement (Rémunération vs Éléments non soumis) : suit la FAMILLE de la rubrique, pas les
+  // cases CNPS/IRPP. Une rubrique de famille BRUT reste dans la rémunération même si elle n'est
+  // ni cotisable ni imposable ; seule la famille NON_SOUMISE va dans les éléments non soumis.
+  const _famByCodeM = {}; for (const rr of (db.payRubriques || [])) if ((rr.tenantId || "t1") === (s.tenantId || "t1")) _famByCodeM[String(rr.code)] = rr.family;
+  const _isNonSoumisM = (l) => { const f = _famByCodeM[String(l.code)]; if (f === "NON_SOUMISE") return true; if (f === "BRUT" || f === "COTISATION") return false; return !(l.impo || l.cnps) && !_isTransport(l); };
   const _allGains = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
-  const _soumis = _allGains.filter(l => l.impo || l.cnps || _isTransport(l));
-  const _nonSoumis = _allGains.filter(l => !(l.impo || l.cnps) && !_isTransport(l));
+  const _soumis = _allGains.filter(l => !_isNonSoumisM(l));
+  const _nonSoumis = _allGains.filter(l => _isNonSoumisM(l));
   const _retenues = r.lines.filter(l => l.kind === "RETENUE" && l.retenue);
   const _brutSoumis = _soumis.reduce((a, l) => a + (l.gain || 0), 0);
   const gtaux = (l) => (l.rate && Number(l.rate) !== 1) ? (Number(l.rate) * 100).toFixed(2) : "";
