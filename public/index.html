@@ -5727,9 +5727,10 @@ async function payHome(){
   }
 }
 
-async function payRecomputeOpen(){
-  if(!await mmConfirm({title:"Recalculer les bulletins ouverts",message:"Recalculer tous les bulletins des mois NON clôturés avec le moteur à jour ? Les bulletins corrigés manuellement et les périodes clôturées ne sont pas touchés.",confirmLabel:"Recalculer"})) return;
-  try{ const r=await api("/payroll/recompute-open",{method:"POST"});
+async function payRecomputeOpen(force){
+  const msg = force ? "FORCER le recalcul de TOUS les bulletins des mois non clôturés, Y COMPRIS ceux corrigés manuellement (leurs corrections seront écrasées) ?" : "Recalculer tous les bulletins des mois NON clôturés avec le moteur à jour ? Les bulletins corrigés manuellement et les périodes clôturées ne sont pas touchés.";
+  if(!await mmConfirm({title:"Recalculer les bulletins ouverts",message:msg,confirmLabel:force?"Forcer le recalcul":"Recalculer",danger:!!force})) return;
+  try{ const r=await api("/payroll/recompute-open"+(force?"?force=1":""),{method:"POST"});
     let m=r.recomputed+" bulletin(s) recalculé(s).";
     if(r.skippedEdited) m+="\n"+r.skippedEdited+" corrigé(s) manuellement : inchangés.";
     if(r.closed) m+="\n"+r.closed+" sur période clôturée : inchangés.";
@@ -5759,7 +5760,7 @@ async function payrollView() {
       </form><div class="err hidden" id="pRunErr"></div></div>`;
     }
   }
-  const _recalcBtn = canRunPay() ? `<button class="btn ghost sm" style="float:right" onclick="payRecomputeOpen()" title="Recalculer tous les bulletins des mois non clôturés avec le moteur à jour (corrige les bulletins périmés)">Recalculer les bulletins ouverts</button>` : "";
+  const _recalcBtn = canRunPay() ? `<button class="btn ghost sm" style="float:right" onclick="payRecomputeOpen(true)" title="Force le recalcul même des bulletins corrigés manuellement (écrase les corrections)">Forcer le recalcul</button><button class="btn ghost sm" style="float:right;margin-right:6px" onclick="payRecomputeOpen()" title="Recalculer tous les bulletins des mois non clôturés avec le moteur à jour (corrige les bulletins périmés)">Recalculer les bulletins ouverts</button>` : "";
   view.innerHTML = `<h1>Paie - cycles mensuels ${_recalcBtn}</h1>
   <div class="note">La paie s'ouvre <b>mois par mois</b>&nbsp;: saisissez les éléments variables (primes, heures supp., acomptes),
   calculez les bulletins, éditez-les en PDF, puis <b>clôturez la période</b>. Un nouveau mois ne peut être ouvert qu'après clôture du mois précédent.</div>

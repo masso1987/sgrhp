@@ -816,11 +816,13 @@ router.put("/models/:id", allow("RP", "ADM"), (req, res) => {
 // avec le moteur courant : corrige les bulletins "perimes" calcules sous une ancienne version.
 router.post("/recompute-open", allow("RP", "ADM"), (req, res) => {
   const runs = mine(db.payRuns, req);
+  const force = req.query.force === "1";
   let recomputed = 0, skippedEdited = 0, closed = 0, errors = 0;
   for (const sp of mine(db.payslips, req)) {
     const run = runs.find(r => r.id === sp.runId);
     if (!run || run.status === "CLOSED") { closed++; continue; }
-    if (sp.edited) { skippedEdited++; continue; }
+    if (sp.edited && !force) { skippedEdited++; continue; }
+    if (sp.edited && force) sp.edited = false;
     const emp = mine(db.employees, req).find(e => e.id === sp.employeeId);
     if (!emp) continue;
     try { const { input, result } = computeFor(emp, run.period, req); sp.input = input; sp.result = result; sp.status = "CALCULATED"; sp.recomputedAt = new Date().toISOString(); recomputed++; }
