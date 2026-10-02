@@ -6574,7 +6574,7 @@ function payShowTab(name){
   if(name==="rubriques"){ cont.innerHTML = payRubriquesHTML(); rubRender((document.getElementById("rubSearch")||{}).value||""); }
   else if(name==="constantes"){ cont.innerHTML = payConstantesHTML(); cstRender(""); }
   else if(name==="modeles"){ cont.innerHTML = payModelesHTML(PAY_MODELS); }
-  else { cont.innerHTML = payBaremesHTML(window._PAYCFG); avnRender(); }
+  else { cont.innerHTML = payBaremesHTML(window._PAYCFG); avnRender(); payBaremeSim(); }
 }
 function avnRender(){
   const box=document.getElementById("avnTable"); if(!box) return;
@@ -6625,9 +6625,39 @@ async function avnDelete(idv){
   if(!await mmConfirm({title:"Supprimer l'avantage",message:"Supprimer « "+(a.label||"")+" » ? Les bulletins déjà calculés ne changent pas tant qu'ils ne sont pas recalculés.",confirmLabel:"Supprimer",danger:true})) return;
   try{ await api("/payroll/avantages-nature/"+idv,{method:"DELETE"}); window._PAYAVN=(window._PAYAVN||[]).filter(x=>x.id!==idv); avnRender(); }catch(e){ alert(e.message); }
 }
+function _bsimProg(sni, brackets){ let tax=0, prev=0; for(const b of (brackets||[])){ const up=b.upTo; if(sni>up){ tax+=(up-prev)*b.rate; prev=up; } else { tax+=(sni-prev)*b.rate; return tax; } } return tax; }
+function _bsimBracket(table, v){ for(const b of (table||[])) if(v<=b.upTo) return b.amount; return table&&table.length?table[table.length-1].amount:0; }
+function payBaremeSim(){
+  const cfg=window._PAYCFG||{}; const out=document.getElementById("bsimOut"); if(!out) return;
+  const base=Math.max(0, Number((document.getElementById("bsimBase")||{}).value)||0);
+  const R=n=>Math.round(n||0);
+  const ir=cfg.irpp||{}; const cnps=cfg.cnps||{}; const cfc=cfg.cfc||{}; const fne=cfg.fne||{};
+  const pvid=R(Math.min(base, cnps.ceiling||750000)*(cnps.pvidEmployee||0.042));
+  const sni=Math.max(0, base*(ir.fraisProRate||0.70) - (ir.deductPvid!==false?pvid:0) - (ir.annualAbatement||500000)/12);
+  const irpp=R(_bsimProg(sni, ir.brackets));
+  const cac=R(irpp*(ir.cacRate||0.10));
+  const ccf=R(base*(cfc.employee||0.01));
+  const fneSal=R(base*(cfc.employee||0.01));
+  const fnePat=R(base*((cfc.employer||0.015)+(fne.employer||0.01)));
+  const crtv=_bsimBracket(cfg.rav, base);
+  const tdl=_bsimBracket(cfg.tdl, base);
+  const F=n=>Number(R(n)).toLocaleString("fr-FR");
+  out.innerHTML=`<div style="overflow:auto"><table style="font-size:13px;min-width:720px">
+    <tr><th>Base brute</th><th class="r">IRPP</th><th class="r">CAC</th><th class="r">CCF (CF 1%)</th><th class="r">FNE part sal.</th><th class="r">FNE/CF part pat.</th><th class="r">CRTV</th><th class="r">TDL</th></tr>
+    <tr><td><b>${F(base)}</b></td><td class="r"><b>${F(irpp)}</b></td><td class="r">${F(cac)}</td><td class="r">${F(ccf)}</td><td class="r">${F(fneSal)}</td><td class="r">${F(fnePat)}</td><td class="r">${F(crtv)}</td><td class="r">${F(tdl)}</td></tr>
+    <tr style="font-weight:700;background:var(--grid-head,#eef1f4)"><td>Total retenues salariales (hors TDL)</td><td class="r" colspan="7">${F(irpp+cac+ccf+crtv)} XAF &nbsp; <span class="note-inline">(+ CNPS PVID ${F(pvid)})</span></td></tr>
+    </table></div>
+    <div class="note" style="margin-top:4px">SNI (base nette imposable) = ${F(sni)} ; calcul : base×${(ir.fraisProRate||0.70)} − PVID ${F(pvid)} − ${F((ir.annualAbatement||500000)/12)}.</div>`;
+}
 function payBaremesHTML(cfg){
   const num = (path, val) => `<input type="number" step="any" data-cfg="${path}" value="${val}" style="max-width:110px">`;
   return `
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">BARÈME IRPP & RETENUES — SIMULATEUR (barème officiel DSSI)</b>
+    <div class="note" style="margin:4px 0 8px">Saisissez une <b>base mensuelle brute</b> : l'app calcule IRPP, CAC, CCF, FNE (part salariale / patronale) et CRTV avec les mêmes paramètres que la paie. Reproduit le barème indicatif DSSI (hors TDL) sans en stocker les 70 pages ; modifiez les barèmes ci-dessous et le simulateur suit.</div>
+    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+      <div><label>Base mensuelle brute (XAF)</label><input id="bsimBase" type="number" min="0" step="250" value="100000" oninput="payBaremeSim()" style="max-width:160px"></div>
+      <button class="btn ghost sm" onclick="payBaremeSim()">Calculer</button></div>
+    <div id="bsimOut" style="margin-top:8px"></div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">MODÈLE DU BULLETIN DE PAIE</b>
     <div style="display:flex;gap:10px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">
       <div><label>Design du bulletin (PDF)</label>
