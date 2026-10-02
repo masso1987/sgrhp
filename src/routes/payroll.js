@@ -446,7 +446,7 @@ router.put("/config", allow("RP", "ADM"), (req, res) => {
 
 /* ===== Avantages en nature au forfait (Art. 33 CGI) - configurables & liés à une rubrique ===== */
 const AVN_DEFAULTS = [
-  { code: "AVLOG",  label: "Logement",             rate: 0.15, base: "taxable", cnps: false, impo: true, rubriqueCode: "3510", legacy: "logement" },
+  { code: "AVLOG",  label: "Logement",             rate: 0.15, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "logement" },
   { code: "AVELEC", label: "Électricité",          rate: 0.04, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "electricite" },
   { code: "AVEAU",  label: "Eau",                  rate: 0.02, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "eau" },
   { code: "AVVEH",  label: "Véhicule",             rate: 0.10, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "vehicule" },
@@ -455,13 +455,22 @@ const AVN_DEFAULTS = [
   { code: "AVTEL",  label: "Téléphone",            rate: 0.05, base: "taxable", cnps: false, impo: true, rubriqueCode: "", legacy: "telephone" },
 ];
 function seedAvantagesNature(req) {
-  if (mine(db.payAvantagesNature, req).length) return;
-  const old = (configOf(req).avantagesNature) || {}; // migration depuis l'ancien objet de taux
-  for (const d of AVN_DEFAULTS) {
-    const rate = (d.legacy && old[d.legacy] != null) ? Number(old[d.legacy]) : d.rate;
-    db.payAvantagesNature.push(stamp({ id: id("avn"), code: d.code, label: d.label, rate, base: d.base, cnps: d.cnps, impo: d.impo, rubriqueCode: d.rubriqueCode, active: true, createdAt: new Date().toISOString() }, req));
+  if (!mine(db.payAvantagesNature, req).length) {
+    const old = (configOf(req).avantagesNature) || {}; // migration depuis l'ancien objet de taux
+    for (const d of AVN_DEFAULTS) {
+      const rate = (d.legacy && old[d.legacy] != null) ? Number(old[d.legacy]) : d.rate;
+      db.payAvantagesNature.push(stamp({ id: id("avn"), code: d.code, label: d.label, rate, base: d.base, cnps: d.cnps, impo: d.impo, rubriqueCode: d.rubriqueCode, active: true, createdAt: new Date().toISOString() }, req));
+    }
+    save();
   }
-  save();
+  // Migration unique : retire le lien AVLOG->3510 cree par defaut (il ajoutait un forfait logement
+  // en double, par-dessus l'indemnite de logement en especes deja proratisee).
+  const c = configOf(req);
+  if (!c._avnUnlinkMigrated) {
+    let changed = false;
+    for (const a of mine(db.payAvantagesNature, req)) if (String(a.code).toUpperCase() === "AVLOG" && String(a.rubriqueCode) === "3510") { a.rubriqueCode = ""; changed = true; }
+    c._avnUnlinkMigrated = true; save();
+  }
 }
 router.get("/avantages-nature", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedAvantagesNature(req);

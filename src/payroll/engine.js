@@ -237,8 +237,8 @@ function computePayslip(input, configOverride) {
     const units = (a.units != null && a.units !== "") ? Number(a.units) : 1;
     const cfgAv = a.avId ? avList.find(x => x.id === a.avId) : ((a.type || a.code) ? avByCode[String(a.type || a.code).toUpperCase()] : null);
     let amt, label, isCnps = !!a.cnps, isImpo = a.impo !== false, code = a.code;
-    if (a.amount != null && a.amount !== "") { amt = r0(a.amount); if (cfgAv) { label = a.label || cfgAv.label; code = a.code || cfgAv.rubriqueCode || cfgAv.code; } }
-    else if (cfgAv) { amt = _forfait(cfgAv, units); label = a.label || ("Avantage en nature - " + cfgAv.label); isCnps = cfgAv.cnps; isImpo = cfgAv.impo !== false; code = a.code || cfgAv.rubriqueCode || cfgAv.code; }
+    if (a.amount != null && a.amount !== "") { amt = r0(a.amount); if (cfgAv) { label = a.label || cfgAv.label; code = a.code || cfgAv.code; } }
+    else if (cfgAv) { amt = _forfait(cfgAv, units); label = a.label || ("Avantage en nature - " + cfgAv.label); isCnps = cfgAv.cnps; isImpo = cfgAv.impo !== false; code = a.code || cfgAv.code; }
     else if (a.type && avRatesLegacy[a.type] != null) { amt = r0(avForfaitBase * Number(avRatesLegacy[a.type]) * units); }
     else continue;
     const label2 = label || a.label || (a.type ? ("Avantage en nature - " + a.type) : "Avantage en nature");
@@ -251,7 +251,7 @@ function computePayslip(input, configOverride) {
     if (_appliedCodes.has(String(av.code).toUpperCase())) continue;
     const present = lines.some(l => l.kind === "GAIN" && String(l.code) === String(av.rubriqueCode));
     if (!present) continue;
-    _emit(av.rubriqueCode, "Avantage en nature - " + av.label, _forfait(av, 1), av.cnps, av.impo !== false, av.code);
+    _emit(av.code, "Avantage en nature - " + av.label, _forfait(av, 1), av.cnps, av.impo !== false, av.code);
   }
 
   /* 2) NAMED BASES */
