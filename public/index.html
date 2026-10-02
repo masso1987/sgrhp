@@ -5727,6 +5727,16 @@ async function payHome(){
   }
 }
 
+async function payRecomputeOpen(){
+  if(!await mmConfirm({title:"Recalculer les bulletins ouverts",message:"Recalculer tous les bulletins des mois NON clôturés avec le moteur à jour ? Les bulletins corrigés manuellement et les périodes clôturées ne sont pas touchés.",confirmLabel:"Recalculer"})) return;
+  try{ const r=await api("/payroll/recompute-open",{method:"POST"});
+    let m=r.recomputed+" bulletin(s) recalculé(s).";
+    if(r.skippedEdited) m+="\n"+r.skippedEdited+" corrigé(s) manuellement : inchangés.";
+    if(r.closed) m+="\n"+r.closed+" sur période clôturée : inchangés.";
+    if(r.errors) m+="\n"+r.errors+" en erreur.";
+    alert(m); payrollView();
+  }catch(e){ alert(e.message); }
+}
 async function payrollView() {
   const [runs, st] = await Promise.all([ api("/payroll/runs"), api("/payroll/runs/open-state").catch(()=>({hasRuns:false,canOpen:true,nextPeriod:null})) ]);
   const _cm=new Date().toISOString().slice(0,7); const congeAlerts=await api("/payroll/conge-alerts?period="+_cm).catch(()=>null);
@@ -5749,7 +5759,8 @@ async function payrollView() {
       </form><div class="err hidden" id="pRunErr"></div></div>`;
     }
   }
-  view.innerHTML = `<h1>Paie - cycles mensuels</h1>
+  const _recalcBtn = canRunPay() ? `<button class="btn ghost sm" style="float:right" onclick="payRecomputeOpen()" title="Recalculer tous les bulletins des mois non clôturés avec le moteur à jour (corrige les bulletins périmés)">Recalculer les bulletins ouverts</button>` : "";
+  view.innerHTML = `<h1>Paie - cycles mensuels ${_recalcBtn}</h1>
   <div class="note">La paie s'ouvre <b>mois par mois</b>&nbsp;: saisissez les éléments variables (primes, heures supp., acomptes),
   calculez les bulletins, éditez-les en PDF, puis <b>clôturez la période</b>. Un nouveau mois ne peut être ouvert qu'après clôture du mois précédent.</div>
   ${congeBanner(congeAlerts)}

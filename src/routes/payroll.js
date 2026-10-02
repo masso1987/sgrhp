@@ -812,6 +812,24 @@ router.put("/models/:id", allow("RP", "ADM"), (req, res) => {
 // Recalcule automatiquement le bulletin d'un salarié après modification d'un élément variable
 // (jours travaillés, prime, heure supp., absence…) pour une période NON clôturée. Les bulletins
 // corrigés manuellement (edited) ne sont pas écrasés.
+// Recalcule TOUS les bulletins des periodes NON cloturees (hors bulletins corriges manuellement)
+// avec le moteur courant : corrige les bulletins "perimes" calcules sous une ancienne version.
+router.post("/recompute-open", allow("RP", "ADM"), (req, res) => {
+  const runs = mine(db.payRuns, req);
+  let recomputed = 0, skippedEdited = 0, closed = 0, errors = 0;
+  for (const sp of mine(db.payslips, req)) {
+    const run = runs.find(r => r.id === sp.runId);
+    if (!run || run.status === "CLOSED") { closed++; continue; }
+    if (sp.edited) { skippedEdited++; continue; }
+    const emp = mine(db.employees, req).find(e => e.id === sp.employeeId);
+    if (!emp) continue;
+    try { const { input, result } = computeFor(emp, run.period, req); sp.input = input; sp.result = result; sp.status = "CALCULATED"; sp.recomputedAt = new Date().toISOString(); recomputed++; }
+    catch (e) { errors++; }
+  }
+  if (recomputed) save();
+  audit(req.user, "RECOMPUTE_OPEN", "Payslip", "bulk", { recomputed, skippedEdited });
+  res.json({ recomputed, skippedEdited, closed, errors });
+});
 function recomputeEmployeePayslip(req, employeeId, period) {
   const run = mine(db.payRuns, req).find(r => r.period === period && r.status !== "CLOSED");
   if (!run) return { recomputed: false };
