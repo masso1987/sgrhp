@@ -2347,10 +2347,11 @@ function drawPayslipModern(doc, s, emp, tenant) {
       if (ri % 2) { doc.save(); doc.rect(L, y, W, rowH).fill(STRIPE); doc.restore(); }
       txt(cN[0]+6, y+3, l.code||"", {s:7.5,w:cN[1]-6,a:"left"});
       txt(cC[0]+6, y+3, _clbl(l.code, l.label), {s:7.5,w:cC[1]-6,a:"left"});
-      txt(cB[0], y+3, l.base?F2(l.base):"0", {s:7.5,w:cB[1]-6,a:"right"});
-      txt(cTS[0], y+3, rate(l.rate), {s:7.5,w:cTS[1]-6,a:"right"});
+      const _hasBase = l.base != null && l.base !== "";
+      txt(cB[0], y+3, _hasBase?F2(l.base):"", {s:7.5,w:cB[1]-6,a:"right"});
+      txt(cTS[0], y+3, _hasBase?rate(l.rate):"", {s:7.5,w:cTS[1]-6,a:"right"});
       txt(cMS[0], y+3, amt(l.retenue), {s:7.5,w:cMS[1]-6,a:"right"});
-      txt(cTP[0], y+3, rate(l.employerRate), {s:7.5,w:cTP[1]-6,a:"right"});
+      txt(cTP[0], y+3, _hasBase?rate(l.employerRate):"", {s:7.5,w:cTP[1]-6,a:"right"});
       txt(cMP[0], y+3, amt(l.employer), {s:7.5,w:cMP[1]-6,a:"right"});
       y += rowH;
     });
