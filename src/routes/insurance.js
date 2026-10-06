@@ -313,6 +313,15 @@ router.delete("/dependents/:id", allow("GPF", "ADM"), (req, res) => {
   db.dependents = db.dependents.filter(x => !((x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id));
   save(); res.json({ ok: true });
 });
+// All dependents for the tenant (with employee info), for the web management screen.
+router.get("/dependents", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  ensure();
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  res.json(mine(db.dependents, req).map(d => {
+    const e = empById[d.employeeId] || {};
+    return Object.assign(depPublic(d), { employeeName: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", portfolioId: e.portfolioId || null });
+  }));
+});
 // GPF review queue (mobile-submitted requests)
 router.get("/dependents/pending", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   ensure();

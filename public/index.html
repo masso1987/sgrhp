@@ -1293,6 +1293,7 @@ const NAV = [
   { k: "assurance", label: "Assurance (couverture)", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "assreseau", label: "Réseau de soins", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "assconso", label: "Consommation", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "ayantsdroit", label: "Ayants droit", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "emprequests", label: "Demandes (mobile)", sec: "Demandes employés", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "astuces", label: "Astuces RH", sec: "Demandes employés", roles: ["GPF","CD","RJ","RQ","ADM"], grp: "principal" },
   { k: "dataio", label: "Import / Export", sec: "Données & validation", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
@@ -1597,7 +1598,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, emprequests: empRequestsView, astuces: astucesView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -4774,6 +4775,84 @@ async function tipSave(tid){
 }
 async function tipToggle(tid,active){ try{ await api("/hr-tips/"+tid,{method:"PUT",body:JSON.stringify({active:active})}); astucesView(); }catch(e){ alert(e.message); } }
 async function tipDelete(tid){ if(!confirm("Supprimer cette astuce ?"))return; try{ await api("/hr-tips/"+tid,{method:"DELETE"}); astucesView(); }catch(e){ alert(e.message); } }
+/* ---------------- Ayants droit (gestion par salarié) ---------------- */
+async function ayantsDroitView(){
+  let emps=[],coverage=[],deps=[];
+  try{ const r=await Promise.all([api("/employees"),api("/insurance/coverage"),api("/insurance/dependents")]); emps=r[0]||[];coverage=r[1]||[];deps=r[2]||[]; }
+  catch(e){ view.innerHTML='<h1>Ayants droit</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  const covByPf={}; coverage.forEach(c=>{covByPf[c.portfolioId]=c;});
+  const depByEmp={}; deps.forEach(d=>{(depByEmp[d.employeeId]=depByEmp[d.employeeId]||[]).push(d);});
+  window._AD_COV=covByPf; window._AD_EMP={}; emps.forEach(e=>{window._AD_EMP[e.id]=e;});
+  window._AD_ROWS=emps.map(e=>{
+    const cov=covByPf[e.portfolioId]; const list=depByEmp[e.id]||[];
+    return { id:e.id, name:((e.firstName||'')+' '+(e.lastName||'')).trim(), mat:e.matricule||'',
+      company:(cov&&cov.companyName)||'', quota:cov?cov.freeChildren:0, hasCov:!!(cov&&cov.enabled),
+      spouse: list.some(d=>d.relation==='SPOUSE'&&d.status==='ACTIVE'),
+      kids: list.filter(d=>d.relation==='CHILD'&&d.status==='ACTIVE').length,
+      pend: list.filter(d=>d.status==='PENDING').length };
+  });
+  view.innerHTML=`<h1>Ayants droit (assurance)</h1>
+    <div class="note" style="margin-bottom:8px">Conjoint et enfants de chaque salarié. Le <b>quota d'enfants pris en charge</b> est défini par portefeuille dans « Assurance (couverture) » (colonne Gratuits). Les enfants au-delà du quota sont « supplémentaires (payants) » — retenue gérée manuellement en paie.</div>
+    <div class="panel" style="margin-bottom:10px"><input id="adQ" placeholder="Rechercher un salarié (nom, matricule)" oninput="adRender()" style="max-width:360px"></div>
+    <div id="adBody" class="panel"></div>`;
+  adRender();
+}
+function adRender(){
+  const el=document.getElementById("adQ"); const q=(el&&el.value||"").toLowerCase();
+  const rows=(window._AD_ROWS||[]).filter(r=>!q||r.name.toLowerCase().includes(q)||r.mat.toLowerCase().includes(q));
+  const tr=rows.map(r=>`<tr>
+    <td><b>${esc(r.name)}</b><div class="note">${esc(r.mat)}</div></td>
+    <td>${r.hasCov?esc(r.company||'—'):'<span class="note">pas de couverture</span>'}</td>
+    <td>${r.spouse?'<span class="tag green">oui</span>':'<span class="note">—</span>'}</td>
+    <td>${r.kids} / ${r.quota}${r.kids>r.quota?' <span class="tag amber">dépassé</span>':''}</td>
+    <td>${r.pend?('<span class="tag amber">'+r.pend+' en attente</span>'):''}</td>
+    <td style="white-space:nowrap"><button class="btn ghost sm" onclick="adManage('${r.id}')">Gérer</button></td>
+  </tr>`).join("");
+  document.getElementById("adBody").innerHTML=`<table style="width:100%"><tr><th>Salarié</th><th>Compagnie</th><th>Conjoint</th><th>Enfants</th><th></th><th></th></tr>${rows.length?tr:'<tr><td colspan="6" class="note">Aucun salarié.</td></tr>'}</table>`;
+}
+async function adManage(eid){
+  const e=(window._AD_EMP||{})[eid]||{}; const cov=(window._AD_COV||{})[e.portfolioId];
+  let list=[]; try{ list=await api("/insurance/employees/"+eid+"/dependents"); }catch(err){ alert(err.message); return; }
+  const kids=list.filter(d=>d.relation==='CHILD'&&d.status==='ACTIVE').length;
+  const quota=cov?cov.freeChildren:0;
+  const depRow=(d)=>{
+    const rel=d.relation==='SPOUSE'?'Conjoint':'Enfant';
+    const stt=d.status==='ACTIVE'?'<span class="tag green">actif</span>':d.status==='PENDING'?'<span class="tag amber">en attente</span>':'<span class="tag red">rejeté</span>';
+    const docs=(d.documents||[]).map(x=>`<a href="#" onclick="depDoc('${d.id}',${x.index});return false">${esc(x.type)}</a>`).join(' ');
+    const acts=(d.status==='PENDING'?`<button class="btn p sm" onclick="adApprove('${d.id}','${eid}')">Approuver</button> <button class="btn ghost sm" onclick="adReject('${d.id}','${eid}')">Rejeter</button> `:'')+`<button class="btn ghost sm" onclick="adDelete('${d.id}','${eid}')">Suppr.</button>`;
+    return `<tr><td>${esc((d.firstName||'')+' '+(d.lastName||''))}${d.extra?' <span class="tag amber">payant</span>':''}</td><td>${rel}</td><td>${esc(d.birthDate||'')}${d.birthPlace?('<br><span class="note">'+esc(d.birthPlace)+'</span>'):''}</td><td>${stt}</td><td>${docs||'<span class="note">—</span>'}</td><td style="white-space:nowrap">${acts}</td></tr>`;
+  };
+  const canSpouse=cov&&cov.eligSpouse; const canChild=cov&&cov.eligChildren;
+  const relOpts=(canChild?'<option value="CHILD">Enfant</option>':'')+(canSpouse?'<option value="SPOUSE">Conjoint</option>':'')+((!canChild&&!canSpouse)?'<option value="CHILD">Enfant</option><option value="SPOUSE">Conjoint</option>':'');
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:760px"><b>Ayants droit — ${esc(((e.firstName||'')+' '+(e.lastName||'')).trim())}</b>
+    <div class="note" style="margin:4px 0 10px">${cov&&cov.enabled?('Compagnie : '+esc(cov.companyName||'—')+' · Enfants pris en charge : <b>'+kids+' / '+quota+'</b>'+(kids>quota?' (dépassé — supplémentaires payants)':'')):'Aucune couverture configurée sur le portefeuille de ce salarié.'}</div>
+    <table style="width:100%"><tr><th>Nom</th><th>Lien</th><th>Naissance</th><th>Statut</th><th>Pièces</th><th></th></tr>${list.length?list.map(depRow).join(""):'<tr><td colspan="6" class="note">Aucun ayant droit.</td></tr>'}</table>
+    <hr style="margin:14px 0;border:none;border-top:1px solid #eee">
+    <b>Ajouter un ayant droit</b>
+    <div class="grid2" style="margin-top:8px"><div><label>Lien</label><select id="adRel">${relOpts}</select></div><div><label>Date de naissance</label><input id="adBirth" type="date"></div></div>
+    <div class="grid2"><div><label>Prénom</label><input id="adFirst"></div><div><label>Nom</label><input id="adLast"></div></div>
+    <label>Lieu de naissance</label><input id="adPlace">
+    <label>Pièces (acte de naissance, certificat de mariage, photo…) — optionnel</label><input id="adFiles" type="file" multiple accept="image/*,.pdf">
+    <div class="err hidden" id="adErr" style="margin-top:8px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:space-between"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button><button class="btn p" onclick="adSave('${eid}')">Ajouter</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function adSave(eid){
+  const g=id=>document.getElementById(id); const el=g("adErr");
+  if(!g("adFirst").value.trim()||!g("adLast").value.trim()){ el.className="err";el.textContent="Nom et prénom requis.";el.classList.remove("hidden");return; }
+  const fd=new FormData();
+  fd.append("relation",g("adRel").value); fd.append("firstName",g("adFirst").value.trim()); fd.append("lastName",g("adLast").value.trim());
+  fd.append("birthDate",g("adBirth").value||""); fd.append("birthPlace",g("adPlace").value.trim());
+  const files=g("adFiles").files; for(let i=0;i<files.length;i++) fd.append("documents",files[i]);
+  try{ const r=await fetch("/api/insurance/employees/"+eid+"/dependents",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok)throw new Error(j.error||"Erreur");
+    const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await ayantsDroitView(); adManage(eid); }
+  catch(e){ el.className="err";el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function adApprove(id,eid){ try{ await api("/insurance/dependents/"+id+"/approve",{method:"POST"}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await ayantsDroitView(); adManage(eid); }catch(e){ alert(e.message); } }
+async function adReject(id,eid){ const note=prompt("Motif du rejet (optionnel) :",""); if(note===null)return; try{ await api("/insurance/dependents/"+id+"/reject",{method:"POST",body:JSON.stringify({note:note})}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await ayantsDroitView(); adManage(eid); }catch(e){ alert(e.message); } }
+async function adDelete(id,eid){ if(!confirm("Supprimer cet ayant droit ?"))return; try{ await api("/insurance/dependents/"+id,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await ayantsDroitView(); adManage(eid); }catch(e){ alert(e.message); } }
 async function saCreate(){
   const g=id=>document.getElementById(id);
   const body={ fullName:g("saName").value.trim(), email:g("saEmail").value.trim(), password:g("saPw").value };
