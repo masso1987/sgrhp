@@ -153,4 +153,31 @@ router.post("/emp-requests/:id/reject", allow("GPF", "ADM", "CD"), (req, res) =>
   res.json({ ok: true });
 });
 
+/* ---------------- Astuces RH (HR tips feed for the mobile app) ---------------- */
+router.get("/hr-tips", allow("GPF", "ADM", "CD", "RJ", "RQ", "UI"), (req, res) => {
+  db.hrTips = db.hrTips || [];
+  res.json(mine(db.hrTips, req).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))));
+});
+router.post("/hr-tips", allow("GPF", "ADM", "RQ"), (req, res) => {
+  db.hrTips = db.hrTips || [];
+  const b = req.body || {};
+  if (!b.title || !b.body) return res.status(400).json({ error: "Titre et contenu requis." });
+  const t = stamp({ id: id("tip"), title: String(b.title).slice(0, 160), body: String(b.body).slice(0, 8000), active: b.active !== false, author: req.user.fullName || req.user.email || "", createdAt: now() }, req);
+  db.hrTips.push(t); save(); audit(req.user, "CREATED", "HrTip", t.id, {});
+  res.status(201).json(t);
+});
+router.put("/hr-tips/:id", allow("GPF", "ADM", "RQ"), (req, res) => {
+  const t = mine(db.hrTips, req).find(x => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  if (b.title != null) t.title = String(b.title).slice(0, 160);
+  if (b.body != null) t.body = String(b.body).slice(0, 8000);
+  if (b.active != null) t.active = !!b.active;
+  save(); res.json(t);
+});
+router.delete("/hr-tips/:id", allow("GPF", "ADM", "RQ"), (req, res) => {
+  db.hrTips = (db.hrTips || []).filter(x => !((x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id));
+  save(); res.json({ ok: true });
+});
+
 module.exports = router;

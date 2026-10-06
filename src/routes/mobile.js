@@ -395,5 +395,28 @@ router.get("/me/requests", empAuth, (req, res) => {
   res.json(list.map(r => ({ id: r.id, type: r.type, status: r.status, amount: r.amount || null, reason: r.reason || "", bank_name: r.bankName || "", decision_note: r.decisionNote || "", created_at: r.createdAt, has_attachment: !!r.attachment })));
 });
 
+/* ============================ ENQUÊTES SALARIÉ ============================ */
+router.get("/me/surveys", empAuth, (req, res) => {
+  const list = (db.smqEvalForms || []).filter(f => (f.tenantId || "t1") === req.emp.tenantId && f.type === "salarie" && f.active !== false);
+  res.json(list.map(f => ({ id: f.id, token: f.token, title: f.title || "Enquête", intro: f.intro || "", scale_max: Number(f.scaleMax) || 5,
+    questions: (f.questions || []).map(q => ({ id: q.id, label: q.label, kind: q.kind })) })));
+});
+router.post("/me/surveys/:token/respond", empAuth, (req, res) => {
+  const f = (db.smqEvalForms || []).find(x => x.token === req.params.token && (x.tenantId || "t1") === req.emp.tenantId && x.type === "salarie" && x.active !== false);
+  if (!f) return res.status(404).json({ error: "Enquête introuvable ou clôturée" });
+  const e = empOf(req.emp.account) || {};
+  const b = req.body || {};
+  const r = require("./smq").publicEvalSubmit(f.token, { answers: b.answers, comment: b.comment, targetName: b.targetName, respondentName: b.anonymous ? "" : empName(e) });
+  if (r.error) return res.status(r.code || 400).json({ error: r.error });
+  res.json({ ok: true });
+});
+
+/* ============================ ASTUCES RH ============================ */
+router.get("/me/tips", empAuth, (req, res) => {
+  const list = (db.hrTips || []).filter(t => (t.tenantId || "t1") === req.emp.tenantId && t.active !== false)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  res.json(list.map(t => ({ id: t.id, title: t.title, body: t.body, author: t.author || "", created_at: t.createdAt })));
+});
+
 module.exports = router;
 module.exports.empAuth = empAuth;

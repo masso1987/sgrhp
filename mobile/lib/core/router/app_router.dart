@@ -12,6 +12,8 @@ import '../../features/leave/leave_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/insurance/insurance_screen.dart';
 import '../../features/requests/requests_screen.dart';
+import '../../features/engagement/surveys_screen.dart';
+import '../../features/engagement/astuces_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
@@ -41,6 +43,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
           GoRoute(path: '/insurance', builder: (_, __) => const InsuranceHomeScreen()),
           GoRoute(path: '/requests', builder: (_, __) => const RequestsScreen()),
+          GoRoute(path: '/surveys', builder: (_, __) => const SurveysScreen()),
+          GoRoute(path: '/astuces', builder: (_, __) => const AstucesScreen()),
         ],
       ),
     ],
