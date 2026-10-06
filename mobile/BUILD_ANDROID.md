@@ -14,7 +14,7 @@ Install, in this order:
 2. **Flutter SDK** (stable). https://docs.flutter.dev/get-started/install
    - After install, add `flutter/bin` to your PATH.
 3. **Android Studio** (gives you the Android SDK, platform-tools, and an emulator).
-   - In Android Studio → *More Actions → SDK Manager*: install **Android SDK Platform 34** (or latest) and **Android SDK Command-line Tools**.
+   - In Android Studio → *More Actions → SDK Manager*: install **Android SDK Platform 34** (or latest) and **Android SDK Command-line Tools**. Also install the **NDK (Side by side)** — a plugin requires it; if you skip it now, the first build will tell you the exact NDK version to tick (see §5d).
 4. **Java JDK 17** (Android Studio bundles one; if building from CLI, ensure `java -version` is 17).
 
 Verify everything:
@@ -48,6 +48,7 @@ Run inside `mobile/` (the `.` means "into this existing project"; it keeps your 
 flutter create --org com.ciblerh --project-name hr_employee_portal --platforms=android,ios .
 ```
 This creates `android/`, `ios/`, etc. Your application id becomes `com.ciblerh.hr_employee_portal`.
+Recent Flutter generates the Android Gradle files in **Kotlin DSL** (`build.gradle.kts`) — see §5b for the correct syntax.
 
 ## 4. Install packages + generate the Drift database
 ```bash
@@ -56,6 +57,14 @@ dart run build_runner build --delete-conflicting-outputs
 ```
 The second command generates `lib/core/db/local_db.g.dart` (required by the offline queue).
 Re-run it whenever you change the Drift table.
+
+> The app uses `url_launcher` (open Google Maps / phone dialer) and `image_picker` (attach
+> documents for insurance dependents and AVI requests) — both are already in `pubspec.yaml`,
+> so `flutter pub get` installs them. `url_launcher` also needs the `<queries>` block in §5a.
+> Note: the project does **not** use the `camera` package (removed — it broke the build on
+> recent toolchains). If you re-add it and hit `CallbackToFutureAdapter not found`, prefer
+> removing `camera` again, or add `implementation("androidx.concurrent:concurrent-futures:1.2.0")`
+> to the `camera_android_camerax` module.
 
 ## 5. Android configuration (permissions, SDK levels, Maps key)
 
@@ -68,29 +77,39 @@ Add these **above** the `<application>` tag:
 <uses-permission android:name="android.permission.CAMERA"/>          <!-- only if you enable selfie -->
 <uses-permission android:name="android.permission.USE_BIOMETRIC"/>   <!-- optional biometric unlock -->
 ```
-Inside `<application>` (only needed once you wire Google Maps) add your Maps key meta-data:
+Also add this `<queries>` block as a **direct child of `<manifest>`** (sibling of `<application>`, next to the permissions). It lets the app open Google Maps and the phone dialer from the insurance réseau screen on Android 11+:
+```xml
+<queries>
+  <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>
+  <intent><action android:name="android.intent.action.DIAL"/><data android:scheme="tel"/></intent>
+</queries>
+```
+Inside `<application>` (only needed once you wire Google Maps) you may add your Maps key meta-data. Use a **real key** — `${MAPS_API_KEY}` is only a placeholder and will make Maps fail silently if pasted as-is:
 ```xml
 <meta-data android:name="com.google.android.geo.API_KEY"
-           android:value="${MAPS_API_KEY}"/>
+           android:value="PASTE_YOUR_REAL_KEY_HERE"/>
 ```
-(You can hard-code the key here for a first test, or leave the map screen out — the check-in works without a map.)
+(Leave the Maps key out for a first test — GPS check-in and "open in Maps" via the browser both work without it.)
 
-### 5b. SDK levels — edit `android/app/build.gradle` (module app)
-In `android { defaultConfig { ... } }`:
-```gradle
-minSdkVersion 23
-targetSdkVersion 34
+### 5b. SDK levels — edit the module Gradle file
+Recent Flutter generates **Kotlin DSL** (`android/app/build.gradle.kts`), not Groovy. In `android { defaultConfig { ... } }` set:
+```kotlin
+minSdk = 23
+targetSdk = flutter.targetSdkVersion   // or 34
 ```
-(Firebase/geolocator/maps need 21+; 23 is a safe modern floor. If Gradle uses `flutter.minSdkVersion`, replace it with `23`.)
+If your project still has the older Groovy `android/app/build.gradle`, use `minSdkVersion 23` / `targetSdkVersion 34` instead. (geolocator/maps/image_picker need 21+; 23 is a safe floor.) Change only the `minSdk` line.
 
-### 5c. First build WITHOUT Firebase (fastest path)
-The app does **not** initialize Firebase at startup, but the three `firebase_*` packages still pull in Android build steps. For your **first** compile, comment them out in `pubspec.yaml`:
-```yaml
-  # firebase_core: ^3.2.0
-  # firebase_messaging: ^15.0.3
-  # firebase_crashlytics: ^4.0.3
-```
-then `flutter pub get` again. (Add them back with the Firebase steps in §9 when you wire notifications.)
+### 5c. Firebase
+The three `firebase_*` deps are in `pubspec.yaml` and build fine even though the app does not call `Firebase.initializeApp` at startup (notifications are wired later in §9). You can leave them as-is. If a first build ever fails specifically on a `firebase_*` task, comment those three lines out, `flutter pub get`, build, then restore them for §9.
+
+### 5d. Known fixes with recent Flutter / Android SDK
+These are real gotchas on current toolchains (Flutter 3.3x+, SDK 34/35/36, Gradle 9, JDK 17/21). Apply as needed:
+
+- **`Package ndk not found` / "did not install NDK <version>"** — a plugin needs a specific NDK. Install it once: Android Studio → *SDK Manager → SDK Tools* → tick **Show Package Details** → under **NDK (Side by side)** tick the exact version the error names → Apply. (CLI alternative: `sdkmanager "ndk;<version>"`.)
+- **`CardTheme` can't be assigned to `CardThemeData?`** (or `TabBarTheme`/`DialogTheme`) — recent Flutter renamed these theme classes. In the file/line the error names, add `Data` to the class name (e.g. `cardTheme: CardThemeData(...)`). Already fixed in `lib/core/theme/app_theme.dart`.
+- **`unable to find directory entry in pubspec.yaml: .../assets/`** — the `assets/` folder doesn't exist. Create it: `mkdir assets` (run inside `mobile/`).
+- **`ninja: fatal: ... Le fichier de pagination est insuffisant` / "paging file too small"** — Windows ran out of virtual memory while compiling native code (the `jni` plugin). Increase the page file: *View advanced system settings → Performance Settings → Advanced → Virtual memory → Change* → Custom size, e.g. Initial 8192 / Max 16384 → **reboot**. Close heavy apps before building.
+- **`flutter run` says "No supported devices"** — start an Android emulator (Device Manager → ▶) or plug in a phone with USB debugging; **don't** re-run `flutter create .` as the message suggests (it would overwrite your edits).
 
 ## 6. Run on a device or emulator (debug)
 
