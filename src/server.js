@@ -34,7 +34,7 @@ app.use(helmet({
 }));
 // Disable powerful browser features the app does not use.
 app.use((req, res, next) => {
-  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=()");
+  res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(), camera=(), payment=()");
   next();
 });
 app.use(express.json({ limit: "30mb" }));
