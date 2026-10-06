@@ -49,18 +49,18 @@ router.delete("/employees/:eid/app-account", allow("GPF", "ADM"), (req, res) => 
 });
 
 /* ---------------- Sites & geofences ---------------- */
-router.get("/sites", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+router.get("/sites", allow("ADM"), (req, res) => {
   res.json(mine(db.sites, req).slice().sort((a, b) => String(a.name).localeCompare(String(b.name))).map(s => Object.assign({}, s,
     { assigned: mine(db.siteAssignments, req).filter(x => x.siteId === s.id).length })));
 });
-router.post("/sites", allow("GPF", "ADM"), (req, res) => {
+router.post("/sites", allow("ADM"), (req, res) => {
   const b = req.body || {};
   if (!b.name || !Number.isFinite(Number(b.lat)) || !Number.isFinite(Number(b.lng))) return res.status(400).json({ error: "Nom, latitude et longitude requis" });
   const s = stamp({ id: id("site"), name: String(b.name), lat: Number(b.lat), lng: Number(b.lng), radiusM: Number(b.radiusM) || 100, active: b.active !== false, createdAt: now() }, req);
   db.sites.push(s); save(); audit(req.user, "CREATED", "Site", s.id, { name: s.name });
   res.status(201).json(s);
 });
-router.put("/sites/:id", allow("GPF", "ADM"), (req, res) => {
+router.put("/sites/:id", allow("ADM"), (req, res) => {
   const s = mine(db.sites, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Site introuvable" });
   const b = req.body || {};
   if (b.name != null) s.name = String(b.name);
@@ -70,25 +70,25 @@ router.put("/sites/:id", allow("GPF", "ADM"), (req, res) => {
   if (b.active != null) s.active = !!b.active;
   save(); res.json(s);
 });
-router.delete("/sites/:id", allow("GPF", "ADM"), (req, res) => {
+router.delete("/sites/:id", allow("ADM"), (req, res) => {
   const s = mine(db.sites, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Introuvable" });
   db.sites.splice(db.sites.indexOf(s), 1);
   db.siteAssignments = db.siteAssignments.filter(a => a.siteId !== s.id);
   save(); res.json({ ok: true });
 });
-router.post("/sites/:id/assign", allow("GPF", "ADM"), (req, res) => {
+router.post("/sites/:id/assign", allow("ADM"), (req, res) => {
   const s = mine(db.sites, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Site introuvable" });
   const eid = req.body && req.body.employeeId; if (!eid) return res.status(400).json({ error: "employeeId requis" });
   if (mine(db.siteAssignments, req).some(a => a.siteId === s.id && a.employeeId === eid)) return res.json({ ok: true });
   db.siteAssignments.push(stamp({ id: id("sasg"), siteId: s.id, employeeId: eid, createdAt: now() }, req)); save();
   res.json({ ok: true });
 });
-router.delete("/sites/:id/assign/:eid", allow("GPF", "ADM"), (req, res) => {
+router.delete("/sites/:id/assign/:eid", allow("ADM"), (req, res) => {
   db.siteAssignments = db.siteAssignments.filter(a => !((a.tenantId || "t1") === (req.user.tenantId || "t1") && a.siteId === req.params.id && a.employeeId === req.params.eid));
   save(); res.json({ ok: true });
 });
 /* Employees assigned to a site (for the web assignment manager). */
-router.get("/sites/:id/assignments", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+router.get("/sites/:id/assignments", allow("ADM"), (req, res) => {
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   const list = mine(db.siteAssignments, req).filter(a => a.siteId === req.params.id).map(a => {
     const e = empById[a.employeeId] || {};
@@ -98,7 +98,7 @@ router.get("/sites/:id/assignments", allow("GPF", "ADM", "CD", "RJ"), (req, res)
 });
 
 /* ---------------- Attendance review ---------------- */
-router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+router.get("/attendance/review", allow("ADM"), (req, res) => {
   const { from, to, status } = req.query;
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   const siteById = {}; mine(db.sites, req).forEach(s => { siteById[s.id] = s; });
@@ -112,7 +112,7 @@ router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
       server_ts: a.serverTs, client_ts: a.clientTs, site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
       status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved }; }));
 });
-router.post("/attendance/:id/resolve", allow("GPF", "ADM", "CD"), (req, res) => {
+router.post("/attendance/:id/resolve", allow("ADM"), (req, res) => {
   const a = mine(db.attendance, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
   a.resolved = true; a.resolvedBy = req.user.id; a.resolvedAt = now(); a.resolveNote = String((req.body && req.body.note) || "").slice(0, 240);
   if (req.body && req.body.markNormal) a.status = "NORMAL";
@@ -178,6 +178,21 @@ router.put("/hr-tips/:id", allow("GPF", "ADM", "RQ"), (req, res) => {
 router.delete("/hr-tips/:id", allow("GPF", "ADM", "RQ"), (req, res) => {
   db.hrTips = (db.hrTips || []).filter(x => !((x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id));
   save(); res.json({ ok: true });
+});
+
+/* ---------------- Generic Excel export (from a displayed table) ---------------- */
+router.post("/export-xlsx", allow("GPF", "ADM", "CD", "RJ", "RQ", "UI", "SADM"), (req, res) => {
+  const XLSX = require("xlsx");
+  const b = req.body || {};
+  const headers = Array.isArray(b.headers) ? b.headers : [];
+  const rows = Array.isArray(b.rows) ? b.rows : [];
+  const name = String(b.filename || "export").replace(/[^\w.\-]/g, "_").slice(0, 60) || "export";
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), String(b.sheet || "Données").replace(/[^\w ]/g, "").slice(0, 28) || "Donnees");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Disposition", `attachment; filename="${name}.xlsx"`);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(buf);
 });
 
 module.exports = router;

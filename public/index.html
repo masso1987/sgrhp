@@ -1288,12 +1288,8 @@ const NAV = [
   { k: "employees", label: "Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "generated", label: "Documents générés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "avi", label: "AVI (attestations bancaires)", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "sites", label: "Sites & pointage", sec: "Présence", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "pointage", label: "Pointages (contrôle)", sec: "Présence", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "assurance", label: "Assurance (couverture)", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "assreseau", label: "Réseau de soins", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "assconso", label: "Consommation", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "ayantsdroit", label: "Ayants droit", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "presence", label: "Présence", sec: "Présence", roles: ["ADM"], grp: "principal" },
+  { k: "assurance", label: "Assurance maladie", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "emprequests", label: "Demandes (mobile)", sec: "Demandes employés", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "astuces", label: "Astuces RH", sec: "Demandes employés", roles: ["GPF","CD","RJ","RQ","ADM"], grp: "principal" },
   { k: "dataio", label: "Import / Export", sec: "Données & validation", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
@@ -1598,7 +1594,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, presence: sitesView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -4469,6 +4465,38 @@ async function platMaintClear(){
   try{ await api("/tenants/platform-maintenance",{method:"PUT",body:JSON.stringify({enabled:false,scheduledStart:null,scheduledEnd:null})}); platMaintView(); }
   catch(e){ if(el){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); } }
 }
+/* ---------------- Export Excel / PDF (générique, depuis un tableau affiché) ---------------- */
+function _tableData(tbl){
+  if(typeof tbl==='string') tbl=document.querySelector(tbl);
+  if(!tbl) return {headers:[],rows:[]};
+  const trs=[...tbl.querySelectorAll('tr')]; if(!trs.length) return {headers:[],rows:[]};
+  const cell=td=>((td&&td.innerText)||'').replace(/\s+/g,' ').trim();
+  let headers=[...trs[0].children].map(cell);
+  const keep=headers.map((h,i)=>h!==''?i:-1).filter(i=>i>=0);
+  headers=keep.map(i=>headers[i]);
+  const rows=trs.slice(1).map(r=>{const c=[...r.children]; return keep.map(i=>cell(c[i]));}).filter(r=>r.some(x=>x!==''));
+  return {headers,rows};
+}
+function exportXlsx(tbl,filename){
+  const d=_tableData(tbl); if(!d.rows.length){alert("Rien à exporter.");return;}
+  fetch("/api/export-xlsx",{method:"POST",headers:{Authorization:"Bearer "+TOKEN,"Content-Type":"application/json"},body:JSON.stringify({filename:filename,sheet:filename,headers:d.headers,rows:d.rows})})
+    .then(r=>{if(!r.ok)throw 0;return r.blob();}).then(b=>{const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=filename+".xlsx";a.click();}).catch(()=>alert("Export Excel indisponible"));
+}
+function exportPDF(tbl,title){
+  const d=_tableData(tbl); if(!d.rows.length){alert("Rien à imprimer.");return;}
+  const th=d.headers.map(h=>'<th>'+esc(h)+'</th>').join('');
+  const body=d.rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('');
+  const w=window.open("","_blank"); if(!w){alert("Autorisez les fenêtres pop-up pour imprimer / exporter en PDF.");return;}
+  w.document.write('<html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:22px;color:#111}h2{margin:0 0 2px}.sub{color:#666;font-size:12px;margin-bottom:10px}table{width:100%;border-collapse:collapse;font-size:11.5px}th,td{border:1px solid #ccc;padding:5px 7px;text-align:left}th{background:#f0f0f0}@media print{button{display:none}}</style></head><body><h2>'+esc(title)+'</h2><div class="sub">'+new Date().toLocaleString("fr-FR")+' — '+d.rows.length+' ligne(s)</div><table><thead><tr>'+th+'</tr></thead><tbody>'+body+'</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},200);}<\/script></body></html>');
+  w.document.close();
+}
+function _expBar(sel,name){ return '<div style="display:flex;gap:6px"><button class="btn ghost sm" onclick="exportXlsx(\''+sel+'\',\''+name+'\')">⬇ Excel</button><button class="btn ghost sm" onclick="exportPDF(\''+sel+'\',\''+name+'\')">🖨 PDF</button></div>'; }
+function siteParseLink(){ const el=document.getElementById("stLink"); if(!el)return; const v=el.value||""; const m=v.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||v.match(/[?&](?:q|query|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)||v.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/); if(m){ document.getElementById("stLat").value=parseFloat(m[1]).toFixed(6); document.getElementById("stLng").value=parseFloat(m[2]).toFixed(6);} }
+/* Tabbed hubs (consolidated menus, mobile-friendly: tabs wrap on small screens) */
+function _tabs(items,active){ return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">'+items.map(x=>'<button onclick="'+x[2]+'()" style="padding:8px 14px;border:1px solid #d1d5db;border-radius:9px;cursor:pointer;font-weight:600;font-size:13.5px;'+(x[0]===active?'background:#065f46;color:#fff;border-color:#065f46':'background:#fff;color:#374151')+'">'+x[1]+'</button>').join('')+'</div>'; }
+function _presTabs(a){ return _tabs([['sites','Sites','sitesView'],['pointage','Pointages','pointageReviewView']],a); }
+function _insTabs(a){ return _tabs([['cov','Couverture','assuranceView'],['ayd','Ayants droit','ayantsDroitView'],['res','Réseau','assReseauView'],['cons','Consommation','assConsoView']],a); }
+function _scroll(html){ return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">'+html+'</div>'; }
 /* ---------------- Sites & pointage (géolocalisé) ---------------- */
 async function sitesView(){
   let sites=[]; try{ sites=await api("/sites"); }
@@ -4484,10 +4512,10 @@ async function sitesView(){
         <button class="btn ghost sm" onclick="siteForm('${s.id}')">Modifier</button>
         <button class="btn ghost sm" onclick="siteDelete('${s.id}','${esc(s.name).replace(/'/g,"\\'")}')">Suppr.</button>
       </td></tr>`).join("");
-  view.innerHTML=`<h1>Sites & pointage</h1>
+  view.innerHTML=`${_presTabs('sites')}<h1 style="margin-top:0">Sites</h1>
     <div class="note" style="margin-bottom:8px">Définissez les lieux de travail (coordonnées GPS + rayon) et affectez-y les employés. L'application mobile n'autorise le pointage que si l'employé se trouve dans le rayon d'un site qui lui est affecté.</div>
-    <div style="margin:8px 0"><button class="btn p" onclick="siteForm()">+ Nouveau site</button></div>
-    <div class="panel"><table style="width:100%"><tr><th>Site</th><th>Coordonnées</th><th>Rayon</th><th>Employés</th><th></th></tr>
+    <div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn p" onclick="siteForm()">+ Nouveau site</button>${_expBar('#stTbl','sites')}</div>
+    <div class="panel" style="overflow-x:auto"><table id="stTbl" style="width:100%"><tr><th>Site</th><th>Coordonnées</th><th>Rayon</th><th>Employés</th><th></th></tr>
       ${sites.length?rows:'<tr><td colspan="5" class="note">Aucun site. Créez-en un pour activer le pointage géolocalisé.</td></tr>'}</table></div>`;
 }
 async function siteForm(sid){
@@ -4495,6 +4523,7 @@ async function siteForm(sid){
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${sid?'Modifier le site':'Nouveau site'}</b>
     <label>Nom du site</label><input id="stName" value="${esc(s.name||'')}">
+    <label>Lien Google Maps (collez-le — les coordonnées se remplissent automatiquement)</label><input id="stLink" oninput="siteParseLink()" placeholder="https://www.google.com/maps/...  ou  3.848, 11.502">
     <div class="grid2"><div><label>Latitude</label><input id="stLat" value="${s.lat!=null?s.lat:''}"></div>
       <div><label>Longitude</label><input id="stLng" value="${s.lng!=null?s.lng:''}"></div></div>
     <div class="grid2"><div><label>Rayon (mètres)</label><input id="stRad" type="number" min="20" value="${s.radiusM||100}"></div>
@@ -4535,15 +4564,16 @@ async function siteAssignOpen(sid){
 async function siteAssignAdd(sid){ const sel=document.getElementById("asgSel"); const eid=sel&&sel.value; if(!eid)return; try{ await api("/sites/"+sid+"/assign",{method:"POST",body:JSON.stringify({employeeId:eid})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
 async function siteAssignRemove(sid,eid){ try{ await api("/sites/"+sid+"/assign/"+eid,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
 async function pointageReviewView(){
-  view.innerHTML=`<h1>Pointages (contrôle)</h1>
+  view.innerHTML=`${_presTabs('pointage')}<h1 style="margin-top:0">Pointages (contrôle)</h1>
     <div class="note" style="margin-bottom:8px">Pointages des employés et exceptions (hors zone, GPS imprécis, doublon, sortie sans entrée, sans site). Après vérification, marquez une exception comme résolue.</div>
     <div class="panel" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
       <div><label>Du</label><input type="date" id="prFrom"></div>
       <div><label>Au</label><input type="date" id="prTo"></div>
       <div><label>Statut</label><select id="prStatus"><option value="">Tous</option><option value="NORMAL">Normal</option><option value="EXCEPTION">Exceptions</option></select></div>
       <button class="btn p" onclick="pointageReload()">Filtrer</button>
+      ${_expBar('#prBody table','pointages')}
     </div>
-    <div id="prBody" class="panel"><div class="note">Chargement…</div></div>`;
+    <div id="prBody" class="panel" style="overflow-x:auto"><div class="note">Chargement…</div></div>`;
   pointageReload();
 }
 async function pointageReload(){
@@ -4598,14 +4628,14 @@ async function assuranceView(){
       <td>${(d.documents||[]).map(x=>`<a href="#" onclick="depDoc('${d.id}',${x.index});return false">${esc(x.type)}</a>`).join('<br>')||'<span class="note">—</span>'}</td>
       <td style="white-space:nowrap"><button class="btn p sm" onclick="depApprove('${d.id}')">Approuver</button> <button class="btn ghost sm" onclick="depReject('${d.id}')">Rejeter</button></td>
     </tr>`).join(""):'<tr><td colspan="5" class="note">Aucune demande en attente.</td></tr>';
-  view.innerHTML=`<h1>Assurance maladie</h1>
-    <div class="panel" style="margin-bottom:12px"><b>Compagnies d'assurance</b>
+  view.innerHTML=`${_insTabs('cov')}<h1 style="margin-top:0">Couverture</h1>
+    <div class="panel" style="margin-bottom:12px;overflow-x:auto"><b>Compagnies d'assurance</b>
       <div style="margin:8px 0"><button class="btn p sm" onclick="insCompForm()">+ Nouvelle compagnie</button></div>
       <table style="width:100%"><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>Statut</th><th></th></tr>${compRows}</table></div>
-    <div class="panel" style="margin-bottom:12px"><b>Couverture par portefeuille</b>
-      <div class="note" style="margin:4px 0 8px">Une compagnie par portefeuille. Le taux et l'éligibilité (conjoint, enfants + nombre d'enfants pris en charge gratuitement) s'appliquent à tous les employés du portefeuille. Les enfants au-delà du quota sont à la charge de l'employé — géré manuellement en paie.</div>
-      <table style="width:100%"><tr><th>Portefeuille</th><th>Compagnie</th><th>Taux</th><th>Conjoint</th><th>Enfants</th><th>Gratuits</th><th></th></tr>${covRows}</table></div>
-    <div class="panel"><b>Demandes d'ayants droit (en attente)</b>
+    <div class="panel" style="margin-bottom:12px;overflow-x:auto"><b>Couverture par portefeuille</b>
+      <div class="note" style="margin:4px 0 8px">Une compagnie par portefeuille. Le taux et l'éligibilité (conjoint, enfants + nombre d'enfants pris en charge gratuitement) s'appliquent à tous les employés du portefeuille. « Enfants gratuits » = nombre d'enfants couverts sans frais ; au-delà, l'enfant est à la charge de l'employé (géré manuellement en paie).</div>
+      <table style="width:100%;min-width:640px"><tr><th>Portefeuille</th><th>Compagnie</th><th>Taux</th><th>Conjoint</th><th>Enfants</th><th>Enfants gratuits</th><th></th></tr>${covRows}</table></div>
+    <div class="panel" style="overflow-x:auto"><b>Demandes d'ayants droit (en attente)</b>
       <div class="note" style="margin:4px 0 8px">Soumises depuis l'application mobile. Vérifiez les pièces jointes (acte de naissance, certificat de mariage, photo) puis approuvez ou rejetez.</div>
       <table style="width:100%"><tr><th>Employé</th><th>Lien</th><th>Ayant droit</th><th>Pièces</th><th></th></tr>${pendRows}</table></div>`;
 }
@@ -4641,7 +4671,7 @@ function insTemplate(kind){ const map={network:["/api/insurance/network/template
 async function assReseauView(){
   let companies=[]; try{ companies=await api("/insurance/companies"); }catch(e){}
   const opts=companies.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
-  view.innerHTML=`<h1>Réseau de soins</h1>
+  view.innerHTML=`${_insTabs('res')}<h1 style="margin-top:0">Réseau de soins</h1>
     <div class="panel" style="margin-bottom:12px"><b>Importer un réseau (Excel)</b>
       <div class="note" style="margin:4px 0 8px">Colonnes : Région, Ville, Type d'établissement, Prestataire, Catégorie, Adresse, Téléphone (optionnel), Lat/Lng (optionnel). <a href="#" onclick="insTemplate('network');return false">Télécharger le modèle</a></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
@@ -4654,8 +4684,9 @@ async function assReseauView(){
       <div><label>Compagnie</label><select id="rnFComp"><option value="">(toutes)</option>${opts}</select></div>
       <div><label>Recherche</label><input id="rnQ" placeholder="nom, ville, adresse"></div>
       <button class="btn p" onclick="insReseauLoad()">Filtrer</button>
+      ${_expBar('#rnBody table','reseau_de_soins')}
     </div>
-    <div id="rnBody" class="panel"><div class="note">Chargement…</div></div>`;
+    <div id="rnBody" class="panel" style="overflow-x:auto"><div class="note">Chargement…</div></div>`;
   insReseauLoad();
 }
 async function insReseauLoad(){
@@ -4677,7 +4708,7 @@ async function insReseauDel(id){ try{ await api("/insurance/network/"+id,{method
 async function assConsoView(){
   let companies=[]; try{ companies=await api("/insurance/companies"); }catch(e){}
   const opts=companies.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
-  view.innerHTML=`<h1>Consommation assurance</h1>
+  view.innerHTML=`${_insTabs('cons')}<h1 style="margin-top:0">Consommation</h1>
     <div class="panel" style="margin-bottom:12px"><b>Importer un relevé (Excel)</b>
       <div class="note" style="margin:4px 0 8px">Colonnes : Matricule, Date, Bénéficiaire, Filiation, Prestataire, Rubrique de soins, Montant, Taux, PEC, Ticket Modérateur. <a href="#" onclick="insTemplate('conso');return false">Télécharger le modèle</a></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
@@ -4692,8 +4723,9 @@ async function assConsoView(){
       <div><label>Matricule</label><input id="coFMat" placeholder="ex. AMT1017"></div>
       <div><label>Période</label><input id="coFPeriod" style="width:130px"></div>
       <button class="btn p" onclick="insConsoLoad()">Filtrer</button>
+      ${_expBar('#coBody table','consommation')}
     </div>
-    <div id="coBody" class="panel"><div class="note">Filtrez par matricule ou période.</div></div>`;
+    <div id="coBody" class="panel" style="overflow-x:auto"><div class="note">Filtrez par matricule ou période.</div></div>`;
 }
 async function insConsoLoad(){
   const g=id=>document.getElementById(id);
@@ -4719,8 +4751,9 @@ async function empRequestsView(){
       <div><label>Statut</label><select id="erStatus"><option value="PENDING">En attente</option><option value="HANDLED">Traitées</option><option value="REJECTED">Rejetées</option><option value="">Toutes</option></select></div>
       <div><label>Type</label><select id="erType"><option value="">Tous</option><option value="AVI">AVI</option><option value="ACOMPTE">Acompte</option></select></div>
       <button class="btn p" onclick="empReqLoad()">Filtrer</button>
+      ${_expBar('#erBody table','demandes_employes')}
     </div>
-    <div id="erBody" class="panel"><div class="note">Chargement…</div></div>`;
+    <div id="erBody" class="panel" style="overflow-x:auto"><div class="note">Chargement…</div></div>`;
   empReqLoad();
 }
 async function empReqLoad(){
@@ -4791,13 +4824,13 @@ async function ayantsDroitView(){
       kids: list.filter(d=>d.relation==='CHILD'&&d.status==='ACTIVE').length,
       pend: list.filter(d=>d.status==='PENDING').length };
   });
-  view.innerHTML=`<h1>Ayants droit (assurance)</h1>
+  view.innerHTML=`${_insTabs('ayd')}<h1 style="margin-top:0">Ayants droit</h1>
     <div class="note" style="margin-bottom:8px">Conjoint et enfants de chaque salarié. Le <b>quota d'enfants pris en charge</b> est défini par portefeuille dans « Assurance (couverture) » (colonne Gratuits). Les enfants au-delà du quota sont « supplémentaires (payants) » — retenue gérée manuellement en paie.</div>
     <div class="panel" style="margin-bottom:10px"><b>Import en masse (Excel)</b>
       <div class="note" style="margin:4px 0 8px">Pour initialiser les familles existantes. Colonnes : Matricule, Lien (Conjoint/Enfant), Prénom, Nom, Date de naissance, Lieu de naissance. Les pièces (actes, photos) se joignent ensuite par salarié. <a href="#" onclick="insTemplate('dependents');return false">Télécharger le modèle</a></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="adFileImp" accept=".xlsx,.xls"><button class="btn p" onclick="adImport()">Importer</button><span id="adImpMsg" class="note"></span></div></div>
-    <div class="panel" style="margin-bottom:10px"><input id="adQ" placeholder="Rechercher un salarié (nom, matricule)" oninput="adRender()" style="max-width:360px"></div>
-    <div id="adBody" class="panel"></div>`;
+    <div class="panel" style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="adQ" placeholder="Rechercher un salarié (nom, matricule)" oninput="adRender()" style="max-width:360px;flex:1">${_expBar('#adBody table','ayants_droit')}</div>
+    <div id="adBody" class="panel" style="overflow-x:auto"></div>`;
   adRender();
 }
 function adRender(){
