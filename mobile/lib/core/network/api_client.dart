@@ -73,6 +73,8 @@ class ApiClient {
       _guard(() => _dio.get<T>(path, queryParameters: query));
   Future<Response<T>> post<T>(String path, {Object? data}) =>
       _guard(() => _dio.post<T>(path, data: data));
+  Future<Response<T>> postMultipart<T>(String path, FormData data) =>
+      _guard(() => _dio.post<T>(path, data: data, options: Options(contentType: 'multipart/form-data')));
 
   Future<Response<T>> _guard<T>(Future<Response<T>> Function() run) async {
     try {

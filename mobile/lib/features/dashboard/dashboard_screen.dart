@@ -83,6 +83,8 @@ class _Content extends ConsumerWidget {
             const Divider(height: 1),
             _link(context, Icons.event_available_rounded, 'Demander un congé', () => context.go('/leave')),
             const Divider(height: 1),
+            _link(context, Icons.health_and_safety_rounded, 'Assurance maladie', () => context.go('/insurance')),
+            const Divider(height: 1),
             _link(context, Icons.person_rounded, 'Mon profil', () => context.go('/profile')),
           ]),
         ),

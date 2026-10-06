@@ -10,6 +10,7 @@ import '../../features/attendance/history_screen.dart';
 import '../../features/payslips/payslips_screen.dart';
 import '../../features/leave/leave_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/insurance/insurance_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
@@ -37,6 +38,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/payslips', builder: (_, __) => const PayslipsScreen()),
           GoRoute(path: '/leave', builder: (_, __) => const LeaveScreen()),
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+          GoRoute(path: '/insurance', builder: (_, __) => const InsuranceHomeScreen()),
         ],
       ),
     ],

@@ -1290,6 +1290,9 @@ const NAV = [
   { k: "avi", label: "AVI (attestations bancaires)", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "sites", label: "Sites & pointage", sec: "Présence", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "pointage", label: "Pointages (contrôle)", sec: "Présence", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "assurance", label: "Assurance (couverture)", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "assreseau", label: "Réseau de soins", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "assconso", label: "Consommation", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "dataio", label: "Import / Export", sec: "Données & validation", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "queue", label: "File de validation", sec: "Données & validation", roles: ["CD","RJ"], grp: "principal" },
 
@@ -1592,7 +1595,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sites: sitesView, pointage: pointageReviewView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -4567,6 +4570,143 @@ async function pointageResolve(aid){
   const markNormal=confirm("Marquer ce pointage comme NORMAL ?\\n\\nOK = marquer Normal · Annuler = garder l'exception mais marquée résolue");
   try{ await api("/attendance/"+aid+"/resolve",{method:"POST",body:JSON.stringify({note:note,markNormal:markNormal})}); pointageReload(); }
   catch(e){ alert(e.message); }
+}
+/* ---------------- Assurance maladie ---------------- */
+async function assuranceView(){
+  let companies=[],coverage=[],pending=[];
+  try{ const r=await Promise.all([api("/insurance/companies"),api("/insurance/coverage"),api("/insurance/dependents/pending")]); companies=r[0]||[];coverage=r[1]||[];pending=r[2]||[]; }
+  catch(e){ view.innerHTML='<h1>Assurance maladie</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  window._INSCOS=companies;
+  const compRows=companies.length?companies.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone||'')}</td><td>${esc(c.email||'')}</td><td>${c.active===false?'<span class="tag gray">inactif</span>':'<span class="tag green">actif</span>'}</td><td style="white-space:nowrap"><button class="btn ghost sm" onclick="insCompForm('${c.id}')">Modifier</button> <button class="btn ghost sm" onclick="insCompDelete('${c.id}','${esc(c.name).replace(/'/g,"")}')">Suppr.</button></td></tr>`).join(""):'<tr><td colspan="5" class="note">Aucune compagnie.</td></tr>';
+  const compOpts=(sel)=>'<option value="">—</option>'+companies.map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>${esc(c.name)}</option>`).join("");
+  const covRows=coverage.map(p=>`<tr>
+      <td><b>${esc(p.portfolioName)}</b></td>
+      <td><select id="cvC_${p.portfolioId}">${compOpts(p.companyId)}</select></td>
+      <td><input id="cvP_${p.portfolioId}" type="number" min="0" max="100" value="${p.coveragePct!=null?p.coveragePct:''}" style="width:68px"> %</td>
+      <td style="text-align:center"><input type="checkbox" id="cvS_${p.portfolioId}" ${p.eligSpouse?'checked':''} style="width:auto"></td>
+      <td style="text-align:center"><input type="checkbox" id="cvK_${p.portfolioId}" ${p.eligChildren?'checked':''} style="width:auto"></td>
+      <td><input id="cvF_${p.portfolioId}" type="number" min="0" value="${p.freeChildren||0}" style="width:58px"></td>
+      <td style="white-space:nowrap"><button class="btn p sm" onclick="insCovSave('${p.portfolioId}')">Enreg.</button>${p.enabled?` <button class="btn ghost sm" onclick="insCovDisable('${p.portfolioId}')">Désactiver</button>`:''}</td>
+    </tr>`).join("");
+  const pendRows=pending.length?pending.map(d=>`<tr>
+      <td><b>${esc(d.employeeName||'')}</b><div class="note">${esc(d.matricule||'')}</div></td>
+      <td>${d.relation==='SPOUSE'?'Conjoint':'Enfant'}${d.extra?' <span class="tag amber">extra (payant)</span>':''}</td>
+      <td>${esc((d.firstName||'')+' '+(d.lastName||''))}<div class="note">${esc(d.birthDate||'')}${d.birthPlace?(' · '+esc(d.birthPlace)):''}</div></td>
+      <td>${(d.documents||[]).map(x=>`<a href="#" onclick="depDoc('${d.id}',${x.index});return false">${esc(x.type)}</a>`).join('<br>')||'<span class="note">—</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn p sm" onclick="depApprove('${d.id}')">Approuver</button> <button class="btn ghost sm" onclick="depReject('${d.id}')">Rejeter</button></td>
+    </tr>`).join(""):'<tr><td colspan="5" class="note">Aucune demande en attente.</td></tr>';
+  view.innerHTML=`<h1>Assurance maladie</h1>
+    <div class="panel" style="margin-bottom:12px"><b>Compagnies d'assurance</b>
+      <div style="margin:8px 0"><button class="btn p sm" onclick="insCompForm()">+ Nouvelle compagnie</button></div>
+      <table style="width:100%"><tr><th>Nom</th><th>Téléphone</th><th>Email</th><th>Statut</th><th></th></tr>${compRows}</table></div>
+    <div class="panel" style="margin-bottom:12px"><b>Couverture par portefeuille</b>
+      <div class="note" style="margin:4px 0 8px">Une compagnie par portefeuille. Le taux et l'éligibilité (conjoint, enfants + nombre d'enfants pris en charge gratuitement) s'appliquent à tous les employés du portefeuille. Les enfants au-delà du quota sont à la charge de l'employé — géré manuellement en paie.</div>
+      <table style="width:100%"><tr><th>Portefeuille</th><th>Compagnie</th><th>Taux</th><th>Conjoint</th><th>Enfants</th><th>Gratuits</th><th></th></tr>${covRows}</table></div>
+    <div class="panel"><b>Demandes d'ayants droit (en attente)</b>
+      <div class="note" style="margin:4px 0 8px">Soumises depuis l'application mobile. Vérifiez les pièces jointes (acte de naissance, certificat de mariage, photo) puis approuvez ou rejetez.</div>
+      <table style="width:100%"><tr><th>Employé</th><th>Lien</th><th>Ayant droit</th><th>Pièces</th><th></th></tr>${pendRows}</table></div>`;
+}
+function insCompForm(cid){
+  const c=(window._INSCOS||[]).find(x=>x.id===cid)||{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:480px"><b>${cid?'Modifier la compagnie':'Nouvelle compagnie'}</b>
+    <label>Nom</label><input id="icName" value="${esc(c.name||'')}">
+    <label>Téléphone</label><input id="icPhone" value="${esc(c.phone||'')}">
+    <label>Email</label><input id="icEmail" value="${esc(c.email||'')}">
+    <div class="err hidden" id="icErr" style="margin-top:8px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p" onclick="insCompSave('${cid||''}')">Enregistrer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function insCompSave(cid){
+  const g=id=>document.getElementById(id);
+  const body={name:g("icName").value.trim(),phone:g("icPhone").value.trim(),email:g("icEmail").value.trim()};
+  const el=g("icErr"); if(!body.name){ el.className="err";el.textContent="Nom requis.";el.classList.remove("hidden");return; }
+  try{ if(cid) await api("/insurance/companies/"+cid,{method:"PUT",body:JSON.stringify(body)}); else await api("/insurance/companies",{method:"POST",body:JSON.stringify(body)}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); assuranceView(); }
+  catch(e){ el.className="err";el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function insCompDelete(cid,name){ if(!confirm("Supprimer la compagnie « "+name+" » ?"))return; try{ await api("/insurance/companies/"+cid,{method:"DELETE"}); assuranceView(); }catch(e){ alert(e.message); } }
+async function insCovSave(pid){
+  const g=id=>document.getElementById(id);
+  const body={enabled:true,companyId:g("cvC_"+pid).value||null,coveragePct:Number(g("cvP_"+pid).value)||0,eligSpouse:g("cvS_"+pid).checked,eligChildren:g("cvK_"+pid).checked,freeChildren:Number(g("cvF_"+pid).value)||0};
+  try{ await api("/insurance/coverage/"+pid,{method:"PUT",body:JSON.stringify(body)}); assuranceView(); }catch(e){ alert(e.message); }
+}
+async function insCovDisable(pid){ if(!confirm("Désactiver la couverture d'assurance pour ce portefeuille ?"))return; try{ await api("/insurance/coverage/"+pid,{method:"PUT",body:JSON.stringify({enabled:false})}); assuranceView(); }catch(e){ alert(e.message); } }
+async function depApprove(id){ try{ await api("/insurance/dependents/"+id+"/approve",{method:"POST"}); assuranceView(); }catch(e){ alert(e.message); } }
+async function depReject(id){ const note=prompt("Motif du rejet (optionnel) :",""); if(note===null)return; try{ await api("/insurance/dependents/"+id+"/reject",{method:"POST",body:JSON.stringify({note:note})}); assuranceView(); }catch(e){ alert(e.message); } }
+function depDoc(id,idx){ fetch("/api/insurance/dependents/"+id+"/document/"+idx,{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>{if(!r.ok)throw 0;return r.blob();}).then(b=>{const u=URL.createObjectURL(b);window.open(u,"_blank");}).catch(()=>alert("Pièce indisponible")); }
+function insTemplate(kind){ const url=kind==='network'?"/api/insurance/network/template":"/api/insurance/consumption/template"; fetch(url,{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>r.blob()).then(b=>{const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=(kind==='network'?"modele_reseau.xlsx":"modele_consommation.xlsx");a.click();}).catch(()=>alert("Modèle indisponible")); }
+async function assReseauView(){
+  let companies=[]; try{ companies=await api("/insurance/companies"); }catch(e){}
+  const opts=companies.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  view.innerHTML=`<h1>Réseau de soins</h1>
+    <div class="panel" style="margin-bottom:12px"><b>Importer un réseau (Excel)</b>
+      <div class="note" style="margin:4px 0 8px">Colonnes : Région, Ville, Type d'établissement, Prestataire, Catégorie, Adresse, Téléphone (optionnel), Lat/Lng (optionnel). <a href="#" onclick="insTemplate('network');return false">Télécharger le modèle</a></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+        <div><label>Compagnie</label><select id="rnComp"><option value="">(aucune)</option>${opts}</select></div>
+        <div><label>Fichier .xlsx</label><input type="file" id="rnFile" accept=".xlsx,.xls"></div>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="rnRepl" style="width:auto"> Remplacer le réseau existant de cette compagnie</label>
+        <button class="btn p" onclick="insReseauImport()">Importer</button>
+      </div><div id="rnMsg" class="note" style="margin-top:6px"></div></div>
+    <div class="panel" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <div><label>Compagnie</label><select id="rnFComp"><option value="">(toutes)</option>${opts}</select></div>
+      <div><label>Recherche</label><input id="rnQ" placeholder="nom, ville, adresse"></div>
+      <button class="btn p" onclick="insReseauLoad()">Filtrer</button>
+    </div>
+    <div id="rnBody" class="panel"><div class="note">Chargement…</div></div>`;
+  insReseauLoad();
+}
+async function insReseauLoad(){
+  const g=id=>document.getElementById(id);
+  const q=[]; if(g("rnFComp").value)q.push("companyId="+g("rnFComp").value); if(g("rnQ").value)q.push("q="+encodeURIComponent(g("rnQ").value));
+  let list=[]; try{ list=await api("/insurance/network"+(q.length?"?"+q.join("&"):"")); }catch(e){ g("rnBody").innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+  const rows=list.slice(0,1000).map(n=>`<tr><td>${esc(n.region||'')}</td><td>${esc(n.ville||'')}</td><td>${esc(n.type||'')}</td><td><b>${esc(n.name||'')}</b></td><td>${esc(n.category||'')}</td><td>${esc(n.address||'')}</td><td>${esc(n.phone||'')}</td><td><button class="btn ghost sm" onclick="insReseauDel('${n.id}')">✕</button></td></tr>`).join("");
+  g("rnBody").innerHTML=`<div class="note" style="margin-bottom:6px">${list.length} établissement(s)${list.length>1000?' (1000 affichés)':''}</div><table style="width:100%"><tr><th>Région</th><th>Ville</th><th>Type</th><th>Prestataire</th><th>Catégorie</th><th>Adresse</th><th>Tél.</th><th></th></tr>${list.length?rows:'<tr><td colspan="8" class="note">Aucun établissement. Importez un fichier Excel.</td></tr>'}</table>`;
+}
+async function insReseauImport(){
+  const g=id=>document.getElementById(id); const f=g("rnFile").files[0]; const msg=g("rnMsg");
+  if(!f){ msg.textContent="Choisissez un fichier."; return; }
+  const fd=new FormData(); fd.append("file",f); if(g("rnComp").value)fd.append("companyId",g("rnComp").value); if(g("rnRepl").checked)fd.append("replace","1");
+  msg.textContent="Import en cours…";
+  try{ const r=await fetch("/api/insurance/network/import",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok)throw new Error(j.error||"Erreur"); msg.textContent=j.added+" établissement(s) importé(s)."; insReseauLoad(); }
+  catch(e){ msg.textContent="Erreur : "+e.message; }
+}
+async function insReseauDel(id){ try{ await api("/insurance/network/"+id,{method:"DELETE"}); insReseauLoad(); }catch(e){ alert(e.message); } }
+async function assConsoView(){
+  let companies=[]; try{ companies=await api("/insurance/companies"); }catch(e){}
+  const opts=companies.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  view.innerHTML=`<h1>Consommation assurance</h1>
+    <div class="panel" style="margin-bottom:12px"><b>Importer un relevé (Excel)</b>
+      <div class="note" style="margin:4px 0 8px">Colonnes : Matricule, Date, Bénéficiaire, Filiation, Prestataire, Rubrique de soins, Montant, Taux, PEC, Ticket Modérateur. <a href="#" onclick="insTemplate('conso');return false">Télécharger le modèle</a></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+        <div><label>Compagnie</label><select id="coComp"><option value="">—</option>${opts}</select></div>
+        <div><label>Période</label><input id="coPeriod" placeholder="2025 ou 2025-03" style="width:130px"></div>
+        <div><label>Type</label><select id="coMode"><option value="PEC">PEC (prise en charge)</option><option value="RMB">RMB (remboursement)</option></select></div>
+        <div><label>Fichier .xlsx</label><input type="file" id="coFile" accept=".xlsx,.xls"></div>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="coRepl" style="width:auto"> Remplacer cette période/type</label>
+        <button class="btn p" onclick="insConsoImport()">Importer</button>
+      </div><div id="coMsg" class="note" style="margin-top:6px"></div></div>
+    <div class="panel" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <div><label>Matricule</label><input id="coFMat" placeholder="ex. AMT1017"></div>
+      <div><label>Période</label><input id="coFPeriod" style="width:130px"></div>
+      <button class="btn p" onclick="insConsoLoad()">Filtrer</button>
+    </div>
+    <div id="coBody" class="panel"><div class="note">Filtrez par matricule ou période.</div></div>`;
+}
+async function insConsoLoad(){
+  const g=id=>document.getElementById(id);
+  const q=[]; if(g("coFMat").value)q.push("matricule="+encodeURIComponent(g("coFMat").value)); if(g("coFPeriod").value)q.push("period="+encodeURIComponent(g("coFPeriod").value));
+  let list=[]; try{ list=await api("/insurance/consumption"+(q.length?"?"+q.join("&"):"")); }catch(e){ g("coBody").innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+  const t=list.reduce((s,x)=>{s.a+=Number(x.amount)||0;s.c+=Number(x.covered)||0;s.k+=Number(x.ticket)||0;return s;},{a:0,c:0,k:0});
+  const rows=list.slice(0,1000).map(x=>`<tr><td>${esc(x.date||'')}</td><td>${esc(x.mode||'')}</td><td>${esc(x.beneficiary||'')}</td><td>${esc(x.filiation||'')}</td><td>${esc(x.provider||'')}</td><td>${esc(x.rubrique||'')}</td><td style="text-align:right">${money(x.amount)}</td><td>${esc(x.rate||'')}</td><td style="text-align:right">${money(x.covered)}</td><td style="text-align:right">${money(x.ticket)}</td></tr>`).join("");
+  g("coBody").innerHTML=`<div class="note" style="margin-bottom:6px">${list.length} ligne(s) · Montant ${money(t.a)} · PEC ${money(t.c)} · Ticket ${money(t.k)}</div><table style="width:100%"><tr><th>Date</th><th>Type</th><th>Bénéficiaire</th><th>Filiation</th><th>Prestataire</th><th>Rubrique</th><th>Montant</th><th>Taux</th><th>PEC</th><th>Ticket</th></tr>${list.length?rows:'<tr><td colspan="10" class="note">Aucune ligne.</td></tr>'}</table>`;
+}
+async function insConsoImport(){
+  const g=id=>document.getElementById(id); const f=g("coFile").files[0]; const msg=g("coMsg");
+  if(!f){ msg.textContent="Choisissez un fichier."; return; }
+  const fd=new FormData(); fd.append("file",f); if(g("coComp").value)fd.append("companyId",g("coComp").value); fd.append("period",g("coPeriod").value||""); fd.append("mode",g("coMode").value); if(g("coRepl").checked)fd.append("replace","1");
+  msg.textContent="Import en cours…";
+  try{ const r=await fetch("/api/insurance/consumption/import",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok)throw new Error(j.error||"Erreur"); msg.textContent=j.added+" ligne(s) importée(s)."; }
+  catch(e){ msg.textContent="Erreur : "+e.message; }
 }
 async function saCreate(){
   const g=id=>document.getElementById(id);

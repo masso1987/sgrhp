@@ -9,6 +9,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { db, save, id, mine, stamp } = require("../store");
 const { hash, verifyPw, SECRET } = require("../auth");
+const insurance = require("./insurance");
 
 const ACCESS_TTL = "30m";
 const REFRESH_DAYS = 30;
@@ -57,6 +58,7 @@ function empAuth(req, res, next) {
   next();
 }
 function empName(e) { return `${(e && e.firstName) || ""} ${(e && e.lastName) || ""}`.trim(); }
+function empPortfolio(e) { return (db.portfolios || []).find(p => p.id === (e && e.portfolioId)); }
 
 /* ============================ MAINTENANCE (public, no auth) ============================ */
 router.get("/maintenance", (req, res) => {
@@ -296,6 +298,65 @@ router.post("/devices/register", empAuth, (req, res) => {
   if (!d) { d = stamp({ id: id("dev"), employeeId: req.emp.employeeId, deviceId: b.device_id || "", createdAt: now() }, { user: { tenantId: req.emp.tenantId } }); db.empDevices.push(d); }
   d.fcmToken = b.fcm_token || d.fcmToken; d.os = b.os || d.os; d.appVersion = b.app_version || d.appVersion; d.lastSeen = now();
   save(); res.json({ ok: true, device_id: d.deviceId });
+});
+
+/* ============================ ASSURANCE MALADIE ============================ */
+router.get("/me/insurance", empAuth, (req, res) => {
+  insurance.ensure();
+  const e = empOf(req.emp.account) || {};
+  const pf = empPortfolio(e);
+  const ins = pf && pf.insurance;
+  const company = ins && ins.companyId ? (db.insuranceCompanies || []).find(c => c.id === ins.companyId) : null;
+  const deps = (db.dependents || []).filter(d => (d.tenantId || "t1") === req.emp.tenantId && d.employeeId === e.id);
+  const activeChildren = deps.filter(d => d.relation === "CHILD" && d.status === "ACTIVE").length;
+  res.json({
+    covered: !!ins,
+    company: company ? { name: company.name, phone: company.phone || "", email: company.email || "" } : null,
+    coverage_pct: ins ? ins.coveragePct : null,
+    free_children: ins ? (ins.freeChildren || 0) : 0,
+    active_children: activeChildren,
+    can_add_spouse: !!(ins && ins.eligSpouse),
+    can_add_child: !!(ins && ins.eligChildren),
+    dependents: deps.map(d => ({ id: d.id, relation: d.relation, first_name: d.firstName, last_name: d.lastName, birth_date: d.birthDate || "", birth_place: d.birthPlace || "", status: d.status, extra: !!d.extra, note: d.note || "" })),
+  });
+});
+router.get("/me/insurance/network", empAuth, (req, res) => {
+  insurance.ensure();
+  const e = empOf(req.emp.account) || {};
+  const pf = empPortfolio(e); const ins = pf && pf.insurance;
+  const companyId = ins ? ins.companyId : null;
+  let list = (db.insuranceNetwork || []).filter(n => (n.tenantId || "t1") === req.emp.tenantId);
+  if (companyId) list = list.filter(n => n.companyId === companyId || !n.companyId);
+  const q = (req.query.q || "").toString().toLowerCase();
+  if (q) list = list.filter(n => (n.name || "").toLowerCase().includes(q) || (n.ville || "").toLowerCase().includes(q) || (n.address || "").toLowerCase().includes(q) || (n.region || "").toLowerCase().includes(q));
+  list = list.sort((a, b) => String(a.region || "").localeCompare(String(b.region || "")) || String(a.ville || "").localeCompare(String(b.ville || "")) || String(a.name || "").localeCompare(String(b.name || "")));
+  res.json(list.slice(0, 2000).map(n => ({ id: n.id, region: n.region || "", ville: n.ville || "", type: n.type || "", name: n.name || "", category: n.category || "", address: n.address || "", phone: n.phone || "", lat: n.lat, lng: n.lng })));
+});
+router.get("/me/insurance/consumption", empAuth, (req, res) => {
+  insurance.ensure();
+  const e = empOf(req.emp.account) || {};
+  const mat = (e.matricule || "").toLowerCase();
+  let list = mat ? (db.insuranceConsumption || []).filter(x => (x.tenantId || "t1") === req.emp.tenantId && (x.matricule || "").toLowerCase() === mat) : [];
+  list = list.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  const totals = list.reduce((s, x) => { s.amount += Number(x.amount) || 0; s.covered += Number(x.covered) || 0; s.ticket += Number(x.ticket) || 0; return s; }, { amount: 0, covered: 0, ticket: 0 });
+  res.json({ totals, items: list.slice(0, 1000).map(x => ({ date: x.date || "", mode: x.mode || "", beneficiary: x.beneficiary || "", filiation: x.filiation || "", provider: x.provider || "", rubrique: x.rubrique || "", amount: x.amount || 0, rate: x.rate || "", covered: x.covered || 0, ticket: x.ticket || 0 })) });
+});
+router.post("/me/insurance/dependent-request", empAuth, insurance.depUpload.any(), (req, res) => {
+  insurance.ensure();
+  const e = empOf(req.emp.account) || {};
+  const pf = empPortfolio(e); const ins = pf && pf.insurance;
+  if (!ins) return res.status(400).json({ error: "Aucune couverture d'assurance active pour votre portefeuille." });
+  const b = req.body || {};
+  const relation = b.relation === "SPOUSE" ? "SPOUSE" : "CHILD";
+  if (relation === "SPOUSE" && !ins.eligSpouse) return res.status(400).json({ error: "Le conjoint n'est pas éligible dans votre portefeuille." });
+  if (relation === "CHILD" && !ins.eligChildren) return res.status(400).json({ error: "Les enfants ne sont pas éligibles dans votre portefeuille." });
+  if (!b.firstName || !b.lastName) return res.status(400).json({ error: "Nom et prénom requis." });
+  const docs = (req.files || []).map(f => ({ type: f.fieldname || "AUTRE", fileName: f.originalname, storedAs: f.filename }));
+  const activeChildren = (db.dependents || []).filter(d => (d.tenantId || "t1") === req.emp.tenantId && d.employeeId === e.id && d.relation === "CHILD" && d.status === "ACTIVE").length;
+  const extra = relation === "CHILD" && activeChildren >= (ins.freeChildren || 0);
+  const d = stamp({ id: id("dep"), employeeId: e.id, relation, firstName: String(b.firstName).trim(), lastName: String(b.lastName).trim(), birthDate: b.birthDate || "", birthPlace: b.birthPlace || "", status: "PENDING", extra, source: "MOBILE", documents: docs, createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
+  db.dependents.push(d); save();
+  res.status(201).json({ ok: true, id: d.id, status: "PENDING", extra });
 });
 
 module.exports = router;
