@@ -85,6 +85,8 @@ class _Content extends ConsumerWidget {
             const Divider(height: 1),
             _link(context, Icons.health_and_safety_rounded, 'Assurance maladie', () => context.go('/insurance')),
             const Divider(height: 1),
+            _link(context, Icons.assignment_outlined, 'Mes demandes (AVI, acompte)', () => context.go('/requests')),
+            const Divider(height: 1),
             _link(context, Icons.person_rounded, 'Mon profil', () => context.go('/profile')),
           ]),
         ),

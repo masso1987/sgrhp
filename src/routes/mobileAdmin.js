@@ -9,7 +9,9 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 const { hash } = require("../auth");
+const path = require("path");
 const now = () => new Date().toISOString();
+const REQ_DIR = path.join(__dirname, "..", "..", "uploads", "requests");
 
 /* ---------------- Employee app-account provisioning ---------------- */
 router.get("/employees/:eid/app-account", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
@@ -115,6 +117,39 @@ router.post("/attendance/:id/resolve", allow("GPF", "ADM", "CD"), (req, res) => 
   a.resolved = true; a.resolvedBy = req.user.id; a.resolvedAt = now(); a.resolveNote = String((req.body && req.body.note) || "").slice(0, 240);
   if (req.body && req.body.markNormal) a.status = "NORMAL";
   save(); audit(req.user, "RESOLVED", "Attendance", a.id, { reason: a.exceptionReason });
+  res.json({ ok: true });
+});
+
+/* ---------------- Employee requests (AVI / acompte) from the mobile app ---------------- */
+router.get("/emp-requests", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  const status = req.query.status;
+  let list = (db.empRequests || []).filter(r => (r.tenantId || "t1") === (req.user.tenantId || "t1"));
+  if (status) list = list.filter(r => r.status === status);
+  if (req.query.type) list = list.filter(r => r.type === req.query.type);
+  list = list.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  res.json(list.map(r => { const e = empById[r.employeeId] || {};
+    return { id: r.id, type: r.type, status: r.status, amount: r.amount || null, reason: r.reason || "", bankName: r.bankName || "",
+      decisionNote: r.decisionNote || "", createdAt: r.createdAt, hasAttachment: !!r.attachment,
+      employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "" }; }));
+});
+router.get("/emp-requests/:id/attachment", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const r = (db.empRequests || []).find(x => (x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id);
+  if (!r || !r.attachment) return res.status(404).json({ error: "Pièce introuvable" });
+  res.download(path.join(REQ_DIR, r.attachment.storedAs), r.attachment.fileName);
+});
+router.post("/emp-requests/:id/handle", allow("GPF", "ADM", "CD"), (req, res) => {
+  const r = (db.empRequests || []).find(x => (x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Introuvable" });
+  r.status = "HANDLED"; r.handledBy = req.user.id; r.handledAt = now(); r.decisionNote = String((req.body && req.body.note) || "").slice(0, 300);
+  save(); audit(req.user, "HANDLED", "EmpRequest", r.id, { type: r.type });
+  res.json({ ok: true });
+});
+router.post("/emp-requests/:id/reject", allow("GPF", "ADM", "CD"), (req, res) => {
+  const r = (db.empRequests || []).find(x => (x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Introuvable" });
+  r.status = "REJECTED"; r.handledBy = req.user.id; r.handledAt = now(); r.decisionNote = String((req.body && req.body.note) || "").slice(0, 300);
+  save(); audit(req.user, "REJECTED", "EmpRequest", r.id, { type: r.type });
   res.json({ ok: true });
 });
 

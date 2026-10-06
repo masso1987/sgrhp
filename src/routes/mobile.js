@@ -10,6 +10,15 @@ const crypto = require("crypto");
 const { db, save, id, mine, stamp } = require("../store");
 const { hash, verifyPw, SECRET } = require("../auth");
 const insurance = require("./insurance");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
+const REQ_DIR = path.join(__dirname, "..", "..", "uploads", "requests");
+fs.mkdirSync(REQ_DIR, { recursive: true });
+const reqUpload = multer({
+  storage: multer.diskStorage({ destination: REQ_DIR, filename: (q, f, cb) => cb(null, `${Date.now()}-${Math.random().toString(16).slice(2, 8)}-${(f.originalname || "doc").replace(/[^\w.\-]/g, "_")}`) }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
 
 const ACCESS_TTL = "30m";
 const REFRESH_DAYS = 30;
@@ -357,6 +366,33 @@ router.post("/me/insurance/dependent-request", empAuth, insurance.depUpload.any(
   const d = stamp({ id: id("dep"), employeeId: e.id, relation, firstName: String(b.firstName).trim(), lastName: String(b.lastName).trim(), birthDate: b.birthDate || "", birthPlace: b.birthPlace || "", status: "PENDING", extra, source: "MOBILE", documents: docs, createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
   db.dependents.push(d); save();
   res.status(201).json({ ok: true, id: d.id, status: "PENDING", extra });
+});
+
+/* ============================ DEMANDES (AVI / ACOMPTE) ============================ */
+router.post("/me/requests/avi", empAuth, reqUpload.single("letter"), (req, res) => {
+  db.empRequests = db.empRequests || [];
+  if (!req.file) return res.status(400).json({ error: "La lettre de demande manuscrite (photo ou scan) est requise." });
+  const b = req.body || {};
+  const r = stamp({ id: id("ereq"), employeeId: req.emp.employeeId, type: "AVI", status: "PENDING",
+    bankName: String(b.bankName || "").trim(), reason: String(b.reason || b.purpose || "").slice(0, 500),
+    attachment: { fileName: req.file.originalname, storedAs: req.file.filename }, createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
+  db.empRequests.push(r); save();
+  res.status(201).json({ ok: true, id: r.id, status: "PENDING" });
+});
+router.post("/me/requests/acompte", empAuth, (req, res) => {
+  db.empRequests = db.empRequests || [];
+  const b = req.body || {};
+  const amount = Math.round(Number(b.amount) || 0);
+  if (!(amount > 0)) return res.status(400).json({ error: "Montant invalide." });
+  const r = stamp({ id: id("ereq"), employeeId: req.emp.employeeId, type: "ACOMPTE", status: "PENDING",
+    amount, reason: String(b.reason || "").slice(0, 500), createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
+  db.empRequests.push(r); save();
+  res.status(201).json({ ok: true, id: r.id, status: "PENDING" });
+});
+router.get("/me/requests", empAuth, (req, res) => {
+  const list = (db.empRequests || []).filter(r => (r.tenantId || "t1") === req.emp.tenantId && r.employeeId === req.emp.employeeId)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  res.json(list.map(r => ({ id: r.id, type: r.type, status: r.status, amount: r.amount || null, reason: r.reason || "", bank_name: r.bankName || "", decision_note: r.decisionNote || "", created_at: r.createdAt, has_attachment: !!r.attachment })));
 });
 
 module.exports = router;
