@@ -4637,7 +4637,7 @@ async function insCovDisable(pid){ if(!confirm("Désactiver la couverture d'assu
 async function depApprove(id){ try{ await api("/insurance/dependents/"+id+"/approve",{method:"POST"}); assuranceView(); }catch(e){ alert(e.message); } }
 async function depReject(id){ const note=prompt("Motif du rejet (optionnel) :",""); if(note===null)return; try{ await api("/insurance/dependents/"+id+"/reject",{method:"POST",body:JSON.stringify({note:note})}); assuranceView(); }catch(e){ alert(e.message); } }
 function depDoc(id,idx){ fetch("/api/insurance/dependents/"+id+"/document/"+idx,{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>{if(!r.ok)throw 0;return r.blob();}).then(b=>{const u=URL.createObjectURL(b);window.open(u,"_blank");}).catch(()=>alert("Pièce indisponible")); }
-function insTemplate(kind){ const url=kind==='network'?"/api/insurance/network/template":"/api/insurance/consumption/template"; fetch(url,{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>r.blob()).then(b=>{const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=(kind==='network'?"modele_reseau.xlsx":"modele_consommation.xlsx");a.click();}).catch(()=>alert("Modèle indisponible")); }
+function insTemplate(kind){ const map={network:["/api/insurance/network/template","modele_reseau.xlsx"],conso:["/api/insurance/consumption/template","modele_consommation.xlsx"],dependents:["/api/insurance/dependents/template","modele_ayants_droit.xlsx"]}; const cfg=map[kind]||map.network; fetch(cfg[0],{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>r.blob()).then(b=>{const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=cfg[1];a.click();}).catch(()=>alert("Modèle indisponible")); }
 async function assReseauView(){
   let companies=[]; try{ companies=await api("/insurance/companies"); }catch(e){}
   const opts=companies.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
@@ -4793,6 +4793,9 @@ async function ayantsDroitView(){
   });
   view.innerHTML=`<h1>Ayants droit (assurance)</h1>
     <div class="note" style="margin-bottom:8px">Conjoint et enfants de chaque salarié. Le <b>quota d'enfants pris en charge</b> est défini par portefeuille dans « Assurance (couverture) » (colonne Gratuits). Les enfants au-delà du quota sont « supplémentaires (payants) » — retenue gérée manuellement en paie.</div>
+    <div class="panel" style="margin-bottom:10px"><b>Import en masse (Excel)</b>
+      <div class="note" style="margin:4px 0 8px">Pour initialiser les familles existantes. Colonnes : Matricule, Lien (Conjoint/Enfant), Prénom, Nom, Date de naissance, Lieu de naissance. Les pièces (actes, photos) se joignent ensuite par salarié. <a href="#" onclick="insTemplate('dependents');return false">Télécharger le modèle</a></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="adFileImp" accept=".xlsx,.xls"><button class="btn p" onclick="adImport()">Importer</button><span id="adImpMsg" class="note"></span></div></div>
     <div class="panel" style="margin-bottom:10px"><input id="adQ" placeholder="Rechercher un salarié (nom, matricule)" oninput="adRender()" style="max-width:360px"></div>
     <div id="adBody" class="panel"></div>`;
   adRender();
@@ -4849,6 +4852,15 @@ async function adSave(eid){
   try{ const r=await fetch("/api/insurance/employees/"+eid+"/dependents",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok)throw new Error(j.error||"Erreur");
     const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await ayantsDroitView(); adManage(eid); }
   catch(e){ el.className="err";el.textContent=e.message;el.classList.remove("hidden"); }
+}
+async function adImport(){
+  const f=document.getElementById("adFileImp").files[0]; const msg=document.getElementById("adImpMsg");
+  if(!f){ msg.textContent="Choisissez un fichier."; return; }
+  const fd=new FormData(); fd.append("file",f); msg.textContent="Import en cours…";
+  try{ const r=await fetch("/api/insurance/dependents/import",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok)throw new Error(j.error||"Erreur");
+    const summary=j.added+" ayant(s) droit importé(s)"+(j.errorCount?(" · "+j.errorCount+" ignoré(s)"+(j.errors&&j.errors.length?"\\n- "+j.errors.slice(0,10).join("\\n- "):"")):"");
+    alert(summary); ayantsDroitView(); }
+  catch(e){ msg.textContent="Erreur : "+e.message; }
 }
 async function adApprove(id,eid){ try{ await api("/insurance/dependents/"+id+"/approve",{method:"POST"}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await ayantsDroitView(); adManage(eid); }catch(e){ alert(e.message); } }
 async function adReject(id,eid){ const note=prompt("Motif du rejet (optionnel) :",""); if(note===null)return; try{ await api("/insurance/dependents/"+id+"/reject",{method:"POST",body:JSON.stringify({note:note})}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await ayantsDroitView(); adManage(eid); }catch(e){ alert(e.message); } }

@@ -313,6 +313,65 @@ router.delete("/dependents/:id", allow("GPF", "ADM"), (req, res) => {
   db.dependents = db.dependents.filter(x => !((x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id));
   save(); res.json({ ok: true });
 });
+/* ---- Bulk import of dependents (seed existing families) ---- */
+function depHeaderMap(h) {
+  const k = String(h || "").trim().toUpperCase().replace(/\s+/g, " ").replace(/[ÉÈÊ]/g, "E").replace(/\./g, "");
+  if (/MATRICULE/.test(k)) return "matricule";
+  if (/LIEN|RELATION|FILIATION/.test(k)) return "relation";
+  if (/PRENOM/.test(k)) return "firstName";
+  if (/^NOM|NOM DE/.test(k)) return "lastName";
+  if (/LIEU/.test(k)) return "birthPlace";
+  if (/NAISSANCE|^DATE/.test(k)) return "birthDate";
+  if (/STATUT|STATUS/.test(k)) return "status";
+  return null;
+}
+router.get("/dependents/template", allow("GPF", "ADM"), (req, res) => {
+  const header = ["MATRICULE", "LIEN", "PRENOM", "NOM", "DATE DE NAISSANCE", "LIEU DE NAISSANCE"];
+  const ex1 = ["EMP001", "Conjoint", "Marie", "NGONO", "1990-05-12", "Yaoundé"];
+  const ex2 = ["EMP001", "Enfant", "Jean", "NGONO", "2015-09-01", "Douala"];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ex1, ex2]), "Ayants droit");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Disposition", 'attachment; filename="modele_ayants_droit.xlsx"');
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(buf);
+});
+router.post("/dependents/import", allow("GPF", "ADM"), memUpload.single("file"), (req, res) => {
+  ensure();
+  if (!req.file) return res.status(400).json({ error: "Fichier Excel requis." });
+  let rows;
+  try { const wb = XLSX.read(req.file.buffer, { type: "buffer" }); rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "", raw: false, header: 1 }); }
+  catch (e) { return res.status(400).json({ error: "Fichier illisible : " + e.message }); }
+  if (!rows || rows.length < 2) return res.status(400).json({ error: "Aucune ligne." });
+  let hdrIdx = rows.findIndex(r => r.some(c => /MATRICULE/i.test(String(c))));
+  if (hdrIdx < 0) hdrIdx = 0;
+  const cols = rows[hdrIdx].map(depHeaderMap);
+  const empByMat = {}; mine(db.employees, req).forEach(e => { if (e.matricule) empByMat[String(e.matricule).toLowerCase()] = e; });
+  const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
+  // seed child counters with existing ACTIVE children so extra-flagging continues correctly
+  const childCount = {}; mine(db.dependents, req).forEach(d => { if (d.relation === "CHILD" && d.status === "ACTIVE") childCount[d.employeeId] = (childCount[d.employeeId] || 0) + 1; });
+  let added = 0; const errors = [];
+  for (let i = hdrIdx + 1; i < rows.length; i++) {
+    const r = rows[i]; if (!r || !r.length) continue;
+    const rec = {}; cols.forEach((k, ci) => { if (k && r[ci] != null) rec[k] = String(r[ci]).trim(); });
+    if (!rec.matricule && !rec.firstName && !rec.lastName) continue;
+    const e = empByMat[String(rec.matricule || "").toLowerCase()];
+    if (!e) { errors.push(`Matricule introuvable : ${rec.matricule || "(vide)"}`); continue; }
+    if (!rec.firstName || !rec.lastName) { errors.push(`Nom/prénom manquant pour ${rec.matricule}`); continue; }
+    const relation = /CONJOINT|SPOUSE|EPOU|MARI|FEMME/i.test(rec.relation || "") ? "SPOUSE" : "CHILD";
+    let extra = false;
+    if (relation === "CHILD") {
+      const pf = pfById[e.portfolioId]; const quota = (pf && pf.insurance && pf.insurance.freeChildren) || 0;
+      const n = (childCount[e.id] || 0); extra = n >= quota; childCount[e.id] = n + 1;
+    }
+    db.dependents.push(stamp({ id: id("dep"), employeeId: e.id, relation, firstName: rec.firstName, lastName: rec.lastName,
+      birthDate: rec.birthDate || "", birthPlace: rec.birthPlace || "", status: "ACTIVE", extra, source: "IMPORT", documents: [], createdAt: now() }, req));
+    added++;
+  }
+  save();
+  audit(req.user, "IMPORTED", "Dependent", "-", { added, errors: errors.length });
+  res.json({ ok: true, added, errors: errors.slice(0, 20), errorCount: errors.length });
+});
 // All dependents for the tenant (with employee info), for the web management screen.
 router.get("/dependents", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   ensure();
