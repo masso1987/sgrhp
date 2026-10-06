@@ -75,7 +75,7 @@ class AppTheme {
         bodyMedium: GoogleFonts.inter(color: ink),
         labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w600),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         color: dark ? AppColors.surfaceDark : AppColors.surfaceLight,
         surfaceTintColor: Colors.transparent,

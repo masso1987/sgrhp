@@ -9,3 +9,22 @@ class Env {
   static const googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
   static const selfieRequired = bool.fromEnvironment('SELFIE_REQUIRED', defaultValue: false);
 }
+
+/// Effective runtime configuration. The API base URL defaults to the build-time
+/// value but can be overridden at runtime (persisted) so a domain change does NOT
+/// require rebuilding and redistributing the app. See SecureStore.apiBaseOverride
+/// and the "Serveur" option on the login screen.
+class AppConfig {
+  static String _baseUrl = Env.apiBaseUrl;
+  static String get baseUrl => _baseUrl;
+  static set baseUrl(String v) {
+    final t = v.trim();
+    _baseUrl = t.isEmpty ? Env.apiBaseUrl : t.replaceAll(RegExp(r'/+$'), '');
+  }
+
+  /// Full API root (base + /api/v1) used by the HTTP client.
+  static String get apiRoot => '$baseUrl${Env.apiVersion}';
+
+  /// The compiled-in default, for "reset to default".
+  static String get defaultBaseUrl => Env.apiBaseUrl;
+}

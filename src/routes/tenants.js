@@ -99,7 +99,45 @@ function platformCfg() {
   if (db.platform.appLogo === undefined) db.platform.appLogo = "";
   if (db.platform.idleTimeoutMinutes === undefined) db.platform.idleTimeoutMinutes = 120;
   if (db.platform.sessionHours === undefined) db.platform.sessionHours = 8;
+  if (db.platform.maintenance === undefined) db.platform.maintenance = { enabled: false, message: "", scheduledStart: null, scheduledEnd: null };
   return db.platform;
+}
+
+/* Effective maintenance status (platform-global). `active` = manual switch ON or we are
+ * inside the scheduled window; `upcoming` = a future window is set but not yet started. */
+function maintenanceState() {
+  const p = platformCfg();
+  const m = p.maintenance || {};
+  const now = Date.now();
+  const start = m.scheduledStart ? Date.parse(m.scheduledStart) : null;
+  const end = m.scheduledEnd ? Date.parse(m.scheduledEnd) : null;
+  const inWindow = !!(start && end && now >= start && now <= end);
+  const active = !!m.enabled || inWindow;
+  const upcoming = !active && !!(start && now < start);
+  return {
+    active, upcoming,
+    message: m.message || "",
+    scheduledStart: m.scheduledStart || null,
+    scheduledEnd: m.scheduledEnd || null,
+    manualEnabled: !!m.enabled,
+    now: new Date().toISOString(),
+  };
+}
+
+/* Broadcast an in-app notice to every mobile user (one per tenant; employeeId null = broadcast). */
+function broadcastMaintenanceNotice(m) {
+  const title = "Maintenance planifiée";
+  let body = (m.message && m.message.trim()) ? m.message.trim() : "";
+  if (!body) {
+    const when = m.scheduledStart ? ` le ${new Date(m.scheduledStart).toLocaleString("fr-FR")}` : " prochainement";
+    body = `Une maintenance de l'application est prévue${when}. L'application pourra être indisponible durant cette période.`;
+  }
+  const createdAt = new Date().toISOString();
+  for (const t of (db.tenants || [])) {
+    if (!db.notifications) db.notifications = [];
+    db.notifications.push({ id: id("ntf"), tenantId: t.id, employeeId: null, title, body, type: "MAINTENANCE", read: false, createdAt });
+  }
+  save();
 }
 router.get("/platform-branding", allow("SADM"), (req, res) => { const p = platformCfg(); res.json({ appName: p.appName, appLogo: p.appLogo || "" }); });
 router.get("/platform-security", allow("SADM"), (req, res) => { const p = platformCfg(); res.json({ idleTimeoutMinutes: p.idleTimeoutMinutes || 120, sessionHours: p.sessionHours || 8 }); });
@@ -108,6 +146,28 @@ router.put("/platform-security", allow("SADM"), (req, res) => {
   if (b.idleTimeoutMinutes !== undefined) { const v = Number(b.idleTimeoutMinutes); if (!(v >= 5 && v <= 1440)) return res.status(400).json({ error: "Le délai d'inactivité doit être compris entre 5 et 1440 minutes." }); p.idleTimeoutMinutes = v; }
   if (b.sessionHours !== undefined) { const v = Number(b.sessionHours); if (!(v >= 1 && v <= 72)) return res.status(400).json({ error: "La durée de session doit être comprise entre 1 et 72 heures." }); p.sessionHours = v; }
   save(); res.json({ idleTimeoutMinutes: p.idleTimeoutMinutes, sessionHours: p.sessionHours });
+});
+/* ---- Maintenance mode (platform-global, SADM only) ---- */
+router.get("/platform-maintenance", allow("SADM"), (req, res) => {
+  const p = platformCfg(); const m = p.maintenance || {};
+  res.json({ enabled: !!m.enabled, message: m.message || "", scheduledStart: m.scheduledStart || null, scheduledEnd: m.scheduledEnd || null, status: maintenanceState() });
+});
+router.put("/platform-maintenance", allow("SADM"), (req, res) => {
+  const p = platformCfg(); const b = req.body || {};
+  const m = p.maintenance || (p.maintenance = { enabled: false, message: "", scheduledStart: null, scheduledEnd: null });
+  if (b.enabled !== undefined) m.enabled = !!b.enabled;
+  if (b.message !== undefined) m.message = String(b.message || "").slice(0, 500);
+  if (b.scheduledStart !== undefined) m.scheduledStart = b.scheduledStart ? new Date(b.scheduledStart).toISOString() : null;
+  if (b.scheduledEnd !== undefined) m.scheduledEnd = b.scheduledEnd ? new Date(b.scheduledEnd).toISOString() : null;
+  if (m.scheduledStart && isNaN(Date.parse(m.scheduledStart))) return res.status(400).json({ error: "Date de début invalide." });
+  if (m.scheduledEnd && isNaN(Date.parse(m.scheduledEnd))) return res.status(400).json({ error: "Date de fin invalide." });
+  if (m.scheduledStart && m.scheduledEnd && Date.parse(m.scheduledEnd) <= Date.parse(m.scheduledStart))
+    return res.status(400).json({ error: "La fin de la maintenance doit être postérieure au début." });
+  m.updatedAt = new Date().toISOString(); m.updatedBy = req.user.id;
+  save();
+  if (b.notify) { try { broadcastMaintenanceNotice(m); } catch (e) {} }
+  audit(req.user, "CONFIG_CHANGED", "Platform", "maintenance", { enabled: m.enabled, scheduledStart: m.scheduledStart, scheduledEnd: m.scheduledEnd, notified: !!b.notify, platform: true });
+  res.json({ enabled: !!m.enabled, message: m.message || "", scheduledStart: m.scheduledStart || null, scheduledEnd: m.scheduledEnd || null, status: maintenanceState() });
 });
 router.put("/platform-branding", allow("SADM"), (req, res) => {
   const p = platformCfg(); const b = req.body || {};
@@ -528,4 +588,4 @@ router.put("/superadmins/:uid/status", allow("SADM"), (req, res) => {
   res.json({ id: u.id, active: u.active });
 });
 
-module.exports = { router, MODULES, LEGAL_FORMS, platformCfg };
+module.exports = { router, MODULES, LEGAL_FORMS, platformCfg, maintenanceState, broadcastMaintenanceNotice };

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/env.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -96,12 +97,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 10),
                 Center(child: TextButton(onPressed: () {}, child: const Text('Mot de passe oublié ?'))),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _serverDialog,
+                    icon: const Icon(Icons.dns_outlined, size: 16),
+                    label: const Text('Serveur'),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.mutedLight, textStyle: const TextStyle(fontSize: 12.5)),
+                  ),
+                ),
               ]),
             ),
           ),
         ),
       ]),
     );
+  }
+
+  Future<void> _serverDialog() async {
+    final ctrl = TextEditingController(text: AppConfig.baseUrl);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Adresse du serveur'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text("Ne modifiez ceci que sur indication de votre administrateur (ex. changement de domaine).",
+              style: TextStyle(fontSize: 12.5, color: AppColors.mutedLight)),
+          const SizedBox(height: 12),
+          TextField(controller: ctrl, keyboardType: TextInputType.url,
+              decoration: const InputDecoration(hintText: 'https://exemple.com')),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await ref.read(secureStoreProvider).setApiBaseOverride(null);
+              AppConfig.baseUrl = AppConfig.defaultBaseUrl;
+              ref.read(apiClientProvider).applyBaseUrl();
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: const Text('Réinitialiser'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () async {
+              final v = ctrl.text.trim();
+              await ref.read(secureStoreProvider).setApiBaseOverride(v.isEmpty ? null : v);
+              AppConfig.baseUrl = v;
+              ref.read(apiClientProvider).applyBaseUrl();
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Serveur : ${AppConfig.baseUrl}')),
+      );
+    }
   }
 
   Widget _logoMark() => Container(

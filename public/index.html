@@ -1282,11 +1282,14 @@ const NAV = [
   { k: "superadmins", label: "Admins plateforme", roles: ["SADM"], grp: "plateforme" },
   { k: "logins", label: "Connexions plateforme", roles: ["SADM"], grp: "plateforme" },
   { k: "platusers", label: "Utilisateurs & sessions", roles: ["SADM"], grp: "plateforme" },
+  { k: "platmaint", label: "Maintenance", roles: ["SADM"], grp: "plateforme" },
 
   { k: "dash", label: "Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "employees", label: "Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "generated", label: "Documents générés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "avi", label: "AVI (attestations bancaires)", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "sites", label: "Sites & pointage", sec: "Présence", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
+  { k: "pointage", label: "Pointages (contrôle)", sec: "Présence", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "dataio", label: "Import / Export", sec: "Données & validation", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "queue", label: "File de validation", sec: "Données & validation", roles: ["CD","RJ"], grp: "principal" },
 
@@ -1589,7 +1592,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sites: sitesView, pointage: pointageReviewView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -4410,6 +4413,160 @@ async function saSecuritySave(){
   try{ await api("/tenants/platform-security",{method:"PUT",body:JSON.stringify({idleTimeoutMinutes,sessionHours})});
     if(el){ el.textContent="Enregistré. Les nouveaux délais s'appliquent aux prochaines connexions."; el.className="note"; el.classList.remove("hidden"); } }
   catch(e){ if(el){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); } }
+}
+async function platMaintView(){
+  let m={enabled:false,message:"",scheduledStart:null,scheduledEnd:null,status:{active:false,upcoming:false}};
+  try{ m=await api("/tenants/platform-maintenance"); }
+  catch(e){ view.innerHTML='<h1>Maintenance</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  const st=m.status||{};
+  const toLocalInput=(iso)=>{ if(!iso) return ""; const d=new Date(iso); if(isNaN(d)) return ""; const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const banner = st.active
+    ? '<div class="panel" style="border-left:4px solid #dc2626;background:#fef2f2"><b style="color:#b91c1c">● Maintenance ACTIVE</b><div class="note">L\'application mobile est actuellement bloquée pour les employés. Vous (super-admin) gardez l\'accès web.</div></div>'
+    : (st.upcoming
+      ? '<div class="panel" style="border-left:4px solid #f59e0b;background:#fffbeb"><b style="color:#b45309">● Maintenance planifiée</b><div class="note">Une fenêtre de maintenance est programmée et démarrera automatiquement.</div></div>'
+      : '<div class="panel" style="border-left:4px solid #16a34a;background:#f0fdf4"><b style="color:#166534">● Aucune maintenance</b><div class="note">L\'application fonctionne normalement.</div></div>');
+  view.innerHTML=`<h1>Maintenance de l'application</h1>
+    <div class="note" style="margin-bottom:8px">Réservé au super-administrateur. S'applique à l'application mobile de tous les tenants. Le mode manuel coupe immédiatement ; la fenêtre planifiée démarre et s'arrête automatiquement aux dates choisies.</div>
+    ${banner}
+    <div class="panel" style="margin-top:12px">
+      <label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="mEnabled" ${m.enabled?"checked":""} style="width:auto"> Activer la maintenance maintenant (coupure immédiate)</label>
+      <label style="margin-top:12px">Message affiché aux employés</label>
+      <textarea id="mMsg" rows="3" placeholder="Ex. Maintenance technique en cours. L'application sera de nouveau disponible sous peu.">${esc(m.message||"")}</textarea>
+      <div class="grid2" style="margin-top:10px">
+        <div><label>Début (planifié)</label><input type="datetime-local" id="mStart" value="${toLocalInput(m.scheduledStart)}"></div>
+        <div><label>Fin (planifié)</label><input type="datetime-local" id="mEnd" value="${toLocalInput(m.scheduledEnd)}"></div>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="mNotify" style="width:auto"> Envoyer une notification à tous les utilisateurs de l'application (bannière in-app)</label>
+      <div class="err hidden" id="mErr" style="margin-top:8px"></div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn p" onclick="platMaintSave()">Enregistrer</button>
+        <button class="btn ghost" onclick="platMaintClear()">Effacer la planification</button>
+      </div>
+    </div>`;
+}
+async function platMaintSave(){
+  const g=id=>document.getElementById(id);
+  const sv=g("mStart").value, ev=g("mEnd").value;
+  const body={
+    enabled: g("mEnabled").checked,
+    message: g("mMsg").value,
+    scheduledStart: sv ? new Date(sv).toISOString() : null,
+    scheduledEnd: ev ? new Date(ev).toISOString() : null,
+    notify: g("mNotify").checked,
+  };
+  const el=g("mErr");
+  try{ await api("/tenants/platform-maintenance",{method:"PUT",body:JSON.stringify(body)}); platMaintView(); }
+  catch(e){ if(el){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); } }
+}
+async function platMaintClear(){
+  const el=document.getElementById("mErr");
+  try{ await api("/tenants/platform-maintenance",{method:"PUT",body:JSON.stringify({enabled:false,scheduledStart:null,scheduledEnd:null})}); platMaintView(); }
+  catch(e){ if(el){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); } }
+}
+/* ---------------- Sites & pointage (géolocalisé) ---------------- */
+async function sitesView(){
+  let sites=[]; try{ sites=await api("/sites"); }
+  catch(e){ view.innerHTML='<h1>Sites & pointage</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
+  window._SITES=sites;
+  const rows=sites.map(s=>`<tr>
+      <td><b>${esc(s.name)}</b>${s.active===false?' <span class="tag gray">inactif</span>':''}</td>
+      <td>${Number(s.lat).toFixed(5)}, ${Number(s.lng).toFixed(5)}</td>
+      <td>${s.radiusM||100} m</td>
+      <td>${s.assigned||0}</td>
+      <td style="white-space:nowrap">
+        <button class="btn ghost sm" onclick="siteAssignOpen('${s.id}')">Affectations</button>
+        <button class="btn ghost sm" onclick="siteForm('${s.id}')">Modifier</button>
+        <button class="btn ghost sm" onclick="siteDelete('${s.id}','${esc(s.name).replace(/'/g,"\\'")}')">Suppr.</button>
+      </td></tr>`).join("");
+  view.innerHTML=`<h1>Sites & pointage</h1>
+    <div class="note" style="margin-bottom:8px">Définissez les lieux de travail (coordonnées GPS + rayon) et affectez-y les employés. L'application mobile n'autorise le pointage que si l'employé se trouve dans le rayon d'un site qui lui est affecté.</div>
+    <div style="margin:8px 0"><button class="btn p" onclick="siteForm()">+ Nouveau site</button></div>
+    <div class="panel"><table style="width:100%"><tr><th>Site</th><th>Coordonnées</th><th>Rayon</th><th>Employés</th><th></th></tr>
+      ${sites.length?rows:'<tr><td colspan="5" class="note">Aucun site. Créez-en un pour activer le pointage géolocalisé.</td></tr>'}</table></div>`;
+}
+async function siteForm(sid){
+  const s=(window._SITES||[]).find(x=>x.id===sid)||{};
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${sid?'Modifier le site':'Nouveau site'}</b>
+    <label>Nom du site</label><input id="stName" value="${esc(s.name||'')}">
+    <div class="grid2"><div><label>Latitude</label><input id="stLat" value="${s.lat!=null?s.lat:''}"></div>
+      <div><label>Longitude</label><input id="stLng" value="${s.lng!=null?s.lng:''}"></div></div>
+    <div class="grid2"><div><label>Rayon (mètres)</label><input id="stRad" type="number" min="20" value="${s.radiusM||100}"></div>
+      <div style="align-self:end"><button class="btn ghost" type="button" onclick="siteUseMyPos()">📍 Utiliser ma position</button></div></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="stActive" ${s.active!==false?'checked':''} style="width:auto"> Site actif</label>
+    <div class="note" style="margin-top:6px">Astuce : récupérez les coordonnées sur Google Maps (clic droit sur le lieu → cliquez sur les chiffres pour copier).</div>
+    <div class="err hidden" id="stErr" style="margin-top:8px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p" onclick="siteSave('${sid||''}')">Enregistrer</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+function siteUseMyPos(){ if(!navigator.geolocation){alert("Géolocalisation indisponible sur ce navigateur.");return;} navigator.geolocation.getCurrentPosition(p=>{document.getElementById("stLat").value=p.coords.latitude.toFixed(6);document.getElementById("stLng").value=p.coords.longitude.toFixed(6);},e=>alert("Position indisponible : "+e.message)); }
+async function siteSave(sid){
+  const g=id=>document.getElementById(id);
+  const body={ name:g("stName").value.trim(), lat:Number(g("stLat").value), lng:Number(g("stLng").value), radiusM:Number(g("stRad").value)||100, active:g("stActive").checked };
+  const el=g("stErr");
+  if(!body.name||!isFinite(body.lat)||!isFinite(body.lng)){ el.className="err"; el.textContent="Nom, latitude et longitude requis."; el.classList.remove("hidden"); return; }
+  try{ if(sid) await api("/sites/"+sid,{method:"PUT",body:JSON.stringify(body)}); else await api("/sites",{method:"POST",body:JSON.stringify(body)});
+    const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); sitesView(); }
+  catch(e){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function siteDelete(sid,name){ if(!confirm("Supprimer le site « "+name+" » et toutes ses affectations ?"))return; try{ await api("/sites/"+sid,{method:"DELETE"}); sitesView(); }catch(e){ alert(e.message); } }
+async function siteAssignOpen(sid){
+  const s=(window._SITES||[]).find(x=>x.id===sid)||{};
+  let emps=[],assigned=[];
+  try{ const r=await Promise.all([api("/employees"),api("/sites/"+sid+"/assignments")]); emps=r[0]||[]; assigned=r[1]||[]; }catch(e){ alert(e.message); return; }
+  const assignedIds=assigned.map(a=>a.employeeId);
+  const options=emps.filter(e=>!assignedIds.includes(e.id)).map(e=>`<option value="${e.id}">${esc((e.firstName||'')+' '+(e.lastName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
+  const rows=assigned.length?assigned.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.matricule||'')}</td><td style="text-align:right"><button class="btn ghost sm" onclick="siteAssignRemove('${sid}','${a.employeeId}')">Retirer</button></td></tr>`).join(""):'<tr><td colspan="3" class="note">Aucun employé affecté.</td></tr>';
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:620px"><b>Affectations — ${esc(s.name||'')}</b>
+    <div style="display:flex;gap:8px;margin:10px 0"><select id="asgSel" style="flex:1">${options||'<option value="">Tous les employés sont déjà affectés</option>'}</select><button class="btn p" onclick="siteAssignAdd('${sid}')">Affecter</button></div>
+    <table style="width:100%"><tr><th>Employé</th><th>Matricule</th><th></th></tr>${rows}</table>
+    <div style="margin-top:12px;text-align:right"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function siteAssignAdd(sid){ const sel=document.getElementById("asgSel"); const eid=sel&&sel.value; if(!eid)return; try{ await api("/sites/"+sid+"/assign",{method:"POST",body:JSON.stringify({employeeId:eid})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
+async function siteAssignRemove(sid,eid){ try{ await api("/sites/"+sid+"/assign/"+eid,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
+async function pointageReviewView(){
+  view.innerHTML=`<h1>Pointages (contrôle)</h1>
+    <div class="note" style="margin-bottom:8px">Pointages des employés et exceptions (hors zone, GPS imprécis, doublon, sortie sans entrée, sans site). Après vérification, marquez une exception comme résolue.</div>
+    <div class="panel" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <div><label>Du</label><input type="date" id="prFrom"></div>
+      <div><label>Au</label><input type="date" id="prTo"></div>
+      <div><label>Statut</label><select id="prStatus"><option value="">Tous</option><option value="NORMAL">Normal</option><option value="EXCEPTION">Exceptions</option></select></div>
+      <button class="btn p" onclick="pointageReload()">Filtrer</button>
+    </div>
+    <div id="prBody" class="panel"><div class="note">Chargement…</div></div>`;
+  pointageReload();
+}
+async function pointageReload(){
+  const g=id=>document.getElementById(id);
+  const q=[]; if(g("prFrom").value)q.push("from="+encodeURIComponent(g("prFrom").value)); if(g("prTo").value)q.push("to="+encodeURIComponent(g("prTo").value)); if(g("prStatus").value)q.push("status="+encodeURIComponent(g("prStatus").value));
+  let list=[]; try{ list=await api("/attendance/review"+(q.length?"?"+q.join("&"):"")); }
+  catch(e){ g("prBody").innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+  const fmt=(iso)=>{ if(!iso)return '—'; try{ return new Date(iso).toLocaleString('fr-FR'); }catch(_){ return iso; } };
+  const REASONS={OUTSIDE_GEOFENCE:'Hors zone',LOW_ACCURACY:'GPS imprécis',DUPLICATE_CHECKIN:'Doublon',CHECKOUT_WITHOUT_CHECKIN:'Sortie sans entrée',NO_SITE:'Sans site'};
+  const rows=list.map(a=>{
+    const exc=a.status==='EXCEPTION';
+    const reason=REASONS[a.exception_reason]||a.exception_reason||'';
+    return `<tr${exc&&!a.resolved?' style="background:#fef2f2"':''}>
+      <td><b>${esc(a.employee)}</b><div class="note">${esc(a.matricule||'')}</div></td>
+      <td>${a.type==='IN'?'Entrée':'Sortie'}</td>
+      <td>${fmt(a.server_ts)}</td>
+      <td>${esc(a.site||'—')}</td>
+      <td>${a.distance_m!=null?Math.round(a.distance_m)+' m':'—'}</td>
+      <td>${exc?('<span class="tag '+(a.resolved?'gray':'red')+'">'+esc(reason)+(a.resolved?' (résolu)':'')+'</span>'):'<span class="tag green">Normal</span>'}</td>
+      <td style="text-align:right">${exc&&!a.resolved?('<button class="btn ghost sm" onclick="pointageResolve(\''+a.id+'\')">Résoudre</button>'):''}</td>
+    </tr>`; }).join("");
+  g("prBody").innerHTML=`<table style="width:100%"><tr><th>Employé</th><th>Type</th><th>Date/heure</th><th>Site</th><th>Distance</th><th>Statut</th><th></th></tr>${list.length?rows:'<tr><td colspan="7" class="note">Aucun pointage pour ce filtre.</td></tr>'}</table>`;
+}
+async function pointageResolve(aid){
+  const note=prompt("Note de résolution (optionnel) :","");
+  if(note===null)return;
+  const markNormal=confirm("Marquer ce pointage comme NORMAL ?\\n\\nOK = marquer Normal · Annuler = garder l'exception mais marquée résolue");
+  try{ await api("/attendance/"+aid+"/resolve",{method:"POST",body:JSON.stringify({note:note,markNormal:markNormal})}); pointageReload(); }
+  catch(e){ alert(e.message); }
 }
 async function saCreate(){
   const g=id=>document.getElementById(id);

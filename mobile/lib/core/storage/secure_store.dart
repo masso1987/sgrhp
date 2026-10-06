@@ -9,6 +9,7 @@ class SecureStore {
   static const _kAccess = 'access_token';
   static const _kRefresh = 'refresh_token';
   static const _kDevice = 'device_id';
+  static const _kApiBase = 'api_base_url';
 
   Future<void> saveTokens(String access, String refresh) async {
     await _s.write(key: _kAccess, value: access);
@@ -18,5 +19,10 @@ class SecureStore {
   Future<String?> get refresh => _s.read(key: _kRefresh);
   Future<void> setDeviceId(String id) => _s.write(key: _kDevice, value: id);
   Future<String?> get deviceId => _s.read(key: _kDevice);
+  Future<String?> get apiBaseOverride => _s.read(key: _kApiBase);
+  Future<void> setApiBaseOverride(String? v) async {
+    if (v == null || v.trim().isEmpty) { await _s.delete(key: _kApiBase); }
+    else { await _s.write(key: _kApiBase, value: v.trim()); }
+  }
   Future<void> clear() async { await _s.delete(key: _kAccess); await _s.delete(key: _kRefresh); }
 }

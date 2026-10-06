@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/attendance/sync_service.dart';
+import '../../features/maintenance/maintenance.dart';
 
 /// Bottom-nav shell — Home · Attendance · Payslips · Leave · Profile.
 /// Boots the offline SyncService and shows a slim banner when punches are queued.
@@ -31,9 +32,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final maint = ref.watch(maintenanceProvider);
+    if (maint.active) return const MaintenanceScreen();
     final pending = ref.watch(pendingCountProvider);
     return Scaffold(
       body: Column(children: [
+        if (maint.upcoming) MaintenanceBanner(info: maint),
         if (pending > 0)
           Material(
             color: AppColors.warning.withOpacity(.14),

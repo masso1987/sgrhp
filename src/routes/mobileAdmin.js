@@ -85,6 +85,15 @@ router.delete("/sites/:id/assign/:eid", allow("GPF", "ADM"), (req, res) => {
   db.siteAssignments = db.siteAssignments.filter(a => !((a.tenantId || "t1") === (req.user.tenantId || "t1") && a.siteId === req.params.id && a.employeeId === req.params.eid));
   save(); res.json({ ok: true });
 });
+/* Employees assigned to a site (for the web assignment manager). */
+router.get("/sites/:id/assignments", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  const list = mine(db.siteAssignments, req).filter(a => a.siteId === req.params.id).map(a => {
+    const e = empById[a.employeeId] || {};
+    return { employeeId: a.employeeId, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "" };
+  });
+  res.json(list);
+});
 
 /* ---------------- Attendance review ---------------- */
 router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {

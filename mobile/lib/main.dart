@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'core/config/env.dart';
+import 'core/storage/secure_store.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('fr_FR', null);
+  Intl.defaultLocale = 'fr_FR';
+  // Apply a persisted API base URL override (domain change without a rebuild).
+  try {
+    final ov = await SecureStore().apiBaseOverride;
+    if (ov != null && ov.trim().isNotEmpty) AppConfig.baseUrl = ov;
+  } catch (_) {}
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  // Firebase.initializeApp() is wired in the release flavor (see README / firebase docs).
   runApp(const ProviderScope(child: HrPortalApp()));
 }
 

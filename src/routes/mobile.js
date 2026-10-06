@@ -49,9 +49,20 @@ function empAuth(req, res, next) {
   const account = (db.empAccounts || []).find(a => a.id === p.accountId && a.active !== false);
   if (!account) return res.status(401).json({ error: "Compte introuvable" });
   req.emp = { accountId: account.id, employeeId: account.employeeId, tenantId: account.tenantId || "t1", account };
+  // Platform maintenance: block the employee API while active (the public /maintenance status stays open).
+  try {
+    const ms = require("./tenants").maintenanceState();
+    if (ms && ms.active) return res.status(503).json({ error: ms.message || "Application en maintenance", maintenance: ms });
+  } catch (e) {}
   next();
 }
 function empName(e) { return `${(e && e.firstName) || ""} ${(e && e.lastName) || ""}`.trim(); }
+
+/* ============================ MAINTENANCE (public, no auth) ============================ */
+router.get("/maintenance", (req, res) => {
+  try { res.json(require("./tenants").maintenanceState()); }
+  catch (e) { res.json({ active: false, upcoming: false, message: "", scheduledStart: null, scheduledEnd: null }); }
+});
 
 /* ============================ AUTH ============================ */
 router.post("/auth/login", (req, res) => {

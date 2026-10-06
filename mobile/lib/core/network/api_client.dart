@@ -17,7 +17,7 @@ class ApiException implements Exception {
 class ApiClient {
   ApiClient(this._store) {
     _dio = Dio(BaseOptions(
-      baseUrl: '${Env.apiBaseUrl}${Env.apiVersion}',
+      baseUrl: AppConfig.apiRoot,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 20),
       headers: {'Content-Type': 'application/json'},
@@ -49,6 +49,9 @@ class ApiClient {
 
   late final Dio _dio;
   final SecureStore _store;
+
+  /// Re-point the client at AppConfig.apiRoot after a runtime base-URL change.
+  void applyBaseUrl() => _dio.options.baseUrl = AppConfig.apiRoot;
   bool _isAuthPath(String p) => p.contains('/auth/login') || p.contains('/auth/refresh');
   bool _retried(DioException e) => e.requestOptions.extra['retried'] == true;
 
@@ -56,7 +59,7 @@ class ApiClient {
     final rt = await _store.refresh;
     if (rt == null) return false;
     try {
-      final resp = await Dio().post('${Env.apiBaseUrl}${Env.apiVersion}/auth/refresh',
+      final resp = await Dio().post('${AppConfig.apiRoot}/auth/refresh',
           data: {'refresh_token': rt});
       await _store.saveTokens(resp.data['access_token'], resp.data['refresh_token']);
       return true;
