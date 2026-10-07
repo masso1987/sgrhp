@@ -9395,57 +9395,70 @@ async function acctEntrySave(validate) {
 }
 const OHADA_CLASSES={1:"Comptes de ressources durables",2:"Comptes d'actif immobilisé",3:"Comptes de stocks",4:"Comptes de tiers",5:"Comptes de trésorerie",6:"Comptes de charges",7:"Comptes de produits",8:"Autres charges et produits (H.A.O.)",9:"Comptes analytiques"};
 async function acctBalanceView() {
+  const etat = window._balEtat || "base";
   const period = window._acctPeriod || "";
-  const lvl = window._balLvl || "detail";
-  const _bf=window._acctFrom||"", _bt=window._acctTo||"";
-  const _bq=(_bf||_bt)?("?"+[_bf?"from="+_bf:"",_bt?"to="+_bt:""].filter(Boolean).join("&")):(period?"?period="+period:"");
-  const bal = await api("/accounting/balance"+_bq).catch(() => ({ rows: [], totalDebit: 0, totalCredit: 0, balanced: true }));
-  const rows = (bal.rows || []).filter(r=>{ const l=String(r.label||"").trim(); return l!=="" && l!==String(r.account); }).slice().sort((a,b)=>String(a.account).localeCompare(String(b.account)));
-  const F=fCFA;
-  const classOf=(acc)=>String(acc||"0").charAt(0);
-  const keyOf=(acc)=> lvl==="class" ? String(acc||"0").charAt(0) : lvl==="level2" ? String(acc||"00").slice(0,2) : String(acc||"");
-  // Aggregate to the requested granularity
-  const agg=new Map();
-  rows.forEach(r=>{ const k=keyOf(r.account); const g=agg.get(k)||{key:k,account:r.account,label:r.label||"",debit:0,credit:0,solde:0,n:0};
-    g.debit+=r.debit||0; g.credit+=r.credit||0; g.solde+=r.solde||0; g.n++; if(lvl!=="detail"){ g.label = lvl==="class"?(OHADA_CLASSES[Number(k)]||("Classe "+k)) : ("Comptes "+k+"…"); } agg.set(k,g); });
-  const outRows=[...agg.values()];
-  // Build HTML with class subtotals (Sage: rupture par classe)
-  let html=""; let curClass=null; let cd=0,cc=0,cs=0; let td=0,tc=0,ts=0;
-  const classRow=(cl)=>`<tr style="background:var(--grid-head);font-weight:600"><td colspan="2">Classe ${cl} - ${esc(OHADA_CLASSES[Number(cl)]||"")}</td><td class="r">${F(cd)}</td><td class="r">${F(cc)}</td><td class="r">${F(cs)}</td></tr>`;
-  outRows.forEach(g=>{
-    const cl=classOf(g.account);
-    if(curClass!==null && cl!==curClass && lvl!=="class"){ html+=classRow(curClass); cd=cc=cs=0; }
-    if(cl!==curClass){ curClass=cl; }
-    const isSynthetic = lvl!=="detail";
-    const accCell = lvl==="class" ? `Classe ${g.key}` : lvl==="level2" ? `${esc(g.key)}xxxx` : esc(g.account);
-    const labCell = lvl==="class" ? esc(OHADA_CLASSES[Number(g.key)]||"") : esc(g.label);
-    html+=`<tr${isSynthetic?' style="font-weight:600"':''}><td><code>${accCell}</code></td><td>${labCell}</td><td class="r">${F(g.debit)}</td><td class="r">${F(g.credit)}</td><td class="r">${F(g.solde)}</td></tr>`;
-    cd+=g.debit; cc+=g.credit; cs+=g.solde; td+=g.debit; tc+=g.credit; ts+=g.solde;
-  });
-  if(curClass!==null && lvl!=="class") html+=classRow(curClass);
-  const balanced = Math.round(td)===Math.round(tc) || bal.balanced;
-  const seg=(v,l)=>`<button class="btn ${lvl===v?'p':'ghost'} sm" onclick="window._balLvl='${v}';acctBalanceView()">${l}</button>`;
+  const { start, end } = await _balExercise();
+  const prevYE = _prevDay(start);
+  const cf = window._acctCF || "", ct = window._acctCT || "", jf = window._acctJF || "", jt = window._acctJT || "";
+  const flt = () => { const p = []; if (cf) p.push("compteFrom=" + encodeURIComponent(cf)); if (ct) p.push("compteTo=" + encodeURIComponent(ct)); if (jf) p.push("journalFrom=" + encodeURIComponent(jf)); if (jt) p.push("journalTo=" + encodeURIComponent(jt)); return p; };
+  const openQ = "?" + ["to=" + encodeURIComponent(prevYE)].concat(flt()).join("&");
+  const perQ = "?" + ["from=" + encodeURIComponent(start), "to=" + encodeURIComponent(end)].concat(flt()).join("&");
+  const [openBal, perBal, lbl] = await Promise.all([
+    api("/accounting/balance" + openQ).catch(() => ({ rows: [] })),
+    api("/accounting/balance" + perQ).catch(() => ({ rows: [] })),
+    _balLabels()
+  ]);
+  const model = _balBuildModel(openBal.rows || [], perBal.rows || [], lbl);
+  window._balSageModel = { model, etat, prevYE, start, end };
+  const body = model.list.length ? (etat === "6col" ? _balRender6(model, prevYE) : _balRenderBase(model)) : '<div style="color:var(--muted);padding:14px">Aucune écriture pour ce filtre.</div>';
+  let td = 0, tc = 0; model.list.forEach(a => { td += a.openD + a.movD; tc += a.openC + a.movC; });
+  const balanced = Math.round(td) === Math.round(tc);
   view.innerHTML = `<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
+    <style>.balsage table{width:100%;border-collapse:collapse;font-size:12.5px}.balsage th,.balsage td{border:1px solid var(--border);padding:4px 7px}.balsage td.r,.balsage th.r{text-align:right}.balsage th.grp{text-align:center}.balsage tr.tot{font-weight:600;background:var(--grid-head)}.balsage tr.grand{font-weight:700;background:var(--grid-head2)}.balsage thead th{background:var(--grid-head)}</style>
     <h1 style="margin-top:10px">Balance des comptes</h1>
-    <div class="d2-toolbar" style="margin-bottom:0">${seg('detail','Détaillée')}${seg('level2','Par niveau (2 chiffres)')}${seg('class','Synthétique (par classe)')}<span class="sp"></span>
+    <div class="d2-toolbar" style="margin-bottom:0">
       <label style="font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:4px">Type d'état
-        <select id="balEtat" onchange="window._balEtat=this.value" style="margin:0;height:28px">
-          <option value="base" ${ (window._balEtat||'base')==='base'?'selected':'' }>Base</option>
-          <option value="6col" ${ window._balEtat==='6col'?'selected':'' }>6 colonnes</option>
-        </select></label>
+        <select id="balEtat" onchange="window._balEtat=this.value;acctBalanceView()" style="margin:0;height:28px">
+          <option value="base" ${etat==='base'?'selected':''}>Base</option>
+          <option value="6col" ${etat==='6col'?'selected':''}>6 colonnes</option></select></label>
       <button class="btn p sm" onclick="acctBalanceSagePrint()">Aperçu / Imprimer</button>
-      <button class="btn ghost sm" onclick="acctBalanceCSV()">CSV</button><button class="btn ghost sm" onclick="acctBalancePDF()">PDF</button></div>
-    <div class="d2-filters"><div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
+      <button class="btn ghost sm" onclick="acctBalanceCSV()">CSV</button>
+      <button class="btn ghost sm" onclick="acctBalancePDF()">PDF</button>
+      <span class="sp"></span>
+      <button class="btn ghost sm" onclick="balImportForm()">Importer N-1 (Sage)</button></div>
+    <div class="d2-filters">
+      <div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
       <div class="fld"><label>Du</label><input type="date" value="${window._acctFrom||''}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctBalanceView()"></div>
       <div class="fld"><label>Au</label><input type="date" value="${window._acctTo||''}" onchange="window._acctTo=this.value;window._acctPeriod='';acctBalanceView()"></div>
-      <div class="fld" style="justify-content:end"><span style="font-size:11px;color:var(--muted)">Écritures validées.</span></div></div>
-    <div class="d2-grid"><table><thead><tr><th>Compte</th><th>Intitulé</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr></thead><tbody>
-      ${outRows.length ? html : '<tr><td colspan="5" style="color:var(--muted)">Aucune écriture validée.</td></tr>'}
-      <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAL GÉNÉRAL</td><td class="r">${F(td)}</td><td class="r">${F(tc)}</td>
-        <td class="r" style="color:${balanced ? 'var(--nav-active-color)' : 'var(--red)'}">${balanced ? 'équilibrée' : 'écart ' + F(Math.abs(td - tc))}</td></tr>
-    </tbody></table></div>
-    <div class="d2-status"><span><span class="k">Lignes :</span> <b>${outRows.length}</b></span><span class="sp"></span><span><span class="k">Total débit :</span> <b>${F(td)}</b></span><span><span class="k">Total crédit :</span> <b>${F(tc)}</b></span><span style="color:${balanced?'var(--nav-active-color)':'var(--red)'}"><b>${balanced?'Balance équilibrée':'Écart '+F(Math.abs(td-tc))}</b></span></div>`;
-  window._balPrint={rows:outRows,lvl,td,tc,ts,period};
+      <div class="fld"><label>N° compte de</label><input value="${esc(cf)}" onchange="window._acctCF=this.value.trim();acctBalanceView()" style="width:110px"></div>
+      <div class="fld"><label>à</label><input value="${esc(ct)}" onchange="window._acctCT=this.value.trim();acctBalanceView()" style="width:110px"></div>
+      <div class="fld"><label>Code journal de</label><input value="${esc(jf)}" onchange="window._acctJF=this.value.trim().toUpperCase();acctBalanceView()" style="width:90px"></div>
+      <div class="fld"><label>à</label><input value="${esc(jt)}" onchange="window._acctJT=this.value.trim().toUpperCase();acctBalanceView()" style="width:90px"></div>
+    </div>
+    <div class="d2-grid balsage" style="overflow:auto;max-height:62vh">${body}</div>
+    <div class="d2-status"><span><span class="k">Comptes :</span> <b>${model.list.length}</b></span><span class="sp"></span><span><span class="k">Total débit :</span> <b>${_SN(td)}</b></span><span><span class="k">Total crédit :</span> <b>${_SN(tc)}</b></span><span style="color:${balanced?'var(--nav-active-color)':'var(--red)'}"><b>${balanced?'Balance équilibrée':'Écart '+_SN(Math.abs(td-tc))}</b></span></div>`;
+}
+function balImportForm(){
+  const bg=document.createElement("div");bg.className="modal-bg";
+  const defDate=(new Date().getFullYear()-1)+"-12-31";
+  bg.innerHTML=`<div class="modal" style="max-width:580px"><b>Importer la balance N-1 (reprise Sage)</b>
+    <div class="note" style="margin:6px 0">Importez la balance de clôture de l'exercice précédent exportée depuis Sage (mouvements cumulés par compte). Une écriture « Report à-nouveau » validée est créée à la date de clôture ; elle apparaît ensuite comme ouverture / « Mouvements au N-1 » dans la balance. Colonnes attendues : Compte, Intitulé, Débit, Crédit. <a href="#" onclick="balImportTpl();return false">Télécharger le modèle</a></div>
+    <label>Date de clôture N-1</label><input type="date" id="biDate" value="${defDate}">
+    <label>Fichier .xlsx</label><input type="file" id="biFile" accept=".xlsx,.xls">
+    <div class="err hidden" id="biErr" style="margin-top:8px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p" onclick="balImport()">Importer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+function balImportTpl(){ fetch("/api/accounting/balance-import/template",{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>r.blob()).then(b=>{const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download="modele_balance_N-1.xlsx";a.click();}).catch(()=>alert("Modèle indisponible")); }
+async function balImport(){
+  const f=document.getElementById("biFile").files[0]; const el=document.getElementById("biErr");
+  if(!f){ el.className="err";el.textContent="Choisissez un fichier.";el.classList.remove("hidden");return; }
+  const fd=new FormData(); fd.append("file",f); fd.append("date",document.getElementById("biDate").value||"");
+  try{ const r=await fetch("/api/accounting/balance-import",{method:"POST",headers:{Authorization:"Bearer "+TOKEN},body:fd}); const j=await r.json(); if(!r.ok)throw new Error(j.error||"Erreur");
+    const bg=document.querySelector(".modal-bg"); if(bg)bg.remove();
+    alert(j.accounts+" compte(s) importé(s)"+(j.addedAccounts?(" · "+j.addedAccounts+" nouveau(x) compte(s)"):"")+(j.imbalance?("\\n⚠ Écart de "+Math.abs(j.imbalance)+" placé en 471000 (à régulariser)"):"")+".");
+    acctBalanceView(); }
+  catch(e){ el.className="err";el.textContent=e.message;el.classList.remove("hidden"); }
 }
 /* ===== Balance des comptes - présentation Sage (Type d'état : Base / 6 colonnes) ===== */
 async function _balExercise(){
@@ -9462,10 +9475,12 @@ async function acctBalanceSagePrint(){
   const etat=window._balEtat||"base";
   const {start,end}=await _balExercise();
   const prevYE=_prevDay(start);
+  const _cf=window._acctCF||"",_ct=window._acctCT||"",_jf=window._acctJF||"",_jt=window._acctJT||"";
+  const _ff=()=>{ let p=""; if(_cf)p+="&compteFrom="+encodeURIComponent(_cf); if(_ct)p+="&compteTo="+encodeURIComponent(_ct); if(_jf)p+="&journalFrom="+encodeURIComponent(_jf); if(_jt)p+="&journalTo="+encodeURIComponent(_jt); return p; };
   // Ouverture (mouvements <= veille du début) + période (début..fin)
   const [openBal, perBal, lbl] = await Promise.all([
-    api("/accounting/balance?to="+encodeURIComponent(prevYE)).catch(()=>({rows:[]})),
-    api("/accounting/balance?from="+encodeURIComponent(start)+"&to="+encodeURIComponent(end)).catch(()=>({rows:[]})),
+    api("/accounting/balance?to="+encodeURIComponent(prevYE)+_ff()).catch(()=>({rows:[]})),
+    api("/accounting/balance?from="+encodeURIComponent(start)+"&to="+encodeURIComponent(end)+_ff()).catch(()=>({rows:[]})),
     _balLabels()
   ]);
   const model=_balBuildModel(openBal.rows||[], perBal.rows||[], lbl);
@@ -9560,11 +9575,13 @@ function acctLedgerPDF(){ const d=window._glPrint||{}; const p=new URLSearchPara
 function acctJournalPDF(){ const d=window._jrPrint||{}; const p=new URLSearchParams(); p.set("journal",d.journal||""); if(window._acctFrom)p.set("from",window._acctFrom); if(window._acctTo)p.set("to",window._acctTo); if(!window._acctFrom&&!window._acctTo&&d.period)p.set("period",d.period); acctPDF("/accounting/journal-report/pdf?"+p.toString(),"Journal_"+(d.journal||"")+".pdf"); }
 function acctAgedPDF(){ const d=window._agedPrint||{}; acctPDF("/accounting/aged/pdf?kind="+(d.kind||"client"),"Balance_agee_"+(d.kind||"client")+".pdf"); }
 function acctBalanceCSV(){
-  const d=window._balPrint||{rows:[]};
-  const m=[["Compte","Intitulé","Débit","Crédit","Solde"]];
-  d.rows.forEach(g=>m.push([g.account||g.key,g.label||"",Math.round(g.debit||0),Math.round(g.credit||0),Math.round(g.solde||0)]));
-  m.push(["TOTAL GENERAL","",Math.round(d.td||0),Math.round(d.tc||0),Math.round(d.ts||0)]);
-  _acctCSV("Balance"+(d.period?"_"+d.period:"")+".csv", m);
+  const s=window._balSageModel; if(!s||!s.model||!s.model.list.length){ alert("Rien à exporter."); return; }
+  const m=s.model, SN=n=>Math.round(Number(n)||0); let mx;
+  if(s.etat==="6col"){ mx=[["Compte","Intitulé","Mouv N-1 Débit","Mouv N-1 Crédit","Mouvements Débit","Mouvements Crédit","Solde Débit","Solde Crédit"]];
+    m.list.forEach(a=>{ const net=a.cumD-a.cumC; mx.push([a.account,a.label||"",SN(a.openD),SN(a.openC),SN(a.movD),SN(a.movC),net>0?SN(net):0,net<0?SN(-net):0]); }); }
+  else { mx=[["Compte","Intitulé","Mouvements Débit","Mouvements Crédit","Solde Débit","Solde Crédit"]];
+    m.list.forEach(a=>{ const d=a.openD+a.movD,c=a.openC+a.movC,net=d-c; mx.push([a.account,a.label||"",SN(d),SN(c),net>0?SN(net):0,net<0?SN(-net):0]); }); }
+  _acctCSV("Balance.csv", mx);
 }
 function acctLedgerCSV(){
   const d=window._glPrint||{rows:[]};

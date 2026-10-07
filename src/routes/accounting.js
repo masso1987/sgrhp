@@ -187,6 +187,8 @@ router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const onlyValidated = req.query.all !== "1";
   const _from = req.query.from || "", _to = req.query.to || "";
+  const cFrom = String(req.query.compteFrom || "").trim(), cTo = String(req.query.compteTo || "").trim();
+  const jFrom = String(req.query.journalFrom || "").trim().toUpperCase(), jTo = String(req.query.journalTo || "").trim().toUpperCase();
   const accs = {}; for (const a of mine(db.acctAccounts, req)) accs[a.number] = a.label;
   const agg = {};
   for (const e of mine(db.acctEntries, req)) {
@@ -194,7 +196,13 @@ router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
     if (req.query.period && (e.period || "") !== req.query.period) continue;
     if (_from && (e.date || "") < _from) continue;
     if (_to && (e.date || "") > _to) continue;
+    const jc = String(e.journalCode || "").toUpperCase();
+    if (jFrom && jc < jFrom) continue;
+    if (jTo && jc > jTo) continue;
     for (const l of (e.lines || [])) {
+      const an = String(l.account || "");
+      if (cFrom && an < cFrom) continue;
+      if (cTo && an > cTo + "￿") continue;
       const a = (agg[l.account] = agg[l.account] || { account: l.account, label: accs[l.account] || "", debit: 0, credit: 0 });
       a.debit += R2(l.debit); a.credit += R2(l.credit);
     }
@@ -202,6 +210,58 @@ router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const rows = Object.values(agg).sort((x, y) => x.account.localeCompare(y.account)).map(a => Object.assign(a, { solde: a.debit - a.credit }));
   const totalD = rows.reduce((s, r) => s + r.debit, 0), totalC = rows.reduce((s, r) => s + r.credit, 0);
   res.json({ rows, totalDebit: totalD, totalCredit: totalC, balanced: totalD === totalC });
+});
+
+/* ==================== Import balance N-1 (reprise Sage) ==================== */
+// Crée une écriture "Report à-nouveau" validée à partir d'une balance Sage (mouvements cumulés
+// par compte au 31/12/N-1). La balance existante l'affiche alors comme ouverture / « Mouvements au N-1 ».
+const _balMemUp = require("multer")({ storage: require("multer").memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+router.get("/balance-import/template", allow("RC", "ADM"), (req, res) => {
+  const XLSX = require("xlsx");
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["COMPTE", "INTITULE", "DEBIT", "CREDIT"], ["601000", "Achats de marchandises", "1500000", "0"], ["401100", "Fournisseurs", "0", "1500000"]]), "Balance N-1");
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Disposition", 'attachment; filename="modele_balance_N-1.xlsx"');
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.send(buf);
+});
+router.post("/balance-import", allow("RC", "ADM"), _balMemUp.single("file"), (req, res) => {
+  const XLSX = require("xlsx");
+  seedAccounting(req.user.tenantId || "t1");
+  if (!req.file) return res.status(400).json({ error: "Fichier Excel requis." });
+  const cutoff = (String((req.body && req.body.date) || "").trim()) || ((new Date().getFullYear() - 1) + "-12-31");
+  let rows;
+  try { const wb = XLSX.read(req.file.buffer, { type: "buffer" }); rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "", raw: false, header: 1 }); }
+  catch (e) { return res.status(400).json({ error: "Fichier illisible : " + e.message }); }
+  if (!rows || rows.length < 2) return res.status(400).json({ error: "Aucune ligne." });
+  const norm = s => String(s || "").trim().toUpperCase().replace(/\s+/g, " ").replace(/[ÉÈÊ]/g, "E");
+  let hdr = rows.findIndex(r => r.some(c => /COMPTE/i.test(String(c))));
+  if (hdr < 0) hdr = 0;
+  const cols = rows[hdr].map(h => { const k = norm(h); if (/COMPTE|NUMERO|N°/.test(k)) return "account"; if (/INTITUL|LIBELL|NOM/.test(k)) return "label"; if (/DEBIT/.test(k)) return "debit"; if (/CREDIT/.test(k)) return "credit"; return null; });
+  const existing = {}; mine(db.acctAccounts, req).forEach(a => { existing[String(a.number)] = a; });
+  const num = v => { const n = parseFloat(String(v || "").replace(/\s/g, "").replace(/[^\d.,-]/g, "").replace(",", ".")); return isFinite(n) ? n : 0; };
+  const lines = []; let addedAccts = 0;
+  for (let i = hdr + 1; i < rows.length; i++) {
+    const r = rows[i]; if (!r || !r.length) continue;
+    const rec = {}; cols.forEach((k, ci) => { if (k && r[ci] != null) rec[k] = String(r[ci]).trim(); });
+    const acct = String(rec.account || "").trim(); if (!acct || !/^\d/.test(acct)) continue;
+    const d = R2(num(rec.debit)), c = R2(num(rec.credit)); if (!d && !c) continue;
+    if (!existing[acct]) { const a = stamp({ id: id("acc"), number: acct, label: rec.label || "" }, req); db.acctAccounts.push(a); existing[acct] = a; addedAccts++; }
+    else if (rec.label && !existing[acct].label) { existing[acct].label = rec.label; }
+    lines.push({ account: acct, label: rec.label || existing[acct].label || "", debit: d, credit: c });
+  }
+  if (!lines.length) return res.status(400).json({ error: "Aucun compte valide à importer." });
+  const totD = lines.reduce((s, l) => s + l.debit, 0), totC = lines.reduce((s, l) => s + l.credit, 0);
+  const diff = R2(totD - totC);
+  if (diff !== 0) {
+    if (!existing["471000"]) { db.acctAccounts.push(stamp({ id: id("acc"), number: "471000", label: "Compte d'attente" }, req)); existing["471000"] = true; }
+    if (diff > 0) lines.push({ account: "471000", label: "Écart de reprise (à régulariser)", debit: 0, credit: diff });
+    else lines.push({ account: "471000", label: "Écart de reprise (à régulariser)", debit: -diff, credit: 0 });
+  }
+  const entry = stamp({ id: id("aent"), period: cutoff.slice(0, 7), pieceNo: "REPORT/" + cutoff.slice(0, 4), journalCode: "REP", date: cutoff, label: "Report à-nouveau (reprise Sage) " + cutoff, lines, status: "validated", source: "sage-import", createdAt: new Date().toISOString() }, req);
+  db.acctEntries.push(entry); save();
+  audit(req.user, "IMPORTED", "AcctBalance", entry.id, { accounts: lines.length, addedAccts, imbalance: diff });
+  res.json({ ok: true, accounts: lines.length, addedAccounts: addedAccts, imbalance: diff, entryId: entry.id, date: cutoff });
 });
 
 /* ==================== C2 - GÉNÉRATION AUTO (Facturation & Paie) ==================== */
