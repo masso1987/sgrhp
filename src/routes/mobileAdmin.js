@@ -13,6 +13,22 @@ const path = require("path");
 const now = () => new Date().toISOString();
 const REQ_DIR = path.join(__dirname, "..", "..", "uploads", "requests");
 
+/* ---- Work schedule (per portefeuille) + pointage treatment ---- */
+const DEFAULT_SCHEDULE = { startTime: "08:00", endTime: "17:30", breakMinutes: 90, dailyHours: 8, paysOvertime: false };
+const TZ_OFFSET_MIN = Number(process.env.TZ_OFFSET_MIN || 60); // WAT (UTC+1) by default
+function hmToMin(s) { const m = /^(\d{1,2}):(\d{2})/.exec(String(s || "")); return m ? (Number(m[1]) * 60 + Number(m[2])) : 0; }
+function localMinOfDay(iso) { const d = new Date(new Date(iso).getTime() + TZ_OFFSET_MIN * 60000); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
+function schedOf(pf) {
+  const w = (pf && pf.workSchedule) || {};
+  return {
+    startTime: w.startTime || DEFAULT_SCHEDULE.startTime,
+    endTime: w.endTime || DEFAULT_SCHEDULE.endTime,
+    breakMinutes: w.breakMinutes != null ? w.breakMinutes : DEFAULT_SCHEDULE.breakMinutes,
+    dailyHours: w.dailyHours != null ? w.dailyHours : DEFAULT_SCHEDULE.dailyHours,
+    paysOvertime: !!w.paysOvertime,
+  };
+}
+
 /* ---------------- Employee app-account provisioning ---------------- */
 router.get("/employees/:eid/app-account", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const acc = mine(db.empAccounts, req).find(a => a.employeeId === req.params.eid);
@@ -197,6 +213,70 @@ router.put("/hr-tips/:id", allow("GPF", "ADM", "RQ"), (req, res) => {
 router.delete("/hr-tips/:id", allow("GPF", "ADM", "RQ"), (req, res) => {
   db.hrTips = (db.hrTips || []).filter(x => !((x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id));
   save(); res.json({ ok: true });
+});
+
+/* ---------------- Work schedules (per portefeuille) ---------------- */
+router.get("/work-schedules", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  res.json(mine(db.portfolios, req).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "fr"))
+    .map(p => Object.assign({ portfolioId: p.id, portfolioName: p.name }, schedOf(p))));
+});
+router.put("/work-schedules/:pid", allow("ADM"), (req, res) => {
+  const p = mine(db.portfolios, req).find(x => x.id === req.params.pid);
+  if (!p) return res.status(404).json({ error: "Portefeuille introuvable" });
+  const b = req.body || {}; const w = p.workSchedule || {};
+  if (b.startTime != null) w.startTime = String(b.startTime).slice(0, 5);
+  if (b.endTime != null) w.endTime = String(b.endTime).slice(0, 5);
+  if (b.breakMinutes != null) w.breakMinutes = Math.max(0, parseInt(b.breakMinutes, 10) || 0);
+  if (b.dailyHours != null) w.dailyHours = Math.max(1, Math.min(24, Number(b.dailyHours) || 8));
+  if (b.paysOvertime != null) w.paysOvertime = !!b.paysOvertime;
+  p.workSchedule = w; save(); audit(req.user, "CONFIG_CHANGED", "Portfolio", p.id, { workSchedule: w });
+  res.json(Object.assign({ portfolioId: p.id, portfolioName: p.name }, schedOf(p)));
+});
+
+/* ---------------- Pointage treatment: monthly presence per employee ----------------
+ * A day counts as present only with a check-IN and a check-OUT. Early arrival adds no
+ * hours (clamped to scheduled start); the break is deducted; overtime = hours past the
+ * scheduled end, counted only for portefeuilles flagged paysOvertime. Read-only report
+ * (GPF reviews/exports for the bordereau); does NOT write payroll. */
+router.get("/attendance/treatment", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const period = String(req.query.period || "").slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({ error: "Période requise (AAAA-MM)." });
+  const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  const list = mine(db.attendance, req).filter(a => (a.serverTs || "").slice(0, 7) === period);
+  const byEmp = {};
+  for (const a of list) { const d = (a.serverTs || "").slice(0, 10); byEmp[a.employeeId] = byEmp[a.employeeId] || {}; (byEmp[a.employeeId][d] = byEmp[a.employeeId][d] || []).push(a); }
+  const out = [];
+  for (const eid of Object.keys(byEmp)) {
+    const e = empById[eid] || {}; const sch = schedOf(pfById[e.portfolioId]);
+    const sStart = hmToMin(sch.startTime), sEnd = hmToMin(sch.endTime);
+    let presentDays = 0, incompleteDays = 0, exceptionDays = 0, workedMin = 0, otMin = 0;
+    const days = byEmp[eid];
+    for (const d of Object.keys(days)) {
+      const punches = days[d].sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
+      const cin = punches.find(p => p.type === "IN"); const cout = [...punches].reverse().find(p => p.type === "OUT");
+      if (punches.some(p => p.status === "EXCEPTION" && !p.resolved)) exceptionDays++;
+      if (cin && cout) {
+        presentDays++;
+        const inMin = localMinOfDay(cin.serverTs), outMin = localMinOfDay(cout.serverTs);
+        const effStart = Math.max(inMin, sStart);
+        if (sch.paysOvertime) {
+          const net = Math.max(0, outMin - effStart - sch.breakMinutes);
+          const reg = Math.min(net, sch.dailyHours * 60); const ot = Math.max(0, net - sch.dailyHours * 60);
+          workedMin += reg + ot; otMin += ot;
+        } else {
+          const effEnd = Math.min(outMin, sEnd);
+          workedMin += Math.max(0, effEnd - effStart - sch.breakMinutes);
+        }
+      } else { incompleteDays++; }
+    }
+    out.push({ employeeId: eid, employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "",
+      portfolio: (pfById[e.portfolioId] || {}).name || "", paysOvertime: sch.paysOvertime,
+      presentDays, incompleteDays, exceptionDays,
+      workedHours: Math.round(workedMin / 6) / 10, otHours: Math.round(otMin / 6) / 10 });
+  }
+  out.sort((a, b) => String(a.employee).localeCompare(String(b.employee), "fr"));
+  res.json({ period, scheduleDefault: DEFAULT_SCHEDULE, items: out });
 });
 
 /* ---------------- Generic Excel export (from a displayed table) ---------------- */

@@ -4495,7 +4495,53 @@ function siteParseLink(){ const el=document.getElementById("stLink"); if(!el)ret
 /* Tabbed hubs (consolidated menus, mobile-friendly: tabs wrap on small screens) */
 function _tabs(items,active){ return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">'+items.map(x=>'<button onclick="'+x[2]+'()" style="padding:8px 14px;border:1px solid #d1d5db;border-radius:9px;cursor:pointer;font-weight:600;font-size:13.5px;'+(x[0]===active?'background:#065f46;color:#fff;border-color:#065f46':'background:#fff;color:#374151')+'">'+x[1]+'</button>').join('')+'</div>'; }
 function presenceView(){ return (ME.role==="ADM") ? sitesView() : pointageReviewView(); }
-function _presTabs(a){ const t=[]; if(ME.role==="ADM") t.push(['sites','Sites','sitesView']); t.push(['pointage','Pointages','pointageReviewView']); return _tabs(t,a); }
+function _presTabs(a){ const t=[]; if(ME.role==="ADM"){ t.push(['sites','Sites','sitesView']); t.push(['horaires','Horaires','horairesView']); } t.push(['pointage','Pointages','pointageReviewView']); t.push(['trait','Traitement','traitementView']); return _tabs(t,a); }
+async function horairesView(){
+  let list=[]; try{ list=await api("/work-schedules"); }catch(e){ view.innerHTML=`${_presTabs('horaires')}<div class="panel">`+esc(e.message)+'</div>'; return; }
+  const rows=list.map(p=>`<tr>
+      <td><b>${esc(p.portfolioName)}</b></td>
+      <td><input id="wsS_${p.portfolioId}" type="time" value="${esc(p.startTime)}"></td>
+      <td><input id="wsE_${p.portfolioId}" type="time" value="${esc(p.endTime)}"></td>
+      <td><input id="wsB_${p.portfolioId}" type="number" min="0" value="${p.breakMinutes}" style="width:70px"> min</td>
+      <td><input id="wsH_${p.portfolioId}" type="number" min="1" max="24" step="0.5" value="${p.dailyHours}" style="width:64px"> h</td>
+      <td style="text-align:center"><input type="checkbox" id="wsO_${p.portfolioId}" ${p.paysOvertime?'checked':''} style="width:auto"></td>
+      <td><button class="btn p sm" onclick="wsSave('${p.portfolioId}')">Enreg.</button></td>
+    </tr>`).join("");
+  view.innerHTML=`${_presTabs('horaires')}<h1 style="margin-top:0">Horaires de travail</h1>
+    <div class="note" style="margin-bottom:8px">Par portefeuille. Sert au traitement des pointages : une arrivée en avance ne crée pas d'heures en plus, la pause est déduite, et les heures au-delà de la fin prévue comptent en heures supplémentaires uniquement si « Paie HS » est coché.</div>
+    <div class="panel" style="overflow-x:auto"><table style="width:100%;min-width:680px"><tr><th>Portefeuille</th><th>Début</th><th>Fin</th><th>Pause</th><th>Heures/jour</th><th>Paie HS</th><th></th></tr>${rows||'<tr><td colspan="7" class="note">Aucun portefeuille.</td></tr>'}</table></div>`;
+}
+async function wsSave(pid){
+  const g=i=>document.getElementById(i);
+  const body={startTime:g("wsS_"+pid).value,endTime:g("wsE_"+pid).value,breakMinutes:Number(g("wsB_"+pid).value)||0,dailyHours:Number(g("wsH_"+pid).value)||8,paysOvertime:g("wsO_"+pid).checked};
+  try{ await api("/work-schedules/"+pid,{method:"PUT",body:JSON.stringify(body)}); horairesView(); }catch(e){ alert(e.message); }
+}
+function _curMonth(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+async function traitementView(){
+  view.innerHTML=`${_presTabs('trait')}<h1 style="margin-top:0">Traitement des pointages</h1>
+    <div class="note" style="margin-bottom:8px">Présence mensuelle calculée à partir des pointages et des horaires du portefeuille. Un jour compte s'il y a une entrée ET une sortie ; sinon il est « incomplet » (à corriger dans Pointages). Les heures supplémentaires ne sont comptées que pour les portefeuilles « Paie HS ». À valider puis exporter pour le bordereau — aucun écrit automatique en paie.</div>
+    <div class="panel" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <div><label>Mois</label><input type="month" id="trPeriod" value="${_curMonth()}"></div>
+      <button class="btn p" onclick="traitementLoad()">Calculer</button>
+      ${_expBar('#trBody table','traitement_presence')}
+    </div>
+    <div id="trBody" class="panel" style="overflow-x:auto"><div class="note">Choisissez un mois puis cliquez sur Calculer.</div></div>`;
+}
+async function traitementLoad(){
+  const period=document.getElementById("trPeriod").value; if(!period){alert("Choisissez un mois.");return;}
+  let d; try{ d=await api("/attendance/treatment?period="+encodeURIComponent(period)); }catch(e){ document.getElementById("trBody").innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
+  const items=d.items||[];
+  const rows=items.map(x=>`<tr${x.incompleteDays?' style="background:#fffbeb"':''}>
+    <td><b>${esc(x.employee)}</b><div class="note">${esc(x.matricule||'')}</div></td>
+    <td>${esc(x.portfolio||'')}</td>
+    <td style="text-align:center">${x.presentDays}</td>
+    <td style="text-align:center">${x.workedHours}</td>
+    <td style="text-align:center">${x.paysOvertime?x.otHours:'—'}</td>
+    <td style="text-align:center">${x.incompleteDays?('<span class="tag amber">'+x.incompleteDays+'</span>'):'0'}</td>
+    <td style="text-align:center">${x.exceptionDays?('<span class="tag red">'+x.exceptionDays+'</span>'):'0'}</td>
+  </tr>`).join("");
+  document.getElementById("trBody").innerHTML=`<div class="note" style="margin-bottom:6px">${items.length} salarié(s) · mois ${esc(d.period)}</div><table style="width:100%;min-width:720px"><tr><th>Salarié</th><th>Portefeuille</th><th>Jours présents</th><th>Heures</th><th>HS</th><th>Incomplets</th><th>Exceptions</th></tr>${items.length?rows:'<tr><td colspan="7" class="note">Aucun pointage pour ce mois.</td></tr>'}</table>`;
+}
 function _insTabs(a){ return _tabs([['cov','Couverture','assuranceView'],['ayd','Ayants droit','ayantsDroitView'],['res','Réseau','assReseauView'],['cons','Consommation','assConsoView']],a); }
 function _scroll(html){ return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">'+html+'</div>'; }
 /* ---------------- Sites & pointage (géolocalisé) ---------------- */
