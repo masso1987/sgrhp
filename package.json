@@ -9,6 +9,7 @@
     "docxtemplater": "^3.69.0",
     "express": "^4.19.2",
     "express-rate-limit": "^8.6.0",
+    "firebase-admin": "^12.7.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",

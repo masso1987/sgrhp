@@ -396,6 +396,7 @@ router.post("/dependents/:id/approve", allow("GPF", "ADM"), (req, res) => {
   if (!d) return res.status(404).json({ error: "Introuvable" });
   d.status = "ACTIVE"; d.note = ""; save();
   audit(req.user, "VALIDATED", "Dependent", d.id, {});
+  try { require("../push").send(db, req.user.tenantId, [d.employeeId], "Ayant droit approuvé", `${d.firstName} ${d.lastName} a été ajouté à votre couverture.`, { type: "dependent", id: d.id }).catch(() => {}); } catch (e) {}
   res.json(depPublic(d));
 });
 router.post("/dependents/:id/reject", allow("GPF", "ADM"), (req, res) => {
@@ -404,6 +405,7 @@ router.post("/dependents/:id/reject", allow("GPF", "ADM"), (req, res) => {
   if (!d) return res.status(404).json({ error: "Introuvable" });
   d.status = "REJECTED"; d.note = String((req.body && req.body.note) || "").slice(0, 300); save();
   audit(req.user, "REJECTED", "Dependent", d.id, {});
+  try { require("../push").send(db, req.user.tenantId, [d.employeeId], "Demande d'ayant droit rejetée", `${d.firstName} ${d.lastName}${d.note ? " — " + d.note : ""}`, { type: "dependent", id: d.id }).catch(() => {}); } catch (e) {}
   res.json(depPublic(d));
 });
 // Download a dependent's attached document (staff).

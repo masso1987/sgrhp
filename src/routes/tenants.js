@@ -136,6 +136,7 @@ function broadcastMaintenanceNotice(m) {
   for (const t of (db.tenants || [])) {
     if (!db.notifications) db.notifications = [];
     db.notifications.push({ id: id("ntf"), tenantId: t.id, employeeId: null, title, body, type: "MAINTENANCE", read: false, createdAt });
+    try { require("../push").send(db, t.id, null, title, body, { type: "maintenance" }).catch(() => {}); } catch (e) {}
   }
   save();
 }

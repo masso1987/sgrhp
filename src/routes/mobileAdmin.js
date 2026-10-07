@@ -178,6 +178,7 @@ router.post("/emp-requests/:id/handle", allow("GPF", "ADM", "CD"), (req, res) =>
   if (!r) return res.status(404).json({ error: "Introuvable" });
   r.status = "HANDLED"; r.handledBy = req.user.id; r.handledAt = now(); r.decisionNote = String((req.body && req.body.note) || "").slice(0, 300);
   save(); audit(req.user, "HANDLED", "EmpRequest", r.id, { type: r.type });
+  try { require("../push").send(db, req.user.tenantId, [r.employeeId], "Demande traitée", `Votre demande (${r.type === "AVI" ? "AVI" : "acompte"}) a été traitée.`, { type: "request", id: r.id }).catch(() => {}); } catch (e) {}
   res.json({ ok: true });
 });
 router.post("/emp-requests/:id/reject", allow("GPF", "ADM", "CD"), (req, res) => {
@@ -185,6 +186,7 @@ router.post("/emp-requests/:id/reject", allow("GPF", "ADM", "CD"), (req, res) =>
   if (!r) return res.status(404).json({ error: "Introuvable" });
   r.status = "REJECTED"; r.handledBy = req.user.id; r.handledAt = now(); r.decisionNote = String((req.body && req.body.note) || "").slice(0, 300);
   save(); audit(req.user, "REJECTED", "EmpRequest", r.id, { type: r.type });
+  try { require("../push").send(db, req.user.tenantId, [r.employeeId], "Demande rejetée", `Votre demande (${r.type === "AVI" ? "AVI" : "acompte"}) a été rejetée.`, { type: "request", id: r.id }).catch(() => {}); } catch (e) {}
   res.json({ ok: true });
 });
 
@@ -222,6 +224,7 @@ router.post("/hr-tips", allow("GPF", "ADM", "RQ"), (req, res) => {
   if (!b.title || !b.body) return res.status(400).json({ error: "Titre et contenu requis." });
   const t = stamp({ id: id("tip"), title: String(b.title).slice(0, 160), body: String(b.body).slice(0, 8000), active: b.active !== false, author: req.user.fullName || req.user.email || "", createdAt: now() }, req);
   db.hrTips.push(t); save(); audit(req.user, "CREATED", "HrTip", t.id, {});
+  if (t.active) try { require("../push").send(db, req.user.tenantId, null, "Nouvelle astuce RH", t.title, { type: "tip", id: t.id }).catch(() => {}); } catch (e) {}
   res.status(201).json(t);
 });
 router.put("/hr-tips/:id", allow("GPF", "ADM", "RQ"), (req, res) => {

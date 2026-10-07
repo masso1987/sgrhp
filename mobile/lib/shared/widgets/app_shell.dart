@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/providers.dart';
+import '../../core/push/push_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/attendance/sync_service.dart';
 import '../../features/maintenance/maintenance.dart';
@@ -21,7 +23,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     // Start listening for connectivity and flush any queued punches.
-    WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(syncServiceProvider).flush());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(syncServiceProvider).flush();
+      PushService.registerToken(ref.read(apiClientProvider), ref.read(secureStoreProvider));
+    });
   }
 
   int _index() {

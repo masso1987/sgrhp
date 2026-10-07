@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/config/env.dart';
@@ -14,7 +15,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _login = TextEditingController();
   final _pwd = TextEditingController();
   bool _loading = false, _obscure = true;
+  bool _serverUnlocked = false;
   String? _error;
+
+  Future<void> _unlockServer() async {
+    if (!kReleaseMode) { _serverDialog(); return; } // dev builds: open directly
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Accès support'),
+        content: TextField(controller: ctrl, obscureText: true, keyboardType: TextInputType.number,
+            decoration: const InputDecoration(hintText: 'Code support')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim() == Env.supportCode), child: const Text('OK')),
+        ],
+      ),
+    );
+    if (ok == true && mounted) { setState(() => _serverUnlocked = true); _serverDialog(); }
+    else if (ok == false && mounted) {}
+    else if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Code incorrect')));
+  }
 
   Future<void> _submit() async {
     setState(() { _loading = true; _error = null; });
@@ -45,7 +67,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _logoMark(),
                 const SizedBox(height: 22),
-                const Text('MBOKA Mon RH', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -.5)),
+                GestureDetector(
+                  onLongPress: _unlockServer,
+                  child: const Text('MBOKA Mon RH', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -.5)),
+                ),
                 const SizedBox(height: 6),
                 Text('Portail employé — présence & self-service',
                     style: TextStyle(color: Colors.white.withOpacity(.85), fontSize: 14)),
@@ -97,14 +122,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 10),
                 Center(child: TextButton(onPressed: () {}, child: const Text('Mot de passe oublié ?'))),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _serverDialog,
-                    icon: const Icon(Icons.dns_outlined, size: 16),
-                    label: const Text('Serveur'),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.mutedLight, textStyle: const TextStyle(fontSize: 12.5)),
+                if (!kReleaseMode || _serverUnlocked)
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _serverDialog,
+                      icon: const Icon(Icons.dns_outlined, size: 16),
+                      label: const Text('Serveur'),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.mutedLight, textStyle: const TextStyle(fontSize: 12.5)),
+                    ),
                   ),
-                ),
               ]),
             ),
           ),

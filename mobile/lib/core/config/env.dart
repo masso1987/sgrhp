@@ -8,6 +8,9 @@ class Env {
   static const apiVersion = '/api/v1';
   static const googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
   static const selfieRequired = bool.fromEnvironment('SELFIE_REQUIRED', defaultValue: false);
+  /// Support/admin code that unlocks the hidden "Serveur" (base URL) override in
+  /// release builds. Bake a per-deployment value with --dart-define=SUPPORT_CODE=...
+  static const supportCode = String.fromEnvironment('SUPPORT_CODE', defaultValue: '246810');
 }
 
 /// Effective runtime configuration. The API base URL defaults to the build-time

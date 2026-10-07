@@ -2014,6 +2014,7 @@ router.post("/runs/:id/close", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req
   run.status = "CLOSED"; run.closedAt = new Date().toISOString();
   save();
   audit(req.user, "CLOSED", "PayRun", run.id, { period: run.period });
+  try { const _ids = mine(db.payslips, req).filter(x => x.runId === run.id).map(x => x.employeeId); require("../push").send(db, req.user.tenantId, _ids, "Bulletin disponible", `Votre bulletin de paie (${run.period}) est disponible.`, { type: "payslip", period: run.period }).catch(() => {}); } catch (e) {}
   // La comptabilisation ne se fait plus automatiquement à la clôture : elle passe par le Contrôle de passation (bouton « Transférer en comptabilité »).
   res.json({ run });
 });
