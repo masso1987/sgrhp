@@ -98,7 +98,7 @@ router.get("/sites/:id/assignments", allow("ADM"), (req, res) => {
 });
 
 /* ---------------- Attendance review ---------------- */
-router.get("/attendance/review", allow("ADM"), (req, res) => {
+router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const { from, to, status } = req.query;
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   const siteById = {}; mine(db.sites, req).forEach(s => { siteById[s.id] = s; });
@@ -112,11 +112,30 @@ router.get("/attendance/review", allow("ADM"), (req, res) => {
       server_ts: a.serverTs, client_ts: a.clientTs, site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
       status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved }; }));
 });
-router.post("/attendance/:id/resolve", allow("ADM"), (req, res) => {
+router.post("/attendance/:id/resolve", allow("GPF", "ADM", "CD"), (req, res) => {
   const a = mine(db.attendance, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
   a.resolved = true; a.resolvedBy = req.user.id; a.resolvedAt = now(); a.resolveNote = String((req.body && req.body.note) || "").slice(0, 240);
   if (req.body && req.body.markNormal) a.status = "NORMAL";
   save(); audit(req.user, "RESOLVED", "Attendance", a.id, { reason: a.exceptionReason });
+  res.json({ ok: true });
+});
+/* Edit / delete a raw pointage (GPF/ADM) — traced in the audit log. */
+router.put("/attendance/:id", allow("GPF", "ADM", "CD"), (req, res) => {
+  const a = mine(db.attendance, req).find(x => x.id === req.params.id);
+  if (!a) return res.status(404).json({ error: "Pointage introuvable" });
+  const b = req.body || {};
+  if (b.serverTs) { const d = new Date(b.serverTs); if (isNaN(d)) return res.status(400).json({ error: "Horodatage invalide" }); a.serverTs = d.toISOString(); }
+  if (b.type && ["IN", "OUT"].includes(b.type)) a.type = b.type;
+  if (b.status && ["NORMAL", "EXCEPTION"].includes(b.status)) a.status = b.status;
+  a.editedBy = req.user.id; a.editedAt = now();
+  save(); audit(req.user, "EDITED", "Attendance", a.id, { serverTs: a.serverTs, type: a.type });
+  res.json({ ok: true });
+});
+router.delete("/attendance/:id", allow("GPF", "ADM", "CD"), (req, res) => {
+  const a = mine(db.attendance, req).find(x => x.id === req.params.id);
+  if (!a) return res.status(404).json({ error: "Pointage introuvable" });
+  db.attendance = db.attendance.filter(x => !((x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id));
+  save(); audit(req.user, "DELETED", "Attendance", a.id, {});
   res.json({ ok: true });
 });
 

@@ -1288,7 +1288,7 @@ const NAV = [
   { k: "employees", label: "Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "generated", label: "Documents générés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "avi", label: "AVI (attestations bancaires)", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
-  { k: "presence", label: "Présence", sec: "Présence", roles: ["ADM"], grp: "principal" },
+  { k: "presence", label: "Présence", sec: "Présence", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "assurance", label: "Assurance maladie", sec: "Assurance maladie", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "emprequests", label: "Demandes (mobile)", sec: "Demandes employés", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
   { k: "astuces", label: "Astuces RH", sec: "Demandes employés", roles: ["GPF","CD","RJ","RQ","ADM"], grp: "principal" },
@@ -1594,7 +1594,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, presence: sitesView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -4494,7 +4494,8 @@ function _expBar(sel,name){ return '<div style="display:flex;gap:6px"><button cl
 function siteParseLink(){ const el=document.getElementById("stLink"); if(!el)return; const v=el.value||""; const m=v.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||v.match(/[?&](?:q|query|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)||v.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/); if(m){ document.getElementById("stLat").value=parseFloat(m[1]).toFixed(6); document.getElementById("stLng").value=parseFloat(m[2]).toFixed(6);} }
 /* Tabbed hubs (consolidated menus, mobile-friendly: tabs wrap on small screens) */
 function _tabs(items,active){ return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">'+items.map(x=>'<button onclick="'+x[2]+'()" style="padding:8px 14px;border:1px solid #d1d5db;border-radius:9px;cursor:pointer;font-weight:600;font-size:13.5px;'+(x[0]===active?'background:#065f46;color:#fff;border-color:#065f46':'background:#fff;color:#374151')+'">'+x[1]+'</button>').join('')+'</div>'; }
-function _presTabs(a){ return _tabs([['sites','Sites','sitesView'],['pointage','Pointages','pointageReviewView']],a); }
+function presenceView(){ return (ME.role==="ADM") ? sitesView() : pointageReviewView(); }
+function _presTabs(a){ const t=[]; if(ME.role==="ADM") t.push(['sites','Sites','sitesView']); t.push(['pointage','Pointages','pointageReviewView']); return _tabs(t,a); }
 function _insTabs(a){ return _tabs([['cov','Couverture','assuranceView'],['ayd','Ayants droit','ayantsDroitView'],['res','Réseau','assReseauView'],['cons','Consommation','assConsoView']],a); }
 function _scroll(html){ return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">'+html+'</div>'; }
 /* ---------------- Sites & pointage (géolocalisé) ---------------- */
@@ -4548,18 +4549,30 @@ async function siteSave(sid){
 async function siteDelete(sid,name){ if(!confirm("Supprimer le site « "+name+" » et toutes ses affectations ?"))return; try{ await api("/sites/"+sid,{method:"DELETE"}); sitesView(); }catch(e){ alert(e.message); } }
 async function siteAssignOpen(sid){
   const s=(window._SITES||[]).find(x=>x.id===sid)||{};
-  let emps=[],assigned=[];
-  try{ const r=await Promise.all([api("/employees"),api("/sites/"+sid+"/assignments")]); emps=r[0]||[]; assigned=r[1]||[]; }catch(e){ alert(e.message); return; }
-  const assignedIds=assigned.map(a=>a.employeeId);
-  const options=emps.filter(e=>!assignedIds.includes(e.id)).map(e=>`<option value="${e.id}">${esc((e.firstName||'')+' '+(e.lastName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
-  const rows=assigned.length?assigned.map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.matricule||'')}</td><td style="text-align:right"><button class="btn ghost sm" onclick="siteAssignRemove('${sid}','${a.employeeId}')">Retirer</button></td></tr>`).join(""):'<tr><td colspan="3" class="note">Aucun employé affecté.</td></tr>';
+  let emps=[],assigned=[],pfs=[];
+  try{ const r=await Promise.all([api("/employees"),api("/sites/"+sid+"/assignments"),api("/portfolios")]); emps=r[0]||[]; assigned=r[1]||[]; pfs=r[2]||[]; }catch(e){ alert(e.message); return; }
+  window._ASG={sid:sid, emps:emps, assignedIds:assigned.map(a=>a.employeeId)};
+  const pfOpts=pfs.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fr')).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  const rows=assigned.length?assigned.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fr')).map(a=>`<tr><td>${esc(a.name)}</td><td>${esc(a.matricule||'')}</td><td style="text-align:right"><button class="btn ghost sm" onclick="siteAssignRemove('${sid}','${a.employeeId}')">Retirer</button></td></tr>`).join(""):'<tr><td colspan="3" class="note">Aucun employé affecté.</td></tr>';
   const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:620px"><b>Affectations — ${esc(s.name||'')}</b>
-    <div style="display:flex;gap:8px;margin:10px 0"><select id="asgSel" style="flex:1">${options||'<option value="">Tous les employés sont déjà affectés</option>'}</select><button class="btn p" onclick="siteAssignAdd('${sid}')">Affecter</button></div>
-    <table style="width:100%"><tr><th>Employé</th><th>Matricule</th><th></th></tr>${rows}</table>
+  bg.innerHTML=`<div class="modal" style="max-width:640px"><b>Affectations — ${esc(s.name||'')}</b>
+    <div class="note" style="margin:4px 0 8px">Choisissez d'abord le portefeuille, puis le salarié (liste limitée à ce portefeuille, par ordre alphabétique).</div>
+    <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:end">
+      <div><label>Portefeuille</label><select id="asgPf" onchange="asgFillEmp()"><option value="">— choisir —</option>${pfOpts}</select></div>
+      <div style="flex:1;min-width:200px"><label>Salarié</label><select id="asgSel"><option value="">Choisissez d'abord un portefeuille</option></select></div>
+      <button class="btn p" onclick="siteAssignAdd('${sid}')">Affecter</button>
+    </div>
+    <div style="overflow-x:auto"><table style="width:100%"><tr><th>Salarié</th><th>Matricule</th><th></th></tr>${rows}</table></div>
     <div style="margin-top:12px;text-align:right"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div>
   </div>`;
   document.body.appendChild(bg);
+}
+function asgFillEmp(){
+  const a=window._ASG||{emps:[],assignedIds:[]}; const pf=(document.getElementById("asgPf")||{}).value; const sel=document.getElementById("asgSel"); if(!sel)return;
+  if(!pf){ sel.innerHTML='<option value="">Portefeuille requis</option>'; return; }
+  const list=(a.emps||[]).filter(e=>e.portfolioId===pf && !a.assignedIds.includes(e.id))
+    .sort((x,y)=>String(((x.firstName||'')+' '+(x.lastName||'')).trim()).localeCompare(String(((y.firstName||'')+' '+(y.lastName||'')).trim()),'fr'));
+  sel.innerHTML=list.length?list.map(e=>`<option value="${e.id}">${esc(((e.firstName||'')+' '+(e.lastName||'')).trim())}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join(""):'<option value="">Aucun salarié disponible pour ce portefeuille</option>';
 }
 async function siteAssignAdd(sid){ const sel=document.getElementById("asgSel"); const eid=sel&&sel.value; if(!eid)return; try{ await api("/sites/"+sid+"/assign",{method:"POST",body:JSON.stringify({employeeId:eid})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
 async function siteAssignRemove(sid,eid){ try{ await api("/sites/"+sid+"/assign/"+eid,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
@@ -4593,7 +4606,7 @@ async function pointageReload(){
       <td>${esc(a.site||'—')}</td>
       <td>${a.distance_m!=null?Math.round(a.distance_m)+' m':'—'}</td>
       <td>${exc?('<span class="tag '+(a.resolved?'gray':'red')+'">'+esc(reason)+(a.resolved?' (résolu)':'')+'</span>'):'<span class="tag green">Normal</span>'}</td>
-      <td style="text-align:right">${exc&&!a.resolved?('<button class="btn ghost sm" onclick="pointageResolve(\''+a.id+'\')">Résoudre</button>'):''}</td>
+      <td style="text-align:right;white-space:nowrap">${exc&&!a.resolved?('<button class="btn ghost sm" onclick="pointageResolve(\''+a.id+'\')">Résoudre</button> '):''}<button class="btn ghost sm" title="Modifier" onclick="pointageEdit('${a.id}','${a.server_ts}','${a.type}')">✎</button> <button class="btn ghost sm" title="Supprimer" onclick="pointageDelete('${a.id}')">🗑</button></td>
     </tr>`; }).join("");
   g("prBody").innerHTML=`<table style="width:100%"><tr><th>Employé</th><th>Type</th><th>Date/heure</th><th>Site</th><th>Distance</th><th>Statut</th><th></th></tr>${list.length?rows:'<tr><td colspan="7" class="note">Aucun pointage pour ce filtre.</td></tr>'}</table>`;
 }
@@ -4603,6 +4616,27 @@ async function pointageResolve(aid){
   const markNormal=confirm("Marquer ce pointage comme NORMAL ?\\n\\nOK = marquer Normal · Annuler = garder l'exception mais marquée résolue");
   try{ await api("/attendance/"+aid+"/resolve",{method:"POST",body:JSON.stringify({note:note,markNormal:markNormal})}); pointageReload(); }
   catch(e){ alert(e.message); }
+}
+function pointageEdit(id,ts,type){
+  const local=(function(){try{const d=new Date(ts);const p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());}catch(_){return "";}})();
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:460px"><b>Modifier le pointage</b>
+    <div class="note" style="margin:6px 0;color:#b45309">⚠ Vous modifiez une donnée de présence réelle. L'action est enregistrée dans le journal d'audit.</div>
+    <label>Type</label><select id="peType"><option value="IN" ${type==='IN'?'selected':''}>Entrée</option><option value="OUT" ${type==='OUT'?'selected':''}>Sortie</option></select>
+    <label>Date / heure</label><input type="datetime-local" id="peTs" value="${local}">
+    <div class="err hidden" id="peErr" style="margin-top:8px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p" onclick="pointageEditSave('${id}')">Enregistrer</button></div></div>`;
+  document.body.appendChild(bg);
+}
+async function pointageEditSave(id){
+  const g=i=>document.getElementById(i); const v=g("peTs").value; const el=g("peErr");
+  if(!v){ el.className="err"; el.textContent="Date/heure requise."; el.classList.remove("hidden"); return; }
+  try{ await api("/attendance/"+id,{method:"PUT",body:JSON.stringify({serverTs:new Date(v).toISOString(),type:g("peType").value})}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); pointageReload(); }
+  catch(e){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function pointageDelete(id){
+  if(!confirm("⚠ Supprimer ce pointage ?\\n\\nCette donnée de présence sera définitivement retirée (action tracée dans l'audit)."))return;
+  try{ await api("/attendance/"+id,{method:"DELETE"}); pointageReload(); }catch(e){ alert(e.message); }
 }
 /* ---------------- Assurance maladie ---------------- */
 async function assuranceView(){
