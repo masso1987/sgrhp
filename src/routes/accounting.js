@@ -1236,6 +1236,9 @@ const _OHADA_CL = { 1: "Comptes de ressources durables", 2: "Comptes d'actif imm
 router.get("/balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
   const onlyVal = req.query.all !== "1"; const _from = req.query.from || "", _to = req.query.to || "", period = req.query.period || "";
+  const cFrom = String(req.query.compteFrom || "").trim(), cTo = String(req.query.compteTo || "").trim();
+  const jFrom = String(req.query.journalFrom || "").trim().toUpperCase(), jTo = String(req.query.journalTo || "").trim().toUpperCase();
+  const etat = req.query.etat === "6col" ? "6col" : "base";
   const accs = {}; for (const a of mine(db.acctAccounts, req)) accs[a.number] = a.label;
   // Début de période (pour l'ouverture = mouvements antérieurs). Déduit de from, sinon du mois, sinon exercice courant.
   let pStart = _from;
@@ -1246,9 +1249,15 @@ router.get("/balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   for (const e of mine(db.acctEntries, req)) {
     if (onlyVal && e.status === "draft") continue;
     const d = e.date || "";
+    const jc = String(e.journalCode || "").toUpperCase();
+    if (jFrom && jc < jFrom) continue;
+    if (jTo && jc > jTo) continue;
     if (period && (e.period || "") !== period && !pStart) continue;
     if (_to && d > _to) continue;
     for (const l of (e.lines || [])) {
+      const an = String(l.account || "");
+      if (cFrom && an < cFrom) continue;
+      if (cTo && an > cTo + "￿") continue;
       const a = touch(l.account);
       const isOpening = pStart && d && d < pStart;
       if (isOpening) { a.openD += R2(l.debit); a.openC += R2(l.credit); }
@@ -1267,27 +1276,34 @@ router.get("/balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const mkAcc = () => ({ openD: 0, openC: 0, movD: 0, movC: 0 });
   const add = (t, a) => { t.openD += a.openD; t.openC += a.openC; t.movD += a.movD; t.movC += a.movC; };
   const soldeSplit = t => { const net = (t.openD + t.movD) - (t.openC + t.movC); return { d: net > 0 ? net : 0, c: net < 0 ? -net : 0 }; };
+  const is6 = etat === "6col";
   const rowCells = (num, lab, t) => { const sp = soldeSplit(t); return [String(num), lab || "", nf(t.openD + t.movD), nf(t.openC + t.movC), nf(sp.d), nf(sp.c)]; };
+  const rowCells6 = (num, lab, t) => { const sp = soldeSplit(t); return [String(num), lab || "", nf(t.openD), nf(t.openC), nf(t.movD), nf(t.movC), nf(sp.d), nf(sp.c)]; };
+  const RC = is6 ? rowCells6 : rowCells;
+  const totCells = (lab, t) => is6 ? ["", lab].concat(RC("", "", t).slice(2)) : ["", lab].concat(RC("", "", t).slice(2));
   const rows = [];
   let class1 = null, pfx2 = null, s2 = mkAcc(), s1 = mkAcc(), bilan = mkAcc(), gestion = mkAcc();
-  const flush2 = () => { if (pfx2 !== null) rows.push({ cells: rowCells(pfx2, accs[pfx2] || "", s2), bold: true, fill: "#f3f4f6" }); s2 = mkAcc(); };
-  const flush1 = () => { if (class1 !== null) rows.push({ cells: rowCells(class1, accs[class1] || (_OHADA_CL[Number(class1)] || ""), s1), bold: true, fill: "#eef2f6" }); s1 = mkAcc(); };
+  const flush2 = () => { if (pfx2 !== null) rows.push({ cells: RC(pfx2, accs[pfx2] || "", s2), bold: true, fill: "#f3f4f6" }); s2 = mkAcc(); };
+  const flush1 = () => { if (class1 !== null) rows.push({ cells: RC(class1, accs[class1] || (_OHADA_CL[Number(class1)] || ""), s1), bold: true, fill: "#eef2f6" }); s1 = mkAcc(); };
   list.forEach(a => {
     const c1 = String(a.account).charAt(0), p2 = String(a.account).slice(0, 2);
     if (pfx2 !== null && p2 !== pfx2) flush2();
     if (class1 !== null && c1 !== class1) flush1();
     class1 = c1; pfx2 = p2;
-    rows.push({ cells: rowCells(a.account, a.label, a) });
+    rows.push({ cells: RC(a.account, a.label, a) });
     add(s2, a); add(s1, a);
     const n = Number(c1); if (n >= 1 && n <= 5) add(bilan, a); else if (n >= 6 && n <= 8) add(gestion, a);
   });
   flush2(); flush1();
   const bal = mkAcc(); add(bal, bilan); add(bal, gestion);
-  rows.push({ cells: ["", "Totaux comptes de bilan", nf(bilan.openD + bilan.movD), nf(bilan.openC + bilan.movC), nf(soldeSplit(bilan).d), nf(soldeSplit(bilan).c)], bold: true, fill: "#eef2f6" });
-  rows.push({ cells: ["", "Totaux comptes de gestion", nf(gestion.openD + gestion.movD), nf(gestion.openC + gestion.movC), nf(soldeSplit(gestion).d), nf(soldeSplit(gestion).c)], bold: true, fill: "#eef2f6" });
-  rows.push({ cells: ["", "Totaux de la balance", nf(bal.openD + bal.movD), nf(bal.openC + bal.movC), nf(soldeSplit(bal).d), nf(soldeSplit(bal).c)], bold: true, fill: "#dfe6ec" });
-  _acctReportPDF(req, res, { filename: "Balance" + (period ? "_" + period : ""), title: "Balance des comptes", subtitle: "Balance détaillée", period: (_from || _to) ? "" : (period || "Tout l'exercice"), from: _from, to: _to,
-    columns: [{ h: "Compte", w: 58 }, { h: "Intitulé des comptes", w: 200 }, { h: "Mvt Débit", w: 72, a: "r" }, { h: "Mvt Crédit", w: 72, a: "r" }, { h: "Solde Débit", w: 72, a: "r" }, { h: "Solde Crédit", w: 72, a: "r" }], rows });
+  rows.push({ cells: totCells("Totaux comptes de bilan", bilan), bold: true, fill: "#eef2f6" });
+  rows.push({ cells: totCells("Totaux comptes de gestion", gestion), bold: true, fill: "#eef2f6" });
+  rows.push({ cells: totCells("Totaux de la balance", bal), bold: true, fill: "#dfe6ec" });
+  const colsBase = [{ h: "Compte", w: 58 }, { h: "Intitulé des comptes", w: 200 }, { h: "Mvt Débit", w: 72, a: "r" }, { h: "Mvt Crédit", w: 72, a: "r" }, { h: "Solde Débit", w: 72, a: "r" }, { h: "Solde Crédit", w: 72, a: "r" }];
+  const prevYE = (function () { if (pStart) { const x = new Date(pStart + "T00:00:00"); x.setDate(x.getDate() - 1); return x.toLocaleDateString("fr-FR"); } return "N-1"; })();
+  const cols6 = [{ h: "Compte", w: 52 }, { h: "Intitulé des comptes", w: 190 }, { h: "Mvt " + prevYE + " Déb.", w: 78, a: "r" }, { h: "Mvt " + prevYE + " Créd.", w: 78, a: "r" }, { h: "Mvt Débit", w: 76, a: "r" }, { h: "Mvt Crédit", w: 76, a: "r" }, { h: "Solde Débit", w: 76, a: "r" }, { h: "Solde Crédit", w: 76, a: "r" }];
+  _acctReportPDF(req, res, { filename: "Balance" + (is6 ? "_6col" : "") + (period ? "_" + period : ""), title: "Balance des comptes", subtitle: is6 ? "6 colonnes" : "Balance détaillée", period: (_from || _to) ? "" : (period || "Tout l'exercice"), from: _from, to: _to, landscape: is6,
+    columns: is6 ? cols6 : colsBase, rows });
 });
 
 router.get("/ledger/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
