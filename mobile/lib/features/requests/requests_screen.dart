@@ -97,6 +97,20 @@ class _RequestFormState extends ConsumerState<_RequestForm> {
   XFile? _letter;
   bool _busy = false;
   String? _error;
+  Map<String, dynamic>? _window;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.type == 'ACOMPTE') _loadWindow();
+  }
+
+  Future<void> _loadWindow() async {
+    try {
+      final r = await ref.read(apiClientProvider).get('/me/acompte-window');
+      if (mounted) setState(() => _window = Map<String, dynamic>.from(r.data as Map));
+    } catch (_) {}
+  }
 
   @override
   void dispose() { _bank.dispose(); _reason.dispose(); _amount.dispose(); super.dispose(); }
@@ -153,6 +167,20 @@ class _RequestFormState extends ConsumerState<_RequestForm> {
               TextButton(onPressed: _pickLetter, child: Text(_letter != null ? 'Changer' : 'Joindre')),
             ]),
           ] else ...[
+            if (_window != null) ...[
+              Row(children: [
+                const Icon(Icons.calendar_month_rounded, size: 16, color: AppColors.mutedLight),
+                const SizedBox(width: 6),
+                Text('Mois : ${_window!['period'] ?? ''}', style: const TextStyle(color: AppColors.mutedLight, fontSize: 12.5)),
+              ]),
+              if (_window!['open'] != true)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text('Période fermée : les acomptes ne sont acceptés que du 1er au ${_window!['deadline_day']} du mois.',
+                      style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
+                ),
+              const SizedBox(height: 10),
+            ],
             TextField(controller: _amount, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(labelText: 'Montant demandé (FCFA)')),
             const SizedBox(height: 10),
@@ -161,7 +189,7 @@ class _RequestFormState extends ConsumerState<_RequestForm> {
           if (_error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_error!, style: const TextStyle(color: AppColors.danger))),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: _busy ? null : _submit,
+            onPressed: (_busy || (widget.type == 'ACOMPTE' && _window != null && _window!['open'] != true)) ? null : _submit,
             child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)) : const Text('Envoyer au GPF'),
           ),
         ]),

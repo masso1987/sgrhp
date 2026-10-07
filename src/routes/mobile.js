@@ -248,21 +248,34 @@ router.post("/me/sync", empAuth, (req, res) => {
   res.json({ synced: results.filter(r => r.success).length, results });
 });
 
-/* ============================ LEAVE ============================ */
+/* ============================ LEAVE (shared with web congés) ============================ */
+function leaveDocStatus(doc) {
+  const s = doc.status || "";
+  if (s === "GENERATED" || s === "VALIDATED" || s === "APPROVED") return "APPROVED";
+  if (s === "REJECTED" || s === "DRAFT") return "REJECTED";
+  return "PENDING";
+}
 router.get("/me/leave", empAuth, (req, res) => {
   const e = empOf(req.emp.account) || {};
-  const list = empScoped("leaveRequests", req.emp.tenantId).filter(l => l.employeeId === req.emp.employeeId).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-  res.json({ balance_days: e.leaveBalance != null ? e.leaveBalance : (e.solde_conge != null ? e.solde_conge : null),
-    requests: list.map(l => ({ id: l.id, type: l.type, start: l.start, end: l.end, days: l.days, comment: l.comment || "", status: l.status, created_at: l.createdAt })) });
+  let balance = null;
+  try { balance = require("./hr").leaveBalance(e); } catch (x) {}
+  const docs = (db.documents || []).filter(d => (d.tenantId || "t1") === req.emp.tenantId && d.type === "LEAVE" && d.refId === e.id)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  res.json({
+    balance_days: balance ? balance.remaining : (e.leaveBalance != null ? e.leaveBalance : null),
+    balance: balance ? { accrued: balance.accrued, taken: balance.taken, remaining: balance.remaining, annual: balance.annualEntitlement } : null,
+    requests: docs.map(d => ({ id: d.id, type: (d.data && d.data.leaveType) || "Congé", start: (d.data && d.data.startDate) || "", end: (d.data && d.data.endDate) || "", days: (d.data && d.data.days) || 0, comment: (d.data && d.data.reason) || "", status: leaveDocStatus(d), created_at: d.createdAt })),
+  });
 });
 router.post("/me/leave", empAuth, (req, res) => {
+  const e = empOf(req.emp.account);
+  if (!e) return res.status(404).json({ error: "Employé introuvable" });
   const b = req.body || {};
-  if (!b.start || !b.end) return res.status(400).json({ error: "Dates de début et de fin requises" });
-  const days = Math.max(1, Math.round((new Date(b.end) - new Date(b.start)) / 864e5) + 1);
-  const rec = stamp({ id: id("lvr"), employeeId: req.emp.employeeId, type: b.type || "Congé annuel",
-    start: b.start, end: b.end, days, comment: String(b.comment || "").slice(0, 500), status: "PENDING", createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
-  db.leaveRequests.push(rec); save();
-  res.status(201).json({ id: rec.id, status: rec.status, days });
+  let r;
+  try { r = require("./hr").submitLeaveDoc(e, { leaveType: b.type || "Congé annuel", startDate: b.start, endDate: b.end, reason: b.comment }, { tenantId: req.emp.tenantId }); }
+  catch (x) { return res.status(500).json({ error: "Service congés indisponible" }); }
+  if (r.error) return res.status(r.code || 400).json({ error: r.error });
+  res.status(201).json({ id: r.doc.id, status: "PENDING", days: r.doc.data.days });
 });
 
 /* ============================ PAYSLIPS ============================ */
@@ -379,13 +392,20 @@ router.post("/me/requests/avi", empAuth, reqUpload.single("letter"), (req, res) 
   db.empRequests.push(r); save();
   res.status(201).json({ ok: true, id: r.id, status: "PENDING" });
 });
+function acompteDeadlineDay(tid) { const t = (db.tenants || []).find(x => x.id === (tid || "t1")); const d = t && parseInt(t.acompteDeadlineDay, 10); return (d >= 1 && d <= 28) ? d : 12; }
+router.get("/me/acompte-window", empAuth, (req, res) => {
+  const dd = acompteDeadlineDay(req.emp.tenantId); const today = new Date().getDate();
+  res.json({ deadline_day: dd, today, open: today <= dd, period: new Date().toISOString().slice(0, 7) });
+});
 router.post("/me/requests/acompte", empAuth, (req, res) => {
   db.empRequests = db.empRequests || [];
+  const dd = acompteDeadlineDay(req.emp.tenantId);
+  if (new Date().getDate() > dd) return res.status(400).json({ error: `Les acomptes ne sont acceptés que du 1er au ${dd} du mois. La période est fermée.` });
   const b = req.body || {};
   const amount = Math.round(Number(b.amount) || 0);
   if (!(amount > 0)) return res.status(400).json({ error: "Montant invalide." });
   const r = stamp({ id: id("ereq"), employeeId: req.emp.employeeId, type: "ACOMPTE", status: "PENDING",
-    amount, reason: String(b.reason || "").slice(0, 500), createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
+    amount, period: new Date().toISOString().slice(0, 7), reason: String(b.reason || "").slice(0, 500), createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
   db.empRequests.push(r); save();
   res.status(201).json({ ok: true, id: r.id, status: "PENDING" });
 });
@@ -397,12 +417,12 @@ router.get("/me/requests", empAuth, (req, res) => {
 
 /* ============================ ENQUÊTES SALARIÉ ============================ */
 router.get("/me/surveys", empAuth, (req, res) => {
-  const list = (db.smqEvalForms || []).filter(f => (f.tenantId || "t1") === req.emp.tenantId && f.type === "salarie" && f.active !== false);
+  const list = (db.smqEvalForms || []).filter(f => (f.tenantId || "t1") === req.emp.tenantId && f.type === "employee" && f.active !== false);
   res.json(list.map(f => ({ id: f.id, token: f.token, title: f.title || "Enquête", intro: f.intro || "", scale_max: Number(f.scaleMax) || 5,
     questions: (f.questions || []).map(q => ({ id: q.id, label: q.label, kind: q.kind })) })));
 });
 router.post("/me/surveys/:token/respond", empAuth, (req, res) => {
-  const f = (db.smqEvalForms || []).find(x => x.token === req.params.token && (x.tenantId || "t1") === req.emp.tenantId && x.type === "salarie" && x.active !== false);
+  const f = (db.smqEvalForms || []).find(x => x.token === req.params.token && (x.tenantId || "t1") === req.emp.tenantId && x.type === "employee" && x.active !== false);
   if (!f) return res.status(404).json({ error: "Enquête introuvable ou clôturée" });
   const e = empOf(req.emp.account) || {};
   const b = req.body || {};
@@ -413,9 +433,18 @@ router.post("/me/surveys/:token/respond", empAuth, (req, res) => {
 
 /* ============================ ASTUCES RH ============================ */
 router.get("/me/tips", empAuth, (req, res) => {
+  const reads = new Set((db.hrTipReads || []).filter(r => (r.tenantId || "t1") === req.emp.tenantId && r.employeeId === req.emp.employeeId).map(r => r.tipId));
   const list = (db.hrTips || []).filter(t => (t.tenantId || "t1") === req.emp.tenantId && t.active !== false)
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-  res.json(list.map(t => ({ id: t.id, title: t.title, body: t.body, author: t.author || "", created_at: t.createdAt })));
+  res.json(list.map(t => ({ id: t.id, title: t.title, body: t.body, author: t.author || "", created_at: t.createdAt, read: reads.has(t.id) })));
+});
+router.post("/me/tips/:id/read", empAuth, (req, res) => {
+  db.hrTipReads = db.hrTipReads || [];
+  const tip = (db.hrTips || []).find(t => t.id === req.params.id && (t.tenantId || "t1") === req.emp.tenantId);
+  if (!tip) return res.status(404).json({ error: "Astuce introuvable" });
+  const exists = db.hrTipReads.find(r => (r.tenantId || "t1") === req.emp.tenantId && r.tipId === req.params.id && r.employeeId === req.emp.employeeId);
+  if (!exists) { db.hrTipReads.push({ id: id("tipr"), tenantId: req.emp.tenantId, tipId: req.params.id, employeeId: req.emp.employeeId, at: now() }); save(); }
+  res.json({ ok: true });
 });
 
 module.exports = router;

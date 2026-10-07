@@ -168,6 +168,40 @@ function permissionsUsedThisYear(emp) {
     .reduce((s, d) => s + (d.data.days || 0), 0);
 }
 
+/* Reusable leave submission (shared by the web route and the mobile API) so a congé
+ * requested from the phone becomes a real LEAVE document in the validation workflow. */
+function submitLeaveDoc(emp, body, user) {
+  const tenantId = (user && user.tenantId) || emp.tenantId || "t1";
+  const { leaveType, startDate, endDate, reason, permissionKey } = body || {};
+  const ref = (db.referentials || []).find(r => (r.tenantId || "t1") === tenantId && r.key === "leaveTypes");
+  const lt = leaveType || "Congé annuel";
+  if (!ref || !ref.values.includes(lt)) return { error: "Type de congé invalide", code: 400 };
+  let days = 0, permissionLabel = "";
+  if (lt !== "Solde de tout compte") {
+    if (!startDate || !endDate) return { error: "Dates de début et de fin requises", code: 400 };
+    days = Math.round((new Date(endDate) - new Date(startDate)) / 86400e3) + 1;
+    if (!(days > 0)) return { error: "La date de fin doit être postérieure au début", code: 400 };
+    if (lt === "Congé annuel" && days > leaveBalance(emp).remaining) return { error: `Solde insuffisant : ${leaveBalance(emp).remaining} j restants, ${days} demandés`, code: 400 };
+    if (lt === "Permission exceptionnelle") {
+      const ev = (LEAVE_CFG.permissions || []).find(p => p.key === permissionKey);
+      if (!ev) return { error: "Événement de permission requis (Art. 64)", code: 400 };
+      permissionLabel = ev.label;
+      if (days > ev.days) return { error: `« ${ev.label} » : ${ev.days} j maximum (Art. 64).`, code: 400 };
+      if (permissionsUsedThisYear(emp) + days > LEAVE_CFG.permissionsCapDays) return { error: "Plafond annuel de permissions atteint (Art. 64.2).", code: 400 };
+    }
+  }
+  const nowISO = new Date().toISOString();
+  const doc = { id: id("doc"), tenantId, type: "LEAVE", refId: emp.id,
+    data: { leaveType: lt, startDate, endDate, days, reason: reason || "", permissionKey: permissionKey || null, permissionLabel },
+    title: `${lt} (${days ? days + "j" : "-"}) - ${emp.firstName} ${emp.lastName}`,
+    createdById: (user && user.id) || "mobile", createdAt: nowISO, status: "SUBMITTED", cycle: 1,
+    steps: [{ id: id("stp"), stage: "CD", assignedAt: nowISO, warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null }],
+    generatedFile: null, submittedAt: nowISO, source: (user && user.id) ? "WEB" : "MOBILE" };
+  db.documents.push(doc); save();
+  try { notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: (user && user.fullName) || "application mobile", sla: 48, ref: doc.id }); } catch (e) {}
+  return { doc };
+}
+
 router.get("/:id/leave", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const emp = empOf(req);
   if (!emp) return res.status(404).json({ error: "Not found" });
@@ -377,4 +411,4 @@ router.get("/:id/leave/:docId/attestation.pdf", allow("GPF", "CD", "RJ", "ADM", 
   pdf.end();
 });
 
-module.exports = { router, leaveBalance };
+module.exports = { router, leaveBalance, submitLeaveDoc };

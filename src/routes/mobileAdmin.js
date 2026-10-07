@@ -191,7 +191,30 @@ router.post("/emp-requests/:id/reject", allow("GPF", "ADM", "CD"), (req, res) =>
 /* ---------------- Astuces RH (HR tips feed for the mobile app) ---------------- */
 router.get("/hr-tips", allow("GPF", "ADM", "CD", "RJ", "RQ", "UI"), (req, res) => {
   db.hrTips = db.hrTips || [];
-  res.json(mine(db.hrTips, req).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))));
+  const readsByTip = {}; (db.hrTipReads || []).filter(r => (r.tenantId || "t1") === (req.user.tenantId || "t1")).forEach(r => { readsByTip[r.tipId] = (readsByTip[r.tipId] || 0) + 1; });
+  res.json(mine(db.hrTips, req).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .map(t => Object.assign({}, t, { readCount: readsByTip[t.id] || 0 })));
+});
+/* Who has opened a given astuce (GPF/RQ/ADM). */
+router.get("/hr-tips/:id/reads", allow("GPF", "ADM", "RQ"), (req, res) => {
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  const list = (db.hrTipReads || []).filter(r => (r.tenantId || "t1") === (req.user.tenantId || "t1") && r.tipId === req.params.id)
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  res.json(list.map(r => { const e = empById[r.employeeId] || {}; return { employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", at: r.at }; }));
+});
+/* Acompte window (deadline day of month) — per tenant, admin-configurable. */
+router.get("/acompte-config", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1"));
+  const d = t && parseInt(t.acompteDeadlineDay, 10);
+  res.json({ deadlineDay: (d >= 1 && d <= 28) ? d : 12 });
+});
+router.put("/acompte-config", allow("ADM"), (req, res) => {
+  const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1"));
+  if (!t) return res.status(404).json({ error: "Organisation introuvable" });
+  const d = parseInt(req.body && req.body.deadlineDay, 10);
+  if (!(d >= 1 && d <= 28)) return res.status(400).json({ error: "Le jour limite doit être compris entre 1 et 28." });
+  t.acompteDeadlineDay = d; save(); audit(req.user, "CONFIG_CHANGED", "Tenant", t.id, { acompteDeadlineDay: d });
+  res.json({ deadlineDay: d });
 });
 router.post("/hr-tips", allow("GPF", "ADM", "RQ"), (req, res) => {
   db.hrTips = db.hrTips || [];

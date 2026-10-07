@@ -4827,6 +4827,7 @@ async function insConsoImport(){
 async function empRequestsView(){
   view.innerHTML=`<h1>Demandes employés (mobile)</h1>
     <div class="note" style="margin-bottom:8px">Demandes d'AVI et d'acompte envoyées depuis l'application mobile. Pour une AVI, téléchargez la lettre jointe puis traitez-la dans l'écran <b>AVI</b> ; pour un acompte, saisissez-le dans <b>Acomptes sur salaire</b>. Marquez ensuite la demande « Traitée ».</div>
+    ${ME.role==="ADM"?`<div class="panel" style="margin-bottom:10px;display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div><label>Acompte — jour limite du mois (1–28)</label><input type="number" id="acDd" min="1" max="28" style="width:110px"></div><button class="btn p" onclick="acompteCfgSave()">Enregistrer</button><span class="note" id="acMsg">Les employés ne peuvent demander un acompte que du 1er à ce jour (remise à zéro chaque mois).</span></div>`:''}
     <div class="panel" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
       <div><label>Statut</label><select id="erStatus"><option value="PENDING">En attente</option><option value="HANDLED">Traitées</option><option value="REJECTED">Rejetées</option><option value="">Toutes</option></select></div>
       <div><label>Type</label><select id="erType"><option value="">Tous</option><option value="AVI">AVI</option><option value="ACOMPTE">Acompte</option></select></div>
@@ -4835,7 +4836,10 @@ async function empRequestsView(){
     </div>
     <div id="erBody" class="panel" style="overflow-x:auto"><div class="note">Chargement…</div></div>`;
   empReqLoad();
+  if(ME.role==="ADM") acompteCfgLoad();
 }
+async function acompteCfgLoad(){ try{ const c=await api("/acompte-config"); const el=document.getElementById("acDd"); if(el)el.value=c.deadlineDay; }catch(e){} }
+async function acompteCfgSave(){ const el=document.getElementById("acDd"); const msg=document.getElementById("acMsg"); try{ const c=await api("/acompte-config",{method:"PUT",body:JSON.stringify({deadlineDay:Number(el.value)})}); if(msg)msg.textContent="Enregistré : jour limite = "+c.deadlineDay+" de chaque mois."; }catch(e){ if(msg)msg.textContent="Erreur : "+e.message; } }
 async function empReqLoad(){
   const g=id=>document.getElementById(id);
   const q=[]; if(g("erStatus").value)q.push("status="+g("erStatus").value); if(g("erType").value)q.push("type="+g("erType").value);
@@ -4860,14 +4864,22 @@ async function astucesView(){
   let list=[]; try{ list=await api("/hr-tips"); }catch(e){ view.innerHTML='<h1>Astuces RH</h1><div class="panel">'+esc(e.message)+'</div>'; return; }
   window._TIPS=list;
   const rows=list.length?list.map(t=>`<tr>
-      <td><b>${esc(t.title||'')}</b>${t.active===false?' <span class="tag gray">masquée</span>':''}<div class="note">${esc((t.createdAt||'').slice(0,10))}${t.author?(' · '+esc(t.author)):''}</div></td>
-      <td style="max-width:420px"><span class="note">${esc((t.body||'').slice(0,160))}${(t.body||'').length>160?'…':''}</span></td>
+      <td><b>${esc(t.title||'')}</b>${t.active===false?' <span class="tag gray">masquée</span>':''}<div style="color:#9ca3af;font-size:11.5px;margin-top:2px">${esc((t.createdAt||'').slice(0,10))}${t.author?(' · '+esc(t.author)):''}</div></td>
+      <td style="max-width:460px;color:#6b7280;font-size:12.5px;line-height:1.45">${esc((t.body||'').replace(/\s+/g,' ').slice(0,180))}${(t.body||'').length>180?'…':''}</td>
+      <td style="text-align:center;white-space:nowrap"><b>${t.readCount||0}</b>${t.readCount?(' <button class="btn ghost sm" title="Qui a lu" onclick="tipReads(\''+t.id+'\')">👁</button>'):''}</td>
       <td style="white-space:nowrap"><button class="btn ghost sm" onclick="tipForm('${t.id}')">Modifier</button> <button class="btn ghost sm" onclick="tipToggle('${t.id}',${t.active===false?'true':'false'})">${t.active===false?'Publier':'Masquer'}</button> <button class="btn ghost sm" onclick="tipDelete('${t.id}')">Suppr.</button></td>
-    </tr>`).join(""):'<tr><td colspan="3" class="note">Aucune astuce. Publiez-en une pour vos employés.</td></tr>';
+    </tr>`).join(""):'<tr><td colspan="4" class="note">Aucune astuce. Publiez-en une pour vos employés.</td></tr>';
   view.innerHTML=`<h1>Astuces RH</h1>
-    <div class="note" style="margin-bottom:8px">Bonnes pratiques et conseils RH publiés aux employés dans l'application mobile.</div>
+    <div class="note" style="margin-bottom:8px">Bonnes pratiques et conseils RH publiés aux employés dans l'application mobile. La colonne « Lus » indique combien d'employés ont ouvert chaque astuce.</div>
     <div style="margin:8px 0"><button class="btn p" onclick="tipForm()">+ Nouvelle astuce</button></div>
-    <div class="panel"><table style="width:100%"><tr><th>Titre</th><th>Aperçu</th><th></th></tr>${rows}</table></div>`;
+    <div class="panel" style="overflow-x:auto"><table style="width:100%"><tr><th>Titre</th><th>Aperçu</th><th>Lus</th><th></th></tr>${rows}</table></div>`;
+}
+async function tipReads(tid){
+  let list=[]; try{ list=await api("/hr-tips/"+tid+"/reads"); }catch(e){ alert(e.message); return; }
+  const rows=list.length?list.map(r=>`<tr><td>${esc(r.employee||'')}</td><td>${esc(r.matricule||'')}</td><td>${esc((r.at||'').slice(0,16).replace('T',' '))}</td></tr>`).join(""):'<tr><td colspan="3" class="note">Personne n’a encore ouvert cette astuce.</td></tr>';
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:560px"><b>Lectures de l'astuce (${list.length})</b><div style="overflow-x:auto"><table style="width:100%;margin-top:8px"><tr><th>Salarié</th><th>Matricule</th><th>Ouvert le</th></tr>${rows}</table></div><div style="margin-top:12px;text-align:right"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div></div>`;
+  document.body.appendChild(bg);
 }
 function tipForm(tid){
   const t=(window._TIPS||[]).find(x=>x.id===tid)||{};
