@@ -40,6 +40,8 @@ dependencies:
   # Open Google Maps / phone dialer, and attach documents (dependent enrolment)
   url_launcher: ^6.3.0
   image_picker: ^1.1.2
+  # Open a downloaded payslip PDF with the device's default viewer
+  open_filex: ^4.5.0
 
 dev_dependencies:
   flutter_test:

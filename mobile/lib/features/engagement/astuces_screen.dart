@@ -74,7 +74,13 @@ class _TipTileState extends ConsumerState<_TipTile> {
           title: Text(t['title']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.mutedLight, fontSize: 12.5)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text([t['author'], _date(t['created_at'])].where((x) => (x ?? '').toString().isNotEmpty).join(' · '),
+                  style: const TextStyle(color: AppColors.brand, fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.mutedLight, fontSize: 12.5)),
+              const Padding(padding: EdgeInsets.only(top: 2), child: Text('Appuyer pour lire', style: TextStyle(color: AppColors.mutedLight, fontSize: 10.5, fontStyle: FontStyle.italic))),
+            ]),
           ),
           children: [
             Align(

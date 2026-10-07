@@ -75,6 +75,11 @@ class ApiClient {
       _guard(() => _dio.post<T>(path, data: data));
   Future<Response<T>> postMultipart<T>(String path, FormData data) =>
       _guard(() => _dio.post<T>(path, data: data, options: Options(contentType: 'multipart/form-data')));
+  /// Download a binary body (e.g. a PDF) with the bearer token attached.
+  Future<List<int>> getBytes(String path) async {
+    final r = await _guard(() => _dio.get<List<int>>(path, options: Options(responseType: ResponseType.bytes)));
+    return r.data ?? const <int>[];
+  }
 
   Future<Response<T>> _guard<T>(Future<Response<T>> Function() run) async {
     try {

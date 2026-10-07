@@ -123,7 +123,9 @@ function attToday(req) {
 router.get("/me", empAuth, (req, res) => {
   const e = empOf(req.emp.account) || {};
   const t = tenantOf(req.emp.tenantId);
-  const sup = (db.users || []).find(u => u.id === e.supervisorId);
+  // Supervisor = explicit supervisorId, else the GPF managing this employee's portefeuille.
+  let sup = e.supervisorId ? (db.users || []).find(u => u.id === e.supervisorId) : null;
+  if (!sup) sup = (db.users || []).find(u => u.role === "GPF" && u.active !== false && Array.isArray(u.portfolioIds) && u.portfolioIds.includes(e.portfolioId));
   res.json({
     id: e.id, name: empName(e), matricule: e.matricule || "", position: (e.contract && e.contract.jobTitle) || (e.contract && e.contract.category) || "",
     department: (e.contract && e.contract.department) || "", company: t.name, companyLogo: t.branding && t.branding.appLogo || null,
@@ -146,7 +148,7 @@ router.get("/me/dashboard", empAuth, (req, res) => {
       check_in: lastIn ? lastIn.serverTs : null, check_out: lastOut ? lastOut.serverTs : null,
       site: lastIn ? (empScoped("sites", req.emp.tenantId).find(s => s.id === lastIn.siteId) || {}).name || "" : "",
     },
-    leave_balance_days: e.leaveBalance != null ? e.leaveBalance : (e.solde_conge != null ? e.solde_conge : null),
+    leave_balance_days: (function () { try { return require("./hr").leaveBalance(e).remaining; } catch (x) { return e.leaveBalance != null ? e.leaveBalance : null; } })(),
     latest_payslip: payslips[0] ? { id: payslips[0].id, period: payslips[0].period } : null,
     notifications_unread: notifs.filter(n => !n.read).length,
   });
