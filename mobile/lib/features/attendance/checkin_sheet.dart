@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/providers.dart';
 import 'attendance_repository.dart';
@@ -41,10 +42,18 @@ class _St extends ConsumerState<_CheckInSheet> {
     if (mounted) setState(() => _loading = false);
   }
 
+  final _picker = ImagePicker();
+
   Future<void> _submit() async {
     setState(() { _busy = true; _error = null; });
     try {
-      final r = await ref.read(attendanceRepoProvider).punch(checkIn: widget.checkIn, siteId: _siteId);
+      // Take a selfie as proof (front camera). If the user cancels, we still try —
+      // the server rejects with a clear message when a selfie is mandatory.
+      XFile? selfie;
+      try {
+        selfie = await _picker.pickImage(source: ImageSource.camera, preferredCameraDevice: CameraDevice.front, imageQuality: 55, maxWidth: 1080);
+      } catch (_) {}
+      final r = await ref.read(attendanceRepoProvider).punch(checkIn: widget.checkIn, siteId: _siteId, photoPath: selfie?.path);
       setState(() => _result = r);
       ref.invalidate(dashboardProvider);
     } catch (e) {

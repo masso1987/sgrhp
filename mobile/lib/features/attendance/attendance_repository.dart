@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -39,7 +40,8 @@ class AttendanceRepository {
   }
 
   /// Durable punch: enqueue → try to send now → fall back to offline queue.
-  Future<Map<String, dynamic>> punch({required bool checkIn, String? siteId}) async {
+  /// [photoPath] is an optional selfie attached as proof (online punches only).
+  Future<Map<String, dynamic>> punch({required bool checkIn, String? siteId, String? photoPath}) async {
     final pos = await _position();
     final uuid = _uuid.v4();
     final type = checkIn ? 'IN' : 'OUT';
@@ -56,9 +58,17 @@ class AttendanceRepository {
       'attendance_uuid': uuid, 'latitude': pos.latitude, 'longitude': pos.longitude,
       'accuracy': pos.accuracy, 'client_timestamp': clientTs, 'site_id': siteId, 'app_version': '1.0.0',
     };
+    final path = checkIn ? '/me/attendance/check-in' : '/me/attendance/check-out';
     try {
-      final r = await _ref.read(apiClientProvider)
-          .post(checkIn ? '/me/attendance/check-in' : '/me/attendance/check-out', data: body);
+      final api = _ref.read(apiClientProvider);
+      final Response r;
+      if (photoPath != null) {
+        final fd = FormData.fromMap(body.map((k, v) => MapEntry(k, v?.toString() ?? '')));
+        fd.files.add(MapEntry('photo', await MultipartFile.fromFile(photoPath, filename: 'selfie.jpg')));
+        r = await api.postMultipart(path, fd);
+      } else {
+        r = await api.post(path, data: body);
+      }
       final map = Map<String, dynamic>.from(r.data as Map);
       if (map['success'] == true) {
         await _db.markSynced(uuid, jsonEncode(map));

@@ -21,8 +21,8 @@ function docOf(documentId) {
 const openStep = d => d.steps.find(s => !s.decidedAt);
 
 /* ---- Workflow configurable par tenant (Administration › Circuits de validation) ---- */
-const WF_KEY = (type) => ({ EMPLOYEE_FILE: "employee_file", TEMPLATE_DOC: "template_doc", AMENDMENT: "amendment", AVI: "avi", CONTRACT_END: "contract_end" }[type] || "template_doc");
-const WF_DEFAULT = { employee_file: ["CD", "RJ"], template_doc: ["CD", "RJ"], amendment: ["CD", "RJ"], avi: ["CD", "RJ"], contract_end: ["RJ"] };
+const WF_KEY = (type) => ({ EMPLOYEE_FILE: "employee_file", TEMPLATE_DOC: "template_doc", AMENDMENT: "amendment", AVI: "avi", CONTRACT_END: "contract_end", LEAVE: "leave", DECISION: "decision" }[type] || "template_doc");
+const WF_DEFAULT = { employee_file: ["CD", "RJ"], template_doc: ["CD", "RJ"], amendment: ["CD", "RJ"], avi: ["CD", "RJ"], contract_end: ["RJ"], leave: ["CD"], decision: ["CD", "RJ"] };
 function wfRoles(type) {
   const key = WF_KEY(type);
   let cfg = null; try { cfg = require("./routes/settings").settings().workflows; } catch (e) {}

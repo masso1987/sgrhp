@@ -12,6 +12,7 @@ const { hash } = require("../auth");
 const path = require("path");
 const now = () => new Date().toISOString();
 const REQ_DIR = path.join(__dirname, "..", "..", "uploads", "requests");
+const ATT_DIR = path.join(__dirname, "..", "..", "uploads", "attendance");
 
 /* ---- Work schedule (per portefeuille) + pointage treatment ---- */
 const DEFAULT_SCHEDULE = { startTime: "08:00", endTime: "17:30", breakMinutes: 90, dailyHours: 8, paysOvertime: false };
@@ -113,6 +114,24 @@ router.get("/sites/:id/assignments", allow("ADM"), (req, res) => {
   res.json(list);
 });
 
+/* ---------------- Attendance selfie config + photo ---------------- */
+router.get("/attendance-config", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1"));
+  res.json({ selfieRequired: !!(t && t.attSelfieRequired) });
+});
+router.put("/attendance-config", allow("ADM"), (req, res) => {
+  const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1"));
+  if (!t) return res.status(404).json({ error: "Organisation introuvable" });
+  t.attSelfieRequired = !!(req.body && req.body.selfieRequired); save();
+  audit(req.user, "CONFIG_CHANGED", "Tenant", t.id, { attSelfieRequired: t.attSelfieRequired });
+  res.json({ selfieRequired: t.attSelfieRequired });
+});
+router.get("/attendance/:id/photo", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const a = mine(db.attendance, req).find(x => x.id === req.params.id);
+  if (!a || !a.photo) return res.status(404).json({ error: "Aucune photo" });
+  res.sendFile(path.join(ATT_DIR, a.photo));
+});
+
 /* ---------------- Attendance review ---------------- */
 router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const { from, to, status } = req.query;
@@ -126,7 +145,7 @@ router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
   res.json(list.map(a => { const e = empById[a.employeeId] || {}; const s = siteById[a.siteId] || {};
     return { id: a.id, employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", type: a.type,
       server_ts: a.serverTs, client_ts: a.clientTs, site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
-      status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved }; }));
+      status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved, has_photo: !!a.photo }; }));
 });
 router.post("/attendance/:id/resolve", allow("GPF", "ADM", "CD"), (req, res) => {
   const a = mine(db.attendance, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });

@@ -19,6 +19,13 @@ const reqUpload = multer({
   storage: multer.diskStorage({ destination: REQ_DIR, filename: (q, f, cb) => cb(null, `${Date.now()}-${Math.random().toString(16).slice(2, 8)}-${(f.originalname || "doc").replace(/[^\w.\-]/g, "_")}`) }),
   limits: { fileSize: 15 * 1024 * 1024 },
 });
+const ATT_DIR = path.join(__dirname, "..", "..", "uploads", "attendance");
+fs.mkdirSync(ATT_DIR, { recursive: true });
+const attUpload = multer({
+  storage: multer.diskStorage({ destination: ATT_DIR, filename: (q, f, cb) => cb(null, `${Date.now()}-${Math.random().toString(16).slice(2, 8)}.jpg`) }),
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
+function attSelfieRequired(tid) { const t = (db.tenants || []).find(x => x.id === (tid || "t1")); return !!(t && t.attSelfieRequired); }
 
 const ACCESS_TTL = "30m";
 const REFRESH_DAYS = 30;
@@ -151,6 +158,7 @@ router.get("/me/dashboard", empAuth, (req, res) => {
     leave_balance_days: (function () { try { return require("./hr").leaveBalance(e).remaining; } catch (x) { return e.leaveBalance != null ? e.leaveBalance : null; } })(),
     latest_payslip: payslips[0] ? { id: payslips[0].id, period: payslips[0].period } : null,
     notifications_unread: notifs.filter(n => !n.read).length,
+    selfie_required: attSelfieRequired(req.emp.tenantId),
   });
 });
 
@@ -205,15 +213,19 @@ function attOut(a, req) {
     status: a.status === "NORMAL" ? (a.type === "IN" ? "CHECKED_IN" : "CHECKED_OUT") : a.status, exception_reason: a.exceptionReason || null,
     site: s ? { id: s.id, name: s.name } : null, accuracy: a.accuracy, distance_m: a.distanceM };
 }
-router.post("/me/attendance/check-in", empAuth, (req, res) => {
+router.post("/me/attendance/check-in", empAuth, attUpload.single("photo"), (req, res) => {
+  if (attSelfieRequired(req.emp.tenantId) && !req.file) return res.status(200).json({ success: false, reason: "SELFIE_REQUIRED", message: "Un selfie est requis pour pointer." });
   const out = recordAttendance(req, "IN", req.body || {});
   if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
+  if (req.file && out.rec) out.rec.photo = req.file.filename;
   save();
   res.status(out.dedup ? 200 : 201).json(Object.assign({ success: true, deduplicated: !!out.dedup }, attOut(out.rec, req)));
 });
-router.post("/me/attendance/check-out", empAuth, (req, res) => {
+router.post("/me/attendance/check-out", empAuth, attUpload.single("photo"), (req, res) => {
+  if (attSelfieRequired(req.emp.tenantId) && !req.file) return res.status(200).json({ success: false, reason: "SELFIE_REQUIRED", message: "Un selfie est requis pour pointer." });
   const out = recordAttendance(req, "OUT", req.body || {});
   if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
+  if (req.file && out.rec) out.rec.photo = req.file.filename;
   save();
   res.status(out.dedup ? 200 : 201).json(Object.assign({ success: true, deduplicated: !!out.dedup }, attOut(out.rec, req)));
 });

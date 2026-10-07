@@ -194,11 +194,13 @@ function submitLeaveDoc(emp, body, user) {
   const doc = { id: id("doc"), tenantId, type: "LEAVE", refId: emp.id,
     data: { leaveType: lt, startDate, endDate, days, reason: reason || "", permissionKey: permissionKey || null, permissionLabel },
     title: `${lt} (${days ? days + "j" : "-"}) - ${emp.firstName} ${emp.lastName}`,
-    createdById: (user && user.id) || "mobile", createdAt: nowISO, status: "SUBMITTED", cycle: 1,
-    steps: [{ id: id("stp"), stage: "CD", assignedAt: nowISO, warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null }],
-    generatedFile: null, submittedAt: nowISO, source: (user && user.id) ? "WEB" : "MOBILE" };
-  db.documents.push(doc); save();
-  try { notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: (user && user.fullName) || "application mobile", sla: 48, ref: doc.id }); } catch (e) {}
+    createdById: (user && user.id) || "mobile", createdAt: nowISO, cycle: 1,
+    steps: [], generatedFile: null, source: (user && user.id) ? "WEB" : "MOBILE" };
+  db.documents.push(doc);
+  // Follow the configurable "Circuits de validation" (leave circuit) — no hard-coded steps.
+  try { require("../workflow").startWorkflow(doc, (user && user.id) ? user : { id: null, fullName: "application mobile", tenantId }); }
+  catch (e) { if (!doc.status) doc.status = "SUBMITTED"; }
+  save();
   return { doc };
 }
 
@@ -221,40 +223,10 @@ router.get("/:id/leave/permissions-scale", allow("GPF", "CD", "RJ", "ADM"), (req
 router.post("/:id/leave", allow("GPF", "ADM"), (req, res) => {
   const emp = empOf(req);
   if (!emp) return res.status(404).json({ error: "Employee not found" });
-  const { leaveType, startDate, endDate, reason, permissionKey } = req.body || {};
-  const ref = mine(db.referentials, req).find(r => r.key === "leaveTypes");
-  if (!leaveType || !ref.values.includes(leaveType))
-    return res.status(400).json({ error: `leaveType must be one of: ${ref.values.join(", ")}` });
-  let days = 0, permissionLabel = "";
-  if (leaveType !== "Solde de tout compte") {
-    if (!startDate || !endDate) return res.status(400).json({ error: "startDate and endDate required" });
-    days = Math.round((new Date(endDate) - new Date(startDate)) / 86400e3) + 1;
-    if (days <= 0) return res.status(400).json({ error: "endDate must be after startDate" });
-    if (leaveType === "Congé annuel" && days > leaveBalance(emp).remaining)
-      return res.status(400).json({ error: `Solde insuffisant : ${leaveBalance(emp).remaining} j restants, ${days} demandés` });
-    // Art. 64 : permissions exceptionnelles - barème par événement + plafond 12 j / an.
-    if (leaveType === "Permission exceptionnelle") {
-      const ev = (LEAVE_CFG.permissions || []).find(p => p.key === permissionKey);
-      if (!ev) return res.status(400).json({ error: `permissionKey requis (Art. 64) : ${(LEAVE_CFG.permissions || []).map(p => p.key).join(", ")}` });
-      permissionLabel = ev.label;
-      if (days > ev.days) return res.status(400).json({ error: `« ${ev.label} » : ${ev.days} j payés maximum (Art. 64). Le surplus s'impute sur les congés annuels ou en permission non payée.` });
-      const used = permissionsUsedThisYear(emp);
-      if (used + days > LEAVE_CFG.permissionsCapDays)
-        return res.status(400).json({ error: `Plafond annuel de permissions atteint : ${used}/${LEAVE_CFG.permissionsCapDays} j déjà pris cette année (Art. 64.2).` });
-    }
-  }
-  const doc = { id: id("doc"), tenantId: req.user.tenantId || "t1", type: "LEAVE", refId: emp.id,
-    data: { leaveType, startDate, endDate, days, reason: reason || "", permissionKey: permissionKey || null, permissionLabel },
-    title: `${leaveType} (${days ? days + "j" : "-"}) - ${emp.firstName} ${emp.lastName}`,
-    createdById: req.user.id, createdAt: new Date().toISOString(),
-    status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null,
-    submittedAt: new Date().toISOString() };
-  doc.steps.push({ id: id("stp"), stage: "CD", assignedAt: doc.submittedAt,
-    warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
-  db.documents.push(doc); save();
-  audit(req.user, "CREATED", "Leave", doc.id, { leaveType, days });
-  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
-  res.status(201).json(doc);
+  const r = submitLeaveDoc(emp, req.body || {}, req.user);
+  if (r.error) return res.status(r.code || 400).json({ error: r.error });
+  audit(req.user, "CREATED", "Leave", r.doc.id, { leaveType: r.doc.data.leaveType, days: r.doc.data.days });
+  res.status(201).json(r.doc);
 });
 
 if (!db.smqHabilitations) db.smqHabilitations = [];

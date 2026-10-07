@@ -4561,9 +4561,11 @@ async function sitesView(){
       </td></tr>`).join("");
   view.innerHTML=`${_presTabs('sites')}<h1 style="margin-top:0">Sites</h1>
     <div class="note" style="margin-bottom:8px">Définissez les lieux de travail (coordonnées GPS + rayon) et affectez-y les employés. L'application mobile n'autorise le pointage que si l'employé se trouve dans le rayon d'un site qui lui est affecté.</div>
+    <div class="panel" style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="selfieReq" onchange="selfieCfgSave()" style="width:auto"> Exiger un selfie au pointage (preuve)</label><span class="note" id="selfieMsg"></span></div>
     <div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn p" onclick="siteForm()">+ Nouveau site</button>${_expBar('#stTbl','sites')}</div>
     <div class="panel" style="overflow-x:auto"><table id="stTbl" style="width:100%"><tr><th>Site</th><th>Coordonnées</th><th>Rayon</th><th>Employés</th><th></th></tr>
       ${sites.length?rows:'<tr><td colspan="5" class="note">Aucun site. Créez-en un pour activer le pointage géolocalisé.</td></tr>'}</table></div>`;
+  selfieCfgLoad();
 }
 async function siteForm(sid){
   const s=(window._SITES||[]).find(x=>x.id===sid)||{};
@@ -4652,7 +4654,7 @@ async function pointageReload(){
       <td>${esc(a.site||'—')}</td>
       <td>${a.distance_m!=null?Math.round(a.distance_m)+' m':'—'}</td>
       <td>${exc?('<span class="tag '+(a.resolved?'gray':'red')+'">'+esc(reason)+(a.resolved?' (résolu)':'')+'</span>'):'<span class="tag green">Normal</span>'}</td>
-      <td style="text-align:right;white-space:nowrap">${exc&&!a.resolved?('<button class="btn ghost sm" onclick="pointageResolve(\''+a.id+'\')">Résoudre</button> '):''}<button class="btn ghost sm" title="Modifier" onclick="pointageEdit('${a.id}','${a.server_ts}','${a.type}')">✎</button> <button class="btn ghost sm" title="Supprimer" onclick="pointageDelete('${a.id}')">🗑</button></td>
+      <td style="text-align:right;white-space:nowrap">${a.has_photo?('<button class="btn ghost sm" title="Selfie" onclick="pointagePhoto(\''+a.id+'\')">📷</button> '):''}${exc&&!a.resolved?('<button class="btn ghost sm" onclick="pointageResolve(\''+a.id+'\')">Résoudre</button> '):''}<button class="btn ghost sm" title="Modifier" onclick="pointageEdit('${a.id}','${a.server_ts}','${a.type}')">✎</button> <button class="btn ghost sm" title="Supprimer" onclick="pointageDelete('${a.id}')">🗑</button></td>
     </tr>`; }).join("");
   g("prBody").innerHTML=`<table style="width:100%"><tr><th>Employé</th><th>Type</th><th>Date/heure</th><th>Site</th><th>Distance</th><th>Statut</th><th></th></tr>${list.length?rows:'<tr><td colspan="7" class="note">Aucun pointage pour ce filtre.</td></tr>'}</table>`;
 }
@@ -4684,6 +4686,9 @@ async function pointageDelete(id){
   if(!confirm("⚠ Supprimer ce pointage ?\\n\\nCette donnée de présence sera définitivement retirée (action tracée dans l'audit)."))return;
   try{ await api("/attendance/"+id,{method:"DELETE"}); pointageReload(); }catch(e){ alert(e.message); }
 }
+function pointagePhoto(id){ fetch("/api/attendance/"+id+"/photo",{headers:{Authorization:"Bearer "+TOKEN}}).then(r=>{if(!r.ok)throw 0;return r.blob();}).then(b=>{const u=URL.createObjectURL(b);window.open(u,"_blank");}).catch(()=>alert("Photo indisponible")); }
+async function selfieCfgLoad(){ try{ const c=await api("/attendance-config"); const el=document.getElementById("selfieReq"); if(el)el.checked=!!c.selfieRequired; }catch(e){} }
+async function selfieCfgSave(){ const el=document.getElementById("selfieReq"); const msg=document.getElementById("selfieMsg"); try{ await api("/attendance-config",{method:"PUT",body:JSON.stringify({selfieRequired:el.checked})}); if(msg)msg.textContent="Enregistré."; }catch(e){ if(msg)msg.textContent="Erreur : "+e.message; } }
 /* ---------------- Assurance maladie ---------------- */
 async function assuranceView(){
   let companies=[],coverage=[],pending=[];
