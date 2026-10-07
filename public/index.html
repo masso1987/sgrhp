@@ -12021,7 +12021,7 @@ async function smqEvalsView(){
       ${[["Enquêtes client",sum.client.forms],["Réponses client",sum.client.responses],["Satisfaction client",sum.client.moyenne+"%"],["Enquêtes salarié",sum.employee.forms],["Réponses salarié",sum.employee.responses],["Satisfaction salarié",sum.employee.moyenne+"%"]].map(([l,v])=>`<div style="flex:1;min-width:120px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
     <div class="panel"><table style="width:100%"><tr><th>Type</th><th>Titre</th><th>Réponses</th><th>Statut</th><th>Lien public</th><th></th></tr>
       ${forms.map(f=>`<tr><td>${f.type==="client"?'<span class="tag blue">Client</span>':'<span class="tag" style="background:#7c3aed;color:#fff">Salarié</span>'}</td>
-        <td>${esc(f.title)}</td><td>${f.responseCount||0}</td><td>${f.active!==false?'<span class="tag green">Actif</span>':'<span class="tag">Clôturé</span>'}</td>
+        <td>${esc(f.title)}</td><td>${f.responseCount||0}</td><td>${(f.active!==false && (!f.endDate || new Date()<=new Date(f.endDate+'T23:59:59')))?'<span class="tag green">Ouverte</span>':'<span class="tag">Clôturée</span>'}${f.endDate?('<div class="note">fin '+esc(f.endDate)+'</div>'):''}</td>
         <td><div style="display:flex;gap:4px;align-items:center"><input readonly value="${evalUrl(f.token)}" style="font-size:11px;padding:3px 5px;width:230px;border:1px solid var(--border);border-radius:6px" onclick="this.select()"><button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqEvalCopy('${f.token}')">Copier</button></div></td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
           <button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqEvalResults('${f.id}')">Résultats</button>
@@ -12042,6 +12042,7 @@ async function smqEvalForm(idv,type){
     <label>Introduction (affichée en haut du formulaire)</label><textarea id="evIntro" rows="2">${esc(f.intro||"")}</textarea>
     <div class="grid2"><div><label>Échelle de notation (max)</label><input id="evScale" type="number" min="3" max="10" value="${f.scaleMax||5}"></div>
       <div><label>Statut</label><select id="evActive"><option value="1" ${f.active!==false?"selected":""}>Actif</option><option value="0" ${f.active===false?"selected":""}>Clôturé</option></select></div></div>
+    <label>Date de fin (clôture automatique après cette date ; vide = sans limite). Pour rouvrir, remettez « Actif » et changez la date.</label><input id="evEnd" type="date" value="${esc(f.endDate||"")}">
     <label style="display:flex;justify-content:space-between;align-items:center">Questions <button class="btn ghost sm" onclick="evqAdd()">+ Question</button></label>
     <div id="evqList" style="max-height:260px;overflow:auto"></div>
     <div class="err hidden" id="evErr" style="margin-top:6px"></div>
@@ -12064,7 +12065,7 @@ function evqAdd(){ window._EVQ=window._EVQ||[]; window._EVQ.push({id:"q"+(window
 async function smqEvalSave(idv,type,btn){ const g=x=>(document.getElementById(x)||{}).value;
   const questions=(window._EVQ||[]).filter(q=>q.label&&q.label.trim());
   if(!questions.length){ const e=document.getElementById("evErr");e.textContent="Ajoutez au moins une question.";e.classList.remove("hidden");return; }
-  const body={type,title:g("evTitle"),intro:g("evIntro"),scaleMax:Number(g("evScale"))||5,active:g("evActive")==="1",questions};
+  const body={type,title:g("evTitle"),intro:g("evIntro"),scaleMax:Number(g("evScale"))||5,active:g("evActive")==="1",endDate:g("evEnd")||"",questions};
   try{ await api("/smq/evals"+(idv?"/"+idv:""),{method:idv?"PUT":"POST",body:JSON.stringify(body)}); btn.closest(".modal-bg").remove(); smqEvalsView(); }
   catch(e){ const el=document.getElementById("evErr");el.textContent=e.message;el.classList.remove("hidden"); } }
 async function smqEvalResults(idv){

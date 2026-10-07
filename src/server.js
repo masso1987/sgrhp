@@ -107,12 +107,16 @@ app.get("/eval/:token", (req, res) => {
   const smq = require("./routes/smq");
   const { db } = require("./store");
   const settings = require("./routes/settings").settings();
-  const f = smq.publicEvalByToken && smq.publicEvalByToken(req.params.token);
+  const f = smq.publicEvalRawByToken ? smq.publicEvalRawByToken(req.params.token) : (smq.publicEvalByToken && smq.publicEvalByToken(req.params.token));
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   const tenant = f && (db.tenants || []).find(t => t.id === (f.tenantId || "t1"));
   const brandName = (tenant && tenant.name) || (settings.branding && settings.branding.appName) || "SGRHP";
   const shell = (inner) => `<!doctype html><html lang=fr><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=robots content="noindex"><title>${evalEsc(f ? f.title : "Evaluation")}</title><style>body{font-family:Inter,system-ui,sans-serif;background:#f5f8f7;margin:0;padding:32px 14px;color:#111827}.card{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:26px}h1{font-size:20px;margin:0 0 6px}.sub{color:#6b7280;font-size:14px;margin:0 0 16px}label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}input,textarea{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d1d5db;border-radius:9px;font-size:14px;font-family:inherit}.rate{display:flex;gap:6px;flex-wrap:wrap}.rate button{flex:0 0 auto;width:42px;height:42px;border:1px solid #d1d5db;border-radius:9px;background:#fff;font-size:15px;cursor:pointer}.rate button.on{background:#065f46;color:#fff;border-color:#065f46}.q{border-top:1px solid #f0f0f0;padding-top:6px;margin-top:6px}.send{margin-top:18px;background:#065f46;color:#fff;border:0;padding:11px 20px;border-radius:9px;font-size:15px;cursor:pointer;width:100%}.foot{text-align:center;color:#9ca3af;font-size:12px;margin-top:16px}</style></head><body><div class=card>${inner}</div><p class=foot>${evalEsc(brandName)} - Systeme de management de la qualite</p></body></html>`;
-  if (!f) return res.status(404).send(shell(`<h1>Formulaire indisponible</h1><p class=sub>Ce lien d'evaluation est invalide ou a ete cloture.</p>`));
+  if (!f) return res.status(404).send(shell(`<h1>Formulaire indisponible</h1><p class=sub>Ce lien d'evaluation est invalide.</p>`));
+  if (smq.evalFormOpen && !smq.evalFormOpen(f)) {
+    const fin = f.endDate ? (() => { try { return new Date(f.endDate + "T00:00:00").toLocaleDateString("fr-FR"); } catch (e) { return f.endDate; } })() : "";
+    return res.status(410).send(shell(`<h1>Enquête clôturée</h1><p class=sub>Cette enquête est terminée${fin ? " depuis le " + evalEsc(fin) : ""} et n'accepte plus de réponses. Merci de votre intérêt.</p>`));
+  }
   const max = Number(f.scaleMax) || 5;
   const qs = (f.questions || []).map(q => {
     if (q.kind === "rating") {

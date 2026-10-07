@@ -1116,7 +1116,7 @@ router.post("/evals", allow(...RW), (req, res) => {
     id: id("smq"), type, title: b.title || (type === "client" ? "Évaluation de la satisfaction client" : "Évaluation de la satisfaction du personnel"),
     intro: b.intro || "", token: evalToken(), scaleMax: Number(b.scaleMax) || 5,
     questions: Array.isArray(b.questions) && b.questions.length ? b.questions : EVAL_DEFAULTS[type],
-    targetName: b.targetName || "", active: b.active !== false, createdAt: now(),
+    targetName: b.targetName || "", active: b.active !== false, endDate: b.endDate || "", createdAt: now(),
   }, req);
   db.smqEvalForms.push(rec); save(); audit(req.user, "CREATED", "SmqEvalForm", rec.id, { type });
   res.status(201).json(rec);
@@ -1124,7 +1124,7 @@ router.post("/evals", allow(...RW), (req, res) => {
 router.put("/evals/:id", allow(...RW), (req, res) => {
   const f = mine(db.smqEvalForms, req).find(x => x.id === req.params.id); if (!f) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  for (const k of ["title", "intro", "scaleMax", "questions", "targetName", "active", "type"]) if (b[k] !== undefined) f[k] = b[k];
+  for (const k of ["title", "intro", "scaleMax", "questions", "targetName", "active", "type", "endDate"]) if (b[k] !== undefined) f[k] = b[k];
   f.updatedAt = now(); save(); res.json(f);
 });
 router.delete("/evals/:id", allow(...RW), (req, res) => {
@@ -1922,13 +1922,22 @@ router.post("/veille/import", allow(...RW), smqImport.single("file"), (req, res)
 
 
 /* ---- Accès public (sans authentification) au formulaire d'évaluation ---- */
-function publicEvalByToken(token) {
+function evalFormOpen(f) {
+  return !!(f && f.active !== false && (!f.endDate || Date.now() <= Date.parse(f.endDate + "T23:59:59")));
+}
+function publicEvalRawByToken(token) {
   if (!token) return null;
-  return (db.smqEvalForms || []).find(f => f.token === token && f.active !== false) || null;
+  return (db.smqEvalForms || []).find(f => f.token === token) || null;
+}
+function publicEvalByToken(token) {
+  const f = publicEvalRawByToken(token);
+  return evalFormOpen(f) ? f : null;
 }
 function publicEvalSubmit(token, body) {
-  const f = publicEvalByToken(token);
-  if (!f) return { error: "Formulaire introuvable ou clôturé.", code: 404 };
+  const raw = publicEvalRawByToken(token);
+  if (!raw) return { error: "Formulaire introuvable.", code: 404 };
+  if (!evalFormOpen(raw)) return { error: "Cette enquête est clôturée.", code: 410 };
+  const f = raw;
   const b = body || {};
   const answers = (b.answers && typeof b.answers === "object") ? b.answers : {};
   const rated = (f.questions || []).some(q => q.kind === "rating" && Number(answers[q.id]) > 0);
@@ -1945,6 +1954,8 @@ function publicEvalSubmit(token, body) {
   return { ok: true };
 }
 router.publicEvalByToken = publicEvalByToken;
+router.publicEvalRawByToken = publicEvalRawByToken;
+router.evalFormOpen = evalFormOpen;
 router.publicEvalSubmit = publicEvalSubmit;
 
 module.exports = router;

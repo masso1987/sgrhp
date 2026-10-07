@@ -431,7 +431,8 @@ router.get("/me/requests", empAuth, (req, res) => {
 
 /* ============================ ENQUÊTES SALARIÉ ============================ */
 router.get("/me/surveys", empAuth, (req, res) => {
-  const list = (db.smqEvalForms || []).filter(f => (f.tenantId || "t1") === req.emp.tenantId && f.type === "employee" && f.active !== false);
+  const open = require("./smq").evalFormOpen;
+  const list = (db.smqEvalForms || []).filter(f => (f.tenantId || "t1") === req.emp.tenantId && f.type === "employee" && open(f));
   res.json(list.map(f => ({ id: f.id, token: f.token, title: f.title || "Enquête", intro: f.intro || "", scale_max: Number(f.scaleMax) || 5,
     questions: (f.questions || []).map(q => ({ id: q.id, label: q.label, kind: q.kind })) })));
 });
