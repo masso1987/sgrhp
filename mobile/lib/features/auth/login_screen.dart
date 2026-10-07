@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/config/env.dart';
+import '../../core/i18n/l10n.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -52,6 +53,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    ref.watch(localeProvider); // rebuild on language change
     return Scaffold(
       body: Stack(children: [
         // Brand gradient header
@@ -72,7 +74,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: const Text('MBOKA Mon RH', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -.5)),
                 ),
                 const SizedBox(height: 6),
-                Text('Portail employé — présence & self-service',
+                Text(tr('login.subtitle'),
                     style: TextStyle(color: Colors.white.withOpacity(.85), fontSize: 14)),
               ]),
             ),
@@ -92,18 +94,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 30, offset: const Offset(0, 12))],
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text('Connexion', style: Theme.of(context).textTheme.headlineSmall),
+                Text(tr('login.title'), style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 4),
-                Text('Entrez votre matricule et votre mot de passe.',
+                Text(tr('login.hint'),
                     style: TextStyle(color: AppColors.mutedLight)),
                 const SizedBox(height: 22),
                 TextField(controller: _login, textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(hintText: 'Matricule ou e-mail', prefixIcon: Icon(Icons.badge_outlined))),
+                    decoration: InputDecoration(hintText: tr('login.id'), prefixIcon: const Icon(Icons.badge_outlined))),
                 const SizedBox(height: 14),
                 TextField(controller: _pwd, obscureText: _obscure,
                     onSubmitted: (_) => _submit(),
                     decoration: InputDecoration(
-                      hintText: 'Mot de passe', prefixIcon: const Icon(Icons.lock_outline),
+                      hintText: tr('login.password'), prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                         onPressed: () => setState(() => _obscure = !_obscure),
@@ -118,16 +120,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   onPressed: _loading ? null : _submit,
                   child: _loading
                       ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                      : const Text('Se connecter'),
+                      : Text(tr('login.submit')),
                 ),
                 const SizedBox(height: 10),
-                Center(child: TextButton(onPressed: () {}, child: const Text('Mot de passe oublié ?'))),
+                Center(child: TextButton(onPressed: () {}, child: Text(tr('login.forgot')))),
                 if (!kReleaseMode || _serverUnlocked)
                   Center(
                     child: TextButton.icon(
                       onPressed: _serverDialog,
                       icon: const Icon(Icons.dns_outlined, size: 16),
-                      label: const Text('Serveur'),
+                      label: Text(tr('login.server')),
                       style: TextButton.styleFrom(foregroundColor: AppColors.mutedLight, textStyle: const TextStyle(fontSize: 12.5)),
                     ),
                   ),

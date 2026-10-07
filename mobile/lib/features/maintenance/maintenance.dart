@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../core/i18n/l10n.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -62,7 +63,9 @@ final maintenanceProvider =
 String _fmt(String? iso) {
   if (iso == null) return '';
   try {
-    return DateFormat("d MMM yyyy 'à' HH:mm", 'fr').format(DateTime.parse(iso).toLocal());
+    final loc = appLang == 'en' ? 'en' : 'fr';
+    final pat = appLang == 'en' ? "d MMM yyyy 'at' HH:mm" : "d MMM yyyy 'à' HH:mm";
+    return DateFormat(pat, loc).format(DateTime.parse(iso).toLocal());
   } catch (_) {
     return '';
   }
@@ -74,6 +77,7 @@ class MaintenanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final m = ref.watch(maintenanceProvider);
+    ref.watch(localeProvider);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -87,19 +91,17 @@ class MaintenanceScreen extends ConsumerWidget {
                 child: const Icon(Icons.build_rounded, size: 44, color: AppColors.brand),
               ),
               const SizedBox(height: 22),
-              Text('Application en maintenance',
+              Text(tr('maint.title'),
                   textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 10),
               Text(
-                m.message.isNotEmpty
-                    ? m.message
-                    : "Nous effectuons une maintenance technique. L'application sera de nouveau disponible sous peu. Merci de votre patience.",
+                m.message.isNotEmpty ? m.message : tr('maint.body'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.mutedLight, fontSize: 14, height: 1.4),
               ),
               if (m.scheduledEnd != null && _fmt(m.scheduledEnd).isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text('Retour prévu le ${_fmt(m.scheduledEnd)}',
+                Text('${tr('maint.back')} ${_fmt(m.scheduledEnd)}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
               ],
@@ -107,7 +109,7 @@ class MaintenanceScreen extends ConsumerWidget {
               FilledButton.tonalIcon(
                 onPressed: () => ref.read(maintenanceProvider.notifier).refresh(),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Vérifier à nouveau'),
+                label: Text(tr('maint.again')),
               ),
             ]),
           ),
@@ -126,7 +128,7 @@ class MaintenanceBanner extends StatelessWidget {
     final when = _fmt(info.scheduledStart);
     final txt = info.message.isNotEmpty
         ? info.message
-        : (when.isNotEmpty ? 'Maintenance planifiée le $when' : 'Maintenance planifiée prochainement');
+        : (when.isNotEmpty ? '${tr('maint.planned')} $when' : tr('maint.plannedSoon'));
     return Material(
       color: AppColors.warning.withOpacity(.14),
       child: SafeArea(

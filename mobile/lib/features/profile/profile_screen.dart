@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
+import '../../core/i18n/l10n.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
 
@@ -14,8 +15,9 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = ref.watch(profileProvider);
+    ref.watch(localeProvider); // rebuild on language change
     return Scaffold(
-      appBar: AppBar(title: const Text('Mon profil')),
+      appBar: AppBar(title: Text(tr('profile.title'))),
       body: p.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
@@ -29,19 +31,30 @@ class ProfileScreen extends ConsumerWidget {
           ])),
           const SizedBox(height: 20),
           GlassCard(padding: const EdgeInsets.symmetric(vertical: 4), child: Column(children: [
-            _row(Icons.business_rounded, 'Entreprise', d['company']),
-            _row(Icons.apartment_rounded, 'Département', d['department']),
-            _row(Icons.badge_rounded, 'Poste', d['position']),
-            _row(Icons.email_rounded, 'E-mail', d['email']),
-            _row(Icons.phone_rounded, 'Téléphone', d['phone']),
-            _row(Icons.supervisor_account_rounded, 'Superviseur', d['supervisor'], last: true),
+            _row(Icons.business_rounded, tr('profile.company'), d['company']),
+            _row(Icons.apartment_rounded, tr('profile.department'), d['department']),
+            _row(Icons.badge_rounded, tr('profile.position'), d['position']),
+            _row(Icons.email_rounded, tr('profile.email'), d['email']),
+            _row(Icons.phone_rounded, tr('profile.phone'), d['phone']),
+            _row(Icons.supervisor_account_rounded, tr('profile.supervisor'), d['supervisor'], last: true),
+          ])),
+          const SizedBox(height: 20),
+          GlassCard(padding: const EdgeInsets.symmetric(vertical: 4), child: Column(children: [
+            ListTile(
+              leading: const Icon(Icons.language_rounded, color: AppColors.brand),
+              title: Text(tr('profile.language'), style: const TextStyle(fontSize: 13, color: AppColors.mutedLight)),
+              trailing: _LangToggle(
+                value: appLang,
+                onChanged: (lang) => ref.read(localeProvider.notifier).set(lang),
+              ),
+            ),
           ])),
           const SizedBox(height: 24),
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger, minimumSize: const Size.fromHeight(52), side: const BorderSide(color: AppColors.danger)),
             onPressed: () => ref.read(authControllerProvider.notifier).logout(),
             icon: const Icon(Icons.logout_rounded),
-            label: const Text('Se déconnecter'),
+            label: Text(tr('profile.logout')),
           ),
         ]),
       ),
@@ -57,5 +70,24 @@ class ProfileScreen extends ConsumerWidget {
   static String _initials(dynamic name) {
     final parts = '${name ?? '?'}'.trim().split(RegExp(r'\s+'));
     return (parts.length >= 2 ? parts[0][0] + parts[1][0] : (parts.first.isNotEmpty ? parts.first[0] : '?')).toUpperCase();
+  }
+}
+
+class _LangToggle extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _LangToggle({required this.value, required this.onChanged});
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<String>(
+      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      segments: const [
+        ButtonSegment(value: 'fr', label: Text('FR')),
+        ButtonSegment(value: 'en', label: Text('EN')),
+      ],
+      selected: {value == 'en' ? 'en' : 'fr'},
+      showSelectedIcon: false,
+      onSelectionChanged: (s) => onChanged(s.first),
+    );
   }
 }

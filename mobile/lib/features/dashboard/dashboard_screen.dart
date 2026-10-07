@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/providers.dart';
+import '../../core/i18n/l10n.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
 import '../attendance/attendance_repository.dart';
@@ -14,6 +15,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(dashboardProvider);
+    ref.watch(localeProvider); // rebuild on language change
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async => ref.refresh(dashboardProvider.future),
@@ -38,7 +40,8 @@ class _Content extends ConsumerWidget {
     final checkedIn = status == 'CHECKED_IN';
     final name = (d['greeting_name'] ?? '').toString();
     final hour = DateTime.now().hour;
-    final salut = hour < 12 ? 'Bonjour' : (hour < 18 ? 'Bon après-midi' : 'Bonsoir');
+    final salut = hour < 12 ? tr('dash.greetMorning') : (hour < 18 ? tr('dash.greetAfternoon') : tr('dash.greetEvening'));
+    final locale = appLang == 'en' ? 'en' : 'fr';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
@@ -56,10 +59,10 @@ class _Content extends ConsumerWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('$salut,', style: TextStyle(color: Colors.white.withOpacity(.85), fontSize: 15)),
                 const SizedBox(height: 2),
-                Text(name.isEmpty ? 'Employé' : name,
+                Text(name.isEmpty ? tr('dash.employee') : name,
                     style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -.5)),
                 const SizedBox(height: 4),
-                Text(DateFormat('EEEE d MMMM', 'fr').format(DateTime.now()),
+                Text(DateFormat('EEEE d MMMM', locale).format(DateTime.now()),
                     style: TextStyle(color: Colors.white.withOpacity(.8), fontSize: 13)),
               ]),
             ),
@@ -69,29 +72,29 @@ class _Content extends ConsumerWidget {
         Transform.translate(offset: const Offset(0, -14), child: _attendanceCard(context, ref, today, checkedIn)),
         const SizedBox(height: 4),
         Row(children: [
-          Expanded(child: _statTile(context, Icons.beach_access_rounded, 'Solde congés',
-              d['leave_balance_days'] == null ? '—' : '${d['leave_balance_days']} j', AppColors.info, () => context.go('/leave'))),
+          Expanded(child: _statTile(context, Icons.beach_access_rounded, tr('dash.leaveBalance'),
+              d['leave_balance_days'] == null ? '—' : '${d['leave_balance_days']} ${appLang == 'en' ? 'd' : 'j'}', AppColors.info, () => context.go('/leave'))),
           const SizedBox(width: 12),
-          Expanded(child: _statTile(context, Icons.receipt_long_rounded, 'Dernier bulletin',
+          Expanded(child: _statTile(context, Icons.receipt_long_rounded, tr('dash.lastPayslip'),
               (d['latest_payslip']?['period'] ?? '—').toString(), AppColors.brand, () => context.go('/payslips'))),
         ]),
-        const SectionHeader('Raccourcis'),
+        SectionHeader(tr('dash.shortcuts')),
         GlassCard(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Column(children: [
-            _link(context, Icons.pin_drop_rounded, 'Historique de présence', () => context.go('/attendance')),
+            _link(context, Icons.pin_drop_rounded, tr('dash.history'), () => context.go('/attendance')),
             const Divider(height: 1),
-            _link(context, Icons.event_available_rounded, 'Demander un congé', () => context.go('/leave')),
+            _link(context, Icons.event_available_rounded, tr('dash.requestLeave'), () => context.go('/leave')),
             const Divider(height: 1),
-            _link(context, Icons.health_and_safety_rounded, 'Assurance maladie', () => context.go('/insurance')),
+            _link(context, Icons.health_and_safety_rounded, tr('dash.insurance'), () => context.go('/insurance')),
             const Divider(height: 1),
-            _link(context, Icons.assignment_outlined, 'Mes demandes (AVI, acompte)', () => context.go('/requests')),
+            _link(context, Icons.assignment_outlined, tr('dash.myRequests'), () => context.go('/requests')),
             const Divider(height: 1),
-            _link(context, Icons.poll_outlined, 'Enquêtes & évaluations', () => context.go('/surveys')),
+            _link(context, Icons.poll_outlined, tr('dash.surveys'), () => context.go('/surveys')),
             const Divider(height: 1),
-            _link(context, Icons.lightbulb_outline_rounded, 'Astuces RH', () => context.go('/astuces')),
+            _link(context, Icons.lightbulb_outline_rounded, tr('dash.tips'), () => context.go('/astuces')),
             const Divider(height: 1),
-            _link(context, Icons.person_rounded, 'Mon profil', () => context.go('/profile')),
+            _link(context, Icons.person_rounded, tr('dash.myProfile'), () => context.go('/profile')),
           ]),
         ),
       ],
@@ -104,19 +107,19 @@ class _Content extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text("Présence du jour", style: Theme.of(c).textTheme.titleMedium),
+          Text(tr('dash.todayAttendance'), style: Theme.of(c).textTheme.titleMedium),
           const Spacer(),
           StatusPill(
-            checkedIn ? 'Pointé' : (today['status'] == 'CHECKED_OUT' ? 'Sorti' : 'Non pointé'),
+            checkedIn ? tr('dash.checkedIn') : (today['status'] == 'CHECKED_OUT' ? tr('dash.checkedOut') : tr('dash.notCheckedIn')),
             color: checkedIn ? AppColors.success : (today['status'] == 'CHECKED_OUT' ? AppColors.info : AppColors.warning),
             icon: checkedIn ? Icons.check_circle : Icons.schedule,
           ),
         ]),
         const SizedBox(height: 16),
         Row(children: [
-          _clock('Arrivée', t ?? '--:--'),
+          _clock(tr('dash.arrival'), t ?? '--:--'),
           Container(width: 1, height: 36, color: Theme.of(c).dividerColor),
-          _clock('Départ', today['check_out'] != null ? _fmt(today['check_out']) : '--:--'),
+          _clock(tr('dash.departure'), today['check_out'] != null ? _fmt(today['check_out']) : '--:--'),
           const Spacer(),
           if ((today['site'] ?? '').toString().isNotEmpty)
             Flexible(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -130,7 +133,7 @@ class _Content extends ConsumerWidget {
           style: FilledButton.styleFrom(backgroundColor: checkedIn ? AppColors.danger : AppColors.brand),
           onPressed: () => showCheckInSheet(c, ref, checkIn: !checkedIn),
           icon: Icon(checkedIn ? Icons.logout_rounded : Icons.fingerprint_rounded),
-          label: Text(checkedIn ? 'POINTER LA SORTIE' : 'POINTER L\'ARRIVÉE'),
+          label: Text(checkedIn ? tr('dash.punchOut') : tr('dash.punchIn')),
         ),
       ]),
     );
@@ -192,6 +195,6 @@ class _ErrorState extends StatelessWidget {
         const SizedBox(height: 12),
         Center(child: Text(message, textAlign: TextAlign.center)),
         const SizedBox(height: 16),
-        Center(child: FilledButton(onPressed: onRetry, child: const Text('Réessayer'))),
+        Center(child: FilledButton(onPressed: onRetry, child: Text(tr('common.retry')))),
       ]);
 }

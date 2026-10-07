@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
+import '../../core/i18n/l10n.dart';
 import '../../core/push/push_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/attendance/sync_service.dart';
@@ -39,6 +40,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final maint = ref.watch(maintenanceProvider);
     if (maint.active) return const MaintenanceScreen();
+    ref.watch(localeProvider); // rebuild nav labels on language change
     final pending = ref.watch(pendingCountProvider);
     return Scaffold(
       body: Column(children: [
@@ -53,9 +55,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                 child: Row(children: [
                   const Icon(Icons.cloud_upload_rounded, size: 16, color: AppColors.warning),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('$pending pointage(s) en attente de synchronisation',
+                  Expanded(child: Text('$pending ${tr('common.syncPending')}',
                       style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.w600, fontSize: 12.5))),
-                  TextButton(onPressed: () => ref.read(syncServiceProvider).flush(), child: const Text('Synchroniser')),
+                  TextButton(onPressed: () => ref.read(syncServiceProvider).flush(), child: Text(tr('common.sync'))),
                 ]),
               ),
             ),
@@ -65,12 +67,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index(),
         onDestinationSelected: (i) => context.go(_tabs[i]),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Accueil'),
-          NavigationDestination(icon: Icon(Icons.pin_drop_outlined), selectedIcon: Icon(Icons.pin_drop_rounded), label: 'Présence'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long_rounded), label: 'Bulletins'),
-          NavigationDestination(icon: Icon(Icons.beach_access_outlined), selectedIcon: Icon(Icons.beach_access_rounded), label: 'Congés'),
-          NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Profil'),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: tr('nav.home')),
+          NavigationDestination(icon: const Icon(Icons.pin_drop_outlined), selectedIcon: const Icon(Icons.pin_drop_rounded), label: tr('nav.attendance')),
+          NavigationDestination(icon: const Icon(Icons.receipt_long_outlined), selectedIcon: const Icon(Icons.receipt_long_rounded), label: tr('nav.payslips')),
+          NavigationDestination(icon: const Icon(Icons.beach_access_outlined), selectedIcon: const Icon(Icons.beach_access_rounded), label: tr('nav.leave')),
+          NavigationDestination(icon: const Icon(Icons.person_outline_rounded), selectedIcon: const Icon(Icons.person_rounded), label: tr('nav.profile')),
         ],
       ),
     );
