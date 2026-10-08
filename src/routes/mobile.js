@@ -171,8 +171,14 @@ router.get("/me/sites", empAuth, (req, res) => {
 });
 
 /* ============================ ATTENDANCE ============================ */
+// Heure serveur de référence : l'app l'associe au compteur monotone du téléphone
+// pour horodater de façon fiable les pointages hors ligne (voir attendanceTime.js).
+router.get("/me/time", empAuth, (req, res) => {
+  const ms = Date.now();
+  res.json({ server_ms: ms, server_timestamp: new Date(ms).toISOString() });
+});
 function platformAttCfg() { const p = db.platform || {}; return { accuracyMaxM: p.attAccuracyMaxM || 50, outsidePolicy: p.attOutsidePolicy || "EXCEPTION" }; }
-function recordAttendance(req, type, body) {
+function recordAttendance(req, type, body, opts = {}) {
   const cfg = platformAttCfg();
   const uuid = String(body.attendance_uuid || body.uuid || "").trim();
   // Idempotency: same uuid -> return the existing record.
@@ -200,16 +206,35 @@ function recordAttendance(req, type, body) {
   const checkedIn = lastIn && (!lastOut || lastIn.serverTs > lastOut.serverTs);
   if (type === "OUT" && !checkedIn) { status = "EXCEPTION"; reason = reason || "CHECKOUT_WITHOUT_CHECKIN"; }
   if (type === "IN" && checkedIn) { status = "EXCEPTION"; reason = reason || "DUPLICATE_CHECKIN"; }
+  // --- Heure fiable (ancre monotone) : en ligne = serveur ; hors ligne = reconstruction + garde-fous.
+  const receivedMs = Date.now();
+  const clientMs = body.client_timestamp ? Date.parse(body.client_timestamp) : NaN;
+  const tr = require("../attendanceTime").resolveAttendanceTime({
+    offline: !!opts.offline,
+    nowMs: receivedMs,
+    bootMs: Number(body.boot_ms),
+    anchorServerMs: Number(body.anchor_server_ms),
+    anchorBootMs: Number(body.anchor_boot_ms),
+    clientMs: Number.isFinite(clientMs) ? clientMs : null,
+  });
+  const receivedTs = new Date(receivedMs).toISOString();
+  const serverTs = new Date(tr.ms).toISOString();
+  // Une heure non vérifiée (device/sync) est signalée en exception pour revue RH.
+  if (tr.flag === "REVIEW" && status === "NORMAL") { status = "EXCEPTION"; reason = "TIME_UNVERIFIED"; }
+
   const rec = stamp({ id: id("att"), uuid: uuid || id("att"), employeeId: req.emp.employeeId, siteId: site ? site.id : "",
-    type, serverTs: now(), clientTs: body.client_timestamp || null, lat: Number.isFinite(lat) ? lat : null, lng: Number.isFinite(lng) ? lng : null,
+    type, serverTs, receivedTs, timeSource: tr.source, timeFlag: tr.flag || null,
+    clientTs: body.client_timestamp || null, bootMs: Number.isFinite(Number(body.boot_ms)) ? Number(body.boot_ms) : null,
+    lat: Number.isFinite(lat) ? lat : null, lng: Number.isFinite(lng) ? lng : null,
     accuracy: Number.isFinite(acc) ? acc : null, distanceM: distance != null ? R2(distance) : null,
-    deviceId: body.device_id || "", appVersion: body.app_version || "", status, exceptionReason: reason, createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
+    deviceId: body.device_id || "", appVersion: body.app_version || "", status, exceptionReason: reason, createdAt: receivedTs }, { user: { tenantId: req.emp.tenantId } });
   db.attendance.push(rec);
   return { rec, site };
 }
 function attOut(a, req) {
   const s = empScoped("sites", req.emp.tenantId).find(x => x.id === a.siteId);
-  return { attendance_id: a.id, uuid: a.uuid, type: a.type, server_timestamp: a.serverTs, client_timestamp: a.clientTs,
+  return { attendance_id: a.id, uuid: a.uuid, type: a.type, server_timestamp: a.serverTs, received_timestamp: a.receivedTs || a.serverTs,
+    client_timestamp: a.clientTs, time_source: a.timeSource || "SERVER", time_flag: a.timeFlag || null,
     status: a.status === "NORMAL" ? (a.type === "IN" ? "CHECKED_IN" : "CHECKED_OUT") : a.status, exception_reason: a.exceptionReason || null,
     site: s ? { id: s.id, name: s.name } : null, accuracy: a.accuracy, distance_m: a.distanceM };
 }
@@ -270,7 +295,7 @@ router.post("/me/sync", empAuth, (req, res) => {
   const results = [];
   for (const it of items) {
     const type = (it.type || "IN").toUpperCase() === "OUT" ? "OUT" : "IN";
-    const out = recordAttendance(req, type, it);
+    const out = recordAttendance(req, type, it, { offline: true });
     if (out.reject) results.push({ uuid: it.attendance_uuid || it.uuid, success: false, reason: out.reason });
     else results.push(Object.assign({ success: true, deduplicated: !!out.dedup }, attOut(out.rec, req)));
   }

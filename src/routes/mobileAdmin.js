@@ -144,7 +144,9 @@ router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
   list = list.sort((a, b) => (b.serverTs || "").localeCompare(a.serverTs || "")).slice(0, 500);
   res.json(list.map(a => { const e = empById[a.employeeId] || {}; const s = siteById[a.siteId] || {};
     return { id: a.id, employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", type: a.type,
-      server_ts: a.serverTs, client_ts: a.clientTs, site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
+      server_ts: a.serverTs, received_ts: a.receivedTs || a.serverTs, client_ts: a.clientTs,
+      time_source: a.timeSource || "SERVER", time_flag: a.timeFlag || null,
+      site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
       status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved, has_photo: !!a.photo }; }));
 });
 router.post("/attendance/:id/resolve", allow("GPF", "ADM", "CD"), (req, res) => {

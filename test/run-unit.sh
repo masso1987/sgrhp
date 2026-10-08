@@ -9,6 +9,7 @@ UNITS=(
   "src/payroll/engine.zang.test.js"     # bulletin réel ZANG, exact au franc
   "src/accounting/balanceModel.test.js" # balance format Sage, aucun solde négatif
   "src/workflowConfig.test.js"          # circuits configurables (correctif congé)
+  "src/attendanceTime.test.js"          # pointage hors-ligne : heure fiable (ancre monotone)
 )
 
 fails=0

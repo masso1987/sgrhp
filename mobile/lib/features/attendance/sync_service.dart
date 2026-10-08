@@ -41,18 +41,23 @@ class SyncService {
       final due = await _db.due();
       if (due.isEmpty) return;
       await _db.markSyncing(due.map((e) => e.uuid).toList());
-      final payload = due
-          .map((e) => {
-                'attendance_uuid': e.uuid,
-                'type': e.type,
-                'latitude': e.lat,
-                'longitude': e.lng,
-                'accuracy': e.accuracy,
-                'site_id': e.siteId,
-                'client_timestamp': e.clientTs,
-                'app_version': e.appVersion,
-              })
-          .toList();
+      final payload = <Map<String, dynamic>>[];
+      for (final e in due) {
+        final t = await _db.readTrust(e.uuid); // monotonic anchor captured at punch time
+        payload.add({
+          'attendance_uuid': e.uuid,
+          'type': e.type,
+          'latitude': e.lat,
+          'longitude': e.lng,
+          'accuracy': e.accuracy,
+          'site_id': e.siteId,
+          'client_timestamp': e.clientTs,
+          'app_version': e.appVersion,
+          'boot_ms': t['boot_ms'],
+          'anchor_server_ms': t['anchor_server_ms'],
+          'anchor_boot_ms': t['anchor_boot_ms'],
+        });
+      }
       final resp = await _ref.read(apiClientProvider).post('/me/sync', data: {'attendance': payload});
       final results = (resp.data['results'] as List?) ?? [];
       final byUuid = {for (final r in results) r['uuid'] ?? r['attendance_uuid']: r};

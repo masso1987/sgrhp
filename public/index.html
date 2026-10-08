@@ -4650,20 +4650,24 @@ async function pointageReload(){
   let list=[]; try{ list=await api("/attendance/review"+(q.length?"?"+q.join("&"):"")); }
   catch(e){ g("prBody").innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
   const fmt=(iso)=>{ if(!iso)return '—'; try{ return new Date(iso).toLocaleString('fr-FR'); }catch(_){ return iso; } };
-  const REASONS={OUTSIDE_GEOFENCE:'Hors zone',LOW_ACCURACY:'GPS imprécis',DUPLICATE_CHECKIN:'Doublon',CHECKOUT_WITHOUT_CHECKIN:'Sortie sans entrée',NO_SITE:'Sans site'};
+  const REASONS={OUTSIDE_GEOFENCE:'Hors zone',LOW_ACCURACY:'GPS imprécis',DUPLICATE_CHECKIN:'Doublon',CHECKOUT_WITHOUT_CHECKIN:'Sortie sans entrée',NO_SITE:'Sans site',TIME_UNVERIFIED:'Heure non vérifiée'};
+  // Fiabilité de l'heure du pointage (voir attendanceTime.js côté serveur).
+  const TSRC={SERVER:['Serveur','green','Horodaté par le serveur (en ligne)'],OFFLINE_ANCHORED:['Hors ligne ✓','green','Hors ligne, heure reconstituée via l’ancre monotone (fiable)'],OFFLINE_DEVICE:['Appareil ⚠','amber','Hors ligne, heure de l’appareil — à vérifier'],OFFLINE_SYNC:['Sync ⚠','amber','Hors ligne, aucune heure fiable — heure de réception, à vérifier']};
   const rows=list.map(a=>{
     const exc=a.status==='EXCEPTION';
     const reason=REASONS[a.exception_reason]||a.exception_reason||'';
+    const ts=TSRC[a.time_source]||['Serveur','green',''];
     return `<tr${exc&&!a.resolved?' style="background:#fef2f2"':''}>
       <td><b>${esc(a.employee)}</b><div class="note">${esc(a.matricule||'')}</div></td>
       <td>${a.type==='IN'?'Entrée':'Sortie'}</td>
-      <td>${fmt(a.server_ts)}</td>
+      <td>${fmt(a.server_ts)}${a.time_flag==='REVIEW'&&a.received_ts&&a.received_ts!==a.server_ts?('<div class="note" title="Reçu par le serveur">reçu '+fmt(a.received_ts)+'</div>'):''}</td>
+      <td><span class="tag ${ts[1]}" title="${esc(ts[2])}">${esc(ts[0])}</span></td>
       <td>${esc(a.site||'—')}</td>
       <td>${a.distance_m!=null?Math.round(a.distance_m)+' m':'—'}</td>
       <td>${exc?('<span class="tag '+(a.resolved?'gray':'red')+'">'+esc(reason)+(a.resolved?' (résolu)':'')+'</span>'):'<span class="tag green">Normal</span>'}</td>
       <td style="text-align:right;white-space:nowrap">${a.has_photo?('<button class="btn ghost sm" title="Selfie" onclick="pointagePhoto(\''+a.id+'\')">📷</button> '):''}${exc&&!a.resolved?('<button class="btn ghost sm" onclick="pointageResolve(\''+a.id+'\')">Résoudre</button> '):''}<button class="btn ghost sm" title="Modifier" onclick="pointageEdit('${a.id}','${a.server_ts}','${a.type}')">✎</button> <button class="btn ghost sm" title="Supprimer" onclick="pointageDelete('${a.id}')">🗑</button></td>
     </tr>`; }).join("");
-  g("prBody").innerHTML=`<table style="width:100%"><tr><th>Employé</th><th>Type</th><th>Date/heure</th><th>Site</th><th>Distance</th><th>Statut</th><th></th></tr>${list.length?rows:'<tr><td colspan="7" class="note">Aucun pointage pour ce filtre.</td></tr>'}</table>`;
+  g("prBody").innerHTML=`<table style="width:100%"><tr><th>Employé</th><th>Type</th><th>Date/heure</th><th>Source heure</th><th>Site</th><th>Distance</th><th>Statut</th><th></th></tr>${list.length?rows:'<tr><td colspan="8" class="note">Aucun pointage pour ce filtre.</td></tr>'}</table>`;
 }
 async function pointageResolve(aid){
   const note=prompt("Note de résolution (optionnel) :","");

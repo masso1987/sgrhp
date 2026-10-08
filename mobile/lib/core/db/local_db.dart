@@ -36,6 +36,44 @@ class LocalDb extends _$LocalDb {
   @override
   int get schemaVersion => 1;
 
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          await m.createAll();
+          await _ensureTrustTable();
+        },
+        beforeOpen: (details) async {
+          // Side-table for trusted-time fields (monotonic anchor), managed with raw
+          // SQL so it needs no Drift codegen. Lives in the same durable DB file.
+          await _ensureTrustTable();
+        },
+      );
+
+  Future<void> _ensureTrustTable() => customStatement(
+        'CREATE TABLE IF NOT EXISTS punch_trust ('
+        'uuid TEXT PRIMARY KEY, boot_ms INTEGER, anchor_server_ms INTEGER, anchor_boot_ms INTEGER)');
+
+  /// Persist the trusted-time snapshot captured at punch time (durable for offline).
+  Future<void> saveTrust(String uuid, {int? bootMs, int? anchorServerMs, int? anchorBootMs}) =>
+      customStatement(
+        'INSERT OR REPLACE INTO punch_trust(uuid,boot_ms,anchor_server_ms,anchor_boot_ms) VALUES(?,?,?,?)',
+        [uuid, bootMs, anchorServerMs, anchorBootMs]);
+
+  /// Read the trusted-time snapshot for a queued punch (null fields if absent).
+  Future<Map<String, int?>> readTrust(String uuid) async {
+    final rows = await customSelect(
+      'SELECT boot_ms, anchor_server_ms, anchor_boot_ms FROM punch_trust WHERE uuid = ?',
+      variables: [Variable<String>(uuid)],
+    ).get();
+    if (rows.isEmpty) return {'boot_ms': null, 'anchor_server_ms': null, 'anchor_boot_ms': null};
+    final r = rows.first;
+    return {
+      'boot_ms': r.read<int?>('boot_ms'),
+      'anchor_server_ms': r.read<int?>('anchor_server_ms'),
+      'anchor_boot_ms': r.read<int?>('anchor_boot_ms'),
+    };
+  }
+
   Future<void> enqueue(AttendanceQueueCompanion row) =>
       into(attendanceQueue).insertOnConflictUpdate(row);
 
