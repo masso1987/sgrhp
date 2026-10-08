@@ -3,7 +3,10 @@
   "version": "0.2.0",
   "description": "SGRHP - HR Personnel Management System (Cible RH Emploi S.A.)",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "bash test/run-unit.sh",
+    "test:unit": "bash test/run-unit.sh",
+    "test:all": "bash test/run-all.sh"
   },
   "dependencies": {
     "docxtemplater": "^3.69.0",

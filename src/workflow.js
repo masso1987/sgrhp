@@ -21,14 +21,10 @@ function docOf(documentId) {
 const openStep = d => d.steps.find(s => !s.decidedAt);
 
 /* ---- Workflow configurable par tenant (Administration › Circuits de validation) ---- */
-const WF_KEY = (type) => ({ EMPLOYEE_FILE: "employee_file", TEMPLATE_DOC: "template_doc", AMENDMENT: "amendment", AVI: "avi", CONTRACT_END: "contract_end", LEAVE: "leave", DECISION: "decision" }[type] || "template_doc");
-const WF_DEFAULT = { employee_file: ["CD", "RJ"], template_doc: ["CD", "RJ"], amendment: ["CD", "RJ"], avi: ["CD", "RJ"], contract_end: ["RJ"], leave: ["CD"], decision: ["CD", "RJ"] };
+const { WF_KEY, WF_DEFAULT, resolveRoles } = require("./workflowConfig");
 function wfRoles(type) {
-  const key = WF_KEY(type);
   let cfg = null; try { cfg = require("./routes/settings").settings().workflows; } catch (e) {}
-  const w = cfg && cfg[key];
-  if (w) { if (w.enabled === false) return []; if (Array.isArray(w.steps)) return w.steps.filter(Boolean); }
-  return WF_DEFAULT[key] || ["CD", "RJ"];
+  return resolveRoles(type, cfg);
 }
 const mkStep = (role, at) => ({ id: id("stp"), stage: role, assignedAt: at || new Date().toISOString(),
   warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
@@ -297,4 +293,4 @@ const withTimer = d => {
     slaState: !step ? null : step.breachedAt ? "BREACH" : step.warnedAt ? "WARNING" : "OK" };
 };
 
-module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, startWorkflow, SLA, WARN, companyInfo };
+module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, startWorkflow, wfRoles, WF_KEY, WF_DEFAULT, SLA, WARN, companyInfo };

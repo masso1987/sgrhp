@@ -207,9 +207,13 @@ router.get("/balance", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
       a.debit += R2(l.debit); a.credit += R2(l.credit);
     }
   }
-  const rows = Object.values(agg).sort((x, y) => x.account.localeCompare(y.account)).map(a => Object.assign(a, { solde: a.debit - a.credit }));
+  const baseRows = Object.values(agg).sort((x, y) => x.account.localeCompare(y.account)).map(a => Object.assign(a, { solde: a.debit - a.credit }));
+  // Ventilation format Sage (soldeDebit / soldeCredit, jamais de négatif) — source unique partagée.
+  const { buildBalanceModel } = require("../accounting/balanceModel");
+  const model = buildBalanceModel(baseRows);
+  const rows = baseRows.map((r, i) => Object.assign(r, { soldeDebit: model.rows[i].soldeDebit, soldeCredit: model.rows[i].soldeCredit }));
   const totalD = rows.reduce((s, r) => s + r.debit, 0), totalC = rows.reduce((s, r) => s + r.credit, 0);
-  res.json({ rows, totalDebit: totalD, totalCredit: totalC, balanced: totalD === totalC });
+  res.json({ rows, totalDebit: totalD, totalCredit: totalC, totalSoldeDebit: model.totals.soldeDebit, totalSoldeCredit: model.totals.soldeCredit, balanced: totalD === totalC });
 });
 
 /* ==================== Import balance N-1 (reprise Sage) ==================== */
