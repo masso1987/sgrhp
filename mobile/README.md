@@ -9,7 +9,7 @@ the secure `/api/v1` mobile API on the SGRHP backend — never to PostgreSQL dir
 flutter pub get
 dart run build_runner build   # generates the Drift database (local_db.g.dart)
 flutter run \
-  --dart-define=API_BASE_URL=https://sgrhp.ciblerh-emploi.com \
+  --dart-define=API_BASE_URL=https://portal.mboketech.com \
   --dart-define=GOOGLE_MAPS_API_KEY=xxxx
 ```
 Employees are provisioned by HR in the SGRHP web app (Employé → « Compte application »),

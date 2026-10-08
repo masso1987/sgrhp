@@ -38,7 +38,7 @@ cd sgrhp/mobile
 ## 2. Point the app at your backend (no secrets in code)
 The app reads its config from `--dart-define` at run time. Decide your API base URL:
 - Local test against your PC's server: `http://10.0.2.2:PORT` (the Android emulator's alias for your PC's `localhost`), e.g. `http://10.0.2.2:8080`.
-- Production: `https://sgrhp.ciblerh-emploi.com`.
+- Production: `https://portal.mboketech.com`.
 
 Keep this handy; you pass it in step 6/7.
 
@@ -119,7 +119,7 @@ flutter devices
 ```
 Run, passing your backend URL:
 ```bash
-flutter run --dart-define=API_BASE_URL=https://sgrhp.ciblerh-emploi.com
+flutter run --dart-define=API_BASE_URL=https://portal.mboketech.com
 ```
 Hot-reload with `r`, hot-restart with `R`, quit with `q`.
 > To log in you first need an employee account: in the SGRHP web app open an employee →
@@ -127,7 +127,7 @@ Hot-reload with `r`, hot-restart with `R`, quit with `q`.
 
 ## 7. Build a shareable debug APK (no signing needed)
 ```bash
-flutter build apk --debug --dart-define=API_BASE_URL=https://sgrhp.ciblerh-emploi.com
+flutter build apk --debug --dart-define=API_BASE_URL=https://portal.mboketech.com
 ```
 Output: `build/app/outputs/flutter-apk/app-debug.apk` — copy to a phone and install (allow "unknown sources").
 
@@ -167,8 +167,8 @@ buildTypes {
 ```
 ### 8d. Build
 ```bash
-flutter build apk --release   --dart-define=API_BASE_URL=https://sgrhp.ciblerh-emploi.com   # single APK
-flutter build appbundle --release --dart-define=API_BASE_URL=https://sgrhp.ciblerh-emploi.com  # .aab for Play Store
+flutter build apk --release   --dart-define=API_BASE_URL=https://portal.mboketech.com   # single APK
+flutter build appbundle --release --dart-define=API_BASE_URL=https://portal.mboketech.com  # .aab for Play Store
 ```
 Outputs: `build/app/outputs/flutter-apk/app-release.apk` and `build/app/outputs/bundle/release/app-release.aab`.
 
