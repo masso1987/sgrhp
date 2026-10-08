@@ -231,12 +231,16 @@ router.post("/me/attendance/check-out", empAuth, attUpload.single("photo"), (req
 });
 router.get("/me/attendance", empAuth, (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1), size = Math.min(100, Number(req.query.size) || 30);
-  const all = empScoped("attendance", req.emp.tenantId).filter(a => a.employeeId === req.emp.employeeId).sort((x, y) => (y.serverTs || "").localeCompare(x.serverTs || ""));
+  // Filtre optionnel par mois (YYYY-MM) ; sinon tout l'historique (le plus récent d'abord).
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month || "")) ? String(req.query.month) : null;
+  let all = empScoped("attendance", req.emp.tenantId).filter(a => a.employeeId === req.emp.employeeId);
+  if (month) all = all.filter(a => (a.serverTs || "").slice(0, 7) === month);
+  all = all.sort((x, y) => (y.serverTs || "").localeCompare(x.serverTs || ""));
   // group by day into in/out pairs
   const byDay = {};
   for (const a of all) { const d = (a.serverTs || "").slice(0, 10); (byDay[d] = byDay[d] || []).push(a); }
   const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
-  const slice = days.slice((page - 1) * size, page * size).map(d => {
+  const mapDay = (d) => {
     const list = byDay[d].sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
     const cin = list.find(a => a.type === "IN"), cout = [...list].reverse().find(a => a.type === "OUT");
     let dur = null; if (cin && cout) dur = Math.max(0, new Date(cout.serverTs) - new Date(cin.serverTs));
@@ -245,8 +249,20 @@ router.get("/me/attendance", empAuth, (req, res) => {
     return { date: d, check_in: cin ? cin.serverTs : null, check_out: cout ? cout.serverTs : null,
       site: site ? site.name : "", duration_ms: dur, status: anyExc ? "EXCEPTION" : "NORMAL",
       exception_reason: (list.find(a => a.exceptionReason) || {}).exceptionReason || null };
-  });
-  res.json({ page, size, total_days: days.length, days: slice });
+  };
+  const slice = days.slice((page - 1) * size, page * size).map(mapDay);
+  // Résumé du mois (jours présents, anomalies, total heures) pour l'en-tête mobile.
+  let summary = null;
+  if (month) {
+    const all30 = days.map(mapDay);
+    summary = {
+      month,
+      days_present: all30.filter(x => x.check_in).length,
+      exceptions: all30.filter(x => x.status === "EXCEPTION").length,
+      total_ms: all30.reduce((s, x) => s + (x.duration_ms || 0), 0),
+    };
+  }
+  res.json({ page, size, total_days: days.length, month, summary, days: slice });
 });
 /* Batch offline sync (idempotent by uuid) */
 router.post("/me/sync", empAuth, (req, res) => {

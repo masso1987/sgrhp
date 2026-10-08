@@ -88,12 +88,21 @@ class AttendanceRepository {
     }
   }
 
-  Future<Map<String, dynamic>> history({int page = 1}) async {
-    final r = await _ref.read(apiClientProvider).get('/me/attendance', query: {'page': page});
+  Future<Map<String, dynamic>> history({int page = 1, String? month}) async {
+    final q = <String, dynamic>{'page': page};
+    if (month != null) q['month'] = month;
+    final r = await _ref.read(apiClientProvider).get('/me/attendance', query: q);
     return Map<String, dynamic>.from(r.data as Map);
   }
 }
 
 final attendanceRepoProvider = Provider((ref) => AttendanceRepository(ref));
 final dashboardProvider = FutureProvider.autoDispose((ref) => ref.read(attendanceRepoProvider).dashboard());
-final historyProvider = FutureProvider.autoDispose((ref) => ref.read(attendanceRepoProvider).history());
+
+/// Selected month for the presence screen, as "YYYY-MM" (null = all history).
+final presenceMonthProvider = StateProvider<String?>((ref) => null);
+
+final historyProvider = FutureProvider.autoDispose((ref) {
+  final month = ref.watch(presenceMonthProvider);
+  return ref.read(attendanceRepoProvider).history(month: month);
+});
