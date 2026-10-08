@@ -2871,6 +2871,13 @@ async function dashView() {
     <div class="card"><div class="kpi" style="color:${d.warnings ? "var(--amber)" : "var(--green)"}">${d.warnings}</div><div class="lbl">Alertes 36h</div></div>
     <div class="card"><div class="kpi">${d.generated}</div><div class="lbl">Documents générés</div></div>
   </div>
+  ${d.hr ? `<div class="cards">
+    <div class="card"><div class="kpi" style="color:var(--green)">${d.hr.presence.presentNow}<small style="font-size:14px;color:var(--muted)">/${d.hr.presence.headcount}</small></div><div class="lbl">Présents maintenant${d.hr.presence.exceptions ? ` · <span style="color:var(--amber)">${d.hr.presence.exceptions} anomalie(s)</span>` : ""}</div></div>
+    <div class="card"><div class="kpi">${d.hr.presence.checkedInToday}</div><div class="lbl">Pointages du jour</div></div>
+    <div class="card"><div class="kpi" style="color:${d.hr.leave.negativeBalances ? "var(--red)" : "inherit"}">${d.hr.leave.totalRemaining}<small style="font-size:14px;color:var(--muted)"> j</small></div><div class="lbl">Solde congés cumulé${d.hr.leave.negativeBalances ? ` · ${d.hr.leave.negativeBalances} en négatif` : ""}</div></div>
+    <div class="card"><div class="kpi" style="color:${d.hr.payroll.open ? "var(--amber)" : "var(--green)"}">${d.hr.payroll.period || "—"}</div><div class="lbl">Paie ${d.hr.payroll.period ? (d.hr.payroll.open ? "ouverte" : "clôturée") : "aucune"}${d.hr.payroll.payslips != null ? ` · ${d.hr.payroll.payslips} bulletin(s)` : ""}</div></div>
+    <div class="card"><div class="kpi">${(d.hr.insurance.amountYear).toLocaleString("fr-FR")}<small style="font-size:14px;color:var(--muted)"> F</small></div><div class="lbl">Conso. assurance ${new Date().getFullYear()}${d.hr.insurance.pendingDependents ? ` · <span style="color:var(--amber)">${d.hr.insurance.pendingDependents} ayant(s) droit en attente</span>` : ""}</div></div>
+  </div>` : ""}
   <div class="panel"><b style="font-size:12px;color:var(--muted)">CHRONOMÈTRES EN COURS - SLA 48h</b>
     ${d.timers.length ? `<table style="margin-top:8px"><tr><th>Document</th><th>Étape</th><th>Cycle</th><th>Chronomètre</th></tr>
     ${d.timers.map(t => `<tr><td>${esc(t.title)}</td><td><span class="tag gray">${t.stage}</span></td><td>${t.cycle}</td>
