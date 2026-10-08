@@ -54,6 +54,8 @@ const apiLimiter = RPM > 0
 // Serve the SPA HTML with no-cache so nav/feature updates always load.
 app.use((req, res, next) => { if (req.path === "/" || req.path.endsWith(".html")) res.setHeader("Cache-Control", "no-cache"); next(); });
 app.use(express.static(path.join(__dirname, "..", "public")));
+// Public Android APK download page (served from the persistent uploads volume).
+app.use(require("./routes/download"));
 
 app.post("/api/login", loginLimiter, login);
 app.post("/api/forgot-password", loginLimiter, require("./auth").forgotPassword);
