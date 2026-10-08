@@ -4,8 +4,8 @@
   "description": "SGRHP - HR Personnel Management System (Cible RH Emploi S.A.)",
   "scripts": {
     "start": "node src/server.js",
-    "test": "bash test/run-unit.sh",
-    "test:unit": "bash test/run-unit.sh",
+    "test": "sh test/run-unit.sh",
+    "test:unit": "sh test/run-unit.sh",
     "test:all": "bash test/run-all.sh"
   },
   "dependencies": {
