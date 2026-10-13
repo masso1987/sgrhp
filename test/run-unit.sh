@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 
 UNITS="src/payroll/engine.test.js \
 src/payroll/engine.zang.test.js \
+src/payroll/engine.cible.test.js \
 src/accounting/balanceModel.test.js \
 src/workflowConfig.test.js \
 src/attendanceTime.test.js"

@@ -245,7 +245,7 @@ function computePayslip(input, configOverride) {
   // remplacent l'assiette calculee. Laisser vide pour le comportement legal par defaut.
   const NETCOTI_EFF = (input.cnpsBaseOverride != null && input.cnpsBaseOverride !== "") ? Number(input.cnpsBaseOverride) : NETCOTI;
   const NETIMPO_EFF = (input.taxableBaseOverride != null && input.taxableBaseOverride !== "") ? Number(input.taxableBaseOverride) : NETIMPO;
-  const BASECF = Math.round(NETIMPO_EFF / 1000) * 1000;
+  const BASECF = Math.floor(NETIMPO_EFF / 1000) * 1000; // base CFC = salaire taxable arrondi au millier inférieur (convention Sage)
   const cnpsBase = Math.min(NETCOTI_EFF, cfg.cnps.ceiling); // PVID & prestations familiales : plafonnees
   // Accident de travail (risques pro) : assiette SANS plafond par defaut (confirme par DIPE reel).
   // Un plafond AT distinct est configurable (cfg.cnps.accidentCeiling) ; vide/null = non plafonne.
