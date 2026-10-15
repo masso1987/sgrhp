@@ -378,6 +378,17 @@ router.post("/devices/register", empAuth, (req, res) => {
   save(); res.json({ ok: true, device_id: d.deviceId });
 });
 
+/* ============================ SITES AFFECTÉS ============================ */
+// Sites sur lesquels l'employé est affecté (plusieurs possibles). Sert au pointage sur site.
+router.get("/me/sites", empAuth, (req, res) => {
+  const aids = new Set(empScoped("siteAssignments", req.emp.tenantId)
+    .filter(a => a.employeeId === req.emp.employeeId).map(a => a.siteId));
+  const list = empScoped("sites", req.emp.tenantId)
+    .filter(s => aids.has(s.id) && s.active !== false)
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  res.json(list.map(s => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radius_m: s.radiusM || 100 })));
+});
+
 /* ============================ ASSURANCE MALADIE ============================ */
 router.get("/me/insurance", empAuth, (req, res) => {
   insurance.ensure();

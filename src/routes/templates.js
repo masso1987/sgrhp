@@ -18,6 +18,14 @@ const upload = multer({
 
 router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => res.json(mine(db.templates, req)));
 
+// Catalogue des variables disponibles pour les modèles (employé, contrat, société, éléments de salaire).
+// Guide l'admin : toute {{variable}} listée ici se remplit automatiquement ; toute autre {{tag}}
+// présente dans le modèle devient un champ saisi au moment de la génération (variable « sur mesure »).
+router.get("/variables", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  try { res.json({ groups: engine.catalogVariables(req.user && req.user.tenantId) }); }
+  catch (e) { res.status(500).json({ error: "Catalogue indisponible" }); }
+});
+
 // ADM uploads a Word template; placeholders are scanned automatically
 router.post("/", allow("ADM"), upload.single("file"), (req, res, next) => {
   try {

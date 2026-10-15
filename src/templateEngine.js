@@ -23,6 +23,12 @@ function tplPath(storedAs) {
   return path.join(TPL_DIR, storedAs);
 }
 
+/** Nom -> tag normalisé (minuscules, sans accents, underscores). */
+function slugTag(s) {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
 /** Output formatting: ISO dates -> DD/MM/YYYY, plain numbers -> thousands spacing. */
 function fmtValue(v) {
   const s = String(v).trim();
@@ -77,11 +83,20 @@ function autoContext(employeeId) {
     base.mission_duration = "indéterminée";
   }
 
-  // Salary elements: expose configured tags + gross total; salary-grid fallback for base
+  // Salary elements: expose EVERY selected rubrique that has a figure for this employee.
+  //   - its configured {{tag}} (if any)
+  //   - a deterministic auto-tag  salary_<slug du nom>  (ex. « Salaire de base » -> salary_salaire_de_base)
+  //   - salary_<code rubrique Paie>  si la rubrique est liée à une rubrique de paie
+  // Ainsi tous les éléments de salaire saisis (avec montant) sont disponibles dans les modèles.
   let gross = 0;
   for (const el of _mine("salaryElements")) {
     const amount = (e.salary || {})[el.name];
-    if (amount !== undefined) { gross += Number(amount) || 0; if (el.tag) base[el.tag] = amount; }
+    if (amount === undefined || amount === null || amount === "") continue;
+    gross += Number(amount) || 0;
+    if (el.tag) base[el.tag] = amount;
+    const slug = "salary_" + slugTag(el.name);
+    if (base[slug] === undefined) base[slug] = amount;
+    if (el.rubriqueCode) { const rk = "salary_" + String(el.rubriqueCode).replace(/[^a-z0-9]/gi, ""); if (base[rk] === undefined) base[rk] = amount; }
   }
   if (gross > 0) base.salary_gross = gross;
   // Convention collective of the employee's portfolio: name + salary figures
@@ -94,6 +109,44 @@ function autoContext(employeeId) {
     if (row && row.baseSalary > 0) { base.salary_base = row.baseSalary; if (!gross) base.salary_gross = row.baseSalary; }
   }
   return base;
+}
+
+/**
+ * Catalogue des variables disponibles pour les modèles (sans employé précis) :
+ * employé, contrat, portefeuille, société, et un tag par élément de salaire sélectionné.
+ * Sert à guider l'admin (« quelles {{variables}} puis-je mettre dans mon modèle »).
+ */
+function catalogVariables(tid) {
+  tid = tid || "t1";
+  const _mine = (coll) => (db[coll] || []).filter(x => (x.tenantId || "t1") === tid);
+  const groups = [
+    { group: "Employé", vars: [
+      ["employee_fullName", "Nom et prénom"], ["employee_firstName", "Prénom"], ["employee_lastName", "Nom"],
+      ["employee_birthDate", "Date de naissance"], ["employee_birthPlace", "Lieu de naissance"],
+      ["employee_maritalStatus", "Situation familiale"], ["employee_residence", "Adresse / résidence"],
+      ["employee_phone", "Téléphone"], ["employee_cniNumber", "N° CNI"], ["employee_cnpsNumber", "N° CNPS"],
+      ["employee_matricule", "Matricule"], ["employee_hireDate", "Date d'embauche"],
+    ]},
+    { group: "Contrat", vars: [
+      ["contract_type", "Type de contrat"], ["contract_category", "Catégorie"], ["contract_step", "Échelon"],
+      ["contract_startDate", "Date de début"], ["contract_endDate", "Date de fin (CDI = indéterminée)"],
+      ["contract_position", "Emploi / poste"], ["contract_paymentMethod", "Mode de paiement"],
+      ["mission_duration", "Durée de mission"], ["work_city", "Ville de travail"], ["work_hours", "Horaire de travail"],
+      ["collective_agreement", "Convention collective"],
+    ]},
+    { group: "Société & portefeuille", vars: [
+      ["company_name", "Raison sociale (employeur)"], ["company_bp", "Boîte postale"],
+      ["portfolio_name", "Portefeuille"], ["client_company", "Entreprise utilisatrice (client)"],
+      ["signature_city", "Ville de signature"], ["signature_date", "Date de signature"], ["today", "Date du jour"],
+    ]},
+  ];
+  const sal = [["salary_gross", "Salaire brut (total)"], ["salary_base", "Salaire de base"]];
+  for (const el of _mine("salaryElements")) {
+    sal.push(["salary_" + slugTag(el.name), el.name + (el.rubriqueCode ? " (rubrique " + el.rubriqueCode + ")" : "")]);
+    if (el.tag) sal.push([el.tag, el.name + " — tag personnalisé"]);
+  }
+  groups.push({ group: "Éléments de salaire", vars: sal });
+  return groups;
 }
 
 /** Resolve tags: returns { resolved: {tag: value}, missing: [tags] } */
@@ -157,4 +210,4 @@ function syncSeedTemplates() {
   }
   save();
 }
-module.exports = { scanTags, autoContext, resolve, render, fmtValue, TPL_DIR, TPL_WRITE_DIR, tplPath, syncSeedTemplates };
+module.exports = { scanTags, autoContext, resolve, render, fmtValue, slugTag, catalogVariables, TPL_DIR, TPL_WRITE_DIR, tplPath, syncSeedTemplates };

@@ -2694,10 +2694,19 @@ const TPL_TAGS = [
   {tag:"renew_end",label:"Fin renouvellement"},{tag:"renew_duration",label:"Durée renouvellement"},{tag:"daily_rate",label:"Taux journalier"},
   {tag:"stc_brut",label:"STC - total brut"},{tag:"stc_retenues",label:"STC - retenues"},{tag:"stc_net",label:"STC - net"},{tag:"stc_solde",label:"STC - solde à payer"},
 ];
+function tplCopyVar(t){ const v="{{"+t+"}}";
+  try{ navigator.clipboard.writeText(v); }catch(_){ try{ const ta=document.createElement("textarea"); ta.value=v; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); }catch(e){} }
+  let n=document.getElementById("tplToast"); if(!n){ n=document.createElement("div"); n.id="tplToast"; n.style.cssText="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .15s"; document.body.appendChild(n); }
+  n.textContent="Copié : "+v; n.style.opacity="1"; clearTimeout(window._tplToastT); window._tplToastT=setTimeout(()=>{ n.style.opacity="0"; },1400);
+}
 async function templatesView() {
   const list = await api("/templates");
   const sels = await api("/config/salary-elements");
   const ctypes = await api("/config/contract-types");
+  // Tags des éléments de salaire sélectionnés (chaque rubrique avec un montant devient {{salary_<nom>}})
+  const tplSlug = s => String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+  const salTags = (sels||[]).map(s=>({tag:"salary_"+tplSlug(s.name), label:s.name+" (auto)"})).filter(t=>t.tag!=="salary_");
+  const ALL_TAGS = TPL_TAGS.concat(salTags.filter(t=>!TPL_TAGS.some(x=>x.tag===t.tag)));
   view.innerHTML = `<h1>Modèles de documents</h1>
   <div class="note">Les modèles contiennent des <b>variables</b> comme {{employee_fullName}} ou {{contract_position}} : les variables « (auto) » se remplissent seules depuis le dossier du salarié ; les autres sont demandées au gestionnaire au moment de la génération.</div>
 
@@ -2735,8 +2744,19 @@ async function templatesView() {
       </div>
       <div class="err hidden" id="stErr" style="margin-top:6px"></div>
     </div>
-    <datalist id="tplTagList">${TPL_TAGS.map(t=>`<option value="${t.tag}">${esc(t.label)}</option>`).join("")}</datalist>
+    <datalist id="tplTagList">${ALL_TAGS.map(t=>`<option value="${t.tag}">${esc(t.label)}</option>`).join("")}</datalist>
   </div>
+
+  <details class="panel" style="padding:12px 14px">
+    <summary style="cursor:pointer;font-weight:600">Variables disponibles (${ALL_TAGS.length}) — cliquez pour copier {{variable}}</summary>
+    <div class="note" style="margin:8px 0">Les variables <b>(auto)</b> se remplissent seules depuis le dossier du salarié, la convention et les éléments de salaire. Chaque <b>élément de salaire sélectionné et renseigné</b> est disponible via <code>{{salary_&lt;nom&gt;}}</code>. Pour une <b>variable sur mesure</b> : écrivez simplement <code>{{ma_variable}}</code> dans votre document Word — elle sera demandée au gestionnaire au moment de la génération.</div>
+    ${[["Employé","employee_"],["Contrat / convention","contract_|collective_|work_|mission_"],["Société & signature","company_|portfolio_|client_|signature_|today"],["Éléments de salaire","salary_"],["Autres (saisies à la génération)","bank_|exit_|leave_|resume_|renew_|daily_|stc_"]].map(([grp,rx])=>{
+      const re=new RegExp("^("+rx+")"); const items=ALL_TAGS.filter(t=>re.test(t.tag));
+      if(!items.length) return "";
+      return `<div style="margin-top:6px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;font-weight:700;margin-bottom:4px">${esc(grp)}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${items.map(t=>`<span onclick="tplCopyVar('${t.tag}')" title="Copier {{${t.tag}}}" style="cursor:pointer;background:#eef2f7;border:1px solid var(--border);border-radius:7px;padding:3px 9px;font-size:12px"><code>{{${t.tag}}}</code> <span class="note-inline">${esc(t.label.replace(/ \(auto\)$/,""))}</span></span>`).join("")}</div></div>`;
+    }).join("")}
+  </details>
 
   <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>Modèles disponibles (${list.length})</b>
     <details class="rowmenu"><summary class="btn ghost sm" style="list-style:none">+ Importer un .docx déjà balisé</summary>
