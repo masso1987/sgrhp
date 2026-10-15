@@ -2687,7 +2687,7 @@ const TPL_TAGS = [
   {tag:"employee_birthDate",label:"Date de naissance (auto)"},{tag:"employee_birthPlace",label:"Lieu de naissance (auto)"},{tag:"employee_hireDate",label:"Date d'embauche (auto)"},
   {tag:"contract_position",label:"Emploi / poste (auto)"},{tag:"contract_category",label:"Catégorie (auto)"},{tag:"contract_type",label:"Type de contrat (auto)"},
   {tag:"contract_startDate",label:"Date de début (auto)"},{tag:"contract_endDate",label:"Date de fin"},{tag:"client_company",label:"Entreprise utilisatrice (auto)"},
-  {tag:"collective_agreement",label:"Convention collective (auto)"},{tag:"salary_base",label:"Salaire de base (auto)"},{tag:"salary_gross",label:"Salaire brut (auto)"},
+  {tag:"collective_agreement",label:"Convention collective (auto)"},{tag:"salary_table",label:"Tous les éléments de salaire — bloc (auto)"},{tag:"salary_base",label:"Salaire de base (auto)"},{tag:"salary_gross",label:"Salaire brut (auto)"},
   {tag:"work_city",label:"Lieu de travail (auto)"},{tag:"signature_city",label:"Ville de signature (auto)"},{tag:"signature_date",label:"Date de signature (auto)"},{tag:"company_name",label:"Société (auto)"},
   {tag:"bank_name",label:"Banque"},{tag:"bank_account",label:"N° de compte bancaire"},{tag:"exit_date",label:"Date de sortie"},{tag:"exit_reason",label:"Motif de sortie"},
   {tag:"leave_start",label:"Début du congé"},{tag:"leave_end",label:"Fin du congé"},{tag:"resume_date",label:"Date de reprise"},{tag:"renew_start",label:"Début renouvellement"},
@@ -2749,7 +2749,7 @@ async function templatesView() {
 
   <details class="panel" style="padding:12px 14px">
     <summary style="cursor:pointer;font-weight:600">Variables disponibles (${ALL_TAGS.length}) — cliquez pour copier {{variable}}</summary>
-    <div class="note" style="margin:8px 0">Les variables <b>(auto)</b> se remplissent seules depuis le dossier du salarié, la convention et les éléments de salaire. Chaque <b>élément de salaire sélectionné et renseigné</b> est disponible via <code>{{salary_&lt;nom&gt;}}</code>. Pour une <b>variable sur mesure</b> : écrivez simplement <code>{{ma_variable}}</code> dans votre document Word — elle sera demandée au gestionnaire au moment de la génération.</div>
+    <div class="note" style="margin:8px 0">Les variables <b>(auto)</b> se remplissent seules depuis le dossier du salarié, la convention et les éléments de salaire. <b>Pour un contrat (CDD/CDI ou tout modèle marqué « Contrat »)</b> : insérez <code>{{salary_table}}</code> à l'endroit du salaire — il liste automatiquement <b>tous les éléments de salaire sélectionnés et renseignés</b> du salarié (nom : montant), quel que soit leur nombre. Ou utilisez un élément précis via <code>{{salary_&lt;nom&gt;}}</code>. Pour une <b>variable sur mesure</b> : écrivez simplement <code>{{ma_variable}}</code> dans votre document Word — elle sera demandée au gestionnaire au moment de la génération.</div>
     ${[["Employé","employee_"],["Contrat / convention","contract_|collective_|work_|mission_"],["Société & signature","company_|portfolio_|client_|signature_|today"],["Éléments de salaire","salary_"],["Autres (saisies à la génération)","bank_|exit_|leave_|resume_|renew_|daily_|stc_"]].map(([grp,rx])=>{
       const re=new RegExp("^("+rx+")"); const items=ALL_TAGS.filter(t=>re.test(t.tag));
       if(!items.length) return "";

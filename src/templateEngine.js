@@ -88,7 +88,7 @@ function autoContext(employeeId) {
   //   - a deterministic auto-tag  salary_<slug du nom>  (ex. « Salaire de base » -> salary_salaire_de_base)
   //   - salary_<code rubrique Paie>  si la rubrique est liée à une rubrique de paie
   // Ainsi tous les éléments de salaire saisis (avec montant) sont disponibles dans les modèles.
-  let gross = 0;
+  let gross = 0; const _salLines = [];
   for (const el of _mine("salaryElements")) {
     const amount = (e.salary || {})[el.name];
     if (amount === undefined || amount === null || amount === "") continue;
@@ -97,6 +97,13 @@ function autoContext(employeeId) {
     const slug = "salary_" + slugTag(el.name);
     if (base[slug] === undefined) base[slug] = amount;
     if (el.rubriqueCode) { const rk = "salary_" + String(el.rubriqueCode).replace(/[^a-z0-9]/gi, ""); if (base[rk] === undefined) base[rk] = amount; }
+    _salLines.push({ name: el.name, amount: Number(amount) || 0 });
+  }
+  // {{salary_table}} : bloc listant TOUS les éléments de salaire renseignés (nom : montant),
+  // à insérer une seule fois dans n'importe quel modèle de contrat (quel que soit son nom).
+  if (_salLines.length) {
+    const money = (n) => Number(n).toLocaleString("fr-FR").replace(/ |,/g, " ");
+    base.salary_table = _salLines.map(l => `${l.name} : ${money(l.amount)} FCFA`).join("\n");
   }
   if (gross > 0) base.salary_gross = gross;
   // Convention collective of the employee's portfolio: name + salary figures
@@ -140,7 +147,7 @@ function catalogVariables(tid) {
       ["signature_city", "Ville de signature"], ["signature_date", "Date de signature"], ["today", "Date du jour"],
     ]},
   ];
-  const sal = [["salary_gross", "Salaire brut (total)"], ["salary_base", "Salaire de base"]];
+  const sal = [["salary_table", "TOUS les éléments de salaire (bloc à insérer)"], ["salary_gross", "Salaire brut (total)"], ["salary_base", "Salaire de base"]];
   for (const el of _mine("salaryElements")) {
     sal.push(["salary_" + slugTag(el.name), el.name + (el.rubriqueCode ? " (rubrique " + el.rubriqueCode + ")" : "")]);
     if (el.tag) sal.push([el.tag, el.name + " — tag personnalisé"]);

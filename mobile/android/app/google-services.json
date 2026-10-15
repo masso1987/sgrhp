@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "337085278838",
+    "project_id": "mboka-mon-rh",
+    "storage_bucket": "mboka-mon-rh.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:337085278838:android:55da308dfc2850a625cd57",
+        "android_client_info": {
+          "package_name": "com.ciblerh.hr_employee_portal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCsY_Rm5_gPzCFmQKjZn0IBksFt4PwvC9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
