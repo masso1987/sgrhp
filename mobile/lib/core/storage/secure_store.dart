@@ -12,6 +12,7 @@ class SecureStore {
   static const _kApiBase = 'api_base_url';
   static const _kLang = 'lang';
   static const _kAnchor = 'time_anchor'; // JSON {serverMs,bootMs} for offline punch timing
+  static const _kTerminal = 'terminal_token'; // on-site kiosk mode token (device-bound)
 
   Future<void> saveTokens(String access, String refresh) async {
     await _s.write(key: _kAccess, value: access);
@@ -29,6 +30,11 @@ class SecureStore {
   Future<void> setApiBaseOverride(String? v) async {
     if (v == null || v.trim().isEmpty) { await _s.delete(key: _kApiBase); }
     else { await _s.write(key: _kApiBase, value: v.trim()); }
+  }
+  Future<String?> get terminalToken => _s.read(key: _kTerminal);
+  Future<void> setTerminalToken(String? v) async {
+    if (v == null || v.trim().isEmpty) { await _s.delete(key: _kTerminal); }
+    else { await _s.write(key: _kTerminal, value: v.trim()); }
   }
   Future<void> clear() async { await _s.delete(key: _kAccess); await _s.delete(key: _kRefresh); }
 }

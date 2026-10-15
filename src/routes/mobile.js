@@ -161,6 +161,8 @@ router.get("/me/dashboard", empAuth, (req, res) => {
     latest_payslip: payslips[0] ? { id: payslips[0].id, period: payslips[0].period } : null,
     notifications_unread: notifs.filter(n => !n.read).length,
     selfie_required: attSelfieRequired(req.emp.tenantId),
+    is_supervisor: (db.employees || []).some(x => (x.tenantId || "t1") === req.emp.tenantId && x.supervisorEmpId === req.emp.employeeId),
+    sites_count: new Set(empScoped("siteAssignments", req.emp.tenantId).filter(a => a.employeeId === req.emp.employeeId).map(a => a.siteId)).size,
   });
 });
 
@@ -380,15 +382,18 @@ router.post("/devices/register", empAuth, (req, res) => {
   save(); res.json({ ok: true, device_id: d.deviceId });
 });
 
-/* ============================ SITES AFFECTÉS ============================ */
-// Sites sur lesquels l'employé est affecté (plusieurs possibles). Sert au pointage sur site.
-router.get("/me/sites", empAuth, (req, res) => {
+/* ============================ SITES AFFECTÉS (affichage) ============================ */
+// Sites sur lesquels l'employé est affecté (plusieurs possibles) — écran « Mes sites ».
+// Distinct de /me/sites (liste de pointage, avec repli « tous les sites » si aucune affectation) :
+// ici on ne renvoie QUE les sites réellement affectés.
+router.get("/me/my-sites", empAuth, (req, res) => {
   const aids = new Set(empScoped("siteAssignments", req.emp.tenantId)
     .filter(a => a.employeeId === req.emp.employeeId).map(a => a.siteId));
   const list = empScoped("sites", req.emp.tenantId)
     .filter(s => aids.has(s.id) && s.active !== false)
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-  res.json(list.map(s => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radius_m: s.radiusM || 100 })));
+  res.json(list.map(s => ({ id: s.id, name: s.name, latitude: s.lat, longitude: s.lng,
+    radius_m: s.radiusM || 100, address: s.address || s.city || "" })));
 });
 
 /* ============================ POINTAGE SUPERVISEUR (pour son équipe) ============================ */

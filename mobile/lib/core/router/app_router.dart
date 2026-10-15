@@ -14,6 +14,9 @@ import '../../features/insurance/insurance_screen.dart';
 import '../../features/requests/requests_screen.dart';
 import '../../features/engagement/surveys_screen.dart';
 import '../../features/engagement/astuces_screen.dart';
+import '../../features/sites/my_sites_screen.dart';
+import '../../features/team/team_pointage_screen.dart';
+import '../../features/terminal/terminal_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
@@ -33,6 +36,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/set-password', builder: (_, __) => const SetPasswordScreen()),
+      // Terminal/kiosk is full-screen (no bottom nav).
+      GoRoute(path: '/terminal', builder: (_, __) => const TerminalScreen()),
       ShellRoute(
         builder: (_, __, child) => AppShell(child: child),
         routes: [
@@ -43,6 +48,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
           GoRoute(path: '/insurance', builder: (_, __) => const InsuranceHomeScreen()),
           GoRoute(path: '/requests', builder: (_, __) => const RequestsScreen()),
+          GoRoute(path: '/my-sites', builder: (_, __) => const MySitesScreen()),
+          GoRoute(path: '/team', builder: (_, __) => const TeamPointageScreen()),
           GoRoute(path: '/surveys', builder: (_, __) => const SurveysScreen()),
           GoRoute(path: '/astuces', builder: (_, __) => const AstucesScreen()),
         ],
