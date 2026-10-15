@@ -171,6 +171,35 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 .d2-filters .fld{display:flex;flex-direction:column;gap:2px}
 .d2-filters label{font-size:10px;letter-spacing:.03em;margin:0}
 .d2-filters input,.d2-filters select{height:30px;margin:0;padding:3px 7px;font-size:12.5px;width:auto}
+/* Compact, modern filter toolbar (Dossiers du personnel, Documents générés) */
+.fbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--sidebar-bg,#f4f6f8);border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-bottom:14px}
+.fbar input,.fbar select{height:34px;margin:0;width:auto;font-size:12.5px;padding:5px 9px;background:#fff;border-radius:8px}
+.fbar .fsearch{position:relative;flex:1 1 210px;max-width:300px}
+.fbar .fsearch input{width:100%;padding-left:30px}
+.fbar .fsearch svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.fbar .sp{flex:1}
+.fbar .cnt{color:var(--muted);font-size:12px;white-space:nowrap}
+/* États légaux (OHADA) — cartes modernes, sans signe négatif (nature libellée) */
+.lgl-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:0 14px 14px;margin-bottom:16px;box-shadow:0 1px 3px rgba(16,24,40,.04)}
+.lgl-head{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;font-weight:700;padding:12px 0 8px;border-bottom:2px solid var(--border);margin-bottom:4px}
+.lgl-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.lgl-tbl td,.lgl-tbl th{padding:7px 2px}
+.lgl-tbl th{text-align:left;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:#64748b}
+.lgl-tbl td.r,.lgl-tbl th.r{text-align:right;font-variant-numeric:tabular-nums}
+.lgl-tbl tr:not(:last-child) td{border-bottom:1px solid #f1f5f9}
+.lgl-tbl .lgl-sum td{font-weight:700;border-top:2px solid var(--border);border-bottom:none;padding-top:9px}
+.lgl-acc{display:inline-block;margin-left:6px;font-size:10px;color:#94a3b8;background:#f1f5f9;border-radius:5px;padding:1px 6px;font-weight:600}
+.lgl-tag{font-weight:700;font-variant-numeric:tabular-nums;padding:2px 9px;border-radius:7px}
+.lgl-tag.pos{background:#dcfce7;color:#15803d}.lgl-tag.neu{background:#eef2f7;color:#334155}
+.lgl-kpi{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:12px 14px;border-radius:10px}
+.lgl-kpi.pos{background:#f0fdf4;border:1px solid #bbf7d0}.lgl-kpi.neg{background:#fef2f2;border:1px solid #fecaca}
+.lgl-kpi span:first-child{font-size:12px;color:#475569}
+.lgl-kpi b{font-size:22px;margin-left:auto;font-variant-numeric:tabular-nums}
+.lgl-kpi.pos b{color:#15803d}.lgl-kpi.neg b{color:#b91c1c}.lgl-kpi b small{font-size:11px;font-weight:600;color:#94a3b8}
+.lgl-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+.lgl-badge.pos{background:#15803d;color:#fff}.lgl-badge.neg{background:#b91c1c;color:#fff}
+.lgl-equi{margin-top:10px;font-size:12.5px;font-weight:600;padding:8px 12px;border-radius:8px}
+.lgl-equi.ok{background:#f0fdf4;color:#15803d}.lgl-equi.ko{background:#fef2f2;color:#b91c1c}
 .d2-grid{border:1px solid var(--border);background:#fff;overflow:auto}
 .d2-grid table{font-size:12px}
 .d2-grid th{position:sticky;top:0;background:var(--grid-head);border:1px solid var(--border);text-transform:uppercase;font-size:10.5px;padding:5px 8px;color:#374151;letter-spacing:.02em}
@@ -1641,17 +1670,21 @@ async function employees() {
   const stats = [...new Set(EMP_LIST.map(e =>e.status || "DRAFT"))];
   view.innerHTML = `<h1>Dossiers du personnel</h1>
     ${canCreate ? `<button class="btn p" style="margin-bottom:12px" onclick="empForm()">+ Nouveau dossier</button>` : ""}
-    <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input id="empSearch" placeholder="Nom, matricule, CNI…" style="margin:0;max-width:230px" oninput="empRender()">
-      <select id="fltPf" style="margin:0" onchange="empRender()"><option value="">Tous portefeuilles</option>${pfs.map(x => `<option value="${x}">${esc(pfName(x))}</option>`).join("")}</select>
-      <select id="fltCt" style="margin:0" onchange="empRender()"><option value="">Tout contrat</option>${ctypes.map(c => `<option>${esc(c)}</option>`).join("")}</select>
-      <select id="fltCat" style="margin:0" onchange="empRender()"><option value="">Toute catégorie</option>${cats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
-      <select id="fltSt" style="margin:0" onchange="empRender()"><option value="">Tout statut</option>${stats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
-      <span id="empCount" style="color:var(--muted);font-size:12px"></span>
+    <div class="fbar">
+      <div class="fsearch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="empSearch" placeholder="Nom, matricule, CNI…" oninput="empRender()"></div>
+      <select id="fltPf" onchange="empRender()"><option value="">Tous portefeuilles</option>${pfs.map(x => `<option value="${x}">${esc(pfName(x))}</option>`).join("")}</select>
+      <select id="fltCt" onchange="empRender()"><option value="">Tout contrat</option>${ctypes.map(c => `<option>${esc(c)}</option>`).join("")}</select>
+      <select id="fltCat" onchange="empRender()"><option value="">Toute catégorie</option>${cats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
+      <select id="fltSt" onchange="empRender()"><option value="">Tout statut</option>${stats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
+      <button class="btn ghost sm" onclick="empFilterReset()" title="Réinitialiser les filtres">Réinitialiser</button>
+      <span class="sp"></span>
+      <span id="empCount" class="cnt"></span>
     </div>
     <div id="empList"></div>`;
   empRender();
 }
+function empFilterReset(){ ["empSearch","fltPf","fltCt","fltCat","fltSt"].forEach(k=>{ const el=document.getElementById(k); if(el) el.value=""; }); empRender(); }
 function empRender() {
   const q = (empSearch.value || "").toLowerCase(), pf = fltPf.value, ct = fltCt.value, cat = fltCat.value, st = fltSt.value;
   const list = EMP_LIST.filter(e => {
@@ -2356,15 +2389,19 @@ async function generatedView() {
   const pfIds = [...new Set(GEN_CACHE.map(d=>d.portfolioId).filter(Boolean))];
   view.innerHTML = `<h1>Documents générés</h1>
   <div class="note" style="margin-bottom:8px">Tous les documents dont le circuit de validation est terminé. Chaque impression ou téléchargement est journalisé.</div>
-  <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px">
-    <input id="genSearch" placeholder="Employé ou document…" style="margin:0;max-width:240px" oninput="renderGen()">
-    <select id="genType" style="margin:0" onchange="renderGen()"><option value="">Tous les types</option>${types.map(t=>`<option value="${esc(t)}">${esc(genTypeLabel(t))}</option>`).join("")}</select>
-    <select id="genPf" style="margin:0" onchange="renderGen()"><option value="">Tous portefeuilles</option>${pfIds.map(p=>`<option value="${esc(p)}">${esc(pfName(p))}</option>`).join("")}</select>
-    <span id="genCount" style="color:var(--muted);font-size:12px"></span>
+  <div class="fbar">
+    <div class="fsearch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="genSearch" placeholder="Employé ou document…" oninput="renderGen()"></div>
+    <select id="genType" onchange="renderGen()"><option value="">Tous les types</option>${types.map(t=>`<option value="${esc(t)}">${esc(genTypeLabel(t))}</option>`).join("")}</select>
+    <select id="genPf" onchange="renderGen()"><option value="">Tous portefeuilles</option>${pfIds.map(p=>`<option value="${esc(p)}">${esc(pfName(p))}</option>`).join("")}</select>
+    <button class="btn ghost sm" onclick="genFilterReset()" title="Réinitialiser les filtres">Réinitialiser</button>
+    <span class="sp"></span>
+    <span id="genCount" class="cnt"></span>
   </div>
   <div id="genList"></div>`;
   renderGen();
 }
+function genFilterReset(){ ["genSearch","genType","genPf"].forEach(k=>{ const el=document.getElementById(k); if(el) el.value=""; }); renderGen(); }
 function renderGen() {
   const q = ((document.getElementById("genSearch")||{}).value||"").toLowerCase();
   const ty = (document.getElementById("genType")||{}).value||"";
@@ -9724,33 +9761,39 @@ async function acctLegalView(){
     api("/accounting/balance-sheet"+(per?"?period="+per:"")).catch(()=>({actif:{},passif:{}}))]);
   const f=n=>fCFA(n||0);
   window._legalX={per,vat,is,bs};
+  const fa=n=>fCFA(Math.abs(n||0));                                  // Sage: pas de signe négatif, la nature est libellée
+  const resPos=(is.resultat||0)>=0, tvaCredit=(vat.credit||0)>0;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">États légaux (OHADA)</h1>
-    <div class="d2-toolbar" style="margin-bottom:8px"><input type="month" value="${per}" onchange="window._acctPeriod=this.value;acctLegalView()" style="max-width:150px;margin:0"><span class="sp"></span><button class="btn ghost sm" onclick="acctLegalCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctPDF('/accounting/legal/pdf'+(window._acctPeriod?('?period='+window._acctPeriod):''),'Etats_legaux'+(window._acctPeriod?'_'+window._acctPeriod:'')+'.pdf')">PDF</button></div>
+    <div class="d2-toolbar" style="margin-bottom:10px"><input type="month" value="${per}" onchange="window._acctPeriod=this.value;acctLegalView()" style="max-width:150px;margin:0"><span class="sp"></span><button class="btn ghost sm" onclick="acctLegalCSV()">Exporter CSV</button><button class="btn ghost sm" onclick="acctPDF('/accounting/legal/pdf'+(window._acctPeriod?('?period='+window._acctPeriod):''),'Etats_legaux'+(window._acctPeriod?'_'+window._acctPeriod:'')+'.pdf')">PDF</button></div>
     <div class="grid2">
-      <div class="panel"><b>Déclaration de TVA</b>
-        <table style="margin-top:6px"><tr><td>TVA collectée (443)</td><td class="r">${f(vat.collectee)}</td></tr>
-        <tr><td>TVA déductible (445)</td><td class="r">− ${f(vat.deductible)}</td></tr>
-        <tr style="font-weight:600;border-top:1px solid var(--border)"><td>${(vat.credit||0)>0?'Crédit de TVA':'TVA à payer'}</td><td class="r">${f((vat.credit||0)>0?vat.credit:vat.aPayer)}</td></tr></table></div>
-      <div class="panel"><b>Compte de résultat</b>
-        <table style="margin-top:6px"><tr><td>Total produits (7)</td><td class="r">${f(is.totalProduits)}</td></tr>
-        <tr><td>Total charges (6)</td><td class="r">− ${f(is.totalCharges)}</td></tr>
-        <tr style="font-weight:600;border-top:1px solid var(--border)"><td>Résultat</td><td class="r" style="color:${(is.resultat||0)>=0?'var(--nav-active-color)':'var(--red)'}">${f(is.resultat)}</td></tr></table></div>
+      <div class="lgl-card"><div class="lgl-head">Déclaration de TVA</div>
+        <table class="lgl-tbl">
+          <tr><td>TVA collectée <span class="lgl-acc">443</span></td><td class="r">${f(vat.collectee)}</td></tr>
+          <tr><td>TVA déductible <span class="lgl-acc">445</span></td><td class="r">${f(vat.deductible)}</td></tr>
+          <tr class="lgl-sum"><td>${tvaCredit?'Crédit de TVA':'TVA à payer'}</td><td class="r"><span class="lgl-tag ${tvaCredit?'pos':'neu'}">${fa(tvaCredit?vat.credit:vat.aPayer)}</span></td></tr></table></div>
+      <div class="lgl-card"><div class="lgl-head">Compte de résultat</div>
+        <table class="lgl-tbl">
+          <tr><td>Total produits <span class="lgl-acc">classe 7</span></td><td class="r">${f(is.totalProduits)}</td></tr>
+          <tr><td>Total charges <span class="lgl-acc">classe 6</span></td><td class="r">${f(is.totalCharges)}</td></tr></table>
+        <div class="lgl-kpi ${resPos?'pos':'neg'}"><span>Résultat de l'exercice</span>
+          <b>${fa(is.resultat)} <small>FCFA</small></b>
+          <span class="lgl-badge ${resPos?'pos':'neg'}">${resPos?'Bénéfice':'Perte'}</span></div></div>
     </div>
-    <div class="panel"><b>Bilan - grandes masses</b>
-      <div class="grid2" style="margin-top:6px">
-        <table><tr><th>ACTIF</th><th class="r"></th></tr>
-          <tr><td>Actif immobilisé</td><td class="r">${f(bs.actif.immobilise)}</td></tr>
-          <tr><td>Actif circulant</td><td class="r">${f(bs.actif.circulant)}</td></tr>
-          <tr><td>Trésorerie-Actif</td><td class="r">${f(bs.actif.tresorerie)}</td></tr>
-          <tr style="font-weight:600;border-top:1px solid var(--border)"><td>TOTAL ACTIF</td><td class="r">${f(bs.actif.total)}</td></tr></table>
-        <table><tr><th>PASSIF</th><th class="r"></th></tr>
-          <tr><td>Capitaux propres (dont résultat)</td><td class="r">${f(bs.passif.capitauxPropres)}</td></tr>
-          <tr><td>Dettes</td><td class="r">${f(bs.passif.dettes)}</td></tr>
-          <tr><td>Trésorerie-Passif</td><td class="r">${f(bs.passif.tresorerie)}</td></tr>
-          <tr style="font-weight:600;border-top:1px solid var(--border)"><td>TOTAL PASSIF</td><td class="r">${f(bs.passif.total)}</td></tr></table>
+    <div class="lgl-card"><div class="lgl-head">Bilan — grandes masses</div>
+      <div class="grid2" style="margin-top:8px">
+        <table class="lgl-tbl"><tr><th>ACTIF</th><th class="r"></th></tr>
+          <tr><td>Actif immobilisé</td><td class="r">${fa(bs.actif.immobilise)}</td></tr>
+          <tr><td>Actif circulant</td><td class="r">${fa(bs.actif.circulant)}</td></tr>
+          <tr><td>Trésorerie-Actif</td><td class="r">${fa(bs.actif.tresorerie)}</td></tr>
+          <tr class="lgl-sum"><td>TOTAL ACTIF</td><td class="r">${fa(bs.actif.total)}</td></tr></table>
+        <table class="lgl-tbl"><tr><th>PASSIF</th><th class="r"></th></tr>
+          <tr><td>Capitaux propres (dont résultat)</td><td class="r">${fa(bs.passif.capitauxPropres)}</td></tr>
+          <tr><td>Dettes</td><td class="r">${fa(bs.passif.dettes)}</td></tr>
+          <tr><td>Trésorerie-Passif</td><td class="r">${fa(bs.passif.tresorerie)}</td></tr>
+          <tr class="lgl-sum"><td>TOTAL PASSIF</td><td class="r">${fa(bs.passif.total)}</td></tr></table>
       </div>
-      <div class="note" style="margin-top:6px;color:${bs.equilibre?'var(--nav-active-color)':'var(--red)'}">${bs.equilibre?'Bilan équilibré (Actif = Passif)':'Écart Actif/Passif - écritures manquantes ou non validées'}</div></div>`;
+      <div class="lgl-equi ${bs.equilibre?'ok':'ko'}">${bs.equilibre?'✓ Bilan équilibré (Actif = Passif)':'⚠ Écart Actif / Passif — écritures manquantes ou non validées'}</div></div>`;
 }
 
 
