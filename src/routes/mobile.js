@@ -10,6 +10,7 @@ const crypto = require("crypto");
 const { db, save, id, mine, stamp } = require("../store");
 const { hash, verifyPw, SECRET } = require("../auth");
 const insurance = require("./insurance");
+const notify = require("../notify");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
@@ -433,6 +434,11 @@ router.post("/me/insurance/dependent-request", empAuth, insurance.depUpload.any(
   const extra = relation === "CHILD" && activeChildren >= (ins.freeChildren || 0);
   const d = stamp({ id: id("dep"), employeeId: e.id, relation, firstName: String(b.firstName).trim(), lastName: String(b.lastName).trim(), birthDate: b.birthDate || "", birthPlace: b.birthPlace || "", status: "PENDING", extra, source: "MOBILE", documents: docs, createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
   db.dependents.push(d); save();
+  try {
+    const nm = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.matricule || "Un employé";
+    notify.toRolesTenant(["GPF", "ADM", "CD"], req.emp.tenantId, "Nouvelle demande d'ayant droit (mobile)",
+      `${nm} — ${relation === "SPOUSE" ? "conjoint" : "enfant"} : ${d.firstName} ${d.lastName}`, d.id);
+  } catch (_) {}
   res.status(201).json({ ok: true, id: d.id, status: "PENDING", extra });
 });
 
@@ -445,6 +451,12 @@ router.post("/me/requests/avi", empAuth, reqUpload.single("letter"), (req, res) 
     bankName: String(b.bankName || "").trim(), reason: String(b.reason || b.purpose || "").slice(0, 500),
     attachment: { fileName: req.file.originalname, storedAs: req.file.filename }, createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
   db.empRequests.push(r); save();
+  try {
+    const e = empOf(req.emp.account) || {};
+    const nm = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.matricule || "Un employé";
+    notify.toRolesTenant(["GPF", "ADM", "CD"], req.emp.tenantId, "Nouvelle demande AVI (mobile)",
+      `${nm}${r.bankName ? " — " + r.bankName : ""}`, r.id);
+  } catch (_) {}
   res.status(201).json({ ok: true, id: r.id, status: "PENDING" });
 });
 function acompteDeadlineDay(tid) { const t = (db.tenants || []).find(x => x.id === (tid || "t1")); const d = t && parseInt(t.acompteDeadlineDay, 10); return (d >= 1 && d <= 28) ? d : 12; }
@@ -462,6 +474,12 @@ router.post("/me/requests/acompte", empAuth, (req, res) => {
   const r = stamp({ id: id("ereq"), employeeId: req.emp.employeeId, type: "ACOMPTE", status: "PENDING",
     amount, period: new Date().toISOString().slice(0, 7), reason: String(b.reason || "").slice(0, 500), createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
   db.empRequests.push(r); save();
+  try {
+    const e = empOf(req.emp.account) || {};
+    const nm = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.matricule || "Un employé";
+    notify.toRolesTenant(["GPF", "ADM", "CD"], req.emp.tenantId, "Nouvelle demande d'acompte (mobile)",
+      `${nm} — ${amount.toLocaleString("fr-FR")} XAF`, r.id);
+  } catch (_) {}
   res.status(201).json({ ok: true, id: r.id, status: "PENDING" });
 });
 router.get("/me/requests", empAuth, (req, res) => {

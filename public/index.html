@@ -6012,7 +6012,7 @@ async function payBordereauView(id){
     controlPanel = `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <b>Rapprochement (bordereau signé vs paie calculée)</b>
         <button class="btn ghost sm" onclick="bordControl('${s.id}')">Rafraîchir le contrôle</button></div>
-      ${ctrl?bordControlTable(ctrl,s,canBAP):'<div class="note" style="margin-top:6px">Lancez le contrôle (la paie de la période doit être calculée).</div>'}</div>`;
+      ${ctrl?bordControlTable(ctrl,s,canBAP):bordBapGuide(s)}</div>`;
   }
   view.innerHTML = `<div class="adm-wrap">
     <button class="btn ghost sm" onclick="go('bordereaux')">&larr; Bordereaux</button>
@@ -6093,11 +6093,36 @@ async function bordReopen(id){
 async function bordControl(id){
   try{ await api("/payroll/bordereaux/"+id+"/control",{method:"POST"}); payBordereauView(id); }catch(e){ alert(e.message); }
 }
+// Guide explicite affiché tant que le « Bon à payer » n'est pas signable (contrôle non lancé / paie non calculée).
+function bordBapGuide(s){
+  const steps=`<ol style="margin:6px 0 0;padding-left:18px;line-height:1.7">
+      <li>Calculez la paie de la période (menu <b>Paie → Calcul</b>).</li>
+      <li>Cliquez <b>Rafraîchir le contrôle</b> ci-dessus pour rapprocher bordereau signé ↔ paie.</li>
+      <li>Justifiez les écarts éventuels, puis signez le <b>Bon à payer</b> (CD / Audit, signataire ≠ GPF).</li></ol>`;
+  return `<div class="note" style="margin-top:6px">
+    <b>Pour finaliser (« Bon à payer ») :</b>${steps}
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn p sm" onclick="go('payroll')">Aller au calcul de paie</button>
+      <button class="btn ghost sm" onclick="bordControl('${s.id}')">Rafraîchir le contrôle</button></div></div>`;
+}
+// Raison précise si le Bon à payer n'est pas actionnable (séparation des tâches / écarts non justifiés).
+function bordBapBlockReason(ctrl,s){
+  if(!ctrl||!ctrl.computed) return "La paie de la période n'est pas encore calculée.";
+  if(window.ME && ME.id && s.submittedBy===ME.id) return "Séparation des tâches : le « Bon à payer » doit être signé par un autre utilisateur que le GPF qui a soumis.";
+  const ec=(ctrl.lines||[]).reduce((n,ln)=>n+(ln.checks||[]).filter(c=>c.status==="ECART").length,0);
+  if(ec>0) return `Justifiez d'abord les ${ec} écart(s) (cliquez sur chaque « écart »).`;
+  return "";
+}
 function bordControlTable(ctrl,s,canBAP){
   if(ctrl.status==="NON_CALCULE") return '<div class="note" style="margin-top:6px;color:#b45309">La paie de la période n\'est pas encore calculée. Calculez la paie puis relancez le contrôle.</div>';
   window._CTRL=ctrl;
   const cell=(emp,c)=>{ const col=c.status==="OK"?"#16a34a":(c.status==="ACK"?"#b45309":"var(--red)"); const ic=c.status==="OK"?"&#10003;":(c.status==="ACK"?"justifié":"écart"); const dl=c.status!=="OK"?` (${c.calcule>c.soumis?'+':''}${(c.calcule-c.soumis).toLocaleString('fr-FR')})`:""; return `<span style="color:${col};cursor:pointer;text-decoration:${c.status==='OK'?'none':'underline dotted'}" onclick="bordEcartDetail('${emp}','${c.field}')" title="Cliquer pour le détail">${ic}${dl}</span>`; };
-  const bapBtn = (canBAP && s.status!=="BON_A_PAYER" && ctrl.computed) ? `<button class="btn p sm" onclick="bordBAP('${s.id}')">Signer « Bon à payer »</button>` : (s.status==="BON_A_PAYER"?'<span class="tag green">Bon à payer signé &#10003;</span>':'');
+  let bapBtn;
+  if(s.status==="BON_A_PAYER"){ bapBtn='<span class="tag green">Bon à payer signé &#10003;</span>'; }
+  else if(canBAP){ const reason=bordBapBlockReason(ctrl,s);
+    bapBtn = reason ? `<span class="note-inline" style="color:#b45309;max-width:420px;text-align:right">⚠ ${esc(reason)}</span>`
+                    : `<button class="btn p sm" onclick="bordBAP('${s.id}')">Signer « Bon à payer »</button>`; }
+  else { bapBtn=''; }
   const head=`<tr><th>Employé</th><th colspan="6" style="text-align:center;background:#eef4ff">Temps &amp; éléments (feuille de temps)</th><th colspan="2" style="text-align:center;background:#fff4e6">Acomptes &amp; prêts</th><th style="text-align:center;background:#f3e8ff">Autres</th><th class="r">Net</th></tr><tr><th></th><th>Présence</th><th>HS120</th><th>HS130</th><th>HS140</th><th>Nuit</th><th>Primes</th><th>Acompte</th><th>Prêt</th><th>Colonnes / Congé</th><th></th></tr>`;
   const body=(ctrl.lines||[]).map(ln=>{
     if(ln.status==="NON_CALCULE") return `<tr><td>${esc(ln.name)}</td><td colspan="9" style="color:var(--red)">non calculé (aucun bulletin)</td></tr>`;

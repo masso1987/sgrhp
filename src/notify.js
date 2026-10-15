@@ -24,6 +24,20 @@ function toRole(role, subject, body, ref = null) {
 }
 
 /**
+ * Tenant-scoped in-app notification to every active user holding any of `roles`
+ * within a single organisation. Used for requests coming from the mobile app
+ * (AVI, acompte, ayants droit, …) so the right web back-office users are alerted
+ * without leaking across tenants.
+ */
+function toRolesTenant(roles, tenantId, subject, body, ref = null) {
+  const set = Array.isArray(roles) ? roles : [roles];
+  const tid = tenantId || "t1";
+  db.users
+    .filter(u => u.active && set.includes(u.role) && (u.tenantId || "t1") === tid)
+    .forEach(u => toUser(u.id, subject, body, ref));
+}
+
+/**
  * event(eventKey, {role, userId}, vars, {sla}) - records the in-app message (from
  * the template, default language French) and emails role users + extra recipients
  * using the bilingual template.
@@ -57,4 +71,4 @@ function event(eventKey, target, vars = {}, opts = {}) {
   }
 }
 
-module.exports = { toUser, toRole, event };
+module.exports = { toUser, toRole, toRolesTenant, event };
