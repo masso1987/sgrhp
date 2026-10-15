@@ -4559,7 +4559,7 @@ function siteParseLink(){ const el=document.getElementById("stLink"); if(!el)ret
 /* Tabbed hubs (consolidated menus, mobile-friendly: tabs wrap on small screens) */
 function _tabs(items,active){ return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">'+items.map(x=>'<button onclick="'+x[2]+'()" style="padding:8px 14px;border:1px solid #d1d5db;border-radius:9px;cursor:pointer;font-weight:600;font-size:13.5px;'+(x[0]===active?'background:#065f46;color:#fff;border-color:#065f46':'background:#fff;color:#374151')+'">'+x[1]+'</button>').join('')+'</div>'; }
 function presenceView(){ return (ME.role==="ADM") ? sitesView() : pointageReviewView(); }
-function _presTabs(a){ const t=[]; if(ME.role==="ADM"){ t.push(['sites','Sites','sitesView']); t.push(['horaires','Horaires','horairesView']); } t.push(['pointage','Pointages','pointageReviewView']); t.push(['trait','Traitement','traitementView']); return _tabs(t,a); }
+function _presTabs(a){ const t=[]; if(ME.role==="ADM"){ t.push(['sites','Sites','sitesView']); t.push(['horaires','Horaires','horairesView']); } t.push(['pointage','Pointages','pointageReviewView']); t.push(['trait','Traitement','traitementView']); if(ME.role==="ADM"){ t.push(['superv','Superviseurs','supervView']); t.push(['bornes','Bornes','terminalsView']); t.push(['perm','Permissions','permTypesView']); } return _tabs(t,a); }
 async function horairesView(){
   let list=[]; try{ list=await api("/work-schedules"); }catch(e){ view.innerHTML=`${_presTabs('horaires')}<div class="panel">`+esc(e.message)+'</div>'; return; }
   const rows=list.map(p=>`<tr>
@@ -4688,6 +4688,134 @@ function asgFillEmp(){
 }
 async function siteAssignAdd(sid){ const sel=document.getElementById("asgSel"); const eid=sel&&sel.value; if(!eid)return; try{ await api("/sites/"+sid+"/assign",{method:"POST",body:JSON.stringify({employeeId:eid})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
 async function siteAssignRemove(sid,eid){ try{ await api("/sites/"+sid+"/assign/"+eid,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
+/* ---------------- Superviseurs (pointage mobile pour l'équipe) ---------------- */
+function _empName(e){ return ((e.firstName||'')+' '+(e.lastName||'')).trim(); }
+async function supervView(){
+  let emps=[]; try{ emps=await api("/employees"); }catch(e){ view.innerHTML=`${_presTabs('superv')}<div class="panel">`+esc(e.message)+'</div>'; return; }
+  emps=emps.filter(e=>String(e.status||'').toUpperCase()!=='ARCHIVED').sort((a,b)=>_empName(a).localeCompare(_empName(b),'fr'));
+  window._SUPEMPS=emps;
+  const byId={}; emps.forEach(e=>byId[e.id]=e);
+  const opt=cur=>'<option value="">— aucun —</option>'+emps.map(e=>`<option value="${e.id}"${cur===e.id?' selected':''}>${esc(_empName(e))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
+  const rows=emps.map(e=>`<tr data-emp="${e.id}" data-name="${esc(_empName(e)).toLowerCase()} ${esc((e.matricule||'').toLowerCase())}">
+      <td><b>${esc(_empName(e))}</b><div class="note">${esc(e.matricule||'')}</div></td>
+      <td><select id="supSel_${e.id}" style="min-width:220px">${opt(e.supervisorEmpId||'')}</select></td>
+      <td><button class="btn p sm" onclick="supSave('${e.id}')">Enreg.</button></td>
+    </tr>`).join("");
+  view.innerHTML=`${_presTabs('superv')}<h1 style="margin-top:0">Superviseurs</h1>
+    <div class="note" style="margin-bottom:8px">Désignez le superviseur de chaque employé. Un superviseur peut pointer l'arrivée et la sortie des membres de son équipe depuis l'application mobile (une photo de preuve est demandée). Un employé ne peut pas être son propre superviseur.</div>
+    <div class="panel" style="margin-bottom:10px"><input id="supSearch" placeholder="Rechercher un employé…" oninput="supFilter()" style="width:100%;max-width:340px"></div>
+    <div class="panel" style="overflow-x:auto"><table id="supTbl" style="width:100%;min-width:560px"><tr><th>Employé</th><th>Superviseur</th><th></th></tr>
+      ${emps.length?rows:'<tr><td colspan="3" class="note">Aucun employé.</td></tr>'}</table></div>`;
+}
+function supFilter(){ const q=(document.getElementById("supSearch").value||'').toLowerCase().trim(); document.querySelectorAll('#supTbl tr[data-emp]').forEach(tr=>{ tr.style.display=(!q||tr.getAttribute('data-name').includes(q))?'':'none'; }); }
+async function supSave(eid){ const sel=document.getElementById("supSel_"+eid); try{ await api("/employees/"+eid+"/supervisor",{method:"PUT",body:JSON.stringify({supervisorEmpId:sel.value||null})}); sel.style.outline="2px solid var(--green)"; setTimeout(()=>sel.style.outline="",900); const e=(window._SUPEMPS||[]).find(x=>x.id===eid); if(e)e.supervisorEmpId=sel.value||null; }catch(err){ alert(err.message); } }
+/* ---------------- Bornes de pointage (terminaux sur site) ---------------- */
+async function terminalsView(){
+  let terms=[],sites=[]; try{ const r=await Promise.all([api("/terminals"),api("/sites")]); terms=r[0]||[]; sites=r[1]||[]; }
+  catch(e){ view.innerHTML=`${_presTabs('bornes')}<div class="panel">`+esc(e.message)+'</div>'; return; }
+  window._TERMSITES=sites;
+  const rows=terms.map(t=>`<tr>
+      <td><b>${esc(t.label||'Borne')}</b>${t.active===false?' <span class="tag gray">désactivée</span>':''}</td>
+      <td>${esc(t.siteName||'—')}</td>
+      <td><span style="font-family:monospace;font-size:17px;font-weight:800;letter-spacing:3px">${esc(t.code||'——————')}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn ghost sm" onclick="termRegen('${t.id}')" title="Générer un nouveau code">↻ Code</button>
+        <button class="btn ghost sm" onclick="termToggle('${t.id}',${t.active===false})">${t.active===false?'Activer':'Désactiver'}</button>
+        <button class="btn ghost sm" onclick="termDelete('${t.id}','${esc(t.label||'').replace(/'/g,"\\'")}')">Suppr.</button>
+      </td></tr>`).join("");
+  view.innerHTML=`${_presTabs('bornes')}<h1 style="margin-top:0">Bornes de pointage</h1>
+    <div class="note" style="margin-bottom:8px">Une borne est un appareil (tablette / téléphone) installé sur un site. Saisissez son <b>code à 6 chiffres</b> dans l'application mobile (menu « Borne de pointage ») pour l'activer : les employés affectés au site s'identifient alors et pointent avec photo. Régénérez le code pour révoquer un appareil.</div>
+    <div style="margin:8px 0"><button class="btn p" onclick="termForm()">+ Nouvelle borne</button></div>
+    <div class="panel" style="overflow-x:auto"><table style="width:100%;min-width:620px"><tr><th>Borne</th><th>Site</th><th>Code d'activation</th><th></th></tr>
+      ${terms.length?rows:'<tr><td colspan="4" class="note">Aucune borne. Créez-en une et liez-la à un site.</td></tr>'}</table></div>`;
+}
+function termForm(){
+  const sites=(window._TERMSITES||[]).filter(s=>s.active!==false);
+  if(!sites.length){ alert("Créez d'abord un site (onglet Sites)."); return; }
+  const opts=sites.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:480px"><b>Nouvelle borne</b>
+    <label>Site</label><select id="tmSite">${opts}</select>
+    <label>Nom de la borne (optionnel)</label><input id="tmLabel" placeholder="ex. Accueil / Entrée principale">
+    <div class="err hidden" id="tmErr" style="margin-top:8px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p" onclick="termSave()">Créer</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+async function termSave(){
+  const siteId=document.getElementById("tmSite").value, label=document.getElementById("tmLabel").value.trim();
+  const el=document.getElementById("tmErr");
+  try{ const t=await api("/terminals",{method:"POST",body:JSON.stringify({siteId,label})}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await terminalsView();
+    alert("Borne créée. Code d'activation : "+t.code+"\nSaisissez ce code dans l'application mobile sur l'appareil.");
+  }catch(e){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function termRegen(id){ if(!confirm("Générer un nouveau code ? L'ancien code et les appareils déjà activés seront révoqués."))return; try{ const t=await api("/terminals/"+id,{method:"PUT",body:JSON.stringify({regenerateCode:true,regenerateToken:true})}); await terminalsView(); alert("Nouveau code : "+t.code); }catch(e){ alert(e.message); } }
+async function termToggle(id,activate){ try{ await api("/terminals/"+id,{method:"PUT",body:JSON.stringify({active:!!activate})}); terminalsView(); }catch(e){ alert(e.message); } }
+async function termDelete(id,label){ if(!confirm("Supprimer la borne « "+label+" » ?"))return; try{ await api("/terminals/"+id,{method:"DELETE"}); terminalsView(); }catch(e){ alert(e.message); } }
+/* ---------------- Types de permission (demandes mobiles) ---------------- */
+async function permTypesView(){
+  let list=[]; try{ list=await api("/permission-types"); }catch(e){ view.innerHTML=`${_presTabs('perm')}<div class="panel">`+esc(e.message)+'</div>'; return; }
+  const rows=list.map(p=>`<tr>
+      <td><b>${esc(p.label)}</b>${p.active===false?' <span class="tag gray">inactif</span>':''}</td>
+      <td style="text-align:center">${p.deductible?'<span class="tag amber">Oui</span>':'Non'}</td>
+      <td>${(p.fields||[]).length?(p.fields||[]).map(f=>esc(f.label)+(f.required?' *':'')).join(', '):'<span class="note">aucun</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn ghost sm" onclick="permForm('${p.id}')">Modifier</button>
+        <button class="btn ghost sm" onclick="permDelete('${p.id}','${esc(p.label).replace(/'/g,"\\'")}')">Suppr.</button>
+      </td></tr>`).join("");
+  window._PTYPES=list;
+  view.innerHTML=`${_presTabs('perm')}<h1 style="margin-top:0">Types de permission</h1>
+    <div class="note" style="margin-bottom:8px">Définissez les types de demande de permission / absence proposés dans l'application mobile (ex. « Autorisation d'absence », « Permission exceptionnelle »). Chaque type peut avoir des champs personnalisés. La demande crée un document de congé qui part dans le circuit de validation. Cochez « Déductible » si la permission se déduit du solde de congés.</div>
+    <div style="margin:8px 0"><button class="btn p" onclick="permForm()">+ Nouveau type</button></div>
+    <div class="panel" style="overflow-x:auto"><table style="width:100%;min-width:620px"><tr><th>Libellé</th><th>Déductible</th><th>Champs personnalisés</th><th></th></tr>
+      ${list.length?rows:'<tr><td colspan="4" class="note">Aucun type. Créez-en au moins un pour activer les demandes de permission sur mobile.</td></tr>'}</table></div>`;
+}
+let _permFields=[];
+function permForm(pid){
+  const p=(window._PTYPES||[]).find(x=>x.id===pid)||{};
+  _permFields=(p.fields||[]).map(f=>Object.assign({},f));
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:620px"><b>${pid?'Modifier le type':'Nouveau type de permission'}</b>
+    <label>Libellé</label><input id="ptLabel" value="${esc(p.label||'')}" placeholder="ex. Autorisation d'absence">
+    <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="ptDed" ${p.deductible?'checked':''} style="width:auto"> Déductible du solde de congés</label>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="ptActive" ${p.active!==false?'checked':''} style="width:auto"> Actif (visible sur mobile)</label>
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px;color:var(--muted)">CHAMPS PERSONNALISÉS (optionnels)</b><button class="btn ghost sm" onclick="permFieldAdd()">+ Ajouter un champ</button></div>
+    <div id="ptFields" style="margin-top:6px"></div>
+    <div class="note" style="margin-top:4px">Les dates de début/fin et le motif sont toujours demandés. Ajoutez ici des champs supplémentaires (ex. « Personne à contacter », « Destination »).</div>
+    <div class="err hidden" id="ptErr" style="margin-top:8px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p" onclick="permSave('${pid||''}')">Enregistrer</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+  permFieldsRender();
+}
+function permFieldAdd(){ _permFields.push({label:'',type:'text',required:false,options:[]}); permFieldsRender(); }
+function permFieldDel(i){ _permFields.splice(i,1); permFieldsRender(); }
+function permFieldsRender(){
+  const box=document.getElementById("ptFields"); if(!box)return;
+  if(!_permFields.length){ box.innerHTML='<div class="note">Aucun champ personnalisé.</div>'; return; }
+  box.innerHTML=_permFields.map((f,i)=>`<div class="panel" style="padding:8px;margin-bottom:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <input placeholder="Libellé du champ" value="${esc(f.label||'')}" oninput="_permFields[${i}].label=this.value" style="flex:1;min-width:150px">
+      <select onchange="_permFields[${i}].type=this.value;permFieldsRender()" style="width:110px">
+        <option value="text"${f.type==='text'?' selected':''}>Texte</option>
+        <option value="number"${f.type==='number'?' selected':''}>Nombre</option>
+        <option value="date"${f.type==='date'?' selected':''}>Date</option>
+        <option value="select"${f.type==='select'?' selected':''}>Liste</option>
+      </select>
+      <label style="display:flex;gap:4px;align-items:center;font-size:12px"><input type="checkbox" ${f.required?'checked':''} onchange="_permFields[${i}].required=this.checked" style="width:auto"> Requis</label>
+      ${f.type==='select'?`<input placeholder="Options (séparées par des virgules)" value="${esc((f.options||[]).join(', '))}" oninput="_permFields[${i}].options=this.value.split(',').map(s=>s.trim()).filter(Boolean)" style="flex:1;min-width:180px">`:''}
+      <button class="btn ghost sm" onclick="permFieldDel(${i})">✕</button>
+    </div>`).join("");
+}
+async function permSave(pid){
+  const label=document.getElementById("ptLabel").value.trim();
+  const el=document.getElementById("ptErr");
+  if(!label){ el.className="err"; el.textContent="Libellé requis."; el.classList.remove("hidden"); return; }
+  const body={ label, deductible:document.getElementById("ptDed").checked, active:document.getElementById("ptActive").checked, fields:_permFields.filter(f=>f.label&&f.label.trim()) };
+  try{ if(pid) await api("/permission-types/"+pid,{method:"PUT",body:JSON.stringify(body)}); else await api("/permission-types",{method:"POST",body:JSON.stringify(body)});
+    const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); permTypesView(); }
+  catch(e){ el.className="err"; el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function permDelete(pid,label){ if(!confirm("Supprimer le type « "+label+" » ?"))return; try{ await api("/permission-types/"+pid,{method:"DELETE"}); permTypesView(); }catch(e){ alert(e.message); } }
 async function pointageReviewView(){
   view.innerHTML=`${_presTabs('pointage')}<h1 style="margin-top:0">Pointages (contrôle)</h1>
     <div class="note" style="margin-bottom:8px">Pointages des employés et exceptions (hors zone, GPS imprécis, doublon, sortie sans entrée, sans site). Après vérification, marquez une exception comme résolue.</div>
