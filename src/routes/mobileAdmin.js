@@ -341,4 +341,87 @@ router.post("/export-xlsx", allow("GPF", "ADM", "CD", "RJ", "RQ", "UI", "SADM"),
   res.send(buf);
 });
 
+/* ---------------- Superviseurs mobiles (un employé pointe pour son équipe) ---------------- */
+// Affecte un superviseur (employé) à un employé. Le superviseur voit alors cet employé dans « Mon équipe ».
+router.put("/employees/:eid/supervisor", allow("GPF", "ADM"), (req, res) => {
+  const e = mine(db.employees, req).find(x => x.id === req.params.eid);
+  if (!e) return res.status(404).json({ error: "Employé introuvable" });
+  const sid = (req.body && req.body.supervisorEmpId) || null;
+  if (sid) { const sup = mine(db.employees, req).find(x => x.id === sid); if (!sup) return res.status(400).json({ error: "Superviseur introuvable" });
+    if (sid === e.id) return res.status(400).json({ error: "Un employé ne peut pas être son propre superviseur." }); }
+  e.supervisorEmpId = sid; save();
+  audit(req.user, "CONFIG_CHANGED", "Employee", e.id, { supervisorEmpId: sid });
+  res.json({ ok: true, supervisorEmpId: sid });
+});
+// Membres de l'équipe d'un superviseur (pour l'UI d'affectation).
+router.get("/employees/:eid/team", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  res.json(mine(db.employees, req).filter(x => x.supervisorEmpId === req.params.eid)
+    .map(x => ({ id: x.id, matricule: x.matricule || "", name: `${x.firstName || ""} ${x.lastName || ""}`.trim() })));
+});
+
+/* ---------------- Terminaux de pointage (bornes sur site) ---------------- */
+const _rnd = (n) => crypto.randomBytes(n).toString("hex");
+const _termCode = () => String(Math.floor(100000 + Math.random() * 900000)); // code à 6 chiffres
+router.get("/terminals", allow("ADM", "GPF", "CD", "RJ"), (req, res) => {
+  const sites = mine(db.sites, req);
+  res.json(mine(db.terminals, req).map(t => Object.assign({}, t, { siteName: (sites.find(s => s.id === t.siteId) || {}).name || "" })));
+});
+router.post("/terminals", allow("ADM"), (req, res) => {
+  const b = req.body || {};
+  const site = mine(db.sites, req).find(s => s.id === b.siteId);
+  if (!site) return res.status(400).json({ error: "Site requis" });
+  const t = stamp({ id: id("term"), siteId: site.id, label: String(b.label || site.name || "Borne").slice(0, 60),
+    code: _termCode(), token: _rnd(24), active: true, createdAt: now() }, req);
+  db.terminals.push(t); save();
+  audit(req.user, "CREATED", "Terminal", t.id, { siteId: site.id, label: t.label });
+  res.status(201).json(t);
+});
+router.put("/terminals/:id", allow("ADM"), (req, res) => {
+  const t = mine(db.terminals, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  if (b.label != null) t.label = String(b.label).slice(0, 60);
+  if (b.siteId && mine(db.sites, req).some(s => s.id === b.siteId)) t.siteId = b.siteId;
+  if (b.active != null) t.active = !!b.active;
+  if (b.regenerateCode) t.code = _termCode();
+  if (b.regenerateToken) t.token = _rnd(24);
+  save(); res.json(t);
+});
+router.delete("/terminals/:id", allow("ADM"), (req, res) => {
+  const t = mine(db.terminals, req).find(x => x.id === req.params.id); if (!t) return res.status(404).json({ error: "Introuvable" });
+  db.terminals.splice(db.terminals.indexOf(t), 1); save(); res.json({ ok: true });
+});
+
+/* ---------------- Types de permission (admin définit libellé + champs) ---------------- */
+router.get("/permission-types", allow("ADM", "GPF", "CD", "RJ"), (req, res) => res.json(mine(db.permissionTypes, req)));
+router.post("/permission-types", allow("ADM"), (req, res) => {
+  const b = req.body || {};
+  if (!b.label) return res.status(400).json({ error: "Libellé requis" });
+  const p = stamp({ id: id("pty"), label: String(b.label).slice(0, 80), deductible: !!b.deductible,
+    fields: sanitizeFields(b.fields), active: b.active !== false, createdAt: now() }, req);
+  db.permissionTypes.push(p); save();
+  audit(req.user, "CREATED", "PermissionType", p.id, { label: p.label });
+  res.status(201).json(p);
+});
+router.put("/permission-types/:id", allow("ADM"), (req, res) => {
+  const p = mine(db.permissionTypes, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Introuvable" });
+  const b = req.body || {};
+  if (b.label != null) p.label = String(b.label).slice(0, 80);
+  if (b.deductible != null) p.deductible = !!b.deductible;
+  if (b.active != null) p.active = !!b.active;
+  if (b.fields != null) p.fields = sanitizeFields(b.fields);
+  save(); res.json(p);
+});
+router.delete("/permission-types/:id", allow("ADM"), (req, res) => {
+  const p = mine(db.permissionTypes, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Introuvable" });
+  db.permissionTypes.splice(db.permissionTypes.indexOf(p), 1); save(); res.json({ ok: true });
+});
+function sanitizeFields(f) {
+  if (!Array.isArray(f)) return [];
+  return f.filter(x => x && x.label).slice(0, 12).map(x => ({
+    key: String(x.key || x.label).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32),
+    label: String(x.label).slice(0, 60), type: ["text", "number", "date", "select"].includes(x.type) ? x.type : "text",
+    required: !!x.required, options: Array.isArray(x.options) ? x.options.map(o => String(o).slice(0, 40)).slice(0, 20) : [],
+  }));
+}
+
 module.exports = router;

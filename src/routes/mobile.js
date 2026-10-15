@@ -124,9 +124,9 @@ router.post("/auth/password", empAuth, (req, res) => {
 
 /* ============================ ME / DASHBOARD ============================ */
 function todayStr() { return new Date().toISOString().slice(0, 10); }
-function attToday(req) {
+function attToday(ctx) {
   const t = todayStr();
-  return empScoped("attendance", req.emp.tenantId).filter(a => a.employeeId === req.emp.employeeId && (a.serverTs || "").slice(0, 10) === t).sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
+  return empScoped("attendance", ctx.tenantId).filter(a => a.employeeId === ctx.employeeId && (a.serverTs || "").slice(0, 10) === t).sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
 }
 router.get("/me", empAuth, (req, res) => {
   const e = empOf(req.emp.account) || {};
@@ -139,11 +139,12 @@ router.get("/me", empAuth, (req, res) => {
     department: (e.contract && e.contract.department) || "", company: t.name, companyLogo: t.branding && t.branding.appLogo || null,
     email: e.email || "", phone: e.phone || e.mobile || "", supervisor: sup ? (sup.fullName || "") : "",
     photo: e.photo || null,
+    is_supervisor: (db.employees || []).some(x => (x.tenantId || "t1") === req.emp.tenantId && x.supervisorEmpId === req.emp.employeeId),
   });
 });
 router.get("/me/dashboard", empAuth, (req, res) => {
   const e = empOf(req.emp.account) || {};
-  const at = attToday(req);
+  const at = attToday({ tenantId: req.emp.tenantId, employeeId: req.emp.employeeId });
   const lastIn = [...at].reverse().find(a => a.type === "IN");
   const lastOut = [...at].reverse().find(a => a.type === "OUT");
   const checkedIn = lastIn && (!lastOut || lastIn.serverTs > lastOut.serverTs);
@@ -179,13 +180,13 @@ router.get("/me/time", empAuth, (req, res) => {
   res.json({ server_ms: ms, server_timestamp: new Date(ms).toISOString() });
 });
 function platformAttCfg() { const p = db.platform || {}; return { accuracyMaxM: p.attAccuracyMaxM || 50, outsidePolicy: p.attOutsidePolicy || "EXCEPTION" }; }
-function recordAttendance(req, type, body, opts = {}) {
+function recordAttendance(ctx, type, body, opts = {}) {
   const cfg = platformAttCfg();
   const uuid = String(body.attendance_uuid || body.uuid || "").trim();
   // Idempotency: same uuid -> return the existing record.
-  if (uuid) { const dup = empScoped("attendance", req.emp.tenantId).find(a => a.uuid === uuid); if (dup) return { dedup: true, rec: dup }; }
+  if (uuid) { const dup = empScoped("attendance", ctx.tenantId).find(a => a.uuid === uuid); if (dup) return { dedup: true, rec: dup }; }
   const lat = Number(body.latitude), lng = Number(body.longitude), acc = Number(body.accuracy);
-  const sites = empScoped("sites", req.emp.tenantId).filter(s => s.active !== false);
+  const sites = empScoped("sites", ctx.tenantId).filter(s => s.active !== false);
   let site = sites.find(s => s.id === body.site_id) || null;
   // distance to chosen (or nearest) site
   let distance = null, nearest = site;
@@ -202,7 +203,7 @@ function recordAttendance(req, type, body, opts = {}) {
     status = "EXCEPTION"; reason = "OUTSIDE_GEOFENCE";
   }
   // check-in/out ordering sanity
-  const at = attToday(req);
+  const at = attToday(ctx);
   const lastIn = [...at].reverse().find(a => a.type === "IN"), lastOut = [...at].reverse().find(a => a.type === "OUT");
   const checkedIn = lastIn && (!lastOut || lastIn.serverTs > lastOut.serverTs);
   if (type === "OUT" && !checkedIn) { status = "EXCEPTION"; reason = reason || "CHECKOUT_WITHOUT_CHECKIN"; }
@@ -223,12 +224,13 @@ function recordAttendance(req, type, body, opts = {}) {
   // Une heure non vérifiée (device/sync) est signalée en exception pour revue RH.
   if (tr.flag === "REVIEW" && status === "NORMAL") { status = "EXCEPTION"; reason = "TIME_UNVERIFIED"; }
 
-  const rec = stamp({ id: id("att"), uuid: uuid || id("att"), employeeId: req.emp.employeeId, siteId: site ? site.id : "",
+  const rec = stamp({ id: id("att"), uuid: uuid || id("att"), employeeId: ctx.employeeId, siteId: site ? site.id : "",
     type, serverTs, receivedTs, timeSource: tr.source, timeFlag: tr.flag || null,
     clientTs: body.client_timestamp || null, bootMs: Number.isFinite(Number(body.boot_ms)) ? Number(body.boot_ms) : null,
     lat: Number.isFinite(lat) ? lat : null, lng: Number.isFinite(lng) ? lng : null,
     accuracy: Number.isFinite(acc) ? acc : null, distanceM: distance != null ? R2(distance) : null,
-    deviceId: body.device_id || "", appVersion: body.app_version || "", status, exceptionReason: reason, createdAt: receivedTs }, { user: { tenantId: req.emp.tenantId } });
+    source: opts.source || "SELF", onBehalfOf: opts.onBehalfOf || null,
+    deviceId: body.device_id || "", appVersion: body.app_version || "", status, exceptionReason: reason, createdAt: receivedTs }, { user: { tenantId: ctx.tenantId } });
   db.attendance.push(rec);
   return { rec, site };
 }
@@ -241,7 +243,7 @@ function attOut(a, req) {
 }
 router.post("/me/attendance/check-in", empAuth, attUpload.single("photo"), (req, res) => {
   if (attSelfieRequired(req.emp.tenantId) && !req.file) return res.status(200).json({ success: false, reason: "SELFIE_REQUIRED", message: "Un selfie est requis pour pointer." });
-  const out = recordAttendance(req, "IN", req.body || {});
+  const out = recordAttendance({ tenantId: req.emp.tenantId, employeeId: req.emp.employeeId }, "IN", req.body || {});
   if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
   if (req.file && out.rec) out.rec.photo = req.file.filename;
   save();
@@ -249,7 +251,7 @@ router.post("/me/attendance/check-in", empAuth, attUpload.single("photo"), (req,
 });
 router.post("/me/attendance/check-out", empAuth, attUpload.single("photo"), (req, res) => {
   if (attSelfieRequired(req.emp.tenantId) && !req.file) return res.status(200).json({ success: false, reason: "SELFIE_REQUIRED", message: "Un selfie est requis pour pointer." });
-  const out = recordAttendance(req, "OUT", req.body || {});
+  const out = recordAttendance({ tenantId: req.emp.tenantId, employeeId: req.emp.employeeId }, "OUT", req.body || {});
   if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
   if (req.file && out.rec) out.rec.photo = req.file.filename;
   save();
@@ -296,7 +298,7 @@ router.post("/me/sync", empAuth, (req, res) => {
   const results = [];
   for (const it of items) {
     const type = (it.type || "IN").toUpperCase() === "OUT" ? "OUT" : "IN";
-    const out = recordAttendance(req, type, it, { offline: true });
+    const out = recordAttendance({ tenantId: req.emp.tenantId, employeeId: req.emp.employeeId }, type, it, { offline: true });
     if (out.reject) results.push({ uuid: it.attendance_uuid || it.uuid, success: false, reason: out.reason });
     else results.push(Object.assign({ success: true, deduplicated: !!out.dedup }, attOut(out.rec, req)));
   }
@@ -387,6 +389,112 @@ router.get("/me/sites", empAuth, (req, res) => {
     .filter(s => aids.has(s.id) && s.active !== false)
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
   res.json(list.map(s => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, radius_m: s.radiusM || 100 })));
+});
+
+/* ============================ POINTAGE SUPERVISEUR (pour son équipe) ============================ */
+// Un employé « superviseur » pointe pour les membres de son équipe (photo = preuve).
+function myTeam(req) {
+  return (db.employees || []).filter(e => (e.tenantId || "t1") === req.emp.tenantId
+    && e.supervisorEmpId === req.emp.employeeId && String(e.status || "").toUpperCase() !== "ARCHIVED");
+}
+function teamStatus(req, e) {
+  const t = todayStr();
+  const at = empScoped("attendance", req.emp.tenantId).filter(a => a.employeeId === e.id && (a.serverTs || "").slice(0, 10) === t)
+    .sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
+  const cin = at.find(a => a.type === "IN"), cout = [...at].reverse().find(a => a.type === "OUT");
+  const checkedIn = cin && (!cout || cin.serverTs > cout.serverTs);
+  return { id: e.id, matricule: e.matricule || "", name: `${e.firstName || ""} ${e.lastName || ""}`.trim(),
+    status: checkedIn ? "CHECKED_IN" : (cout ? "CHECKED_OUT" : "NONE"), last_in: cin ? cin.serverTs : null, last_out: cout ? cout.serverTs : null };
+}
+router.get("/me/team", empAuth, (req, res) => {
+  const list = myTeam(req).sort((a, b) => `${a.firstName || ""} ${a.lastName || ""}`.localeCompare(`${b.firstName || ""} ${b.lastName || ""}`));
+  res.json({ is_supervisor: list.length > 0, members: list.map(e => teamStatus(req, e)) });
+});
+function teamPunch(req, res, type) {
+  const e = myTeam(req).find(x => x.id === req.params.eid);
+  if (!e) return res.status(404).json({ error: "Employé introuvable dans votre équipe" });
+  if (attSelfieRequired(req.emp.tenantId) && !req.file) return res.status(200).json({ success: false, reason: "SELFIE_REQUIRED", message: "Une photo de l'employé est requise pour pointer." });
+  const out = recordAttendance({ tenantId: req.emp.tenantId, employeeId: e.id }, type, req.body || {}, { source: "SUPERVISOR", onBehalfOf: req.emp.employeeId });
+  if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
+  if (req.file && out.rec) out.rec.photo = req.file.filename;
+  save();
+  res.status(out.dedup ? 200 : 201).json(Object.assign({ success: true, deduplicated: !!out.dedup, employee: { id: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim() } }, attOut(out.rec, req)));
+}
+router.post("/me/team/:eid/attendance/check-in", empAuth, attUpload.single("photo"), (req, res) => teamPunch(req, res, "IN"));
+router.post("/me/team/:eid/attendance/check-out", empAuth, attUpload.single("photo"), (req, res) => teamPunch(req, res, "OUT"));
+
+/* ============================ POINTAGE TERMINAL (borne sur site) ============================ */
+// Une borne (tablette/téléphone) est activée par un code admin lié à un site ; les employés du site
+// s'identifient (matricule / sélection) puis pointent avec photo.
+function terminalAuth(req, res, next) {
+  const h = req.headers.authorization || ""; const tok = h.startsWith("Bearer ") ? h.slice(7) : "";
+  const term = (db.terminals || []).find(t => t.token && t.token === tok && t.active !== false);
+  if (!term) return res.status(401).json({ error: "Terminal non autorisé" });
+  req.terminal = term; next();
+}
+router.post("/terminal/activate", (req, res) => {
+  const code = String((req.body || {}).code || "").trim();
+  if (!code) return res.status(400).json({ error: "Code requis" });
+  const term = (db.terminals || []).find(t => t.code && t.code === code && t.active !== false);
+  if (!term) return res.status(404).json({ error: "Code invalide ou terminal désactivé" });
+  const site = (db.sites || []).find(s => s.id === term.siteId) || null;
+  res.json({ token: term.token, tenant_id: term.tenantId, terminal: { id: term.id, label: term.label || "",
+    site: site ? { id: site.id, name: site.name, lat: site.lat, lng: site.lng, radius_m: site.radiusM || 100 } : null } });
+});
+router.get("/terminal/employees", terminalAuth, (req, res) => {
+  const t = req.terminal; const today = todayStr();
+  const aids = new Set((db.siteAssignments || []).filter(a => (a.tenantId || "t1") === t.tenantId && a.siteId === t.siteId).map(a => a.employeeId));
+  const list = (db.employees || []).filter(e => (e.tenantId || "t1") === t.tenantId && aids.has(e.id) && String(e.status || "").toUpperCase() !== "ARCHIVED")
+    .sort((a, b) => `${a.firstName || ""} ${a.lastName || ""}`.localeCompare(`${b.firstName || ""} ${b.lastName || ""}`));
+  res.json(list.map(e => {
+    const at = (db.attendance || []).filter(a => (a.tenantId || "t1") === t.tenantId && a.employeeId === e.id && (a.serverTs || "").slice(0, 10) === today).sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
+    const cin = at.find(a => a.type === "IN"), cout = [...at].reverse().find(a => a.type === "OUT");
+    const checkedIn = cin && (!cout || cin.serverTs > cout.serverTs);
+    return { id: e.id, matricule: e.matricule || "", name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), status: checkedIn ? "CHECKED_IN" : (cout ? "CHECKED_OUT" : "NONE") };
+  }));
+});
+router.post("/terminal/attendance", terminalAuth, attUpload.single("photo"), (req, res) => {
+  const t = req.terminal; const b = req.body || {};
+  const eid = String(b.employee_id || "").trim(), mat = String(b.matricule || "").trim().toLowerCase();
+  let e = eid ? (db.employees || []).find(x => x.id === eid && (x.tenantId || "t1") === t.tenantId) : null;
+  if (!e && mat) e = (db.employees || []).find(x => (x.tenantId || "t1") === t.tenantId && String(x.matricule || "").toLowerCase() === mat);
+  if (!e) return res.status(404).json({ error: "Employé introuvable" });
+  const onSite = (db.siteAssignments || []).some(a => (a.tenantId || "t1") === t.tenantId && a.siteId === t.siteId && a.employeeId === e.id);
+  if (!onSite) return res.status(403).json({ error: "Cet employé n'est pas affecté à ce site" });
+  const type = String(b.type || "").toUpperCase() === "OUT" ? "OUT" : "IN";
+  const out = recordAttendance({ tenantId: t.tenantId, employeeId: e.id }, type, Object.assign({}, b, { site_id: t.siteId }), { source: "TERMINAL", onBehalfOf: t.id });
+  if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
+  if (req.file && out.rec) out.rec.photo = req.file.filename;
+  save();
+  res.status(out.dedup ? 200 : 201).json({ success: true, deduplicated: !!out.dedup, type, employee: { id: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim() }, server_timestamp: out.rec.serverTs, status: out.rec.status });
+});
+
+/* ============================ DEMANDE DE PERMISSION (circuit congé) ============================ */
+router.get("/me/permission-types", empAuth, (req, res) => {
+  const list = (db.permissionTypes || []).filter(p => (p.tenantId || "t1") === req.emp.tenantId && p.active !== false);
+  res.json(list.map(p => ({ id: p.id, label: p.label, deductible: !!p.deductible,
+    fields: (p.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type || "text", required: !!f.required, options: f.options || [] })) })));
+});
+router.post("/me/permission", empAuth, (req, res) => {
+  const e = empOf(req.emp.account); if (!e) return res.status(404).json({ error: "Employé introuvable" });
+  const b = req.body || {};
+  const pt = (db.permissionTypes || []).find(p => p.id === b.typeId && (p.tenantId || "t1") === req.emp.tenantId && p.active !== false);
+  if (!pt) return res.status(400).json({ error: "Type de permission invalide" });
+  if (!b.start || !b.end) return res.status(400).json({ error: "Dates de début et de fin requises" });
+  const days = Math.round((new Date(b.end) - new Date(b.start)) / 86400e3) + 1;
+  if (!(days > 0)) return res.status(400).json({ error: "La date de fin doit être postérieure au début" });
+  for (const f of (pt.fields || [])) if (f.required && !String((b.values || {})[f.key] || "").trim()) return res.status(400).json({ error: `Champ requis : ${f.label}` });
+  const nowISO = new Date().toISOString();
+  const doc = { id: id("doc"), tenantId: req.emp.tenantId, type: "LEAVE", refId: e.id,
+    data: { leaveType: "Permission : " + pt.label, permissionTypeId: pt.id, startDate: b.start, endDate: b.end, days,
+      reason: String(b.reason || "").slice(0, 500), deductible: !!pt.deductible, fields: b.values || {} },
+    title: `Permission : ${pt.label} (${days}j) - ${e.firstName} ${e.lastName}`,
+    createdById: "mobile", createdAt: nowISO, cycle: 1, steps: [], generatedFile: null, source: "MOBILE" };
+  db.documents.push(doc);
+  try { require("../workflow").startWorkflow(doc, { id: null, fullName: "application mobile", tenantId: req.emp.tenantId }); }
+  catch (x) { if (!doc.status) doc.status = "SUBMITTED"; }
+  save();
+  res.status(201).json({ id: doc.id, status: "PENDING", days });
 });
 
 /* ============================ ASSURANCE MALADIE ============================ */
