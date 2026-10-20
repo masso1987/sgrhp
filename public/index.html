@@ -2341,11 +2341,13 @@ async function refreshBell() {
 setInterval(refreshBell, 30000);
 async function showNotifs() {
   const n = await api("/notifications");
-  view.innerHTML = `<h1>Notifications</h1><div class="panel">` + (n.items.length ? n.items.map(x => `
-    <div class="doc-row" style="${x.readAt ? "opacity:.6" : ""}"><div><b>${esc(x.subject)}</b><br>
-    <small style="color:var(--muted)">${esc(x.body || "")} - ${x.at.replace("T"," ").slice(0,16)}</small></div></div>`).join("") : "Aucune notification") + `</div>
+  view.innerHTML = `<h1>Notifications ${n.unread?`<span class="tag red">${n.unread} non lue(s)</span>`:""}</h1><div class="panel">` + (n.items.length ? n.items.map(x => `
+    <div class="doc-row" style="${x.readAt ? "opacity:.6" : ""}"><div><b>${esc(x.subject)}</b>${x.readAt?"":' <span class="tag amber">nouveau</span>'}<br>
+    <small style="color:var(--muted)">${esc(x.body || "")} - ${(x.at||"").replace("T"," ").slice(0,16)}</small></div>
+    <button class="btn ghost sm" onclick="notifToggle('${x.id}',${x.readAt?'true':'false'})">${x.readAt?"Marquer non lu":"Marquer lu"}</button></div>`).join("") : "Aucune notification") + `</div>
     <button class="btn ghost" onclick="markRead()">Tout marquer comme lu</button>`;
 }
+async function notifToggle(id, isRead){ try{ await api("/notifications/"+id+(isRead?"/unread":"/read"),{method:"POST"}); refreshBell(); showNotifs(); }catch(e){ alert(e.message); } }
 async function markRead(){ await api("/notifications/read-all",{method:"POST"}); refreshBell(); showNotifs(); }
 
 const SLA_TAG = d =>d.slaState === "BREACH" ? `<span class="tag red">${d.elapsedH}h - OVERDUE</span>`
@@ -5034,11 +5036,13 @@ async function empRequestsView(){
       <div><label>Type</label><select id="erType"><option value="">Tous</option><option value="AVI">AVI</option><option value="ACOMPTE">Acompte</option></select></div>
       <button class="btn p" onclick="empReqLoad()">Filtrer</button>
       ${_expBar('#erBody table','demandes_employes')}
+      ${ME.role==="ADM"?`<button class="btn ghost" onclick="digestSend()" title="Envoie à chaque GPF un e-mail récapitulant toutes les demandes mobiles en attente dans ses portefeuilles">✉ Envoyer le récapitulatif aux GPF</button>`:''}
     </div>
     <div id="erBody" class="panel" style="overflow-x:auto"><div class="note">Chargement…</div></div>`;
   empReqLoad();
   if(ME.role==="ADM") acompteCfgLoad();
 }
+async function digestSend(){ if(!confirm("Envoyer à chaque GPF un e-mail listant ses demandes mobiles en attente ?"))return; try{ const r=await api("/digest/send",{method:"POST"}); alert(r.disabled?"L'envoi d'e-mails n'est pas configuré (Administration › E-mail).":`Récapitulatif envoyé à ${r.sent} destinataire(s). ${r.skipped} sans demande en attente.`); }catch(e){ alert(e.message); } }
 async function acompteCfgLoad(){ try{ const c=await api("/acompte-config"); const el=document.getElementById("acDd"); if(el)el.value=c.deadlineDay; }catch(e){} }
 async function acompteCfgSave(){ const el=document.getElementById("acDd"); const msg=document.getElementById("acMsg"); try{ const c=await api("/acompte-config",{method:"PUT",body:JSON.stringify({deadlineDay:Number(el.value)})}); if(msg)msg.textContent="Enregistré : jour limite = "+c.deadlineDay+" de chaque mois."; }catch(e){ if(msg)msg.textContent="Erreur : "+e.message; } }
 async function empReqLoad(){
@@ -10723,12 +10727,28 @@ function acctImportView(){
   const t=window._imp.type;
   const seg=(v)=>`<button class="btn ${t===v?'p':'ghost'} sm" onclick="window._imp={type:'${v}'};acctImportView()">${IMP_TYPES[v].label}</button>`;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
-    <h1 style="margin-top:10px">Import Sage / FEC</h1>
-    <div class="panel"><div style="display:flex;gap:6px;margin-bottom:8px">${Object.keys(IMP_TYPES).map(seg).join("")}</div>
+    <h1 style="margin-top:10px">Import / Export Sage i7 (& FEC)</h1>
+    <div class="panel" style="margin-bottom:10px">
+      <b style="font-size:12px;color:var(--muted)">EXPORT DES ÉCRITURES VERS SAGE i7</b>
+      <div class="note" style="margin:4px 0 8px">Génère un fichier d'import paramétrable Sage i7 (texte point-virgule : JOURNAL;DATE;PIÈCE;COMPTE;TIERS;LIBELLÉ;DÉBIT;CRÉDIT;ÉCHÉANCE). Importez-le ensuite dans Sage via « Import des écritures ».</div>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+        <div><label>Du</label><input type="date" id="sxFrom"></div>
+        <div><label>Au</label><input type="date" id="sxTo"></div>
+        <label class="chk" style="display:flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="sxAll" style="width:auto;margin:0"> Inclure les brouillons</label>
+        <button class="btn p sm" onclick="acctSageExport()">Exporter vers Sage i7</button>
+      </div>
+    </div>
+    <div class="panel"><b style="font-size:12px;color:var(--muted)">IMPORT</b><div style="display:flex;gap:6px;margin:8px 0">${Object.keys(IMP_TYPES).map(seg).join("")}</div>
       <div class="note">Chargez un fichier (FEC, CSV ou texte). Les colonnes standard FEC sont reconnues automatiquement. Séparateur détecté (tabulation / ; / ,), modifiable.</div>
       <div style="margin:8px 0"><input type="file" id="impFile" accept=".txt,.csv,.tsv" onchange="acctImpFileChosen(this)"></div>
       <div id="impMapBox"></div></div>
     <div id="impPrevBox"></div>`;
+}
+function acctSageExport(){
+  const from=(document.getElementById("sxFrom")||{}).value||"", to=(document.getElementById("sxTo")||{}).value||"";
+  const all=(document.getElementById("sxAll")||{}).checked?"1":"0";
+  const qs=`?all=${all}${from?("&from="+from):""}${to?("&to="+to):""}`;
+  acctPDF("/accounting/sage-entries-export"+qs, `ecritures_sage_${from||"debut"}_${to||"fin"}.csv`);
 }
 function acctImpFileChosen(input){ const file=input.files&&input.files[0]; if(!file) return;
   const rd=new FileReader();

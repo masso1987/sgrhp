@@ -268,6 +268,77 @@ router.post("/balance-import", allow("RC", "ADM"), _balMemUp.single("file"), (re
   res.json({ ok: true, accounts: lines.length, addedAccounts: addedAccts, imbalance: diff, entryId: entry.id, date: cutoff });
 });
 
+/* ==================== Échanges d'écritures avec Sage i7 ==================== */
+// Export / import des écritures au format d'import paramétrable Sage i7 (texte
+// délimité point-virgule, une ligne par ligne d'écriture). Colonnes :
+// JOURNAL;DATE(JJ/MM/AAAA);PIECE;COMPTE;TIERS;LIBELLE;DEBIT;CREDIT;ECHEANCE
+const SAGE_HEADER = "JOURNAL;DATE;PIECE;COMPTE;TIERS;LIBELLE;DEBIT;CREDIT;ECHEANCE";
+function _sageDate(iso) { const s = String(iso || "").slice(0, 10); const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); return m ? `${m[3]}/${m[2]}/${m[1]}` : s; }
+function _sageAmt(n) { const v = Number(n) || 0; return v ? v.toFixed(2).replace(".", ",") : ""; }
+function _sageCsvCell(s) { return String(s == null ? "" : s).replace(/[;\r\n]+/g, " ").trim(); }
+router.get("/sage-entries-export", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
+  let list = mine(db.acctEntries, req);
+  if (req.query.all !== "1") list = list.filter(e => e.status === "validated" || e.status === "locked");
+  if (req.query.journal) list = list.filter(e => e.journalCode === req.query.journal);
+  const from = req.query.from || "", to = req.query.to || "";
+  if (from) list = list.filter(e => (e.date || "") >= from);
+  if (to) list = list.filter(e => (e.date || "") <= to);
+  list = list.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "") || String(a.pieceNo || "").localeCompare(String(b.pieceNo || "")));
+  const rows = [SAGE_HEADER];
+  for (const e of list) {
+    for (const l of (e.lines || [])) {
+      rows.push([
+        _sageCsvCell(e.journalCode), _sageDate(e.date), _sageCsvCell(e.pieceNo),
+        _sageCsvCell(l.account), _sageCsvCell(l.thirdParty), _sageCsvCell(l.label || e.label),
+        _sageAmt(l.debit), _sageAmt(l.credit), l.dueDate ? _sageDate(l.dueDate) : "",
+      ].join(";"));
+    }
+  }
+  const body = "﻿" + rows.join("\r\n") + "\r\n"; // BOM + CRLF pour Sage/Excel
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="ecritures_sage_${from || "debut"}_${to || "fin"}.csv"`);
+  res.send(body);
+});
+const _sageMemUp = require("multer")({ storage: require("multer").memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+router.post("/sage-entries-import", allow("RC", "ADM"), _sageMemUp.single("file"), (req, res) => {
+  seedAccounting(req.user.tenantId || "t1");
+  if (!req.file) return res.status(400).json({ error: "Fichier Sage requis (.csv/.txt)." });
+  let text = req.file.buffer.toString("utf8"); if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return res.status(400).json({ error: "Fichier vide." });
+  const delim = (lines[0].match(/;/g) || []).length >= (lines[0].match(/\t/g) || []).length ? ";" : "\t";
+  // En-tête optionnel (on le saute s'il contient JOURNAL).
+  let start = /journal/i.test(lines[0]) ? 1 : 0;
+  const num = v => { const n = parseFloat(String(v || "").replace(/\s/g, "").replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "")); return isFinite(n) ? R2(n) : 0; };
+  const toIso = d => { const m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(String(d || "").trim()); if (m) { let y = m[3]; if (y.length === 2) y = "20" + y; return `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`; } const m2 = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m2 ? m2[0] : ""; };
+  const existing = {}; mine(db.acctAccounts, req).forEach(a => { existing[String(a.number)] = a; });
+  const groups = {}; let parsed = 0, addedAccts = 0;
+  for (let i = start; i < lines.length; i++) {
+    const c = lines[i].split(delim);
+    const journal = _sageCsvCell(c[0]); const date = toIso(c[1]); const piece = _sageCsvCell(c[2]);
+    const account = _sageCsvCell(c[3]); if (!account || !/^\d/.test(account)) continue;
+    const tiers = _sageCsvCell(c[4]); const label = _sageCsvCell(c[5]);
+    const debit = num(c[6]), credit = num(c[7]); const ech = toIso(c[8]);
+    if (!debit && !credit) continue;
+    if (!existing[account]) { const a = stamp({ id: id("acc"), number: account, label: label || "" }, req); db.acctAccounts.push(a); existing[account] = a; addedAccts++; }
+    const key = `${journal}|${piece}|${date}`;
+    (groups[key] = groups[key] || { journalCode: journal || "OD", pieceNo: piece, date, label, lines: [] })
+      .lines.push({ id: id("aln"), account, thirdParty: tiers, label: label, dueDate: ech, debit, credit, analytic: "" });
+    parsed++;
+  }
+  const lock = _periodLock(req); const created = []; const skipped = [];
+  for (const k of Object.keys(groups)) {
+    const g = groups[k]; const period = (g.date || new Date().toISOString().slice(0, 10)).slice(0, 7);
+    if (lock && period <= lock) { skipped.push({ piece: g.pieceNo, reason: "période clôturée" }); continue; }
+    const td = g.lines.reduce((s, l) => s + l.debit, 0), tc = g.lines.reduce((s, l) => s + l.credit, 0);
+    const e = stamp({ id: id("aent"), journalCode: g.journalCode, period, pieceNo: g.pieceNo || _nextPiece(req, jrOf(req, g.journalCode), period), date: g.date, label: g.label || "Import Sage", lines: g.lines, status: R2(td - tc) === 0 ? "validated" : "draft", source: "sage-import", createdAt: new Date().toISOString() }, req);
+    db.acctEntries.push(e); created.push(e.id);
+  }
+  save();
+  audit(req.user, "IMPORTED", "AcctEntries", "sage", { entries: created.length, lines: parsed, addedAccounts: addedAccts, skipped: skipped.length });
+  res.json({ ok: true, entries: created.length, lines: parsed, addedAccounts: addedAccts, skipped });
+});
+
 /* ==================== C2 - GÉNÉRATION AUTO (Facturation & Paie) ==================== */
 // Numérotation des pièces selon le mode du journal (Sage : Manuelle / Continue par journal / Continue pour le fichier / Mensuelle).
 function _nextPiece(req, journal, period, provided) {

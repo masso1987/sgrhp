@@ -415,6 +415,20 @@ router.delete("/permission-types/:id", allow("ADM"), (req, res) => {
   const p = mine(db.permissionTypes, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Introuvable" });
   db.permissionTypes.splice(db.permissionTypes.indexOf(p), 1); save(); res.json({ ok: true });
 });
+/* ---------------- Digest e-mail des demandes en attente (GPF) ---------------- */
+// Aperçu pour l'utilisateur connecté : combien de demandes mobiles l'attendent.
+router.get("/digest/preview", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const d = require("../digest").digestForUser(req.user);
+  res.json({ total: d.total, avis: d.avis.length, acomptes: d.acomptes.length, permissions: d.permissions.length, dependents: d.dependents.length });
+});
+// Envoi immédiat du digest à tous les GPF/ADM concernés (réservé ADM).
+router.post("/digest/send", allow("ADM"), async (req, res) => {
+  try { const r = await require("../digest").sendDigests({ force: !!(req.body && req.body.force) });
+    audit(req.user, "DIGEST_SENT", "Digest", "manual", r);
+    res.json(r); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 function sanitizeFields(f) {
   if (!Array.isArray(f)) return [];
   return f.filter(x => x && x.label).slice(0, 12).map(x => ({

@@ -240,7 +240,7 @@ app.use("/api/backup", require("./routes/backup"));
 // SLA timer scan every minute (§5.4)
 setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
 // Rappels d'échéance (documents/CNI/contrats) : une fois par jour + peu après le démarrage.
-setInterval(() => { try { require("./expiry").scanAndRemind(); } catch (e) { console.error(e); } try { require("./expiry").advanceEchelons(); } catch (e) { console.error(e); } try { require("./expiry").sweepDormant(); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000);
+setInterval(() => { try { require("./expiry").scanAndRemind(); } catch (e) { console.error(e); } try { require("./expiry").advanceEchelons(); } catch (e) { console.error(e); } try { require("./expiry").sweepDormant(); } catch (e) { console.error(e); } try { require("./digest").sendDigests().catch(() => {}); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000);
 try { require("./expiry").sweepDormant(); } catch (e) {}
 setInterval(() => { try { require("./demo").sweepExpiredDemos(); } catch (e) { console.error("[demo]", e.message); } }, 6 * 60 * 60 * 1000);
 try { require("./demo").sweepExpiredDemos(); } catch (e) {}
