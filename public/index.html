@@ -4675,6 +4675,7 @@ async function siteAssignOpen(sid){
       <div><label>Portefeuille</label><select id="asgPf" onchange="asgFillEmp()"><option value="">— choisir —</option>${pfOpts}</select></div>
       <div style="flex:1;min-width:200px"><label>Salarié</label><select id="asgSel"><option value="">Choisissez d'abord un portefeuille</option></select></div>
       <button class="btn p" onclick="siteAssignAdd('${sid}')">Affecter</button>
+      <button class="btn ghost" onclick="siteAssignPortfolio('${sid}')" title="Affecter tous les employés du portefeuille choisi à ce site">+ Tout le portefeuille</button>
     </div>
     <div style="overflow-x:auto"><table style="width:100%"><tr><th>Salarié</th><th>Matricule</th><th></th></tr>${rows}</table></div>
     <div style="margin-top:12px;text-align:right"><button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Fermer</button></div>
@@ -4690,6 +4691,7 @@ function asgFillEmp(){
 }
 async function siteAssignAdd(sid){ const sel=document.getElementById("asgSel"); const eid=sel&&sel.value; if(!eid)return; try{ await api("/sites/"+sid+"/assign",{method:"POST",body:JSON.stringify({employeeId:eid})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
 async function siteAssignRemove(sid,eid){ try{ await api("/sites/"+sid+"/assign/"+eid,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
+async function siteAssignPortfolio(sid){ const pf=(document.getElementById("asgPf")||{}).value; if(!pf){ alert("Choisissez d'abord un portefeuille."); return; } if(!confirm("Affecter TOUS les employés de ce portefeuille à ce site ?"))return; try{ const r=await api("/sites/"+sid+"/assign-portfolio",{method:"POST",body:JSON.stringify({portfolioId:pf})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); alert(`${r.added} employé(s) affecté(s) (sur ${r.total}).`); }catch(e){ alert(e.message); } }
 /* ---------------- Superviseurs (pointage mobile pour l'équipe) ---------------- */
 function _empName(e){ return ((e.firstName||'')+' '+(e.lastName||'')).trim(); }
 async function supervView(){
@@ -4840,11 +4842,14 @@ async function pointageReload(){
   const REASONS={OUTSIDE_GEOFENCE:'Hors zone',LOW_ACCURACY:'GPS imprécis',DUPLICATE_CHECKIN:'Doublon',CHECKOUT_WITHOUT_CHECKIN:'Sortie sans entrée',NO_SITE:'Sans site',TIME_UNVERIFIED:'Heure non vérifiée'};
   // Fiabilité de l'heure du pointage (voir attendanceTime.js côté serveur).
   const TSRC={SERVER:['Serveur','green','Horodaté par le serveur (en ligne)'],OFFLINE_ANCHORED:['Hors ligne ✓','green','Hors ligne, heure reconstituée via l’ancre monotone (fiable)'],OFFLINE_DEVICE:['Appareil ⚠','amber','Hors ligne, heure de l’appareil — à vérifier'],OFFLINE_SYNC:['Sync ⚠','amber','Hors ligne, aucune heure fiable — heure de réception, à vérifier']};
-  const rows=list.map(a=>{
+  let curPf=null, rows="";
+  for(const a of list){
+    const pf=a.portfolio||'(sans portefeuille)';
+    if(pf!==curPf){ curPf=pf; rows+=`<tr style="background:var(--bg-soft,#f3f4f6)"><td colspan="8" style="font-weight:700;color:var(--muted)">${esc(pf)}</td></tr>`; }
     const exc=a.status==='EXCEPTION';
     const reason=REASONS[a.exception_reason]||a.exception_reason||'';
     const ts=TSRC[a.time_source]||['Serveur','green',''];
-    return `<tr${exc&&!a.resolved?' style="background:#fef2f2"':''}>
+    rows+=`<tr${exc&&!a.resolved?' style="background:#fef2f2"':''}>
       <td><b>${esc(a.employee)}</b><div class="note">${esc(a.matricule||'')}</div></td>
       <td>${a.type==='IN'?'Entrée':'Sortie'}</td>
       <td>${fmt(a.server_ts)}${a.time_flag==='REVIEW'&&a.received_ts&&a.received_ts!==a.server_ts?('<div class="note" title="Reçu par le serveur">reçu '+fmt(a.received_ts)+'</div>'):''}</td>
@@ -4853,7 +4858,7 @@ async function pointageReload(){
       <td>${a.distance_m!=null?Math.round(a.distance_m)+' m':'—'}</td>
       <td>${exc?('<span class="tag '+(a.resolved?'gray':'red')+'">'+esc(reason)+(a.resolved?' (résolu)':'')+'</span>'):'<span class="tag green">Normal</span>'}</td>
       <td style="text-align:right;white-space:nowrap">${a.has_photo?('<button class="btn ghost sm" title="Selfie" onclick="pointagePhoto(\''+a.id+'\')">📷</button> '):''}${exc&&!a.resolved?('<button class="btn ghost sm" onclick="pointageResolve(\''+a.id+'\')">Résoudre</button> '):''}<button class="btn ghost sm" title="Modifier" onclick="pointageEdit('${a.id}','${a.server_ts}','${a.type}')">✎</button> <button class="btn ghost sm" title="Supprimer" onclick="pointageDelete('${a.id}')">🗑</button></td>
-    </tr>`; }).join("");
+    </tr>`; }
   g("prBody").innerHTML=`<table style="width:100%"><tr><th>Employé</th><th>Type</th><th>Date/heure</th><th>Source heure</th><th>Site</th><th>Distance</th><th>Statut</th><th></th></tr>${list.length?rows:'<tr><td colspan="8" class="note">Aucun pointage pour ce filtre.</td></tr>'}</table>`;
 }
 async function pointageResolve(aid){
@@ -4976,8 +4981,21 @@ async function insReseauLoad(){
   const g=id=>document.getElementById(id);
   const q=[]; if(g("rnFComp").value)q.push("companyId="+g("rnFComp").value); if(g("rnQ").value)q.push("q="+encodeURIComponent(g("rnQ").value));
   let list=[]; try{ list=await api("/insurance/network"+(q.length?"?"+q.join("&"):"")); }catch(e){ g("rnBody").innerHTML='<div class="err">'+esc(e.message)+'</div>'; return; }
-  const rows=list.slice(0,1000).map(n=>`<tr><td>${esc(n.region||'')}</td><td>${esc(n.ville||'')}</td><td>${esc(n.type||'')}</td><td><b>${esc(n.name||'')}</b></td><td>${esc(n.category||'')}</td><td>${esc(n.address||'')}</td><td>${esc(n.phone||'')}</td><td><button class="btn ghost sm" onclick="insReseauDel('${n.id}')">✕</button></td></tr>`).join("");
-  g("rnBody").innerHTML=`<div class="note" style="margin-bottom:6px">${list.length} établissement(s)${list.length>1000?' (1000 affichés)':''}</div><table style="width:100%"><tr><th>Région</th><th>Ville</th><th>Type</th><th>Prestataire</th><th>Catégorie</th><th>Adresse</th><th>Tél.</th><th></th></tr>${list.length?rows:'<tr><td colspan="8" class="note">Aucun établissement. Importez un fichier Excel.</td></tr>'}</table>`;
+  window._RN_LIST=list; insReseauRender();
+}
+function insReseauRender(){
+  const g=id=>document.getElementById(id);
+  // Groupé par Région (puis Ville, puis Prestataire) + pagination.
+  const list=(window._RN_LIST||[]).slice().sort((a,b)=>String(a.region||'~').localeCompare(String(b.region||'~'),'fr',{sensitivity:'base'})||String(a.ville||'').localeCompare(String(b.ville||''),'fr',{sensitivity:'base'})||String(a.name||'').localeCompare(String(b.name||''),'fr',{sensitivity:'base'}));
+  registerPager("rn", insReseauRender);
+  const page=pageSlice("rn", list);
+  let body="", curReg=null;
+  for(const n of page){
+    const reg=n.region||'(sans région)';
+    if(reg!==curReg){ curReg=reg; body+=`<tr style="background:var(--bg-soft,#f3f4f6)"><td colspan="8" style="font-weight:700;color:var(--muted)">${esc(reg)}</td></tr>`; }
+    body+=`<tr><td>${esc(n.region||'')}</td><td>${esc(n.ville||'')}</td><td>${esc(n.type||'')}</td><td><b>${esc(n.name||'')}</b></td><td>${esc(n.category||'')}</td><td>${esc(n.address||'')}</td><td>${esc(n.phone||'')}</td><td><button class="btn ghost sm" onclick="insReseauDel('${n.id}')">✕</button></td></tr>`;
+  }
+  g("rnBody").innerHTML=`<div class="note" style="margin-bottom:6px">${list.length} établissement(s)</div><table style="width:100%"><tr><th>Région</th><th>Ville</th><th>Type</th><th>Prestataire</th><th>Catégorie</th><th>Adresse</th><th>Tél.</th><th></th></tr>${list.length?body:'<tr><td colspan="8" class="note">Aucun établissement. Importez un fichier Excel.</td></tr>'}</table>${pagerHTML("rn", list.length)}`;
 }
 async function insReseauImport(){
   const g=id=>document.getElementById(id); const f=g("rnFile").files[0]; const msg=g("rnMsg");
@@ -5116,6 +5134,7 @@ async function ayantsDroitView(){
   window._AD_ROWS=emps.map(e=>{
     const cov=covByPf[e.portfolioId]; const list=depByEmp[e.id]||[];
     return { id:e.id, name:((e.firstName||'')+' '+(e.lastName||'')).trim(), mat:e.matricule||'',
+      portfolioId:e.portfolioId, pf:pfName(e.portfolioId),
       company:(cov&&cov.companyName)||'', quota:cov?cov.freeChildren:0, hasCov:!!(cov&&cov.enabled),
       spouse: list.some(d=>d.relation==='SPOUSE'&&d.status==='ACTIVE'),
       kids: list.filter(d=>d.relation==='CHILD'&&d.status==='ACTIVE').length,
@@ -5132,16 +5151,24 @@ async function ayantsDroitView(){
 }
 function adRender(){
   const el=document.getElementById("adQ"); const q=(el&&el.value||"").toLowerCase();
-  const rows=(window._AD_ROWS||[]).filter(r=>!q||r.name.toLowerCase().includes(q)||r.mat.toLowerCase().includes(q));
-  const tr=rows.map(r=>`<tr>
-    <td><b>${esc(r.name)}</b><div class="note">${esc(r.mat)}</div></td>
-    <td>${r.hasCov?esc(r.company||'—'):'<span class="note">pas de couverture</span>'}</td>
-    <td>${r.spouse?'<span class="tag green">oui</span>':'<span class="note">—</span>'}</td>
-    <td>${r.kids} / ${r.quota}${r.kids>r.quota?' <span class="tag amber">dépassé</span>':''}</td>
-    <td>${r.pend?('<span class="tag amber">'+r.pend+' en attente</span>'):''}</td>
-    <td style="white-space:nowrap"><button class="btn ghost sm" onclick="adManage('${r.id}')">Gérer</button></td>
-  </tr>`).join("");
-  document.getElementById("adBody").innerHTML=`<table style="width:100%"><tr><th>Salarié</th><th>Compagnie</th><th>Conjoint</th><th>Enfants</th><th></th><th></th></tr>${rows.length?tr:'<tr><td colspan="6" class="note">Aucun salarié.</td></tr>'}</table>`;
+  let rows=(window._AD_ROWS||[]).filter(r=>!q||r.name.toLowerCase().includes(q)||r.mat.toLowerCase().includes(q));
+  // Groupé par portefeuille, puis par salarié (ordre alphabétique).
+  rows=rows.slice().sort((a,b)=>String(a.pf||'~').localeCompare(String(b.pf||'~'),'fr',{sensitivity:'base'})||a.name.localeCompare(b.name,'fr',{sensitivity:'base'}));
+  registerPager("ad", adRender);
+  const page=pageSlice("ad", rows);
+  let body="", curPf=null;
+  for(const r of page){
+    if(r.pf!==curPf){ curPf=r.pf; body+=`<tr style="background:var(--bg-soft,#f3f4f6)"><td colspan="6" style="font-weight:700;color:var(--muted)">${esc(r.pf||'(sans portefeuille)')}</td></tr>`; }
+    body+=`<tr>
+      <td><b>${esc(r.name)}</b><div class="note">${esc(r.mat)}</div></td>
+      <td>${r.hasCov?esc(r.company||'—'):'<span class="note">pas de couverture</span>'}</td>
+      <td>${r.spouse?'<span class="tag green">oui</span>':'<span class="note">—</span>'}</td>
+      <td>${r.kids} / ${r.quota}${r.kids>r.quota?' <span class="tag amber">dépassé</span>':''}</td>
+      <td>${r.pend?('<span class="tag amber">'+r.pend+' en attente</span>'):''}</td>
+      <td style="white-space:nowrap"><button class="btn ghost sm" onclick="adManage('${r.id}')">Gérer</button></td>
+    </tr>`;
+  }
+  document.getElementById("adBody").innerHTML=`<table style="width:100%"><tr><th>Salarié</th><th>Compagnie</th><th>Conjoint</th><th>Enfants</th><th></th><th></th></tr>${rows.length?body:'<tr><td colspan="6" class="note">Aucun salarié.</td></tr>'}</table>${pagerHTML("ad", rows.length)}`;
 }
 async function adManage(eid){
   const e=(window._AD_EMP||{})[eid]||{}; const cov=(window._AD_COV||{})[e.portfolioId];

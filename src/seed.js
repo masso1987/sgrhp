@@ -270,4 +270,39 @@ function backfillDocTypes() {
   (db.portfolios || []).forEach(p => { if (!Array.isArray(p.requiredCreation)) p.requiredCreation = [CNI]; });
 }
 function ensureReferentials() { seedTenantData("t1"); ensureAccounts(); backfillDocTypes(); save(); }
-module.exports = { seed, ensureReferentials, seedTenantData, CNI };
+
+/**
+ * Permissions exceptionnelles légales (Cameroun — Code du travail, art. 89 &
+ * conventions collectives). Par défaut NON déductibles du congé payé, dans la
+ * limite annuelle usuelle de 10 jours ouvrables. Les jours sont des valeurs par
+ * défaut, modifiables par l'administrateur selon la convention applicable.
+ * Idempotent : ne crée que ce qui manque (repérage par clé légale).
+ */
+const CM_LEGAL_PERMISSIONS = [
+  { key: "mariage_salarie", label: "MARIAGE DU TRAVAILLEUR", days: 4 },
+  { key: "mariage_enfant", label: "MARIAGE D'UN ENFANT", days: 2 },
+  { key: "naissance", label: "NAISSANCE D'UN ENFANT (PATERNITÉ)", days: 3 },
+  { key: "deces_conjoint", label: "DÉCÈS DU CONJOINT", days: 5 },
+  { key: "deces_ascendant", label: "DÉCÈS PÈRE / MÈRE", days: 3 },
+  { key: "deces_enfant", label: "DÉCÈS D'UN ENFANT", days: 3 },
+  { key: "deces_fratrie", label: "DÉCÈS FRÈRE / SŒUR", days: 2 },
+  { key: "deces_belle_famille", label: "DÉCÈS BEAU-PÈRE / BELLE-MÈRE", days: 2 },
+  { key: "demenagement", label: "DÉMÉNAGEMENT", days: 1 },
+  { key: "bapteme_communion", label: "BAPTÊME / COMMUNION D'UN ENFANT", days: 1 },
+];
+function ensureLegalPermissionTypes(tid) {
+  const t = tid || "t1";
+  if (!Array.isArray(db.permissionTypes)) db.permissionTypes = [];
+  const have = new Set(db.permissionTypes.filter(p => (p.tenantId || "t1") === t && p.legalKey).map(p => p.legalKey));
+  let added = 0;
+  for (const p of CM_LEGAL_PERMISSIONS) {
+    if (have.has(p.key)) continue;
+    db.permissionTypes.push({ id: id("pty"), tenantId: t, label: p.label, deductible: false,
+      legal: true, legalKey: p.key, country: "CM", defaultDays: p.days, fields: [], active: true,
+      createdAt: new Date().toISOString() });
+    added++;
+  }
+  if (added) save();
+  return added;
+}
+module.exports = { seed, ensureReferentials, seedTenantData, CNI, ensureLegalPermissionTypes, CM_LEGAL_PERMISSIONS };

@@ -476,8 +476,10 @@ router.post("/terminal/attendance", terminalAuth, attUpload.single("photo"), (re
 
 /* ============================ DEMANDE DE PERMISSION (circuit congé) ============================ */
 router.get("/me/permission-types", empAuth, (req, res) => {
+  try { require("../seed").ensureLegalPermissionTypes(req.emp.tenantId); } catch (e) {}
   const list = (db.permissionTypes || []).filter(p => (p.tenantId || "t1") === req.emp.tenantId && p.active !== false);
   res.json(list.map(p => ({ id: p.id, label: p.label, deductible: !!p.deductible,
+    legal: !!p.legal, default_days: p.defaultDays || null,
     fields: (p.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type || "text", required: !!f.required, options: f.options || [] })) })));
 });
 router.post("/me/permission", empAuth, (req, res) => {

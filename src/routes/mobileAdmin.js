@@ -100,6 +100,22 @@ router.post("/sites/:id/assign", allow("ADM"), (req, res) => {
   db.siteAssignments.push(stamp({ id: id("sasg"), siteId: s.id, employeeId: eid, createdAt: now() }, req)); save();
   res.json({ ok: true });
 });
+/* Affecter TOUT un portefeuille à un site : tous les employés (non archivés, non
+ * en sommeil) du portefeuille sont liés au site. Les retraits individuels restent
+ * possibles ensuite via /sites/:id/assign/:eid. */
+router.post("/sites/:id/assign-portfolio", allow("ADM"), (req, res) => {
+  const s = mine(db.sites, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Site introuvable" });
+  const pf = req.body && req.body.portfolioId; if (!pf) return res.status(400).json({ error: "portfolioId requis" });
+  const { isDormant } = require("../empState");
+  const emps = mine(db.employees, req).filter(e => e.portfolioId === pf
+    && String(e.status || "").toUpperCase() !== "ARCHIVED" && !isDormant(e));
+  const already = new Set(mine(db.siteAssignments, req).filter(a => a.siteId === s.id).map(a => a.employeeId));
+  let added = 0;
+  for (const e of emps) { if (already.has(e.id)) continue; db.siteAssignments.push(stamp({ id: id("sasg"), siteId: s.id, employeeId: e.id, createdAt: now() }, req)); added++; }
+  if (added) save();
+  audit(req.user, "SITE_ASSIGN_PORTFOLIO", "Site", s.id, { portfolioId: pf, added });
+  res.json({ ok: true, added, total: emps.length });
+});
 router.delete("/sites/:id/assign/:eid", allow("ADM"), (req, res) => {
   db.siteAssignments = db.siteAssignments.filter(a => !((a.tenantId || "t1") === (req.user.tenantId || "t1") && a.siteId === req.params.id && a.employeeId === req.params.eid));
   save(); res.json({ ok: true });
@@ -137,13 +153,22 @@ router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
   const { from, to, status } = req.query;
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   const siteById = {}; mine(db.sites, req).forEach(s => { siteById[s.id] = s; });
+  const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
   let list = mine(db.attendance, req);
   if (from) list = list.filter(a => (a.serverTs || "") >= from);
   if (to) list = list.filter(a => (a.serverTs || "") <= to + "T23:59:59");
   if (status) list = list.filter(a => a.status === status);
-  list = list.sort((a, b) => (b.serverTs || "").localeCompare(a.serverTs || "")).slice(0, 500);
+  // Tri groupé : portefeuille, puis employé (ordre alphabétique), puis date décroissante.
+  list = list.sort((a, b) => {
+    const ea = empById[a.employeeId] || {}, eb = empById[b.employeeId] || {};
+    const pa = (pfById[ea.portfolioId] || {}).name || "~", pb = (pfById[eb.portfolioId] || {}).name || "~";
+    return pa.localeCompare(pb, "fr", { sensitivity: "base" })
+      || `${ea.lastName || ""} ${ea.firstName || ""}`.localeCompare(`${eb.lastName || ""} ${eb.firstName || ""}`, "fr", { sensitivity: "base" })
+      || (b.serverTs || "").localeCompare(a.serverTs || "");
+  }).slice(0, 1000);
   res.json(list.map(a => { const e = empById[a.employeeId] || {}; const s = siteById[a.siteId] || {};
     return { id: a.id, employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", type: a.type,
+      portfolio: (pfById[e.portfolioId] || {}).name || "", portfolioId: e.portfolioId || "",
       server_ts: a.serverTs, received_ts: a.receivedTs || a.serverTs, client_ts: a.clientTs,
       time_source: a.timeSource || "SERVER", time_flag: a.timeFlag || null,
       site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
@@ -392,7 +417,10 @@ router.delete("/terminals/:id", allow("ADM"), (req, res) => {
 });
 
 /* ---------------- Types de permission (admin définit libellé + champs) ---------------- */
-router.get("/permission-types", allow("ADM", "GPF", "CD", "RJ"), (req, res) => res.json(mine(db.permissionTypes, req)));
+router.get("/permission-types", allow("ADM", "GPF", "CD", "RJ"), (req, res) => {
+  try { require("../seed").ensureLegalPermissionTypes(req.user.tenantId || "t1"); } catch (e) {}
+  res.json(mine(db.permissionTypes, req));
+});
 router.post("/permission-types", allow("ADM"), (req, res) => {
   const b = req.body || {};
   if (!b.label) return res.status(400).json({ error: "Libellé requis" });
