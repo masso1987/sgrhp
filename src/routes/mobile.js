@@ -139,7 +139,7 @@ router.get("/me", empAuth, (req, res) => {
     department: (e.contract && e.contract.department) || "", company: t.name, companyLogo: t.branding && t.branding.appLogo || null,
     email: e.email || "", phone: e.phone || e.mobile || "", supervisor: sup ? (sup.fullName || "") : "",
     photo: e.photo || null,
-    is_supervisor: (db.employees || []).some(x => (x.tenantId || "t1") === req.emp.tenantId && x.supervisorEmpId === req.emp.employeeId),
+    is_supervisor: require("../empState").isFieldSupervisor(db, req.emp.tenantId, req.emp.employeeId),
   });
 });
 router.get("/me/dashboard", empAuth, (req, res) => {
@@ -161,7 +161,7 @@ router.get("/me/dashboard", empAuth, (req, res) => {
     latest_payslip: payslips[0] ? { id: payslips[0].id, period: payslips[0].period } : null,
     notifications_unread: notifs.filter(n => !n.read).length,
     selfie_required: attSelfieRequired(req.emp.tenantId),
-    is_supervisor: (db.employees || []).some(x => (x.tenantId || "t1") === req.emp.tenantId && x.supervisorEmpId === req.emp.employeeId),
+    is_supervisor: require("../empState").isFieldSupervisor(db, req.emp.tenantId, req.emp.employeeId),
     sites_count: new Set(empScoped("siteAssignments", req.emp.tenantId).filter(a => a.employeeId === req.emp.employeeId).map(a => a.siteId)).size,
   });
 });
@@ -399,8 +399,8 @@ router.get("/me/my-sites", empAuth, (req, res) => {
 /* ============================ POINTAGE SUPERVISEUR (pour son équipe) ============================ */
 // Un employé « superviseur » pointe pour les membres de son équipe (photo = preuve).
 function myTeam(req) {
-  return (db.employees || []).filter(e => (e.tenantId || "t1") === req.emp.tenantId
-    && e.supervisorEmpId === req.emp.employeeId && String(e.status || "").toUpperCase() !== "ARCHIVED");
+  // Équipe = liens directs + portefeuilles supervisés + employés rattachés (collection supervisions).
+  return require("../empState").supervisedEmployees(db, req.emp.tenantId, req.emp.employeeId);
 }
 function teamStatus(req, e) {
   const t = todayStr();
@@ -419,6 +419,13 @@ function teamPunch(req, res, type) {
   const e = myTeam(req).find(x => x.id === req.params.eid);
   if (!e) return res.status(404).json({ error: "Employé introuvable dans votre équipe" });
   if (attSelfieRequired(req.emp.tenantId) && !req.file) return res.status(200).json({ success: false, reason: "SELFIE_REQUIRED", message: "Une photo de l'employé est requise pour pointer." });
+  // Détection de doublon : l'employé a pu pointer lui-même. On ne crée pas un
+  // second pointage dans le même sens le même jour.
+  const st = teamStatus(req, e).status;
+  if (type === "IN" && st === "CHECKED_IN")
+    return res.status(200).json({ success: false, reason: "ALREADY_CHECKED_IN", message: `${e.firstName || ""} a déjà pointé son arrivée aujourd'hui.` });
+  if (type === "OUT" && st !== "CHECKED_IN")
+    return res.status(200).json({ success: false, reason: "NOT_CHECKED_IN", message: `${e.firstName || ""} n'a pas d'arrivée ouverte à clôturer.` });
   const out = recordAttendance({ tenantId: req.emp.tenantId, employeeId: e.id }, type, req.body || {}, { source: "SUPERVISOR", onBehalfOf: req.emp.employeeId });
   if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
   if (req.file && out.rec) out.rec.photo = req.file.filename;

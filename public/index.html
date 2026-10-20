@@ -4705,12 +4705,44 @@ async function supervView(){
       <td><select id="supSel_${e.id}" style="min-width:220px">${opt(e.supervisorEmpId||'')}</select></td>
       <td><button class="btn p sm" onclick="supSave('${e.id}')">Enreg.</button></td>
     </tr>`).join("");
+  let pfs=[]; try{ pfs=await api("/portfolios"); }catch(e){}
+  window._SUP_PFS=pfs;
+  const supOpts='<option value="">— choisir un superviseur —</option>'+emps.map(e=>`<option value="${e.id}">${esc(_empName(e))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
   view.innerHTML=`${_presTabs('superv')}<h1 style="margin-top:0">Superviseurs</h1>
-    <div class="note" style="margin-bottom:8px">Désignez le superviseur de chaque employé. Un superviseur peut pointer l'arrivée et la sortie des membres de son équipe depuis l'application mobile (une photo de preuve est demandée). Un employé ne peut pas être son propre superviseur.</div>
-    <div class="panel" style="margin-bottom:10px"><input id="supSearch" placeholder="Rechercher un employé…" oninput="supFilter()" style="width:100%;max-width:340px"></div>
+    <div class="note" style="margin-bottom:8px">Un <b>superviseur terrain</b> pointe l'arrivée et la sortie des membres de son équipe depuis l'application mobile (photo de preuve). Deux façons de constituer une équipe : affecter un superviseur à chaque employé (tableau ci-dessous), ou donner à un superviseur un <b>périmètre</b> = un ou plusieurs portefeuilles / employés (panneau « Périmètres »). Les employés peuvent toujours pointer eux-mêmes ; un double pointage dans le même sens est détecté.</div>
+    <div class="panel" style="margin-bottom:12px">
+      <b style="font-size:12px;color:var(--muted)">PÉRIMÈTRES DE SUPERVISION (portefeuille ou employé → superviseur)</b>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:8px 0">
+        <div><label>Superviseur</label><select id="supPerimSel" onchange="supPerimLoad()" style="min-width:240px">${supOpts}</select></div>
+        <label class="chk" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="supFieldChk" onchange="supFieldToggle()" style="width:auto"> Superviseur terrain (voit l'écran équipe sur mobile)</label>
+      </div>
+      <div id="supPerimBox" class="note">Choisissez un superviseur pour gérer son périmètre.</div>
+    </div>
+    <div class="panel" style="margin-bottom:10px"><b style="font-size:12px;color:var(--muted)">AFFECTATION DIRECTE (un superviseur par employé)</b><br><input id="supSearch" placeholder="Rechercher un employé…" oninput="supFilter()" style="width:100%;max-width:340px;margin-top:6px"></div>
     <div class="panel" style="overflow-x:auto"><table id="supTbl" style="width:100%;min-width:560px"><tr><th>Employé</th><th>Superviseur</th><th></th></tr>
       ${emps.length?rows:'<tr><td colspan="3" class="note">Aucun employé.</td></tr>'}</table></div>`;
 }
+async function supPerimLoad(){
+  const sid=(document.getElementById("supPerimSel")||{}).value; const box=document.getElementById("supPerimBox");
+  if(!sid){ box.innerHTML="Choisissez un superviseur pour gérer son périmètre."; return; }
+  const sup=(window._SUPEMPS||[]).find(e=>e.id===sid)||{};
+  document.getElementById("supFieldChk").checked=!!sup.fieldSupervisor;
+  let links=[]; try{ links=await api("/supervisions?supervisorEmpId="+sid); }catch(e){ box.innerHTML='<span class="err">'+esc(e.message)+'</span>'; return; }
+  const pfOpts=(window._SUP_PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  const empOpts=(window._SUPEMPS||[]).filter(e=>e.id!==sid).map(e=>`<option value="${e.id}">${esc(_empName(e))}</option>`).join("");
+  const rows=links.map(l=>`<tr><td>${l.scope==='PORTFOLIO'?'Portefeuille':'Employé'}</td><td>${esc(l.targetLabel)}</td><td style="text-align:right"><button class="btn ghost sm" onclick="supLinkDel('${l.id}')">Retirer</button></td></tr>`).join("");
+  box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
+      <div><label>Ajouter un portefeuille</label><select id="supPfAdd"><option value="">—</option>${pfOpts}</select></div>
+      <button class="btn p sm" onclick="supLinkAdd('${sid}','PORTFOLIO')">+ Portefeuille</button>
+      <span style="width:1px;background:var(--border);align-self:stretch"></span>
+      <div><label>Ajouter un employé</label><select id="supEmpAdd"><option value="">—</option>${empOpts}</select></div>
+      <button class="btn p sm" onclick="supLinkAdd('${sid}','EMPLOYEE')">+ Employé</button>
+    </div>
+    <table style="width:100%"><tr><th>Type</th><th>Cible</th><th></th></tr>${links.length?rows:'<tr><td colspan="3" class="note">Aucun périmètre. Ajoutez un portefeuille ou un employé.</td></tr>'}</table>`;
+}
+async function supFieldToggle(){ const sid=(document.getElementById("supPerimSel")||{}).value; if(!sid)return; const en=document.getElementById("supFieldChk").checked; try{ await api("/employees/"+sid+"/field-supervisor",{method:"PUT",body:JSON.stringify({enabled:en})}); const e=(window._SUPEMPS||[]).find(x=>x.id===sid); if(e)e.fieldSupervisor=en; }catch(err){ alert(err.message); } }
+async function supLinkAdd(sid,scope){ const sel=document.getElementById(scope==='PORTFOLIO'?"supPfAdd":"supEmpAdd"); const tid=sel&&sel.value; if(!tid){ alert("Choisissez une cible."); return; } try{ await api("/supervisions",{method:"POST",body:JSON.stringify({supervisorEmpId:sid,scope,targetId:tid})}); supPerimLoad(); }catch(e){ alert(e.message); } }
+async function supLinkDel(id){ try{ await api("/supervisions/"+id,{method:"DELETE"}); supPerimLoad(); }catch(e){ alert(e.message); } }
 function supFilter(){ const q=(document.getElementById("supSearch").value||'').toLowerCase().trim(); document.querySelectorAll('#supTbl tr[data-emp]').forEach(tr=>{ tr.style.display=(!q||tr.getAttribute('data-name').includes(q))?'':'none'; }); }
 async function supSave(eid){ const sel=document.getElementById("supSel_"+eid); try{ await api("/employees/"+eid+"/supervisor",{method:"PUT",body:JSON.stringify({supervisorEmpId:sel.value||null})}); sel.style.outline="2px solid var(--green)"; setTimeout(()=>sel.style.outline="",900); const e=(window._SUPEMPS||[]).find(x=>x.id===eid); if(e)e.supervisorEmpId=sel.value||null; }catch(err){ alert(err.message); } }
 /* ---------------- Bornes de pointage (terminaux sur site) ---------------- */

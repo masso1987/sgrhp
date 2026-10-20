@@ -378,10 +378,54 @@ router.put("/employees/:eid/supervisor", allow("GPF", "ADM"), (req, res) => {
   audit(req.user, "CONFIG_CHANGED", "Employee", e.id, { supervisorEmpId: sid });
   res.json({ ok: true, supervisorEmpId: sid });
 });
-// Membres de l'équipe d'un superviseur (pour l'UI d'affectation).
+// Membres de l'équipe d'un superviseur (direct + portefeuilles + employés rattachés).
 router.get("/employees/:eid/team", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
-  res.json(mine(db.employees, req).filter(x => x.supervisorEmpId === req.params.eid)
-    .map(x => ({ id: x.id, matricule: x.matricule || "", name: `${x.firstName || ""} ${x.lastName || ""}`.trim() })));
+  const list = require("../empState").supervisedEmployees(db, req.user.tenantId || "t1", req.params.eid);
+  res.json(list.map(x => ({ id: x.id, matricule: x.matricule || "", name: `${x.firstName || ""} ${x.lastName || ""}`.trim() })));
+});
+// Marquer / démarquer un employé comme « superviseur terrain » (voit l'écran équipe sur mobile).
+router.put("/employees/:eid/field-supervisor", allow("GPF", "ADM"), (req, res) => {
+  const e = mine(db.employees, req).find(x => x.id === req.params.eid);
+  if (!e) return res.status(404).json({ error: "Employé introuvable" });
+  e.fieldSupervisor = !!(req.body && req.body.enabled);
+  save(); audit(req.user, "CONFIG_CHANGED", "Employee", e.id, { fieldSupervisor: e.fieldSupervisor });
+  res.json({ ok: true, fieldSupervisor: e.fieldSupervisor });
+});
+/* ---------------- Liens de supervision (portefeuille OU employé → superviseur) ---------------- */
+router.get("/supervisions", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  const nm = e => e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : "";
+  const filt = req.query.supervisorEmpId;
+  let list = mine(db.supervisions, req);
+  if (filt) list = list.filter(s => s.supervisorEmpId === filt);
+  res.json(list.map(s => ({ id: s.id, supervisorEmpId: s.supervisorEmpId, supervisor: nm(empById[s.supervisorEmpId]),
+    scope: s.scope, targetId: s.targetId,
+    targetLabel: s.scope === "PORTFOLIO" ? ((pfById[s.targetId] || {}).name || s.targetId) : nm(empById[s.targetId]) })));
+});
+router.post("/supervisions", allow("GPF", "ADM"), (req, res) => {
+  const b = req.body || {};
+  const sup = mine(db.employees, req).find(x => x.id === b.supervisorEmpId);
+  if (!sup) return res.status(400).json({ error: "Superviseur (employé) introuvable" });
+  const scope = b.scope === "PORTFOLIO" ? "PORTFOLIO" : "EMPLOYEE";
+  if (!b.targetId) return res.status(400).json({ error: "Cible requise" });
+  if (scope === "PORTFOLIO" && !mine(db.portfolios, req).some(p => p.id === b.targetId)) return res.status(400).json({ error: "Portefeuille introuvable" });
+  if (scope === "EMPLOYEE") {
+    if (b.targetId === sup.id) return res.status(400).json({ error: "Un superviseur ne se supervise pas lui-même." });
+    if (!mine(db.employees, req).some(e => e.id === b.targetId)) return res.status(400).json({ error: "Employé cible introuvable" });
+  }
+  if (mine(db.supervisions, req).some(s => s.supervisorEmpId === sup.id && s.scope === scope && s.targetId === b.targetId))
+    return res.json({ ok: true, duplicate: true });
+  const rec = stamp({ id: id("sup"), supervisorEmpId: sup.id, scope, targetId: b.targetId, createdAt: now() }, req);
+  db.supervisions.push(rec); sup.fieldSupervisor = true; save();
+  audit(req.user, "CREATED", "Supervision", rec.id, { supervisorEmpId: sup.id, scope, targetId: b.targetId });
+  res.status(201).json(rec);
+});
+router.delete("/supervisions/:id", allow("GPF", "ADM"), (req, res) => {
+  const s = mine(db.supervisions, req).find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: "Introuvable" });
+  db.supervisions.splice(db.supervisions.indexOf(s), 1); save();
+  res.json({ ok: true });
 });
 
 /* ---------------- Terminaux de pointage (bornes sur site) ---------------- */

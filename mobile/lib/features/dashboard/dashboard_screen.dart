@@ -46,6 +46,18 @@ class _Content extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
       children: [
+        if (d['_offline'] == true)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(color: AppColors.warning.withOpacity(.14), borderRadius: BorderRadius.circular(12)),
+            child: Row(children: const [
+              Icon(Icons.cloud_off_rounded, size: 16, color: AppColors.warning),
+              SizedBox(width: 8),
+              Expanded(child: Text('Mode hors-ligne — données en cache, en attente de synchronisation.',
+                  style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.w600, fontSize: 12.5))),
+            ]),
+          ),
         // Gradient header
         Container(
           margin: const EdgeInsets.only(bottom: 6),

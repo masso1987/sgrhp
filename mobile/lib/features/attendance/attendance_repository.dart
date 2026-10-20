@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../core/network/api_client.dart';
 import '../../core/db/local_db.dart';
 import '../../core/time/boot_clock.dart';
+import '../../core/cache/json_cache.dart';
 import 'sync_service.dart';
 
 /// Attendance + dashboard data. GPS is read ONLY at punch time (no background
@@ -21,10 +22,23 @@ class AttendanceRepository {
   LocalDb get _db => _ref.read(localDbProvider);
 
   Future<Map<String, dynamic>> dashboard() async {
-    final r = await _ref.read(apiClientProvider).get('/me/dashboard');
-    // Opportunistically refresh the trusted-time anchor while we're online.
-    refreshAnchor();
-    return Map<String, dynamic>.from(r.data as Map);
+    try {
+      final r = await _ref.read(apiClientProvider).get('/me/dashboard');
+      // Opportunistically refresh the trusted-time anchor while we're online.
+      refreshAnchor();
+      final m = Map<String, dynamic>.from(r.data as Map);
+      JsonCache.write('dashboard', m); // cache pour le mode hors-ligne
+      return m;
+    } on ApiException catch (e) {
+      // Hors-ligne (aucun statut HTTP) : on sert la dernière valeur connue.
+      if (e.status == null) {
+        final c = await JsonCache.read('dashboard');
+        if (c != null && c.value is Map) {
+          return { ...Map<String, dynamic>.from(c.value as Map), '_offline': true, '_cached_at': c.at?.toIso8601String() };
+        }
+      }
+      rethrow;
+    }
   }
 
   /// Capture a trusted-time anchor from the server: server epoch ms + the boot
@@ -51,8 +65,17 @@ class AttendanceRepository {
   }
 
   Future<List<dynamic>> sites() async {
-    final r = await _ref.read(apiClientProvider).get('/me/sites');
-    return (r.data as List);
+    try {
+      final r = await _ref.read(apiClientProvider).get('/me/sites');
+      JsonCache.write('sites', r.data);
+      return (r.data as List);
+    } on ApiException catch (e) {
+      if (e.status == null) {
+        final c = await JsonCache.read('sites');
+        if (c != null && c.value is List) return c.value as List;
+      }
+      rethrow;
+    }
   }
 
   Future<Position> _position() async {

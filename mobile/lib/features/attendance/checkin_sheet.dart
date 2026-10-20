@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -43,17 +44,24 @@ class _St extends ConsumerState<_CheckInSheet> {
   }
 
   final _picker = ImagePicker();
+  XFile? _selfie; // selfie pris, avec possibilité de reprendre avant de confirmer
+
+  Future<void> _takeSelfie() async {
+    try {
+      final x = await _picker.pickImage(source: ImageSource.camera, preferredCameraDevice: CameraDevice.front, imageQuality: 55, maxWidth: 1080);
+      if (x != null) setState(() { _selfie = x; _error = null; });
+    } catch (e) {
+      setState(() => _error = "Impossible d'ouvrir la caméra : $e");
+    }
+  }
 
   Future<void> _submit() async {
     setState(() { _busy = true; _error = null; });
     try {
-      // Take a selfie as proof (front camera). If the user cancels, we still try —
-      // the server rejects with a clear message when a selfie is mandatory.
-      XFile? selfie;
-      try {
-        selfie = await _picker.pickImage(source: ImageSource.camera, preferredCameraDevice: CameraDevice.front, imageQuality: 55, maxWidth: 1080);
-      } catch (_) {}
-      final r = await ref.read(attendanceRepoProvider).punch(checkIn: widget.checkIn, siteId: _siteId, photoPath: selfie?.path);
+      // La photo déjà prise (et éventuellement reprise) sert de preuve. Si une
+      // photo est obligatoire côté serveur et qu'il n'y en a pas, le serveur
+      // répond clairement (SELFIE_REQUIRED).
+      final r = await ref.read(attendanceRepoProvider).punch(checkIn: widget.checkIn, siteId: _siteId, photoPath: _selfie?.path);
       setState(() => _result = r);
       ref.invalidate(dashboardProvider);
     } catch (e) {
@@ -107,6 +115,19 @@ class _St extends ConsumerState<_CheckInSheet> {
           ),
           const SizedBox(height: 20),
         ],
+        // Selfie de preuve avec aperçu + possibilité de reprendre.
+        const Align(alignment: Alignment.centerLeft, child: Text('Photo (preuve)', style: TextStyle(fontWeight: FontWeight.w600))),
+        const SizedBox(height: 6),
+        if (_selfie == null)
+          OutlinedButton.icon(onPressed: _busy ? null : _takeSelfie, icon: const Icon(Icons.photo_camera_rounded), label: const Text('Prendre une photo'))
+        else
+          Row(children: [
+            ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(_selfie!.path), width: 54, height: 54, fit: BoxFit.cover)),
+            const SizedBox(width: 10),
+            const Expanded(child: Text('Photo prête', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600))),
+            TextButton.icon(onPressed: _busy ? null : _takeSelfie, icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Reprendre')),
+          ]),
+        const SizedBox(height: 16),
         if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, style: const TextStyle(color: AppColors.danger), textAlign: TextAlign.center)),
         FilledButton.icon(
           style: FilledButton.styleFrom(backgroundColor: widget.checkIn ? AppColors.brand : AppColors.danger),

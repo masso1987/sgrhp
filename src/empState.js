@@ -24,4 +24,35 @@ function isDormant(emp) {
   return false;
 }
 
-module.exports = { isDormant, todayStr };
+/**
+ * Ensemble des employés supervisés par un superviseur (employé « superviseur
+ * terrain »). Trois sources cumulées :
+ *   - lien direct : employé dont supervisorEmpId == superviseur ;
+ *   - lien portefeuille : tous les employés d'un portefeuille supervisé ;
+ *   - lien employé : employés explicitement rattachés (collection supervisions).
+ * Exclut les archivés et les employés en sommeil. L'employé peut toujours
+ * pointer pour lui-même ; la supervision s'ajoute, elle ne remplace pas.
+ */
+function supervisedEmployees(db, tenantId, supervisorEmpId) {
+  const t = tenantId || "t1";
+  const emps = (db.employees || []).filter(e => (e.tenantId || "t1") === t
+    && String(e.status || "").toUpperCase() !== "ARCHIVED" && !isDormant(e));
+  const links = (db.supervisions || []).filter(s => (s.tenantId || "t1") === t && s.supervisorEmpId === supervisorEmpId);
+  const pfs = new Set(links.filter(l => l.scope === "PORTFOLIO").map(l => l.targetId));
+  const direct = new Set(links.filter(l => l.scope === "EMPLOYEE").map(l => l.targetId));
+  const out = new Map();
+  for (const e of emps) {
+    if (e.id === supervisorEmpId) continue; // pas soi-même
+    if (e.supervisorEmpId === supervisorEmpId || pfs.has(e.portfolioId) || direct.has(e.id)) out.set(e.id, e);
+  }
+  return [...out.values()];
+}
+
+/** Vrai si l'employé supervise au moins un collègue (ou est marqué superviseur terrain). */
+function isFieldSupervisor(db, tenantId, empId) {
+  const e = (db.employees || []).find(x => x.id === empId);
+  if (e && e.fieldSupervisor === true) return true;
+  return supervisedEmployees(db, tenantId, empId).length > 0;
+}
+
+module.exports = { isDormant, todayStr, supervisedEmployees, isFieldSupervisor };

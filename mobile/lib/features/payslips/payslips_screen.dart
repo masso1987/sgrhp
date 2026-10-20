@@ -5,12 +5,24 @@ import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/providers.dart';
+import '../../core/network/api_client.dart';
+import '../../core/cache/json_cache.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
 
 final payslipsProvider = FutureProvider.autoDispose((ref) async {
-  final r = await ref.read(apiClientProvider).get('/me/payslips');
-  return (r.data as List);
+  try {
+    final r = await ref.read(apiClientProvider).get('/me/payslips');
+    JsonCache.write('payslips', r.data);
+    return (r.data as List);
+  } on ApiException catch (e) {
+    // Hors-ligne : derniers bulletins connus (la liste ; les PDF nécessitent le réseau).
+    if (e.status == null) {
+      final c = await JsonCache.read('payslips');
+      if (c != null && c.value is List) return c.value as List;
+    }
+    rethrow;
+  }
 });
 
 class PayslipsScreen extends ConsumerWidget {
