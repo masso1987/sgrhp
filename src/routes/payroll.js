@@ -637,7 +637,7 @@ router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
   if (!b.code || !b.label) return res.status(400).json({ error: "Code et libellé obligatoires" });
   if (mine(db.payRubriques, req).some(r => r.code === b.code))
     return res.status(409).json({ error: `Le code ${b.code} existe déjà` });
-  const r = stamp({ id: id("rub"), code: String(b.code), label: b.label, family: b.family || "BRUT",
+  const r = stamp({ id: id("rub"), code: String(b.code), label: String(b.label).toUpperCase(), family: b.family || "BRUT",
     formula: b.formula || "Montant pris tel quel", base: b.base || null, nombre: b.nombre || null,
     taux: b.taux != null && b.taux !== "" ? Number(b.taux) : null,
     tauxPat: b.tauxPat != null && b.tauxPat !== "" ? Number(b.tauxPat) : null,
@@ -656,7 +656,7 @@ router.post("/rubriques/import-catalogue", allow("RP", "ADM"), (req, res) => {
   for (const r of CATALOGUE) {
     if (have.has(r.code)) continue;
     db.payRubriques.push(stamp({
-      id: id("rub"), code: r.code, label: r.label, family: r.family,
+      id: id("rub"), code: r.code, label: String(r.label).toUpperCase(), family: r.family,
       formula: r.formula, base: r.base || null, nombre: r.nombre || null,
       taux: r.taux != null ? r.taux : null, tauxPat: r.tauxPat != null ? r.tauxPat : null,
       cnps: !!r.cnps, impo: !!r.impo, sens: r.sens || "GAIN",
@@ -710,6 +710,7 @@ router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
     r[f] = (f === "taux" || f === "tauxPat") ? (b[f] === "" || b[f] == null ? null : Number(b[f]))
       : (f === "cnps" || f === "impo" || f === "active") ? !!b[f] : b[f];
   }
+  if (r.label != null) r.label = String(r.label).toUpperCase(); // libellés de rubrique toujours en MAJUSCULES
   save();
   // Répercuter la modification sur les bulletins déjà calculés (périodes ouvertes, hors corrections manuelles).
   const recompute = recomputeAffectedPayslips(req, before.code);
@@ -1811,9 +1812,14 @@ router.post("/runs/:id/compute", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (r
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   if (run.status === "CLOSED") return res.status(409).json({ error: "Paie clôturée" });
 
+  const { isDormant } = require("../empState");
   const pfId = req.body && req.body.portfolioId;
   let emps = mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED");
   if (pfId) emps = emps.filter(e => e.portfolioId === pfId);
+  // Employés en sommeil (contrat terminé) : paie NON traitée. Ils restent visibles
+  // dans le rôle (verrouillés) et leurs bulletins passés restent consultables (duplicata),
+  // mais on ne (re)calcule jamais leur paie.
+  emps = emps.filter(e => !isDormant(e));
   const empIds = new Set(emps.map(e => e.id));
   // clear previous payslips for this run (scoped to the selected portfolio when given)
   db.payslips = db.payslips.filter(s => !(s.runId === run.id && (s.tenantId || "t1") === (run.tenantId || "t1") && (!pfId || empIds.has(s.employeeId))));
@@ -1911,16 +1917,18 @@ router.post("/runs/:id/timesheet", allow("RP", "ADM", "GPF", "CD", "RJ"), tsUplo
 router.get("/runs/:id/roster", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
+  const { isDormant } = require("../empState");
   const byEmp = {}; mine(db.payslips, req).filter(s => s.runId === run.id).forEach(s => { byEmp[s.employeeId] = s; });
   const _pfName = {}; mine(db.portfolios, req).forEach(p => { _pfName[p.id] = (p.name || "").toLowerCase(); });
   const roster = mine(db.employees, req)
     .filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
     .sort((a, b) => (_pfName[a.portfolioId] || "~").localeCompare(_pfName[b.portfolioId] || "~", "fr", { sensitivity: "base" }) ||
       `${a.firstName||""} ${a.lastName||""}`.localeCompare(`${b.firstName||""} ${b.lastName||""}`, "fr", { sensitivity: "base" }))
-    .map(e => { const s = byEmp[e.id]; return {
+    .map(e => { const s = byEmp[e.id]; const dormant = isDormant(e); return {
       employeeId: e.id, name: `${e.firstName} ${e.lastName}`, matricule: e.matricule || e.id.slice(-6),
       portfolioId: e.portfolioId, category: (e.contract && e.contract.category) || "",
-      hasBase: baseSalaryOf(e, req) > 0, status: s ? s.status : "PENDING",
+      hasBase: baseSalaryOf(e, req) > 0, status: dormant ? "LOCKED" : (s ? s.status : "PENDING"),
+      dormant,
       net: s ? s.result.totals.netAPayer : null, brut: s ? s.result.totals.brutTotal : null,
       contractType: (e.contract && e.contract.type) || "", contractEnd: (e.contract && e.contract.endDate) || null,
       payslipId: s ? s.id : null, edited: s ? !!s.edited : false };
@@ -1936,6 +1944,7 @@ router.post("/runs/:id/employees/:eid/compute", allow("RP", "ADM", "GPF", "CD", 
   if (run.status === "CLOSED") return res.status(409).json({ error: "Paie cloturee" });
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
   if (!emp) return res.status(404).json({ error: "Employe introuvable" });
+  if (require("../empState").isDormant(emp)) return res.status(409).json({ error: "Employé en sommeil (contrat terminé) : sa paie ne peut plus être traitée. Ses bulletins passés restent consultables (duplicata)." });
   if (!baseSalaryOf(emp, req)) return res.status(422).json({ error: "Salaire de base introuvable (grille ou structure de paie)" });
   const { input, result } = computeFor(emp, run.period, req);
   let s = mine(db.payslips, req).find(x => x.runId === run.id && x.employeeId === emp.id);

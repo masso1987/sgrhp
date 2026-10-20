@@ -1702,7 +1702,7 @@ function empRender() {
   empList.innerHTML = list.length ? `<div class="panel" style="padding-top:6px">
     <table style="margin-top:6px"><tr><th>Nom</th><th>Matricule</th><th>Portefeuille</th><th>Contrat</th><th>Catégorie</th><th>Embauché</th><th>Statut</th><th>Pièces</th><th></th></tr>
     ${rows.map(e => { const done = e.checklist.filter(c =>c.uploaded).length, tot = e.checklist.length;
-      return `<tr><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b></td><td>${esc(e.matricule || "-")}</td>
+      return `<tr${e.dormant?' style="opacity:.72"':''}><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b>${e.dormant?' <span class="tag gray" title="Contrat terminé — employé en sommeil, fiche verrouillée">🔒 Sommeil</span>':''}</td><td>${esc(e.matricule || "-")}</td>
       <td>${esc(pfName(e.portfolioId))}</td>
       <td>${esc((e.contract && e.contract.type) || "-")}</td><td>${esc((e.contract && e.contract.category) || "-")}</td>
       <td>${e.hireDate || "-"}</td><td>${ST_TAG(e.status || "DRAFT")}</td>
@@ -2560,9 +2560,9 @@ async function empDetail(id) {
     `<div class="note" style="background:var(--red-bg);border-color:#fca5a5"><b>Rejected by ${lastReject.stage}:</b> ${esc(lastReject.rejectReason)} - correct and resubmit (new cycle).</div>` : "";
 
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
-    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status) : ST_TAG(e.status || "DRAFT")}
+    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status) : ST_TAG(e.status || "DRAFT")}${e.dormant?' <span class="tag gray" title="Contrat terminé — fiche verrouillée. Ouvrez un nouveau contrat pour réactiver.">🔒 Sommeil</span>':''}
   <span style="float:right;display:inline-flex;gap:6px">
-    ${(ME.role === "ADM" || ME.role === "GPF" || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">Modifier</button>` : ""}
+    ${e.dormant ? '<span class="note" style="align-self:center">Fiche verrouillée (sommeil)</span>' : ((ME.role === "ADM" || ME.role === "GPF" || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">Modifier</button>` : "")}
     ${(ME.role === "ADM" || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">Supprimer</button>` : ""}
     <button class="btn ghost sm" onclick="empExport('${e.id}','${esc(e.lastName)}')">Dossier (PDF)</button></span></h1>
     ${rejBanner}
@@ -6592,7 +6592,7 @@ let PAY_EMPS = null;
 let PAY_RUN = null, PAY_ROSTER = [], PAY_ROSTER_IDS = [], BULLETIN_TAB = "elements";
 let PAY_SLIPS = [], PAY_EMP_PF = {}, PAY_RUN_OPEN = true;
 function rosterStatusTag(r) {
-  const t = { PENDING: '<span class="tag amber">À calculer</span>', CALCULATED: '<span class="tag blue">Calculé</span>', CLOSED: '<span class="tag green">Clôturé </span>' }[r.status] || r.status;
+  const t = { PENDING: '<span class="tag amber">À calculer</span>', CALCULATED: '<span class="tag blue">Calculé</span>', CLOSED: '<span class="tag green">Clôturé </span>', LOCKED: '<span class="tag gray" title="Contrat terminé — paie verrouillée, bulletins passés consultables (duplicata)">🔒 Sommeil</span>' }[r.status] || r.status;
   return t + (r.edited ? ' <span class="tag amber" title="corrigé">corrigé</span>' : "");
 }
 async function payRunView(id) {

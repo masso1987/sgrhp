@@ -6,6 +6,14 @@ const { allow } = require("../rbac");
 const { mine, stamp } = require("../store");
 const { audit } = require("../audit");
 const _phone = require("../phone");
+const { isDormant, todayStr } = require("../empState");
+
+/** Retire un employé de tous les sites de pointage (fin de contrat / sommeil). */
+function removeFromAllSites(empId, tenantId) {
+  const before = (db.siteAssignments || []).length;
+  db.siteAssignments = (db.siteAssignments || []).filter(a => !(a.employeeId === empId && (a.tenantId || "t1") === (tenantId || "t1")));
+  return before - db.siteAssignments.length;
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -41,7 +49,9 @@ router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   if (req.query.portfolioId) list = list.filter(e => e.portfolioId === req.query.portfolioId);
   if (req.query.status) list = list.filter(e => (e.status || "DRAFT") === req.query.status);
   list = list.slice().sort((a, b) => `${a.lastName || ""} ${a.firstName || ""}`.localeCompare(`${b.lastName || ""} ${b.firstName || ""}`, "fr", { sensitivity: "base" }));
-  const mapped = list.map(e => ({ ...e, checklist: checklist(e) }));
+  if (req.query.dormant === "1") list = list.filter(e => isDormant(e));
+  else if (req.query.dormant === "0") list = list.filter(e => !isDormant(e));
+  const mapped = list.map(e => ({ ...e, dormant: isDormant(e), checklist: checklist(e) }));
   const { paginate } = require("../paginate");
   const paged = paginate(mapped, req.query);
   res.json(paged || mapped);
@@ -50,7 +60,7 @@ router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
 router.get("/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const emp = scoped(req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
-  res.json({ ...emp, checklist: checklist(emp), files: db.files.filter(f => f.employeeId === emp.id) });
+  res.json({ ...emp, dormant: isDormant(emp), checklist: checklist(emp), files: db.files.filter(f => f.employeeId === emp.id) });
 });
 
 router.post("/", allow("GPF", "ADM"), (req, res) => {
@@ -129,9 +139,13 @@ router.post("/:id/end-contract", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
   emp.contract.endDate = b.endDate;
   if (b.motif !== undefined) emp.contract.departureReason = b.motif;
   emp.contract.ended = true;
+  // Mise en sommeil : si la date de fin est atteinte, verrouillage immédiat ;
+  // sinon le balayage quotidien le fera à l'échéance. Retrait des sites de pointage.
+  if (String(b.endDate).slice(0, 10) <= todayStr()) { emp.dormant = true; emp.dormantSince = emp.dormantSince || new Date().toISOString(); }
+  const removed = removeFromAllSites(emp.id, emp.tenantId);
   save();
-  audit(req.user, "END_CONTRACT", "Employee", emp.id, { endDate: b.endDate, motif: b.motif || null });
-  res.json({ ...emp, checklist: checklist(emp) });
+  audit(req.user, "END_CONTRACT", "Employee", emp.id, { endDate: b.endDate, motif: b.motif || null, sitesRemoved: removed });
+  res.json({ ...emp, dormant: isDormant(emp), checklist: checklist(emp) });
 });
 /* Nouveau contrat : archive le contrat courant (avec sa date de fin) et démarre un nouveau. */
 router.post("/:id/new-contract", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
@@ -147,6 +161,9 @@ router.post("/:id/new-contract", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
   const nc = b.contract || {};
   emp.contract = Object.assign({ type: cur.type, category: cur.category, conventionId: cur.conventionId, conventionName: cur.conventionName, paymentMethod: cur.paymentMethod }, nc);
   if (!emp.contract.startDate) emp.contract.startDate = b.startDate || new Date().toISOString().slice(0, 10);
+  // Réactivation : un nouveau contrat sort l'employé du sommeil.
+  emp.contract.ended = false;
+  emp.dormant = false; emp.dormantSince = null;
   save();
   audit(req.user, "NEW_CONTRACT", "Employee", emp.id, { start: emp.contract.startDate });
   res.json({ ...emp, checklist: checklist(emp) });
@@ -155,6 +172,10 @@ router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   if (!hasPerm(req, "employee.edit")) return res.status(403).json({ error: "Modification non autorisee - demandez le droit a l'administrateur" });
   const emp = scoped(req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
+  // Employé en sommeil (contrat terminé) : fiche verrouillée. Seule l'ouverture
+  // d'un nouveau contrat (réactivation) permet de modifier à nouveau ses données.
+  if (isDormant(emp) && req.query.force !== "reactivate")
+    return res.status(409).json({ error: "Employé en sommeil (contrat terminé) : sa fiche est verrouillée et ne peut pas être modifiée. Ouvrez un nouveau contrat pour le réactiver.", dormant: true });
   const before = { ...emp };
   if (req.body.cniNumber && mine(db.employees, req).find(e => e.id !== emp.id && e.cniNumber === req.body.cniNumber))
     return res.status(409).json({ error: "CNI number already belongs to another employee" });
@@ -219,17 +240,25 @@ function checklist(emp) {
 
 // Delete an employee (ADM). Blocked if referenced by generated documents or payroll,
 // to protect payroll/audit integrity.
-router.delete("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
-  if (!hasPerm(req, "employee.delete")) return res.status(403).json({ error: "Suppression non autorisee - demandez le droit a l'administrateur" });
+router.delete("/:id", allow("ADM"), (req, res) => {
+  // Suppression réservée à l'administrateur.
   const emp = scoped(req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
+  // Règle métier stricte : si une paie a été traitée pour cet employé, la
+  // suppression est IMPOSSIBLE — ses données doivent rester dans le système
+  // (aucun contournement « force »).
   const inPayroll = (db.payslips || []).some(s => s.employeeId === emp.id);
+  if (inPayroll)
+    return res.status(409).json({ error: `Suppression impossible : une paie a déjà été traitée pour ${emp.firstName} ${emp.lastName}. Ses données doivent être conservées. Mettez fin à son contrat (mise en sommeil) au lieu de le supprimer.`,
+      blocked: true, reason: "PAYROLL_EXISTS" });
+  // Documents générés seuls : avertissement (les pièces générées restent archivées).
   const inDocs = (db.documents || []).some(d => d.refId === emp.id && d.status === "GENERATED");
-  if ((inPayroll || inDocs) && req.query.force !== "1")
-    return res.status(409).json({ error: "Cet employé a des bulletins de paie ou documents générés",
+  if (inDocs && req.query.force !== "1")
+    return res.status(409).json({ error: "Cet employé a des documents générés",
       requiresConfirmation: true,
-      warning: `${emp.firstName} ${emp.lastName} possède des documents ou bulletins générés. ` +
+      warning: `${emp.firstName} ${emp.lastName} possède des documents générés. ` +
         `La suppression retirera son dossier (les pièces déjà générées restent archivées). Confirmez pour supprimer.` });
+  removeFromAllSites(emp.id, emp.tenantId);
   db.employees = db.employees.filter(e => e.id !== emp.id);
   db.files = (db.files || []).filter(f => f.employeeId !== emp.id);
   save();

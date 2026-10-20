@@ -92,4 +92,23 @@ function advanceEchelons() {
   if (changed) save();
   return changed;
 }
-module.exports = { items, scanAndRemind, advanceEchelons };
+/** Balayage quotidien : met en sommeil les employés dont le contrat a pris fin
+ * (date de fin atteinte) et les retire de tous les sites de pointage. */
+function sweepDormant() {
+  const today = new Date().toISOString().slice(0, 10);
+  let changed = 0;
+  for (const e of (db.employees || [])) {
+    if (e.dormant === true) continue;
+    const c = e.contract || {};
+    const ended = c.ended === true || (c.endDate && String(c.endDate).slice(0, 10) <= today);
+    if (!ended) continue;
+    e.dormant = true; e.dormantSince = e.dormantSince || new Date().toISOString();
+    const tid = e.tenantId || "t1";
+    db.siteAssignments = (db.siteAssignments || []).filter(a => !(a.employeeId === e.id && (a.tenantId || "t1") === tid));
+    try { audit({ id: "system", fullName: "Système", role: "ADM", tenantId: tid }, "EMPLOYEE_DORMANT", "Employee", e.id, { endDate: c.endDate || null }); } catch (x) {}
+    changed++;
+  }
+  if (changed) save();
+  return changed;
+}
+module.exports = { items, scanAndRemind, advanceEchelons, sweepDormant };
