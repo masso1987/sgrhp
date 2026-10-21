@@ -714,6 +714,10 @@ router.post("/lettrage", allow("RC", "ADM", "CD"), (req, res) => {
 function closeExercise(req, exId) {
   const ex = mine(db.acctExercises, req).find(e => e.id === exId); if (!ex) return { error: "Exercice introuvable" };
   if (ex.status === "closed") return { error: "Exercice déjà clôturé" };
+  // Règle Sage/OHADA : clôture dans l'ordre chronologique. Un exercice antérieur
+  // encore ouvert doit être clôturé d'abord (les à-nouveaux se reportent de proche en proche).
+  const earlierOpen = mine(db.acctExercises, req).filter(e => e.year < ex.year && e.status !== "closed").sort((a, b) => a.year - b.year);
+  if (earlierOpen.length) return { error: "Clôturez d'abord l'exercice " + earlierOpen[0].year + " : la clôture se fait dans l'ordre chronologique.", blocking: true };
   const _chk = exerciseCloseCheck(req, exId);
   if (_chk && _chk.blocking) return { error: (_chk.checks.drafts > 0 ? ("Écritures en brouillon à valider : " + _chk.checks.drafts + ". ") : "") + (!_chk.checks.balanced ? "Balance déséquilibrée (Débit ≠ Crédit)." : ""), blocking: true };
   const yy = String(ex.year);
@@ -1268,6 +1272,44 @@ const _pnf = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!
 // Solde façon Sage pour les PDF : valeur absolue + nature (D débiteur / C créditeur), jamais de signe négatif.
 const _sld = (n) => { n = Math.round(Number(n) || 0); return n ? _pnf(Math.abs(n)) + (n > 0 ? " D" : " C") : "0"; };
 function _companyName(req) { const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1")); return (t && t.name) || "Société"; }
+// Export Excel d'un état comptable, avec la MÊME présentation que le PDF
+// (même titre, mêmes colonnes, mêmes lignes et totaux, largeurs, soldes D/C).
+// Les montants reprennent le format affiché (identique au PDF) ; le titre et le
+// sous-titre sont fusionnés sur toute la largeur.
+function _acctReportXLSX(req, res, opts) {
+  let XLSX; try { XLSX = require("xlsx"); } catch (e) { return res.status(500).json({ error: "Module Excel indisponible" }); }
+  if (!XLSX || !XLSX.utils || !XLSX.utils.aoa_to_sheet) return res.status(500).json({ error: "Module Excel indisponible" });
+  const cols = opts.columns || [];
+  const ncol = Math.max(1, cols.length);
+  const aoa = [];
+  aoa.push([opts.title || "État"]);
+  const subBits = [opts.subtitle, opts.period, (opts.from || opts.to) ? ("du " + (opts.from || "…") + " au " + (opts.to || "…")) : ""].filter(Boolean);
+  aoa.push([subBits.join("  —  ")]);
+  aoa.push([]);
+  aoa.push(cols.map(c => c.h));
+  for (const r of (opts.rows || [])) {
+    const cells = (r.cells || []).slice(0, ncol);
+    while (cells.length < ncol) cells.push("");
+    aoa.push(cells);
+  }
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = cols.map(c => ({ wch: Math.max(8, Math.round((c.w || 80) / 6.5)) }));
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: ncol - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: ncol - 1 } },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, String(opts.title || "État").replace(/[\\\/\?\*\[\]:]/g, " ").slice(0, 31));
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${(opts.filename || "etat").replace(/[^\w\-]/g, "_")}.xlsx"`);
+  res.send(buf);
+}
+// Dispatcher : ?format=xlsx -> Excel, sinon PDF. Même spécification pour les deux.
+function _acctReportOut(req, res, opts) {
+  if (String(req.query.format || "").toLowerCase() === "xlsx") return _acctReportXLSX(req, res, opts);
+  return _acctReportPDF(req, res, opts);
+}
 function _acctReportPDF(req, res, opts) {
   const land = !!opts.landscape;
   const doc = new PDFDocument({ margin: 24, size: "A4", layout: land ? "landscape" : "portrait", bufferPages: true });
@@ -1394,7 +1436,7 @@ router.get("/balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const colsBase = [{ h: "Compte", w: 58 }, { h: "Intitulé des comptes", w: 200 }, { h: "Mvt Débit", w: 72, a: "r" }, { h: "Mvt Crédit", w: 72, a: "r" }, { h: "Solde Débit", w: 72, a: "r" }, { h: "Solde Crédit", w: 72, a: "r" }];
   const prevYE = (function () { if (pStart) { const x = new Date(pStart + "T00:00:00"); x.setDate(x.getDate() - 1); return x.toLocaleDateString("fr-FR"); } return "N-1"; })();
   const cols6 = [{ h: "Compte", w: 52 }, { h: "Intitulé des comptes", w: 190 }, { h: "Mvt " + prevYE + " Déb.", w: 78, a: "r" }, { h: "Mvt " + prevYE + " Créd.", w: 78, a: "r" }, { h: "Mvt Débit", w: 76, a: "r" }, { h: "Mvt Crédit", w: 76, a: "r" }, { h: "Solde Débit", w: 76, a: "r" }, { h: "Solde Crédit", w: 76, a: "r" }];
-  _acctReportPDF(req, res, { filename: "Balance" + (is6 ? "_6col" : "") + (period ? "_" + period : ""), title: "Balance des comptes", subtitle: is6 ? "6 colonnes" : "Balance détaillée", period: (_from || _to) ? "" : (period || "Tout l'exercice"), from: _from, to: _to, landscape: is6,
+  _acctReportOut(req, res, { filename: "Balance" + (is6 ? "_6col" : "") + (period ? "_" + period : ""), title: "Balance des comptes", subtitle: is6 ? "6 colonnes" : "Balance détaillée", period: (_from || _to) ? "" : (period || "Tout l'exercice"), from: _from, to: _to, landscape: is6,
     columns: is6 ? cols6 : colsBase, rows });
 });
 
@@ -1413,7 +1455,7 @@ router.get("/ledger/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   if (_from && opening !== 0) rows.push({ cells: [_from, "-", "RAN", "Report à nouveau (solde d'ouverture)", opening > 0 ? _pnf(opening) : "", opening < 0 ? _pnf(-opening) : "", _sld(opening)], bold: true });
   for (const r of list) { solde += r.debit - r.credit; td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.journal || "", r.piece || "", r.label || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : "", _sld(solde)] }); }
   rows.push({ cells: ["", "", "", "SOLDE À REPORTER", _pnf(td), _pnf(tc), _sld(solde)], bold: true, fill: "#dfe6ec" });
-  _acctReportPDF(req, res, { filename: "Grand-livre_" + acc, title: "Grand-livre", subtitle: acc + " - " + (labels[acc] || ""), from: _from, to: _to,
+  _acctReportOut(req, res, { filename: "Grand-livre_" + acc, title: "Grand-livre", subtitle: acc + " - " + (labels[acc] || ""), from: _from, to: _to,
     columns: [{ h: "Date", w: 58 }, { h: "Jr", w: 32 }, { h: "Pièce", w: 60 }, { h: "Libellé", w: 156 }, { h: "Débit", w: 74, a: "r" }, { h: "Crédit", w: 74, a: "r" }, { h: "Solde", w: 93, a: "r" }], rows });
 });
 
@@ -1431,7 +1473,7 @@ router.get("/journal-report/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => 
   const rows = []; let td = 0, tc = 0;
   for (const r of list) { td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.piece || "", r.account || "", r.tp || "", r.label || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : ""] }); }
   rows.push({ cells: ["", "", "", "", "TOTAUX", _pnf(td), _pnf(tc)], bold: true, fill: "#dfe6ec" });
-  _acctReportPDF(req, res, { landscape: true, filename: "Journal_" + jr + (period ? "_" + period : ""), title: "Journal", subtitle: "Journal " + jr, from: _from, to: _to, period: (_from || _to) ? "" : period,
+  _acctReportOut(req, res, { landscape: true, filename: "Journal_" + jr + (period ? "_" + period : ""), title: "Journal", subtitle: "Journal " + jr, from: _from, to: _to, period: (_from || _to) ? "" : period,
     columns: [{ h: "Date", w: 60 }, { h: "Pièce", w: 74 }, { h: "Compte", w: 70 }, { h: "Tiers", w: 120 }, { h: "Libellé", w: 226 }, { h: "Débit", w: 106, a: "r" }, { h: "Crédit", w: 106, a: "r" }], rows });
 });
 
