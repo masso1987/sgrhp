@@ -9882,6 +9882,7 @@ function _acctJournalParams(){ const d=window._jrPrint||{}; const p=new URLSearc
 function acctJournalPDF(){ acctPDF("/accounting/journal-report/pdf?"+_acctJournalParams().toString(),"Journal"+(window._jrJF||window._jrJT?("_"+(window._jrJF||'')+(window._jrJT||'')):'')+".pdf"); }
 function acctJournalXLSX(){ const p=_acctJournalParams(); p.set("format","xlsx"); acctPDF("/accounting/journal-report/pdf?"+p.toString(),"Journal"+(window._jrJF||window._jrJT?("_"+(window._jrJF||'')+(window._jrJT||'')):'')+".xlsx"); }
 function acctAgedPDF(){ const d=window._agedPrint||{}; acctPDF("/accounting/aged/pdf?kind="+(d.kind||"client"),"Balance_agee_"+(d.kind||"client")+".pdf"); }
+function acctAgedXLSX(){ const d=window._agedPrint||{}; acctPDF("/accounting/aged/pdf?format=xlsx&kind="+(d.kind||"client"),"Balance_agee_"+(d.kind||"client")+".xlsx"); }
 function acctBalanceCSV(){
   const s=window._balSageModel; if(!s||!s.model||!s.model.list.length){ alert("Rien à exporter."); return; }
   const m=s.model, SN=n=>Math.round(Number(n)||0); let mx;
@@ -9989,7 +9990,7 @@ async function acctJournalRender(){
 async function acctAgedRender(){
   const kind=window._acctAged||"client";
   const box=document.getElementById("acctEtatBox");
-  box.innerHTML=`<div class="d2-filters top"><div class="fld"><label>Type</label><select onchange="window._acctAged=this.value;acctAgedRender()"><option value="client" ${kind==='client'?'selected':''}>Clients (411)</option><option value="fournisseur" ${kind==='fournisseur'?'selected':''}>Fournisseurs (401)</option></select></div><div class="fld" style="justify-content:end;flex:1;align-items:flex-end"><span style="display:flex;gap:6px"><button class="btn ghost sm" onclick="acctAgedCSV()">CSV</button><button class="btn ghost sm" onclick="acctAgedPDF()">PDF</button><button class="btn ghost sm" onclick="acctAgedPrint()">Imprimer</button></span></div></div><div id="ageRows">…</div>`;
+  box.innerHTML=`<div class="d2-filters top"><div class="fld"><label>Type</label><select onchange="window._acctAged=this.value;acctAgedRender()"><option value="client" ${kind==='client'?'selected':''}>Clients (411)</option><option value="fournisseur" ${kind==='fournisseur'?'selected':''}>Fournisseurs (401)</option></select></div><div class="fld" style="justify-content:end;flex:1;align-items:flex-end"><span style="display:flex;gap:6px"><button class="btn ghost sm" onclick="acctAgedCSV()">CSV</button><button class="btn ghost sm" onclick="acctAgedPDF()">PDF</button><button class="btn ghost sm" onclick="acctAgedXLSX()">Excel</button><button class="btn ghost sm" onclick="acctAgedPrint()">Imprimer</button></span></div></div><div id="ageRows">…</div>`;
   const d=await api("/accounting/aged?kind="+kind).catch(()=>({rows:[],totals:{}}));
   window._agedPrint={kind,rows:d.rows||[],totals:d.totals||{}};
   const f=n=>fCFA(Math.abs(n))+(n<0?' C':'');
@@ -10575,7 +10576,7 @@ async function acctTiersBalance(){
       :'<tr><td colspan="6" style="color:var(--muted)">Aucun tiers.</td></tr>'}
     <tr style="font-weight:700;background:var(--grid-head2);border-top:2px solid #94a3b8"><td colspan="2">TOTAUX</td><td class="r">${fCFA(sum('debit'))}</td><td class="r">${fCFA(sum('credit'))}</td>
       <td class="r">${fSoldeTiers(sum('debit')-sum('credit'))}</td><td></td></tr></tbody></table></div>
-    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${rows.length}</b></span><span class="sp"></span><span><span class="k">Débit :</span> <b>${fCFA(sum('debit'))}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(sum('credit'))}</b></span><span><span class="k">Solde :</span> <b>${fSoldeTiers(sum('debit')-sum('credit'))}</b></span><span class="sp" style="flex:0"></span><button class="btn ghost sm" onclick="acctTiersBalanceCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersBalancePDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>`;
+    <div class="d2-status"><span><span class="k">Tiers :</span> <b>${rows.length}</b></span><span class="sp"></span><span><span class="k">Débit :</span> <b>${fCFA(sum('debit'))}</b></span><span><span class="k">Crédit :</span> <b>${fCFA(sum('credit'))}</b></span><span><span class="k">Solde :</span> <b>${fSoldeTiers(sum('debit')-sum('credit'))}</b></span><span class="sp" style="flex:0"></span><button class="btn ghost sm" onclick="acctTiersBalanceCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersBalancePDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersBalanceXLSX()">Excel</button> <button class="btn ghost sm" onclick="acctTiersPrintBalance()">Imprimer</button></div>`;
   window._etsBalance=rows;
 }
 async function acctTiersGL(){
@@ -10592,7 +10593,7 @@ async function acctTiersGL(){
       <div class="fld"><label>Code journal de</label><input value="${esc(jf)}" placeholder="ex. AC" style="width:90px" onchange="window._etsJF=this.value.trim().toUpperCase();acctTiersGL()"></div>
       <div class="fld"><label>à</label><input value="${esc(jt)}" placeholder="ex. VE" style="width:90px" onchange="window._etsJT=this.value.trim().toUpperCase();acctTiersGL()"></div>
       ${(f||t||jf||jt)?`<div class="fld"><label>&nbsp;</label><button class="btn ghost sm" onclick="window._etsFrom='';window._etsTo='';window._etsJF='';window._etsJT='';acctTiersGL()">Effacer</button></div>`:''}
-      <div class="fld" style="justify-content:end;flex:1;align-items:flex-end"><span style="display:flex;gap:6px"><button class="btn ghost sm" onclick="acctTiersGLCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersGLPDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></span></div></div>
+      <div class="fld" style="justify-content:end;flex:1;align-items:flex-end"><span style="display:flex;gap:6px"><button class="btn ghost sm" onclick="acctTiersGLCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersGLPDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersGLXLSX()">Excel</button> <button class="btn ghost sm" onclick="acctTiersPrintGL()">Imprimer</button></span></div></div>
     <div style="margin-top:4px;font-weight:600">Grand-livre des tiers (${d.count||0})</div>
     ${(d.groups||[]).map(g=>`<div style="margin-top:12px"><div style="font-weight:600">${esc(g.code)}${g.name?' - '+esc(g.name):''}
         <span class="tag gray">${esc(g.kind)}</span> <span style="float:right">Solde ${fSoldeTiers(g.solde)}</span></div>
@@ -10611,7 +10612,7 @@ async function acctTiersReleveTab(){
   box.innerHTML=`<div class="d2-filters top">
       <div class="fld"><label>Tiers</label><select onchange="window._ets.tp=this.value;acctTiersReleveTab()" style="min-width:260px">${list.map(r=>`<option value="${esc(r.code)}" ${r.code===cur?'selected':''}>${esc(r.code)}${r.name?' - '+esc(r.name):''}</option>`).join("")}</select></div>
       <div class="fld"><label>Arrêté au (justificatif)</label><input type="date" value="${esc(window._ets.asOf||'')}" onchange="window._ets.asOf=this.value;acctTiersReleveTab()"></div>
-      <div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="acctTiersReleveCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersRelevePDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div></div><div id="etsReleveRows">…</div>`;
+      <div class="fld" style="justify-content:end"><button class="btn ghost sm" onclick="acctTiersReleveCSV()">CSV</button> <button class="btn ghost sm" onclick="acctTiersRelevePDF()">PDF</button> <button class="btn ghost sm" onclick="acctTiersReleveXLSX()">Excel</button> <button class="btn ghost sm" onclick="acctTiersPrintReleve('${esc(cur)}')">Imprimer</button></div></div><div id="etsReleveRows">…</div>`;
   if(!cur){ document.getElementById("etsReleveRows").innerHTML='<div class="note">Aucun tiers.</div>'; return; }
   const d=await api("/accounting/tiers-ledger?tp="+encodeURIComponent(cur)).catch(()=>({rows:[]}));
   window._etsReleve=Object.assign({tp:cur},d);
@@ -10737,8 +10738,12 @@ function acctPrintWindow(title, bodyHtml, opts){
   if(d.readyState==="complete") setTimeout(_print,250);
 }
 function acctTiersBalancePDF(){ const k=(window._ets&&window._ets.kind)||"all"; acctPDF("/accounting/tiers-balance/pdf?kind="+k,"Balance_tiers_"+k+".pdf"); }
-function acctTiersGLPDF(){ const k=(window._ets&&window._ets.kind)||"all"; const p=new URLSearchParams(); p.set("kind",k); if(window._etsFrom)p.set("from",window._etsFrom); if(window._etsTo)p.set("to",window._etsTo); if(window._etsJF)p.set("journalFrom",window._etsJF); if(window._etsJT)p.set("journalTo",window._etsJT); acctPDF("/accounting/tiers-gl/pdf?"+p.toString(),"Grand-livre_tiers_"+k+".pdf"); }
+function acctTiersBalanceXLSX(){ const k=(window._ets&&window._ets.kind)||"all"; acctPDF("/accounting/tiers-balance/pdf?format=xlsx&kind="+k,"Balance_tiers_"+k+".xlsx"); }
+function _acctTiersGLParams(){ const k=(window._ets&&window._ets.kind)||"all"; const p=new URLSearchParams(); p.set("kind",k); if(window._etsFrom)p.set("from",window._etsFrom); if(window._etsTo)p.set("to",window._etsTo); if(window._etsJF)p.set("journalFrom",window._etsJF); if(window._etsJT)p.set("journalTo",window._etsJT); return p; }
+function acctTiersGLPDF(){ const k=(window._ets&&window._ets.kind)||"all"; acctPDF("/accounting/tiers-gl/pdf?"+_acctTiersGLParams().toString(),"Grand-livre_tiers_"+k+".pdf"); }
+function acctTiersGLXLSX(){ const k=(window._ets&&window._ets.kind)||"all"; const p=_acctTiersGLParams(); p.set("format","xlsx"); acctPDF("/accounting/tiers-gl/pdf?"+p.toString(),"Grand-livre_tiers_"+k+".xlsx"); }
 function acctTiersRelevePDF(){ const d=window._etsReleve||{}; const tp=d.tp||""; const asOf=(window._ets&&window._ets.asOf)||""; if(!tp){ alert("Aucun tiers."); return; } acctPDF("/accounting/tiers-releve/pdf?tp="+encodeURIComponent(tp)+(asOf?("&asOf="+asOf):""),"Releve_"+tp+".pdf"); }
+function acctTiersReleveXLSX(){ const d=window._etsReleve||{}; const tp=d.tp||""; const asOf=(window._ets&&window._ets.asOf)||""; if(!tp){ alert("Aucun tiers."); return; } acctPDF("/accounting/tiers-releve/pdf?format=xlsx&tp="+encodeURIComponent(tp)+(asOf?("&asOf="+asOf):""),"Releve_"+tp+".xlsx"); }
 function acctTiersBalanceCSV(){
   const rows=window._etsBalance||[];
   const m=[["Code","Nom","Débit","Crédit","Solde"]];

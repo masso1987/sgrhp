@@ -1489,7 +1489,7 @@ router.get("/aged/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const rows = []; const T = { b0: 0, b30: 0, b60: 0, b90: 0, total: 0 };
   for (const r of list) { ["b0", "b30", "b60", "b90", "total"].forEach(k => T[k] += r[k]); rows.push({ cells: [r.tp, (ref[r.tp] || ""), _sld(r.total), r.b0 ? _sld(r.b0) : "", r.b30 ? _sld(r.b30) : "", r.b60 ? _sld(r.b60) : "", r.b90 ? _sld(r.b90) : ""] }); }
   rows.push({ cells: ["TOTAUX", "", _sld(T.total), _sld(T.b0), _sld(T.b30), _sld(T.b60), _sld(T.b90)], bold: true, fill: "#dfe6ec" });
-  _acctReportPDF(req, res, { landscape: true, filename: "Balance_agee_" + (req.query.kind || "client"), title: "Balance Âgée", subtitle: "D'après date d'échéance - Sur la date la plus lointaine (" + (req.query.kind === "fournisseur" ? "Fournisseurs 401" : "Clients 411") + ")", to: now.toLocaleDateString("fr-FR"),
+  _acctReportOut(req, res, { landscape: true, filename: "Balance_agee_" + (req.query.kind || "client"), title: "Balance Âgée", subtitle: "D'après date d'échéance - Sur la date la plus lointaine (" + (req.query.kind === "fournisseur" ? "Fournisseurs 401" : "Clients 411") + ")", to: now.toLocaleDateString("fr-FR"),
     columns: [{ h: "Numéro de compte", w: 96 }, { h: "Intitulé", w: 200 }, { h: "Solde du compte", w: 100, a: "r" }, { h: "de 1 à 30 j", w: 99, a: "r" }, { h: "de 31 à 45 j", w: 99, a: "r" }, { h: "de 46 à 60 j", w: 100, a: "r" }, { h: "plus de 61 j", w: 100, a: "r" }], rows });
 });
 
@@ -1512,7 +1512,7 @@ router.get("/tiers-balance/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   for (const r of list) { td += r.debit; tc += r.credit; rows.push({ cells: [r.code, r.name || "", _pnf(r.debit), _pnf(r.credit), _sld(r.solde)] }); }
   rows.push({ cells: ["TOTAUX", "", _pnf(td), _pnf(tc), _sld(td - tc)], bold: true, fill: "#dfe6ec" });
   const sub = { all: "Tous les tiers", client: "Clients (411)", fournisseur: "Fournisseurs (401)", salarie: "Salariés (42)", autre: "Autres tiers" }[kind] || kind;
-  _acctReportPDF(req, res, { filename: "Balance_tiers_" + kind, title: "Balance des tiers", subtitle: sub,
+  _acctReportOut(req, res, { filename: "Balance_tiers_" + kind, title: "Balance des tiers", subtitle: sub,
     columns: [{ h: "Code", w: 90 }, { h: "Nom", w: 220 }, { h: "Débit", w: 79, a: "r" }, { h: "Crédit", w: 79, a: "r" }, { h: "Solde", w: 79, a: "r" }], rows });
 });
 router.get("/tiers-gl/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
@@ -1539,7 +1539,7 @@ router.get("/tiers-gl/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
     TD += g.debit; TC += g.credit; }
   rows.push({ cells: ["", "", "", "", "TOTAL GÉNÉRAL", _pnf(TD), _pnf(TC), _sld(TD - TC)], bold: true, fill: "#dfe6ec" });
   const sub = { all: "Tous les tiers", client: "Clients (411)", fournisseur: "Fournisseurs (401)", salarie: "Salariés (42)", autre: "Autres tiers" }[kind] || kind;
-  _acctReportPDF(req, res, { landscape: true, filename: "Grand-livre_tiers_" + kind, title: "Grand-livre des tiers", subtitle: sub,
+  _acctReportOut(req, res, { landscape: true, filename: "Grand-livre_tiers_" + kind, title: "Grand-livre des tiers", subtitle: sub,
     columns: [{ h: "Date", w: 62 }, { h: "Jr", w: 34 }, { h: "Pièce", w: 64 }, { h: "Compte", w: 60 }, { h: "Libellé", w: 240 }, { h: "Débit", w: 100, a: "r" }, { h: "Crédit", w: 100, a: "r" }, { h: "Solde", w: 100, a: "r" }], rows });
 });
 router.get("/tiers-releve/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
@@ -1555,7 +1555,7 @@ router.get("/tiers-releve/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   for (const r of list) { solde += r.debit - r.credit; td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.journal || "", r.piece || "", r.account || "", r.label || "", r.dueDate || "", r.lettre || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : "", _pnf(solde)] }); }
   rows.push({ cells: ["", "", "", "", asOf ? ("SOLDE AU " + asOf) : "TOTAUX", "", "", _pnf(td), _pnf(tc), _pnf(td - tc)], bold: true, fill: "#dfe6ec" });
   const t = mine(db.acctThirdParties, req).find(x => x.code === tp) || {};
-  _acctReportPDF(req, res, { landscape: true, filename: "Releve_" + tp, title: "Relevé de compte tiers", subtitle: tp + (t.name ? " - " + t.name : "") + (asOf ? " (justificatif arrêté au " + asOf + ")" : ""), to: asOf || "",
+  _acctReportOut(req, res, { landscape: true, filename: "Releve_" + tp, title: "Relevé de compte tiers", subtitle: tp + (t.name ? " - " + t.name : "") + (asOf ? " (justificatif arrêté au " + asOf + ")" : ""), to: asOf || "",
     columns: [{ h: "Date", w: 60 }, { h: "Jr", w: 34 }, { h: "Pièce", w: 64 }, { h: "Compte", w: 60 }, { h: "Libellé", w: 190 }, { h: "Échéance", w: 66 }, { h: "Let", w: 34 }, { h: "Débit", w: 88, a: "r" }, { h: "Crédit", w: 88, a: "r" }, { h: "Solde", w: 96, a: "r" }], rows });
 });
 
