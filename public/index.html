@@ -1399,29 +1399,29 @@ const NAV = [
   { k: "smqworkspace", label: "Mon espace", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqconform", label: "Conformité du personnel", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
-  { k: "smqprocesses", label: "Cartographie & processus", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.processes", module: "quality", grp: "qualite" },
+  { k: "smqprocesses", label: "Cartographie & processus", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.processes", module: "quality", grp: "qualite", hidden: true },
   { k: "smqaxes", label: "Politique & axes", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.policy", module: "quality", grp: "qualite" },
-  { k: "smqstakeholders", label: "Parties intéressées", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite" },
-  { k: "smqscope", label: "Domaine & exclusions", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite" },
+  { k: "smqstakeholders", label: "Parties intéressées", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.stakeholders", module: "quality", grp: "qualite", hidden: true },
+  { k: "smqscope", label: "Domaine & exclusions", sec: "Système", roles: ["ADM","RQ","CD","RJ"], cap: "smq.scope", module: "quality", grp: "qualite", hidden: true },
   { k: "smqveille", label: "Veille réglementaire", sec: "Système", roles: ["ADM","RQ","CD","RJ"], module: "quality", grp: "qualite" },
   { k: "smqgov", label: "Gouvernance SMQ", sec: "Système", roles: ["ADM","RQ"], module: "quality", grp: "qualite" },
-  { k: "smqdocs", label: "Maîtrise documentaire", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
-  { k: "smqdoctypes", label: "Types de documents", sec: "Documentation", roles: ["ADM","RQ","CD"], cap: "smq.documents", module: "quality", grp: "qualite" },
-  { k: "smqregister", label: "Registre (§7.5)", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite" },
-  { k: "smqindicators", label: "Indicateurs", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite" },
-  { k: "smqtdb", label: "Tableaux de bord", sec: "Performance", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.indicators", module: "quality", grp: "qualite" },
+  { k: "smqdocs", label: "Maîtrise documentaire", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite", hidden: true },
+  { k: "smqdoctypes", label: "Types de documents", sec: "Documentation", roles: ["ADM","RQ","CD"], cap: "smq.documents", module: "quality", grp: "qualite", hidden: true },
+  { k: "smqregister", label: "Registre (§7.5)", sec: "Documentation", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.documents", module: "quality", grp: "qualite", hidden: true },
+  { k: "smqindicators", label: "Indicateurs", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.indicators", module: "quality", grp: "qualite", hidden: true },
+  { k: "smqtdb", label: "Tableaux de bord", sec: "Performance", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.indicators", module: "quality", grp: "qualite", hidden: true },
   { k: "smqrisks", label: "Risques & opportunités", sec: "Performance", roles: ["ADM","RQ","CD","RJ"], cap: "smq.risks", module: "quality", grp: "qualite" },
   { k: "smqsatisfaction", label: "Satisfaction client", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
   { k: "smqclaims", label: "Réclamations", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.claims", module: "quality", grp: "qualite" },
   { k: "smqevals", label: "Évaluations & enquêtes", sec: "Écoute client", roles: ["ADM","RQ","CD","RJ"], cap: "smq.satisfaction", module: "quality", grp: "qualite" },
   { k: "smqcompetences", label: "Compétences & habilitations", sec: "Ressources", roles: ["ADM","RQ","CD","RJ"], cap: "smq.competences", module: "quality", grp: "qualite" },
   { k: "smqsuppliers", label: "Évaluation fournisseurs", sec: "Ressources", roles: ["ADM","RQ","CD","RJ"], cap: "smq.suppliers", module: "quality", grp: "qualite" },
-  { k: "smqequipment", label: "Métrologie", sec: "Ressources", roles: ["ADM","RQ","CD","RJ"], cap: "smq.equipment", module: "quality", grp: "qualite" },
+  { k: "smqequipment", label: "Métrologie", sec: "Ressources", roles: ["ADM","RQ","CD","RJ"], cap: "smq.equipment", module: "quality", grp: "qualite", hidden: true },
   { k: "smqreviews", label: "Revues de direction", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ"], cap: "smq.reviews", module: "quality", grp: "qualite" },
   { k: "smqconformity", label: "Prêt pour certification", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ"], cap: "smq.conformity", module: "quality", grp: "qualite" },
   { k: "smqimprovements", label: "Fiches d'amélioration", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ","GPF"], cap: "smq.improvements", module: "quality", grp: "qualite" },
-  { k: "smqevents", label: "Traçabilité qualité", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite" },
-  { k: "smqaudits", label: "Audits internes", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
+  { k: "smqevents", label: "Traçabilité qualité", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.tracability", module: "quality", grp: "qualite", hidden: true },
+  { k: "smqaudits", label: "Audits internes", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite", hidden: true },
   { k: "smqactions", label: "Suivi des actions & audits", sec: "Amélioration", roles: ["ADM","RQ","CD","RJ"], cap: "smq.audits", module: "quality", grp: "qualite" },
   { k: "discussion", label: "Messages", sec: "Messagerie", roles: ["RQ","GPF","CD","RJ","UI","ADM","SADM"], grp: "discussion" },
   { k: "adminhome", label: "Console", sec: "Vue d'ensemble", roles: ["ADM"], grp: "admin" },
@@ -1499,9 +1499,9 @@ function buildNav() {
   const _adm = ME.role === "ADM" || ME.role === "SADM";
   const _smqFull = _adm || ME.role === "RQ" || !!ME.smqManager;   // accès complet Qualité
   const _MODROLE = { RC: "accounting", RS: "stock", RP: "payroll" }; const _mr = _MODROLE[ME.role];
-  NAV_VISIBLE = NAV.filter(n => _mr
+  NAV_VISIBLE = NAV.filter(n => !n.hidden && (_mr
     ? (n.module === _mr && (ME.modules || []).includes(n.module) && !((ME.disabledFeatures || []).includes(n.k)))
-    : (n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.tmodule || ((ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]))).includes(n.tmodule)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k))));
+    : (n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.tmodule || ((ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]))).includes(n.tmodule)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k)))));
   NAV_PRESENT = NAV_GROUPS.filter(G =>NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
   const mb = document.getElementById("modbar");
   if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
