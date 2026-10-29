@@ -88,7 +88,10 @@ app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
 // Public: PostHog project key + host for the SPA (nothing is returned unless enabled).
 app.get("/api/analytics-config", (req, res) => res.json(require("./analytics").publicConfig()));
 app.get("/api/branding", (req, res) => {
-  const s = require("./routes/settings").settings();
+  // Public before login (platform branding); with a valid token, the user's own company's.
+  const h = req.header("authorization") || "";
+  const who = h.startsWith("Bearer ") ? require("./auth").verifyToken(h.slice(7)) : null;
+  const s = require("./routes/settings").settings(who && who.tenantId);
   const b = Object.assign({}, s.branding);
   try { const p = require("./routes/tenants").platformCfg(); if (p) { if (p.appName) b.appName = p.appName; b.appLogo = p.appLogo || ""; } } catch (e) {}
   b.build = BUILD_VERSION;

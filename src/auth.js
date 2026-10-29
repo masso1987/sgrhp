@@ -16,8 +16,8 @@ const TOKEN_TTL = process.env.TOKEN_TTL || "8h";
 const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
 // The 2FA policy is managed from Settings; the environment provides the default.
-function policy() {
-  const s = (db.settings && db.settings.security) || {};
+function policy(scope) {
+  const s = (scope ? require("./routes/settings").settings(scope).security : (db.settings && db.settings.security)) || {};
   return {
     require2faForAdmins: s.require2faForAdmins !== undefined ? s.require2faForAdmins
       : (process.env.ENFORCE_2FA === "true" || process.env.NODE_ENV === "production"),
@@ -107,7 +107,7 @@ function closeLoginSession(userId, reason) {
 }
 function logout(req, res) { try { closeLoginSession(req.user.id, "logout"); } catch (e) {} res.json({ ok: true }); }
 function twoFaRequiredFor(user) {
-  const p = policy();
+  const p = policy(user);
   // Les comptes de démonstration n'exigent jamais la 2FA (sauf si l'utilisateur l'a activée lui-même).
   try {
     const t = (db.tenants || []).find(x => x.id === (user.tenantId || "t1"));
@@ -174,7 +174,7 @@ function login(req, res) {
     return fail(`Compte temporairement verrouillé - réessayez dans ${mins} min`, 423);
   }
   if (!verifyPw(password || "", user.password)) {
-    const p = policy();
+    const p = policy(user);
     user.failedLogins = (user.failedLogins || 0) + 1;
     if (user.failedLogins >= p.maxFailed) {
       user.lockedUntil = new Date(Date.now() + p.lockMinutes * 60000).toISOString();
@@ -206,12 +206,12 @@ function login(req, res) {
 
   user.failedLogins = 0; user.lockedUntil = null; user.tempPasswordExpires = null; save();
   const token = jwt.sign({ id: user.id, role: user.role, fullName: user.fullName, tenantId: user.tenantId || "t1", tv: user.tokenVersion || 0 },
-    SECRET, { expiresIn: `${policy().sessionHours}h` });
+    SECRET, { expiresIn: `${policy(user).sessionHours}h` });
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" }, "LOGIN", "User", user.id, {});
   try { recordLogin(user, req); } catch (e) {}
   try { require("./analytics").capture(user.id, "user_logged_in", { role: user.role, tenantId: user.tenantId || "t1", twoFactor: !!user.totpSecret }); } catch (e) {}
   touchActivity(user.id);
-  res.json({ token, idleMinutes: policy().idleMinutes,
+  res.json({ token, idleMinutes: policy(user).idleMinutes,
     user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });
 }
 
@@ -222,7 +222,7 @@ function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ error: "Jeton manquant" });
   try {
     req.user = jwt.verify(token, SECRET);
-    const idleMs = policy().idleMinutes * 60000;
+    const idleMs = policy(req.user).idleMinutes * 60000;
     const prev = lastSeen.get(req.user.id);
     if (prev && Date.now() - prev > idleMs) {
       lastSeen.delete(req.user.id);
@@ -249,7 +249,7 @@ function me(req, res) {
   const _eff = _isAdmin ? _tm : _tm.filter(k => ["hr", "careers"].includes(k) || (u.modules || []).includes(k));
   const _perms = _isAdmin ? ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"]
     : [...new Set([...(u.role === "GPF" ? ["employee.edit"] : []), ...(u.permissions || [])])];
-  res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, disabledFeatures: (_t && _t.disabledFeatures) || [], twoFactor: !!u.totpSecret, idleMinutes: policy().idleMinutes, tenantName: _t ? _t.name : (u.tenantId === "platform" ? "Plateforme (SGRHP)" : "") });
+  res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, disabledFeatures: (_t && _t.disabledFeatures) || [], twoFactor: !!u.totpSecret, idleMinutes: policy(u).idleMinutes, tenantName: _t ? _t.name : (u.tenantId === "platform" ? "Plateforme (SGRHP)" : "") });
 }
 
 /* ---------- 2FA enrolment ----------
@@ -314,14 +314,14 @@ function forgotPassword(req, res) {
   const tmp = "Cible" + crypto.randomBytes(4).toString("hex") + "!A";
   user.password = hash(tmp); user.failedLogins = 0; user.lockedUntil = null;
   user.tempPasswordExpires = new Date(Date.now() + 30 * 60 * 1000).toISOString(); save();
-  try { mailer.trySend(user.email, "Réinitialisation de votre mot de passe", `Bonjour ${user.fullName},\n\nVotre mot de passe temporaire est : ${tmp}\n\nCe mot de passe expire dans 30 minutes. Connectez-vous puis changez-le dans « Mon compte » immédiatement.`); } catch (e) {}
+  try { mailer.trySend(user.email, "Réinitialisation de votre mot de passe", `Bonjour ${user.fullName},\n\nVotre mot de passe temporaire est : ${tmp}\n\nCe mot de passe expire dans 30 minutes. Connectez-vous puis changez-le dans « Mon compte » immédiatement.`, user); } catch (e) {}
   return res.json(generic);
 }
 
 function totpDisable(req, res) {
   const user = db.users.find(u => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: "Introuvable" });
-  const p = policy();
+  const p = policy(user);
   if (p.require2faForAll || (p.require2faForAdmins && user.role === "ADM"))
     return res.status(403).json({ error: "La 2FA est imposée par la politique de sécurité pour ce rôle" });
   delete user.totpSecret; user.totpEnabled = false; save();

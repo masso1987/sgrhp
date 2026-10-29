@@ -91,16 +91,40 @@ const DEFAULTS = {
   },
 };
 
-function settings() {
+/* Settings are per company. The founding tenant "t1" keeps the original top-level record
+ * (db.settings, which also holds platform-wide keys); every other tenant gets its own record
+ * under db.settings.byTenant, started from the defaults so a new company never sees or
+ * edits another company's configuration. `scope` is a tenant id, a request, a user or any
+ * record carrying a tenantId; without one, the founding tenant's settings are returned. */
+function tenantOf(scope) {
+  const tid = (scope && typeof scope === "object" ? (scope.user ? scope.user.tenantId : scope.tenantId) : scope) || "t1";
+  return tid === "platform" ? "t1" : tid;   // the super-administrator works on the platform (founding) record
+}
+function blank(tid) {
+  const s = JSON.parse(JSON.stringify(DEFAULTS));
+  const t = (db.tenants || []).find(x => x.id === tid);
+  s.branding.tagline = (t && t.name) || "";
+  s.branding.company.name = (t && t.name) || "";
+  return s;
+}
+function settings(scope) {
   if (!db.settings) db.settings = JSON.parse(JSON.stringify(DEFAULTS));
+  const tid = tenantOf(scope);
+  let s = db.settings;
+  if (tid !== "t1") {
+    const all = db.settings.byTenant = db.settings.byTenant || {};
+    s = all[tid] = all[tid] || blank(tid);
+  }
   for (const k of Object.keys(DEFAULTS))
-    db.settings[k] = { ...DEFAULTS[k], ...(db.settings[k] || {}) };
-  return db.settings;
+    s[k] = { ...DEFAULTS[k], ...(s[k] || {}) };
+  // The application name belongs to the platform (super-administrator), not to a tenant.
+  if (s !== db.settings) s.branding.appName = (db.settings.branding || {}).appName || DEFAULTS.branding.appName;
+  return s;
 }
 
 /** Public read: password masked. */
 router.get("/", allow("ADM"), (req, res) => {
-  const s = settings();
+  const s = settings(req);
   const MASK = "********";
   const em = JSON.parse(JSON.stringify(s.email));
   if (em.smtp && em.smtp.password) em.smtp.password = MASK;
@@ -113,7 +137,7 @@ router.get("/", allow("ADM"), (req, res) => {
 });
 
 router.put("/security", allow("ADM"), (req, res) => {
-  const s = settings();
+  const s = settings(req);
   const b = req.body || {};
   const before = { ...s.security };
   if (b.sessionHours !== undefined && !(b.sessionHours >= 1 && b.sessionHours <= 24))
@@ -139,7 +163,7 @@ const EMAILRE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 function mergeSecret(next, cur) { return (next && next !== "********") ? next : cur; }
 
 router.put("/email", allow("ADM"), (req, res) => {
-  const s = settings();
+  const s = settings(req);
   const b = req.body || {};
   const before = { provider: s.email.provider, enabled: s.email.enabled };
   const providers = ["smtp", "ses", "postmark", "mailgun", "sendmail"];
@@ -172,7 +196,7 @@ router.put("/email", allow("ADM"), (req, res) => {
 });
 
 router.put("/email/templates", allow("ADM"), (req, res) => {
-  const s = settings();
+  const s = settings(req);
   const b = req.body || {};
   for (const key of Object.keys(s.emailTemplates)) {
     if (!b[key]) continue;
@@ -185,7 +209,7 @@ router.put("/email/templates", allow("ADM"), (req, res) => {
 });
 
 router.put("/email/recipients", allow("ADM"), (req, res) => {
-  const s = settings();
+  const s = settings(req);
   const b = req.body || {};
   const clean = v => String(v || "").split(",").map(x => x.trim()).filter(Boolean)
     .filter(x => { if (!EMAILRE.test(x)) throw Object.assign(new Error("Adresse invalide : " + x), { status: 400 }); return true; }).join(", ");
@@ -204,9 +228,9 @@ router.post("/email/test", allow("ADM"), async (req, res) => {
   if (!to || !EMAILRE.test(to)) return res.status(400).json({ error: "Adresse email de test invalide" });
   try {
     const info = await mailer.send(to, "SGRHP - test de configuration email",
-      `Ceci est un email de test envoyé via le fournisseur « ${mailer.cfg().provider} ».\n\nSi vous le recevez, la configuration est correcte.`);
-    audit(req.user, "CONFIG_CHANGED", "Settings", "email-test", { to, provider: mailer.cfg().provider, ok: true });
-    res.json({ ok: true, provider: mailer.cfg().provider, messageId: info.messageId || null });
+      `Ceci est un email de test envoyé via le fournisseur « ${mailer.cfg(req).provider} ».\n\nSi vous le recevez, la configuration est correcte.`, undefined, req);
+    audit(req.user, "CONFIG_CHANGED", "Settings", "email-test", { to, provider: mailer.cfg(req).provider, ok: true });
+    res.json({ ok: true, provider: mailer.cfg(req).provider, messageId: info.messageId || null });
   } catch (e) {
     audit(req.user, "CONFIG_CHANGED", "Settings", "email-test", { to, ok: false, error: e.message });
     res.status(400).json({ error: `Échec de l'envoi : ${e.message}` });
@@ -215,7 +239,7 @@ router.post("/email/test", allow("ADM"), async (req, res) => {
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 router.put("/workflows", allow("ADM"), (req, res) => {
-  const s = settings();
+  const s = settings(req);
   const b = req.body && req.body.workflows ? req.body.workflows : (req.body || {});
   const ROLES = ["CD", "RJ", "RQ", "ADM", "GPF"];
   for (const key of Object.keys(s.workflows)) {
@@ -230,7 +254,7 @@ router.put("/workflows", allow("ADM"), (req, res) => {
   res.json(s.workflows);
 });
 router.put("/branding", allow("ADM"), (req, res) => {
-  const s = settings();
+  const s = settings(req);
   const b = req.body || {};
   const before = JSON.parse(JSON.stringify(s.branding));
   if (b.theme !== undefined) {
@@ -278,4 +302,4 @@ router.put("/branding", allow("ADM"), (req, res) => {
   res.json(s.branding);
 });
 
-module.exports = { router, settings, DEFAULTS };
+module.exports = { router, settings, tenantOf, DEFAULTS };

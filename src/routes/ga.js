@@ -12,7 +12,7 @@ const RW = ["ADM", "CD", "RJ", "RP"];
 /* ---------------- Catalogue des sources ---------------- */
 const pad2 = (n) => String(n).padStart(2, "0");
 const ddmmyyyy = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? `${m[3]}${m[2]}${m[1]}` : ""; };
-const compOf = () => (db.settings && db.settings.branding && db.settings.branding.company) || {};
+const compOf = (req) => require("./settings").settings(req).branding.company || {};
 
 // Chaque source: fonction(ctx) -> valeur brute (nombre ou texte). ctx = {emp, slip, cfg, period, seq, tenant, comp, pf}
 const SOURCES = {
@@ -115,7 +115,7 @@ function withDebut(model) {
 function buildCtxList(req, period, portfolioId) {
   const cfg = (db.payrollConfig || []).find(c => (c.tenantId || "t1") === (req.user.tenantId || "t1")) || {};
   const tenant = (db.tenants || []).find(t => t.id === (req.user.tenantId || "t1")) || {};
-  const comp = compOf();
+  const comp = compOf(req);
   let emps = mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED");
   if (portfolioId) emps = emps.filter(e => e.portfolioId === portfolioId);
   emps.sort((a, b) => String(a.matricule || "").localeCompare(String(b.matricule || ""), "fr", { numeric: true }));

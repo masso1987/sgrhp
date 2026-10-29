@@ -8,15 +8,23 @@
 const nodemailer = require("nodemailer");
 const { db } = require("./store");
 
-let transport = null, signature = "";
-function cfg() { return (db.settings && db.settings.email) || { enabled: false, provider: "smtp" }; }
-function reset() { transport = null; signature = ""; }
+// Settings are per tenant (see routes/settings). `scope` is a tenant id, request, user or
+// record; without one, the platform's (founding tenant's) settings apply.
+const own = (scope) => require("./routes/settings").settings(scope);
+const transports = new Map();   // config signature -> nodemailer transport
+// A company that has not enabled its own email server sends through the platform's.
+function cfg(scope) {
+  const platform = (db.settings && db.settings.email) || { enabled: false, provider: "smtp" };
+  if (!scope) return platform;
+  const e = own(scope).email;
+  return e && e.enabled ? e : platform;
+}
+function reset() { transports.clear(); }
 
-function build() {
-  const c = cfg();
+function build(c) {
   if (!c.enabled) return null;
   const sig = JSON.stringify(c);
-  if (transport && sig === signature) return transport;
+  if (transports.has(sig)) return transports.get(sig);
   let t;
   switch (c.provider) {
     case "sendmail":
@@ -41,38 +49,39 @@ function build() {
     }
   }
   t.connectionTimeout = 20000; t.greetingTimeout = 20000; t.socketTimeout = 25000;
-  transport = nodemailer.createTransport(t); signature = sig;
+  const transport = nodemailer.createTransport(t); transports.set(sig, transport);
   return transport;
 }
 
-function recipientsFor(eventKey, base) {
-  const r = (db.settings && db.settings.emailRecipients) || {};
+function recipientsFor(eventKey, base, scope) {
+  const r = (scope ? own(scope).emailRecipients : (db.settings && db.settings.emailRecipients)) || {};
   const extra = [(r.byEvent && r.byEvent[eventKey]) || "", r.globalCC || ""]
     .join(",").split(",").map(s => s.trim()).filter(Boolean);
   return [...new Set([...(Array.isArray(base) ? base : [base]).filter(Boolean), ...extra])];
 }
 
-function render(eventKey, lang, vars = {}) {
-  const tpl = ((db.settings && db.settings.emailTemplates) || {})[eventKey];
+function render(eventKey, lang, vars = {}, scope) {
+  const tpl = ((scope ? own(scope).emailTemplates : (db.settings && db.settings.emailTemplates)) || {})[eventKey];
   if (!tpl) return null;
   const L = lang === "en" ? "En" : "Fr";
   const fill = s => String(s || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (vars[k] != null ? vars[k] : ""));
   return { subject: fill(tpl["subject" + L] || tpl.subjectFr), body: fill(tpl["body" + L] || tpl.bodyFr) };
 }
 
-async function send(to, subject, text, attachments) {
-  const t = build();
+async function send(to, subject, text, attachments, scope) {
+  const c = cfg(scope);
+  const t = build(c);
   if (!t) throw new Error("Configuration email désactivée ou incomplète");
-  return t.sendMail({ from: cfg().from || "SGRHP <no-reply@localhost>", to: Array.isArray(to) ? to.join(",") : to, subject, text, attachments });
+  return t.sendMail({ from: c.from || "SGRHP <no-reply@localhost>", to: Array.isArray(to) ? to.join(",") : to, subject, text, attachments });
 }
-async function trySend(to, subject, text) {
-  try { if (!to || !to.length) return false; await send(to, subject, text); return true; }
+async function trySend(to, subject, text, scope) {
+  try { if (!to || !to.length) return false; await send(to, subject, text, undefined, scope); return true; }
   catch (e) { console.error("[mailer] envoi échoué:", e.message); return false; }
 }
 /** Connection test for the system console: opens the SMTP session without sending. */
 async function verify() {
   reset();
-  const t = build();
+  const t = build(cfg());
   if (!t) throw new Error("Configuration email désactivée ou incomplète");
   if (t.options && t.options.sendmail) return true;
   return t.verify();

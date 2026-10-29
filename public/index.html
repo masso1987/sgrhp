@@ -1494,7 +1494,7 @@ async function boot() {
   login.classList.add("hidden"); app.classList.remove("hidden");
   document.getElementById("langSel").value = LANG;
   watchI18n();
-  fetch("/api/branding").then(r =>r.json()).then(applyBranding).catch(() => {});
+  fetch("/api/branding", TOKEN ? { headers: { Authorization: "Bearer " + TOKEN } } : {}).then(r =>r.json()).then(applyBranding).catch(() => {});
   // Load the full profile so the menu reflects the modules activated for this tenant
   // (the login response does not carry modules).
   try {

@@ -22,15 +22,15 @@ const openStep = d => d.steps.find(s => !s.decidedAt);
 
 /* ---- Workflow configurable par tenant (Administration › Circuits de validation) ---- */
 const { WF_KEY, WF_DEFAULT, resolveRoles } = require("./workflowConfig");
-function wfRoles(type) {
-  let cfg = null; try { cfg = require("./routes/settings").settings().workflows; } catch (e) {}
+function wfRoles(type, tenantId) {
+  let cfg = null; try { cfg = require("./routes/settings").settings(tenantId).workflows; } catch (e) {}
   return resolveRoles(type, cfg);
 }
 const mkStep = (role, at) => ({ id: id("stp"), stage: role, assignedAt: at || new Date().toISOString(),
   warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
 /* Démarre (ou finalise si aucun niveau de validation) le circuit d'un document. */
 function startWorkflow(doc, user) {
-  const roles = wfRoles(doc.type);
+  const roles = wfRoles(doc.type, doc.tenantId);
   doc.flowRoles = roles; doc.flowPos = 0;
   doc.submittedAt = new Date().toISOString();
   if (!roles.length) {                       // aucun niveau -> génération immédiate
@@ -38,13 +38,13 @@ function startWorkflow(doc, user) {
     doc.generatedFile = generateOfficial(doc); setEmpStatus(doc, "VALIDATED");
     audit(user, "GENERATED", "Document", doc.id, { noWorkflow: true });
     notify.event("validated", { userId: doc.createdById }, { title: doc.title, ref: doc.id });
-    try { notify.toRole("UI", "Nouveau document disponible", doc.title, doc.id); } catch (e) {}
+    try { notify.toRole("UI", "Nouveau document disponible", doc.title, doc.id, doc.tenantId || "t1"); } catch (e) {}
     return;
   }
   doc.status = "SUBMITTED";
   doc.steps.push(mkStep(roles[0], doc.submittedAt));
   setEmpStatus(doc, "SUBMITTED");
-  notify.event("submitted", { role: roles[0] }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
+  notify.event("submitted", { role: roles[0], tenantId: doc.tenantId }, { title: doc.title, initiator: initiatorName(doc.createdById), sla: SLA, ref: doc.id });
 }
 
 /** M3: create a document from an uploaded template. Missing tags must be provided (form). */
@@ -120,20 +120,20 @@ function approve(documentId, user) {
   step.decision = "APPROVED"; step.validatorId = user.id;
   step.elapsedH = elapsedBusinessHours(step.assignedAt);
 
-  const roles = (Array.isArray(doc.flowRoles) && doc.flowRoles.length) ? doc.flowRoles : wfRoles(doc.type);
+  const roles = (Array.isArray(doc.flowRoles) && doc.flowRoles.length) ? doc.flowRoles : wfRoles(doc.type, doc.tenantId);
   doc.flowPos = (doc.flowPos || 0) + 1;
   if (doc.flowPos < roles.length) {
     const nextRole = roles[doc.flowPos];
     doc.status = "SUBMITTED";              // encore en cours de validation
     doc.steps.push(mkStep(nextRole));
-    notify.event("submitted", { role: nextRole }, { title: doc.title, initiator: initiatorName(doc.createdById), stage: nextRole, sla: SLA, ref: doc.id });
+    notify.event("submitted", { role: nextRole, tenantId: doc.tenantId }, { title: doc.title, initiator: initiatorName(doc.createdById), stage: nextRole, sla: SLA, ref: doc.id });
   } else {
     doc.status = "GENERATED";
     doc.generatedAt = new Date().toISOString();
     doc.generatedFile = generateOfficial(doc);
     setEmpStatus(doc, "VALIDATED");
     notify.event("validated", { userId: doc.createdById }, { title: doc.title, ref: doc.id });
-    try { notify.toRole("UI", "New document available for printing", doc.title, doc.id); } catch (e) {}
+    try { notify.toRole("UI", "New document available for printing", doc.title, doc.id, doc.tenantId || "t1"); } catch (e) {}
     audit(user, "GENERATED", "Document", doc.id);
   }
   save();
@@ -155,7 +155,7 @@ function reject(documentId, user, reason) {
   setEmpStatus(doc, "DRAFT");
   save();
   audit(user, "REJECTED", "Document", doc.id, { stage: user.role, reason });
-  notify.event("rejected", { userId: doc.createdById, role: user.role === "RJ" ? "CD" : undefined },
+  notify.event("rejected", { userId: doc.createdById, role: user.role === "RJ" ? "CD" : undefined, tenantId: doc.tenantId },
     { title: doc.title, validator: user.role, reason, ref: doc.id });
   return doc;
 }
@@ -182,16 +182,25 @@ function writeGenerated(docId, ext, buffer) {
   fs.writeFileSync(path.join(dir, fname), buffer);
   return fname;
 }
-function companyInfo() {
-  const b = (db.settings && db.settings.branding) || {};
+/* Company block for generated letters, from the settings of the record's tenant. The
+ * historical Cible RH fallbacks only apply to the founding tenant. */
+function companyInfo(scope) {
+  const s = require("./routes/settings");
+  const tid = s.tenantOf(scope);
+  const b = s.settings(tid).branding || {};
   const c = b.company || {};
+  if (tid !== "t1") {
+    const t = (db.tenants || []).find(x => x.id === tid) || {};
+    return { name: c.name || t.name || "", bp: c.address || "", dg: c.dg || "le Directeur Général", dga: c.dga || "",
+      city: c.city || "", niu: c.niu || t.niu || "" };
+  }
   return { name: c.name || b.appName || "CIBLE RH EMPLOI S.A.", bp: c.address || "BP 3462 Douala",
     dg: c.dg || "le Directeur Général", dga: c.dga || "",
     city: c.city || "Douala", niu: c.niu || "" };
 }
 const _fr = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? `${m[3]}/${m[2]}/${m[1]}` : (d || ""); };
 function aviParagraphs(doc) {
-  const d = doc.data || {}; const co = companyInfo();
+  const d = doc.data || {}; const co = companyInfo(doc);
   const civ = d.civility || "Monsieur"; const name = d.employeeName || "";
   const duree = (d.contractType === "CDD") ? "durée déterminée" : "durée indéterminée";
   const p1 = d.variant === "mission"
@@ -222,7 +231,7 @@ function aviParagraphs(doc) {
   return [...body, ...detail, ...tail];
 }
 function contractEndParagraphs(doc) {
-  const d = doc.data || {}; const co = companyInfo();
+  const d = doc.data || {}; const co = companyInfo(doc);
   const civ = d.civility || "Monsieur"; const name = d.employeeName || "";
   const body = [
     { text: `Réf : ${d.ref || ""}`, size: 20 },
@@ -274,13 +283,13 @@ function slaScan() {
     const h = elapsedBusinessHours(step.assignedAt);
     if (h >= WARN && !step.warnedAt) {
       step.warnedAt = new Date().toISOString(); changed = true;
-      notify.event("slaWarning", { role: step.stage }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
-      notify.event("slaWarning", { role: "ADM" }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id }); // supervisor
+      notify.event("slaWarning", { role: step.stage, tenantId: doc.tenantId }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
+      notify.event("slaWarning", { role: "ADM", tenantId: doc.tenantId }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id }); // supervisor
     }
     if (h > SLA && !step.breachedAt) {
       step.breachedAt = new Date().toISOString(); changed = true;
-      notify.event("slaBreach", { role: step.stage }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
-      notify.event("slaBreach", { role: "ADM" }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
+      notify.event("slaBreach", { role: step.stage, tenantId: doc.tenantId }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
+      notify.event("slaBreach", { role: "ADM", tenantId: doc.tenantId }, { title: doc.title, elapsed: h, stage: step.stage, ref: doc.id });
     }
   }
   if (changed) save();

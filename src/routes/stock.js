@@ -907,7 +907,7 @@ router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), 
   const pf = mine(db.portfolios, req).find(p => p.id === emp.portfolioId);
   const issues = mine(db.epiIssues, req).filter(i => i.employeeId === emp.id);
   const tenant = (db.tenants || []).find(t => t.id === (emp.tenantId || "t1"));
-  const brand = (db.settings && db.settings.branding) || {};
+  const brand = require("./settings").settings(req).branding || {};
   const fr = d => d ? new Date(d).toLocaleDateString("fr-FR") : "";
   const lines = (emp.epi || []).filter(l => !l.year || String(l.year) === year).map(l => {
     const issued = issues.filter(i => (l.productId ? i.productId === l.productId : i.designation === (l.designation || ""))).reduce((s, i) => s + Q(i.quantity), 0);

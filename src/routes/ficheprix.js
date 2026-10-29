@@ -153,7 +153,7 @@ function dataUrlToBuffer(d) {
   catch (e) { return null; }
 }
 function brandCtx(req) {
-  let b = {}; try { b = require("./settings").settings().branding || {}; } catch (e) {}
+  let b = {}; try { b = require("./settings").settings(req).branding || {}; } catch (e) {}
   const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1")) || {};
   const co = b.company || {};
   return {

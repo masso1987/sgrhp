@@ -7,20 +7,26 @@
 const { db, save, id } = require("./store");
 const mailer = require("./mailer");
 
-function emailCfg() { return (db.settings && db.settings.email) || {}; }
+// Email is on when the tenant's own server or the platform's is enabled; the
+// notification toggles are the tenant's own choice.
+function emailCfg(tenantId) {
+  const own = require("./routes/settings").settings(tenantId).email || {};
+  return { enabled: !!mailer.cfg(tenantId).enabled, notifyOnWorkflow: own.notifyOnWorkflow !== false, notifyOnSla: own.notifyOnSla !== false };
+}
 
 function toUser(userId, subject, body, ref = null) {
   db.notifications.push({ id: id("ntf"), userId, subject, body, ref,
     at: new Date().toISOString(), readAt: null });
   save();
-  const e = emailCfg();
-  if (e.enabled && e.notifyOnWorkflow) {
-    const u = db.users.find(x => x.id === userId);
-    if (u && u.email) mailer.trySend(u.email, `SGRHP - ${subject}`, `${body}\n\n-\nSGRHP`);
-  }
+  const u = db.users.find(x => x.id === userId);
+  const tid = (u && u.tenantId) || "t1";
+  const e = emailCfg(tid);
+  if (e.enabled && e.notifyOnWorkflow && u && u.email)
+    mailer.trySend(u.email, `SGRHP - ${subject}`, `${body}\n\n-\nSGRHP`, tid);
 }
-function toRole(role, subject, body, ref = null) {
-  db.users.filter(u => u.role === role && u.active).forEach(u => toUser(u.id, subject, body, ref));
+/** Notifies the active users holding `role` in one tenant only. */
+function toRole(role, subject, body, ref = null, tenantId = "t1") {
+  db.users.filter(u => u.role === role && u.active && (u.tenantId || "t1") === tenantId).forEach(u => toUser(u.id, subject, body, ref));
 }
 
 /**
@@ -44,13 +50,17 @@ function toRolesTenant(roles, tenantId, subject, body, ref = null) {
  */
 function event(eventKey, target, vars = {}, opts = {}) {
   const isSla = eventKey === "slaWarning" || eventKey === "slaBreach";
-  const e = emailCfg();
-  const rendered = mailer.render(eventKey, "fr", vars) || { subject: eventKey, body: "" };
+  // Role recipients, templates and email settings all belong to one tenant: the one given,
+  // else the targeted user's.
+  const targetUser = target.userId ? db.users.find(u => u.id === target.userId) : null;
+  const tid = target.tenantId || (targetUser && targetUser.tenantId) || "t1";
+  const e = emailCfg(tid);
+  const rendered = mailer.render(eventKey, "fr", vars, tid) || { subject: eventKey, body: "" };
 
   // in-app to the intended recipients
   const recips = [];
-  if (target.userId) recips.push(db.users.find(u => u.id === target.userId));
-  if (target.role) recips.push(...db.users.filter(u => u.role === target.role && u.active));
+  if (targetUser) recips.push(targetUser);
+  if (target.role) recips.push(...db.users.filter(u => u.role === target.role && u.active && (u.tenantId || "t1") === tid));
   recips.filter(Boolean).forEach(u => {
     db.notifications.push({ id: id("ntf"), userId: u.id, subject: rendered.subject, body: rendered.body,
       ref: vars.ref || null, at: new Date().toISOString(), readAt: null });
@@ -60,13 +70,13 @@ function event(eventKey, target, vars = {}, opts = {}) {
   // email, if enabled and the relevant toggle is on
   if (e.enabled && ((isSla && e.notifyOnSla) || (!isSla && e.notifyOnWorkflow))) {
     const base = recips.filter(Boolean).map(u => u.email).filter(Boolean);
-    const to = mailer.recipientsFor(eventKey, base);
+    const to = mailer.recipientsFor(eventKey, base, tid);
     if (to.length) {
-      const en = mailer.render(eventKey, "en", vars);
+      const en = mailer.render(eventKey, "en", vars, tid);
       // send French with English appended (bilingual org); templates already localised
       const subject = rendered.subject;
       const body = rendered.body + (en ? `\n\n----------\n${en.body}` : "");
-      mailer.trySend(to, subject, body);
+      mailer.trySend(to, subject, body, tid);
     }
   }
 }

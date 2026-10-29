@@ -62,7 +62,7 @@ router.post("/:id/amendments", allow("GPF", "ADM"), (req, res) => {
     warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
   db.documents.push(doc); save();
   audit(req.user, "CREATED", "Amendment", doc.id, { version, changes });
-  notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
+  notify.event("submitted", { role: "CD", tenantId: req.user.tenantId }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
   res.status(201).json(doc);
 });
 
@@ -114,7 +114,7 @@ router.post("/:id/decisions", allow("GPF", "ADM"), decUpload.single("file"), (re
       warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
     db.documents.push(doc);
     dec.amendmentId = doc.id;
-    notify.event("submitted", { role: "CD" }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
+    notify.event("submitted", { role: "CD", tenantId: req.user.tenantId }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
     audit(req.user, "CREATED", "Amendment", doc.id, { auto: true, fromDecision: type, changes });
   }
 
@@ -260,7 +260,7 @@ router.get("/expiring", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   if (req.user.role === "GPF") { const u = db.users.find(x => x.id === req.user.id); const pfs = new Set((u && u.portfolioIds) || []); list = list.filter(x => pfs.has(x.portfolioId)); }
   res.json(list);
 });
-router.post("/expiring/remind", allow("CD", "RJ", "ADM"), (req, res) => res.json({ sent: expiry.scanAndRemind() }));
+router.post("/expiring/remind", allow("CD", "RJ", "ADM"), (req, res) => res.json({ sent: expiry.scanAndRemind(req.user.tenantId || "t1") }));
 
 /* ============================ AVI + Lettre de fin de contrat ============================ */
 const wf = require("../workflow");
@@ -279,7 +279,7 @@ router.post("/avi", allow("GPF", "ADM", "CD", "RJ"), aviUpload.single("letter"),
   const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
   // Référence AVI auto-numérotée : PREFIXE/NNN/MM/YYYY (compteur par tenant et par année).
   const _now = new Date(); const _yy = String(_now.getFullYear()); const _mm = String(_now.getMonth() + 1).padStart(2, "0");
-  const _pref = ((db.settings && db.settings.branding && db.settings.branding.company && db.settings.branding.company.aviRefPrefix) || "AVI").replace(/\/+$/, "");
+  const _pref = ((require("./settings").settings(req).branding.company || {}).aviRefPrefix || "AVI").replace(/\/+$/, "");
   const _nAvi = mine(db.documents, req).filter(d => d.type === "AVI" && String((d.data && d.data.ref) || "").includes("/" + _yy)).length + 1;
   const autoRef = b.ref && String(b.ref).trim() ? b.ref : `${_pref}/${String(_nAvi).padStart(3, "0")}/${_mm}/${_yy}`;
   const doc = {
@@ -346,7 +346,7 @@ router.get("/:id/leave/:docId/attestation.pdf", allow("GPF", "CD", "RJ", "ADM", 
   if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
   const doc = db.documents.find(d => d.id === req.params.docId && d.type === "LEAVE" && d.refId === emp.id);
   if (!doc) return res.status(404).json({ error: "Demande de congé introuvable" });
-  const d = doc.data || {}; const co = wf.companyInfo();
+  const d = doc.data || {}; const co = wf.companyInfo(emp);
   let PDFDocument; try { PDFDocument = require("pdfkit"); } catch (e) { return res.status(500).json({ error: "Génération PDF indisponible" }); }
   const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
   const nom = `${emp.firstName || ""} ${emp.lastName || ""}`.trim();

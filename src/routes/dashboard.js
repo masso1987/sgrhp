@@ -57,10 +57,10 @@ router.get("/", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
     coveredYear: Math.round(consYear.reduce((s, c) => s + (Number(c.covered) || 0), 0)),
     pendingDependents: mine(db.dependents || [], req).filter(d => d.status === "PENDING").length,
   };
-  const cniExpiring = db.employees
+  const cniExpiring = emps
     .filter(e => e.cniExpiry && inDays(e.cniExpiry) <= 60)
     .map(e => ({ name: `${e.firstName} ${e.lastName}`, date: e.cniExpiry, days: inDays(e.cniExpiry) }));
-  const cddEnding = db.employees
+  const cddEnding = emps
     .filter(e => e.contract?.type === "CDD" && e.contract?.endDate && inDays(e.contract.endDate) <= 30)
     .map(e => ({ name: `${e.firstName} ${e.lastName}`, date: e.contract.endDate, days: inDays(e.contract.endDate) }));
 

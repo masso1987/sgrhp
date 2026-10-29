@@ -2199,7 +2199,7 @@ function drawPayslip(doc, s, emp, tenant) {
 
   /* ===== HEADER ===== */
   BX(18, 18, 300, 110);
-  const CO = (db.settings && db.settings.branding && db.settings.branding.company) || {};
+  const CO = require("./settings").settings(s).branding.company || {};
   T(26, 24, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 10, w: 288 });
   if (CO.address) T(26, 39, CO.address, { s: 8, w: 288 });
   if (CO.city) T(26, 50, CO.city, { s: 8, w: 288 });
@@ -2361,7 +2361,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
   const NB = (n) => { if (n == null || n === "") return ""; const v = Number(n); if (isNaN(v)) return String(n); return (Math.round(v * 1000) / 1000).toString().replace(".", ","); };
   const C = emp.contract || {};
-  const CO = (db.settings && db.settings.branding && db.settings.branding.company) || {};
+  const CO = require("./settings").settings(s).branding.company || {};
   const MS = { Single: "Célibataire", Married: "Marié(e)", Divorced: "Divorcé(e)", Widowed: "Veuf(ve)" };
   const fdate = (d) => { if (!d) return ""; const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : d; };
   const shortConv = (n) => { if (!n) return ""; const stop = new Set(["convention","conventions","collective","collectives","nationale","interprofessionnelle","de","du","des","la","le","les","l","d"]); const w = String(n).replace(/[''’]/g, " ").split(/\s+/).filter(Boolean); while (w.length && stop.has(w[0].toLowerCase())) w.shift(); const o = w.join(" ") || String(n); return o.charAt(0).toUpperCase() + o.slice(1); };

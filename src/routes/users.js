@@ -33,7 +33,7 @@ router.post("/", allow("ADM"), (req, res) => {
   const pwErr = passwordPolicy(password);
   if (pwErr) return res.status(400).json({ error: pwErr });
   const mailer = require("../mailer");
-  const smtpOn = !!(mailer.cfg() || {}).enabled;
+  const smtpOn = !!(mailer.cfg(req) || {}).enabled;
   const u = stamp({ id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true, confirmed: true }, req);
   if (role === "RQ") _grantModuleIfTenant(u, "quality");
   if (role === "RC") _grantModuleIfTenant(u, "accounting");
@@ -46,7 +46,7 @@ router.post("/", allow("ADM"), (req, res) => {
   if (smtpOn) {
     const base = `${req.protocol}://${req.get("host")}`;
     try { mailer.trySend(u.email, "Confirmez votre compte SGRHP",
-      `Bonjour ${u.fullName},\n\nUn compte SGRHP a été créé pour vous. Cliquez le lien ci-dessous pour l'activer :\n\n${base}/api/confirm?token=${u.confirmToken}\n\nCe lien expire dans 24 heures. Tant que le compte n'est pas confirmé, la connexion est impossible.`); } catch (e) {}
+      `Bonjour ${u.fullName},\n\nUn compte SGRHP a été créé pour vous. Cliquez le lien ci-dessous pour l'activer :\n\n${base}/api/confirm?token=${u.confirmToken}\n\nCe lien expire dans 24 heures. Tant que le compte n'est pas confirmé, la connexion est impossible.`, u); } catch (e) {}
   }
   const { password: _, confirmToken: __, ...safe } = u;
   res.status(201).json({ ...safe, pendingConfirmation: smtpOn });

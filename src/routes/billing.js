@@ -356,12 +356,12 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
 
 /* ==================== ANNEXE & FACTURE (PDF / Excel) ==================== */
 const _NF = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-function _company() { const b = (db.settings && db.settings.branding) || {}; return Object.assign({ name: b.appName || "CIBLE RH EMPLOI" }, b.company || {}); }
-function _lh() { const b = (db.settings && db.settings.branding) || {}; const lh = b.letterhead || {}; return Object.assign({ mode: "fields", headerHeight: 80, footerHeight: 50, showPage: true, legal: "", qtyDec: "", priceDec: "" }, lh, { company: Object.assign({}, b.company || {}, lh.company || {}), bank: Object.assign({}, lh.bank || {}) }); }
+function _company(scope) { const b = require("./settings").settings(scope).branding || {}; return Object.assign({ name: b.appName || "CIBLE RH EMPLOI" }, b.company || {}); }
+function _lh(scope) { const b = require("./settings").settings(scope).branding || {}; const lh = b.letterhead || {}; return Object.assign({ mode: "fields", headerHeight: 80, footerHeight: 50, showPage: true, legal: "", qtyDec: "", priceDec: "" }, lh, { company: Object.assign({}, b.company || {}, lh.company || {}), bank: Object.assign({}, lh.bank || {}) }); }
 function _dataBuf(d) { try { const i = String(d).indexOf(","); return Buffer.from(String(d).slice(i + 1), "base64"); } catch (e) { return null; } }
 function _fixEnc(x) { const s = x == null ? "" : String(x); if (/[ÃÂ][\x80-\xBF\u0080-\u00BF]/.test(s)) { try { const r = Buffer.from(s, "latin1").toString("utf8"); if (!/\uFFFD/.test(r)) return r; } catch (e) {} } return s; }
 function _drawFooter(doc, pageNo, pageCount) {
-  const lh = _lh(); const pw = doc.page.width, ph = doc.page.height;
+  const lh = _lh(doc._tid); const pw = doc.page.width, ph = doc.page.height;
   if (lh.mode === "image" && lh.footerImage) { const buf = _dataBuf(lh.footerImage); if (buf) { try { doc.image(buf, 0, ph - (lh.footerHeight || 50), { width: pw, height: lh.footerHeight || 50 }); } catch (e) {} } return; }
   const c = lh.company || {};
   const line1 = [c.address, c.city].filter(Boolean).map(_fixEnc).join(" - ");
@@ -390,7 +390,7 @@ function _proformaLines(s, computed, contract) {
   return out;
 }
 function _drawHeader(doc, co, client, title) {
-  const lh = _lh(); const cb = client || {}; const pw = doc.page.width; let top = 104, clientTop = 46;
+  const lh = _lh(doc._tid); const cb = client || {}; const pw = doc.page.width; let top = 104, clientTop = 46;
   if (lh.mode === "image" && lh.headerImage) {
     const h = lh.headerHeight || 80; const buf = _dataBuf(lh.headerImage);
     if (buf) { try { doc.image(buf, 0, 0, { width: pw, height: h }); } catch (e) {} }
@@ -398,7 +398,7 @@ function _drawHeader(doc, co, client, title) {
     clientTop = h + 4; top = h + 58;
   } else {
     const c = Object.assign({}, co, lh.company || {});
-    const logo = (((db.settings || {}).branding || {}).logo) || "";
+    const logo = (require("./settings").settings(doc._tid).branding.logo) || "";
     let ly = 20;
     if (logo) { const lb = _dataBuf(logo); if (lb) { try { doc.image(lb, 24, 18, { height: 34 }); ly = 56; } catch (e) {} } }
     if (lh.tagline) { doc.font("Helvetica-Oblique").fontSize(8).fillColor("#b3261e").text(_fixEnc(lh.tagline), 24, ly, { width: pw / 2 - 24 }); ly += 12; }
@@ -445,7 +445,7 @@ router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req
   // Regroupement par poste : si demandé (?group=poste) ou configuré sur le contrat, sinon liste à plat triée par nom.
   const groupByPoste = String(req.query.group || (D.contract.annexeGroupBy || "")).toLowerCase() === "poste";
 
-  const doc = new PDFDocument({ margin: 20, size: "A4", layout: "landscape", bufferPages: true });
+  const doc = new PDFDocument({ margin: 20, size: "A4", layout: "landscape", bufferPages: true }); doc._tid = req.user.tenantId;
   const F = _annexeFonts(doc);
   res.setHeader("Content-Type", "application/pdf");
   const fname = `Annexe Mensuelle - ${client} ${per.month} ${per.year}.pdf`.replace(/[\/:*?"<>|]/g, " ").replace(/\s+/g, " ").trim();
@@ -454,7 +454,7 @@ router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req
 
   const pw = doc.page.width, x0 = 20, right = pw - 20, usable = right - x0;
   // ---- En-tête (style Odoo) ----
-  const co = _company(); const logo = (((db.settings || {}).branding || {}).logo) || "";
+  const co = _company(req); const logo = (require("./settings").settings(req).branding.logo) || "";
   let hy = 22;
   if (logo) { const lb = _dataBuf(logo); if (lb) { try { doc.image(lb, x0, 18, { height: 30 }); } catch (e) {} } }
   doc.font(F.bold).fontSize(9).fillColor("#111").text(_fixEnc(co.name || "CIBLE RH EMPLOI"), right - 300, 20, { width: 300, align: "right" });
@@ -571,8 +571,8 @@ router.get("/sheets/:id/annexe/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (r
 
 router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
-  const D = withCompute(s, req); const co = _company(); const c = D.contract; const t = D.computed.totals; const style = c.invoiceStyle || "lines";
-  const doc = new PDFDocument({ margin: 28, size: "A4" });
+  const D = withCompute(s, req); const co = _company(req); const c = D.contract; const t = D.computed.totals; const style = c.invoiceStyle || "lines";
+  const doc = new PDFDocument({ margin: 28, size: "A4" }); doc._tid = req.user.tenantId;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Facture_${(c.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
   doc.pipe(res);
@@ -608,7 +608,7 @@ router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (re
 router.get("/sheets/:id/invoice/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
   const D = withCompute(s, req); const c = D.contract; const t = D.computed.totals; const XLSX = require("xlsx"); const style = c.invoiceStyle || "lines";
-  const aoa = [[_company().name], [c.clientName], ["Facture N°", s.number, "Période", s.period], []];
+  const aoa = [[_company(req).name], [c.clientName], ["Facture N°", s.number, "Période", s.period], []];
   if (style === "proforma") { aoa.push(["Description", "Montant HT"]); for (const [lbl, amt] of _proformaLines(s, D.computed, c)) aoa.push([lbl, amt]); }
   else { aoa.push(["#", "Désignation", "Qté", "Montant HT"]); let n = 0; for (const l of D.computed.lines) aoa.push([++n, `${l.name}${l.poste ? " - " + l.poste : ""}`, 1, l.HT]); }
   aoa.push([]); aoa.push(["", "", "Total HT", t.HT]); aoa.push(["", "", c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA]);
@@ -695,11 +695,11 @@ router.get("/sheets/:id/annexe-template/pdf", allow("ADM", "CD", "RJ", "GPF", "U
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id); if (!s) return res.status(404).json({ error: "Fiche introuvable" });
   const t = tplOf(req, req.query.templateId); if (!t) return res.status(400).json({ error: "Modèle d'annexe requis" });
   const contract = contractOf(req, s.contractId) || { billingType: "MAD", rates: {} };
-  const A = computeAnnexe(t, s.lines || [], contract); const co = _company();
+  const A = computeAnnexe(t, s.lines || [], contract); const co = _company(req);
   const rep = Object.assign({ orientation: "landscape", showHeader: true, showClientBlock: true, showTitle: true, showPeriod: true, showTotals: true, showSignatures: true }, t.report || {});
   const land = rep.orientation !== "portrait";
   const pgSize = land ? "A3" : "A4", pgLayout = land ? "landscape" : "portrait";
-  const doc = new PDFDocument({ margin: 16, size: pgSize, layout: pgLayout, bufferPages: true });
+  const doc = new PDFDocument({ margin: 16, size: pgSize, layout: pgLayout, bufferPages: true }); doc._tid = req.user.tenantId;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Annexe_${(contract.clientName||"").replace(/[^\w]/g,"_")}_${s.period}.pdf"`);
   doc.pipe(res);
@@ -1093,13 +1093,13 @@ router.get("/invoices/:id/compare", allow("ADM","CD","RJ","GPF","UI"), (req, res
 /* ---- Facture PDF (en-tête simple; papier à en-tête ajouté ensuite) ---- */
 router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
-  const contract = contractOf(req, inv.contractId) || {}; const co = _company(); const t = invTotals(inv);
-  const doc = new PDFDocument({ margin: 28, size: "A4", bufferPages: true });
+  const contract = contractOf(req, inv.contractId) || {}; const co = _company(req); const t = invTotals(inv);
+  const doc = new PDFDocument({ margin: 28, size: "A4", bufferPages: true }); doc._tid = req.user.tenantId;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Facture_${(inv.number||"").replace(/[^\w]/g,"_")}.pdf"`);
   doc.pipe(res);
-  const _lhc = _lh(); const brand = (_lhc.accent && /^#[0-9a-fA-F]{6}$/.test(_lhc.accent)) ? _lhc.accent : ((((db.settings || {}).branding || {}).colors || {}).primary || "#065f46");
-  const lh = _lh(); const bk = lh.bank || {}; const cb = contract.clientBlock || {}; const x0 = 28, W = 539;
+  const _lhc = _lh(req); const brand = (_lhc.accent && /^#[0-9a-fA-F]{6}$/.test(_lhc.accent)) ? _lhc.accent : ((require("./settings").settings(req).branding.colors || {}).primary || "#065f46");
+  const lh = _lh(req); const bk = lh.bank || {}; const cb = contract.clientBlock || {}; const x0 = 28, W = 539;
   const _top = _drawHeader(doc, co, null, "");
   // client block (left)
   let cy = _top; doc.fillColor("#000");
@@ -1129,7 +1129,7 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
     if (forced != null && forced !== "" && !isNaN(Number(forced))) str = n.toFixed(Number(forced));
     else str = String(Math.round(n * 1000) / 1000);
     let [ip, dp] = str.split("."); ip = ip.replace(/\B(?=(\d{3})+(?!\d))/g, " "); return dp ? ip + "," + dp : ip; };
-  const _dec = _lh(); const _qd = _dec.qtyDec, _pd = _dec.priceDec;
+  const _dec = _lh(req); const _qd = _dec.qtyDec, _pd = _dec.priceDec;
   const NF3 = (n) => _fmtNum(n, _pd);
   const QF = (q) => _fmtNum(q, _qd) + " Unité(s)";
   const TXP = (r) => (Math.round((Number(r) || 0) * 10000) / 100) + "%";
@@ -1212,7 +1212,7 @@ router.get("/reports/ca", allow("ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
     return res.send(XLSX.write(wb,{type:"buffer",bookType:"xlsx"}));
   }
   if (format === "pdf") {
-    const doc = new PDFDocument({ margin: 28, size: "A4" }); const F=_annexeFonts(doc);
+    const doc = new PDFDocument({ margin: 28, size: "A4" }); doc._tid = req.user.tenantId; const F=_annexeFonts(doc);
     res.setHeader("Content-Type","application/pdf"); res.setHeader("Content-Disposition",`attachment; filename="${name}.pdf"`);
     doc.pipe(res); const x0=28, usable=doc.page.width-56;
     doc.font(F.bold).fontSize(14).text(`Rapport de facturation - ${lo} à ${hi}`, x0, 28);
