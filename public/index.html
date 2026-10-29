@@ -1300,7 +1300,46 @@ async function confirm2fa() {
     lTotp.focus();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
 }
-function logout() { try { if (TOKEN) fetch("/api/logout", { method: "POST", headers: { Authorization: "Bearer " + TOKEN }, keepalive: true }); } catch (e) {} sessionStorage.clear(); localStorage.removeItem("t"); localStorage.removeItem("me"); TOKEN = null; ME = null; setTimeout(function(){ location.href = "/"; }, 120); }
+/* ---- PostHog (product analytics) - enabled by the super-admin in Système > Analytics ---- */
+let PH_CFG = null;
+async function phInit(me) {
+  try {
+    if (!PH_CFG) PH_CFG = await fetch("/api/analytics-config").then(r => r.json());
+    if (!PH_CFG || !PH_CFG.enabled) return;
+    if (!window.posthog || !window.posthog.__loaded) {
+      if (!window.posthog) {
+        // Queue calls until the library arrives; the loaded script replays them.
+        const ph = window.posthog = []; ph._i = []; ph.__SV = 1;
+        const methods = "init capture register register_once unregister identify alias set_config reset opt_in_capturing opt_out_capturing has_opted_out_capturing get_distinct_id people.set people.set_once group".split(" ");
+        for (const m of methods) {
+          const [obj, fn] = m.includes(".") ? [ph[m.split(".")[0]] = ph[m.split(".")[0]] || [], m.split(".")[1]] : [ph, m];
+          obj[fn] = function () { obj.push([fn].concat([].slice.call(arguments))); };
+        }
+        ph.init = function (key, cfg, name) { ph._i.push([key, cfg, name]); };
+        const s = document.createElement("script");
+        s.async = true; s.crossOrigin = "anonymous"; s.src = PH_CFG.assetsHost + "/static/array.js";
+        document.head.appendChild(s);
+      }
+      window.posthog.init(PH_CFG.apiKey, {
+        api_host: PH_CFG.host, person_profiles: "identified_only", respect_dnt: true,
+        autocapture: PH_CFG.autocapture, capture_pageview: false, capture_pageleave: PH_CFG.capturePageviews,
+        disable_session_recording: !PH_CFG.sessionRecording,
+        session_recording: { maskAllInputs: true, maskTextSelector: "[data-ph-mask]" },
+        mask_all_text: false, mask_all_element_attributes: false,
+      });
+    }
+    if (me && PH_CFG.identifyUsers) {
+      const props = { role: me.role, tenantId: me.tenantId || "t1", tenantName: me.tenantName || "" };
+      if (PH_CFG.sendEmail) { props.email = me.email; props.name = me.fullName; }
+      window.posthog.identify(me.id, props);
+    }
+    if (window.CURRENT_VIEW) phPage(window.CURRENT_VIEW);
+  } catch (e) { /* analytics must never break the app */ }
+}
+function phPage(k) {
+  try { if (PH_CFG && PH_CFG.enabled && PH_CFG.capturePageviews && window.posthog) window.posthog.capture("$pageview", { $current_url: location.origin + "/#" + k, view: k }); } catch (e) {}
+}
+function logout() { try { if (window.posthog && PH_CFG && PH_CFG.enabled) window.posthog.reset(); } catch (e) {} try { if (TOKEN) fetch("/api/logout", { method: "POST", headers: { Authorization: "Bearer " + TOKEN }, keepalive: true }); } catch (e) {} sessionStorage.clear(); localStorage.removeItem("t"); localStorage.removeItem("me"); TOKEN = null; ME = null; setTimeout(function(){ location.href = "/"; }, 120); }
 
 const NAV = [
   { k: "plathome", label: "Console plateforme", roles: ["SADM"], grp: "plateforme" },
@@ -1312,6 +1351,7 @@ const NAV = [
   { k: "logins", label: "Connexions plateforme", roles: ["SADM"], grp: "plateforme" },
   { k: "platusers", label: "Utilisateurs & sessions", roles: ["SADM"], grp: "plateforme" },
   { k: "platmaint", label: "Maintenance", roles: ["SADM"], grp: "plateforme" },
+  { k: "sysops", label: "Système & base de données", roles: ["SADM"], grp: "plateforme" },
 
   { k: "dash", label: "Tableau de bord", sec: "Pilotage", roles: ["GPF","CD","RJ","UI","ADM"], grp: "principal" },
   { k: "employees", label: "Employés", sec: "Dossiers du personnel", roles: ["GPF","CD","RJ","ADM"], grp: "principal" },
@@ -1466,6 +1506,7 @@ async function boot() {
     ME.tenantName = meFull.tenantName || "";
     sessionStorage.setItem("me", JSON.stringify(ME));
     armIdle(meFull.idleMinutes || 120);
+    phInit(meFull);
   } catch { armIdle(120); }
   try { PFS = await api("/portfolios"); } catch {}
   who.textContent = `${esc(ME.fullName)} - ${ME.role}`;
@@ -1616,6 +1657,7 @@ function startAccessPolling() {
 function toggleSidebar(){var n=document.getElementById('nav'),b=document.getElementById('sbBackdrop');var o=n.classList.toggle('open');if(b)b.classList.toggle('show',o);}
 function closeSidebar(){var n=document.getElementById('nav'),b=document.getElementById('sbBackdrop');if(n)n.classList.remove('open');if(b)b.classList.remove('show');}
 function go(k, arg) {
+  if (window.CURRENT_VIEW !== k) phPage(k);
   window.CURRENT_VIEW = k;
   closeSidebar();
   applySectionColor(k);
@@ -1623,7 +1665,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sysops: sysopsView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -2306,7 +2348,9 @@ if (LANG === "en") translateTree(document.getElementById("login"));
 
 /* preload portfolios for names */
 if (TOKEN) {
-  api("/portfolios")
+  // The platform super-admin has no portfolios (the route is tenant-only and answers 403),
+  // which used to bounce a SADM back to the login screen on every page refresh.
+  (ME && ME.role === "SADM" ? Promise.resolve([]) : api("/portfolios"))
     .then(p => { PFS = p; boot(); })
     .catch(e => {
       // Expired token ->login screen (already handled). Anything else: show the
@@ -4384,6 +4428,7 @@ async function platformHomeView(){
       ${_admTile(I('<path d="M7 3h9l4 4v14H7z"/><path d="M16 3v4h4"/><path d="M10 12h7M10 16h5"/>'),"#a855f7","Mentions légales","CGU, confidentialité et documents légaux plateforme.","legal")}
       ${_admTile(I('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 8h5M18.5 5.5v5"/>'),"#0ea5e9","Admins plateforme","Comptes super-administrateur et leurs accès.","superadmins")}
       ${_admTile(I('<path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/><circle cx="12" cy="12" r="3.2"/>'),"#64748b","Journal d'audit","Traçabilité des actions sur la plateforme.","audit")}
+      ${_admTile(I('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>'),"#0d9488","Système & base de données","Santé, services, processus, disque, pare-feu, console SQL et PostHog.","sysops")}
     </div></div>`;
 }
 /* ================= Plateforme : administrateurs (SADM) ================= */
@@ -4430,6 +4475,346 @@ async function loginsView(){
   </div>`;
 }
 
+/* ================= Plateforme : console système (SADM) ================= */
+window._sys = window._sys || { tab: "overview", sql: "", write: false, procQ: "", tableSel: null };
+const _SYS_TABS = [["overview","Vue d'ensemble"],["app","Santé appli"],["db","Base de données"],["sql","Console SQL"],["services","Services"],["procs","Processus"],["disk","Disque"],["firewall","Pare-feu"],["analytics","Analytics (PostHog)"]];
+function _fmtB(n){ n=Number(n)||0; const u=["o","Ko","Mo","Go","To"]; let i=0; while(n>=1024&&i<u.length-1){n/=1024;i++;} return (i?n.toFixed(n<10?1:0):n)+" "+u[i]; }
+function _fmtUp(s){ s=Math.round(Number(s)||0); const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60); return d?`${d} j ${h} h`:h?`${h} h ${m} min`:m?`${m} min`:`${s} s`; }
+function _sysTag(st){
+  const map={up:["green","En service"],configured:["green","Configuré"],degraded:["amber","Dégradé"],late:["amber","En retard"],waiting:["gray","En attente"],off:["gray","Désactivé"],down:["red","Arrêté"],running:["green","En marche"],exited:["red","Arrêté"],paused:["amber","En pause"],restarting:["amber","Redémarrage"],created:["gray","Créé"]};
+  const m=map[st]||["gray",st||"-"]; return `<span class="tag ${m[0]}">● ${esc(m[1])}</span>`;
+}
+function _sysBar(pct){ const p=Math.max(0,Math.min(100,Number(pct)||0)); const c=p>=90?"var(--red,#dc2626)":p>=75?"#d97706":"var(--accent)"; return `<div class="adm-bar" style="margin-top:4px"><i style="width:${p}%;background:${c}"></i></div>`; }
+/* Tab body, or null when the user has switched tab meanwhile (a slow refresh must not overwrite another tab). */
+function _sysBody(tab){ return _sys.tab===tab ? document.getElementById("sysBody") : null; }
+function _sysKc(l,v,s,col){ return `<div class="adm-kc"><div class="l">${l}</div><div class="v" ${col?`style="color:${col}"`:""}>${v}</div>${s?`<div class="s">${s}</div>`:""}</div>`; }
+async function sysopsView(tab){
+  if(typeof tab==="string") _sys.tab=tab;
+  clearInterval(window._sysTimer);
+  const seg=(k,l)=>`<button class="btn ${_sys.tab===k?"p":"ghost"} sm" onclick="sysopsView('${k}')">${l}</button>`;
+  view.innerHTML=`<div class="adm-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Système &amp; base de données</h1>
+      <button class="btn ghost sm" onclick="sysopsView()">Actualiser</button></div>
+    <div class="note" style="margin:6px 0 10px">Surveillance et maintenance de la plateforme. Chaque action est enregistrée dans le journal d'audit.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${_SYS_TABS.map(([k,l])=>seg(k,l)).join("")}</div>
+    <div id="sysBody">${mmLoading()}</div></div>
+    <style>#sysBody .grid2>*{min-width:0}#sysBody .panel{min-width:0;overflow-x:auto}</style>`;
+  const fn={overview:sysOverview,app:sysApp,db:sysDb,sql:sysSql,services:sysServices,procs:sysProcs,disk:sysDisk,firewall:sysFirewall,analytics:sysAnalytics}[_sys.tab]||sysOverview;
+  const shown=_sys.tab;
+  try{ await fn(); }catch(e){ const b=_sysBody(shown); if(b) b.innerHTML=mmError(e.message,"sysopsView()"); }
+  if(["overview","app","procs","services"].includes(_sys.tab)){
+    const cur=_sys.tab;
+    window._sysTimer=setInterval(()=>{ if(!document.getElementById("sysBody")||_sys.tab!==cur||document.hidden){ if(!document.getElementById("sysBody")) clearInterval(window._sysTimer); return; } fn().catch(()=>{}); }, cur==="procs"?8000:10000);
+  }
+}
+async function sysAct(url, body, confirmMsg, danger){
+  if(confirmMsg && !await mmConfirm({message:confirmMsg,danger:!!danger})) return null;
+  try{ const r=await api(url,{method:"POST",body:JSON.stringify(body||{})}); alert(r.message||"Action effectuée"); sysopsView(); return r; }
+  catch(e){ alert(e.message); return null; }
+}
+async function sysRestartApp(viaDocker, cid){
+  const msg="Redémarrer l'application ? Les utilisateurs connectés seront brièvement déconnectés (quelques secondes). "+(viaDocker?"":"Le redémarrage automatique suppose un superviseur (Docker restart policy, pm2 ou systemd).");
+  if(!await mmConfirm({message:msg,danger:true,confirmLabel:"Redémarrer"})) return;
+  try{ await api(viaDocker?`/sysops/docker/${cid}/restart`:"/sysops/services/app/restart",{method:"POST",body:"{}"}); }catch(e){ return alert(e.message); }
+  const b=document.getElementById("sysBody"); if(b) b.innerHTML=mmLoading("Redémarrage de l'application…");
+  const t0=Date.now(); await new Promise(r=>setTimeout(r,3000));
+  while(Date.now()-t0<120000){ try{ const r=await fetch("/api/version",{cache:"no-store"}); if(r.ok){ sysopsView(); return; } }catch(e){} await new Promise(r=>setTimeout(r,2000)); }
+  if(b) b.innerHTML=mmError("L'application ne répond pas après 2 minutes - vérifiez le serveur.","sysopsView()");
+}
+async function sysOverview(){
+  const [o,sv]=await Promise.all([api("/sysops/overview"),api("/sysops/services").catch(()=>null)]);
+  const b=_sysBody("overview"); if(!b) return;
+  const memPct=o.host.totalMem?Math.round(100*(o.host.totalMem-o.host.freeMem)/o.host.totalMem):0;
+  const d=o.disk; const rq=o.requests||{};
+  const bad=(sv&&sv.services||[]).filter(s=>["down","degraded","late"].includes(s.state));
+  b.innerHTML=`<div class="adm-kpi">
+      ${_sysKc("Application", o.lastError?"Dégradée":"En ligne", "depuis "+_fmtUp(o.app.uptime), o.lastError?"#d97706":"var(--green)")}
+      ${_sysKc("Base de données", o.db.ok?"OK":"Problème", (o.db.backend==="postgres"?"PostgreSQL":"Fichier JSON")+(o.db.pingMs!=null?" · "+o.db.pingMs+" ms":""), o.db.ok?"var(--green)":"var(--red,#dc2626)")}
+      ${_sysKc("Disque", d&&!d.error?d.usedPct+" %":"-", d&&!d.error?_fmtB(d.free)+" libres sur "+_fmtB(d.total)+_sysBar(d.usedPct):"", d&&d.usedPct>=90?"var(--red,#dc2626)":d&&d.usedPct>=75?"#d97706":"")}
+      ${_sysKc("Mémoire serveur", memPct+" %", _fmtB(o.host.freeMem)+" libres sur "+_fmtB(o.host.totalMem)+_sysBar(memPct))}
+      ${_sysKc("CPU appli", (o.app.cpuPct||0)+" %", `charge ${o.host.load.map(x=>x.toFixed(2)).join(" / ")} · ${o.host.cpus} cœur(s)`)}
+      ${_sysKc("Requêtes (5 min)", rq.count||0, `${rq.perMin||0}/min · p95 ${rq.p95Ms||0} ms · ${rq.errors5xx||0} erreur(s) 5xx`, rq.errors5xx?"#d97706":"")}
+    </div>
+    <div class="grid2">
+      <div class="panel"><b>Alertes</b><div style="margin-top:8px">
+        ${o.lastError?`<div style="color:var(--red)">⚠ Dernière écriture en base en échec : ${esc(o.lastError)}</div>`:""}
+        ${bad.length?bad.map(s=>`<div style="padding:5px 0;border-bottom:1px solid var(--border)">${_sysTag(s.state)} <b>${esc(s.label)}</b> <span class="note-inline">${esc(s.detail||"")}</span></div>`).join(""):(!o.lastError?'<div style="color:var(--muted)">Aucune alerte - tous les services répondent.</div>':"")}
+        ${o.app.loopLagMs>200?`<div style="color:#d97706;margin-top:6px">Boucle d'événements ralentie : ${o.app.loopLagMs} ms</div>`:""}
+      </div></div>
+      <div class="panel"><b>Serveur</b><table style="margin-top:6px">
+        <tr><td class="note-inline">Hôte</td><td>${esc(o.host.hostname)}</td></tr>
+        <tr><td class="note-inline">Système</td><td>${esc(o.host.platform)}</td></tr>
+        <tr><td class="note-inline">Démarré depuis</td><td>${_fmtUp(o.host.uptime)}</td></tr>
+        <tr><td class="note-inline">Node.js</td><td>${esc(o.app.node)} · ${_fmtB(o.app.rss)} RAM</td></tr>
+        <tr><td class="note-inline">Docker</td><td>${o.docker?'<span class="tag green">socket disponible</span>':'<span class="tag gray">non monté</span>'}</td></tr>
+        <tr><td class="note-inline">Version</td><td style="font-size:11px">${esc((o.build||"").slice(0,90))}</td></tr>
+      </table></div>
+    </div>
+    <div class="note-inline" style="margin-top:6px">Actualisation automatique toutes les 10 s - ${new Date(o.at).toLocaleTimeString("fr-FR")}</div>`;
+}
+async function sysApp(){
+  const a=await api("/sysops/app"); const b=_sysBody("app"); if(!b) return;
+  const rq=(r)=>`<tr><td>${r.window} min</td><td class="r">${r.count}</td><td class="r">${r.perMin}</td><td class="r">${r.avgMs} ms</td><td class="r">${r.p95Ms} ms</td><td class="r">${r.maxMs} ms</td><td class="r" style="${r.errors5xx?"color:var(--red)":""}">${r.errors5xx}</td><td class="r">${r.errors4xx}</td></tr>`;
+  const heapPct=a.memory.heapTotal?Math.round(100*a.memory.heapUsed/a.memory.heapTotal):0;
+  b.innerHTML=`<div class="adm-kpi">
+      ${_sysKc("Disponibilité", _fmtUp(a.uptime), "PID "+a.pid+" · "+esc(a.env))}
+      ${_sysKc("Mémoire (RSS)", _fmtB(a.memory.rss), "heap "+_fmtB(a.memory.heapUsed)+" / "+_fmtB(a.memory.heapTotal)+_sysBar(heapPct))}
+      ${_sysKc("CPU", a.cpuPct+" %", "processus Node.js")}
+      ${_sysKc("Latence boucle", a.loopLagMs+" ms", "max récent "+a.loopLagMaxMs+" ms", a.loopLagMs>200?"#d97706":"")}
+      ${_sysKc("Sessions ouvertes", a.sessions, a.chat?`${a.chat.users} en ligne (chat)`:"")}
+      ${_sysKc("Stockage", a.storage==="postgres"?"PostgreSQL":"JSON", a.persistence?(a.persistence.ok?"persistance vérifiée":"écart de persistance"):"", a.persistence&&!a.persistence.ok?"#d97706":"")}
+    </div>
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><b>Trafic HTTP</b>
+      <button class="btn ghost sm" onclick="sysRestartApp(false)">Redémarrer l'application</button></div>
+      <table style="margin-top:6px"><tr><th>Fenêtre</th><th class="r">Requêtes</th><th class="r">/min</th><th class="r">Moyenne</th><th class="r">p95</th><th class="r">Max</th><th class="r">5xx</th><th class="r">4xx</th></tr>
+      ${rq(a.requests.last1)}${rq(a.requests.last5)}${rq(a.requests.last15)}</table></div>
+    <div class="grid2">
+      <div class="panel"><b>Hôte</b><table style="margin-top:6px">
+        <tr><td class="note-inline">Nom</td><td>${esc(a.host.hostname)}${a.host.container?' <span class="tag gray">conteneur</span>':""}</td></tr>
+        <tr><td class="note-inline">Système</td><td>${esc(a.host.platform)}</td></tr>
+        <tr><td class="note-inline">Processeur</td><td>${a.host.cpus} × ${esc(a.host.cpuModel||"")}</td></tr>
+        <tr><td class="note-inline">Charge (1/5/15)</td><td>${a.host.load.map(x=>x.toFixed(2)).join(" / ")}</td></tr>
+        <tr><td class="note-inline">Mémoire</td><td>${_fmtB(a.host.totalMem-a.host.freeMem)} utilisés / ${_fmtB(a.host.totalMem)}</td></tr>
+        <tr><td class="note-inline">Node.js</td><td>${esc(a.node)}</td></tr></table>
+        ${a.lastError?`<div class="err" style="margin-top:8px">Dernière erreur de stockage : ${esc(a.lastError)}</div>`:""}</div>
+      <div class="panel"><b>Données en mémoire (top 25)</b><div class="scroll" style="max-height:260px;margin-top:6px"><table>
+        ${a.collections.map(c=>`<tr><td>${esc(c.collection)}</td><td class="r">${c.n.toLocaleString("fr-FR")}</td></tr>`).join("")}</table></div></div>
+    </div>`;
+}
+async function sysDb(){
+  const h=await api("/sysops/db/health"); const b=_sysBody("db"); if(!b) return;
+  const rep=(a,l,c,d)=>`<button class="btn ${d?"":"ghost"} sm" ${d?'style="background:var(--red);color:#fff"':""} onclick="sysAct('/sysops/db/repair/${a}',{},${c?`'${c.replace(/'/g,"\\'")}'`:"null"},${!!d})">${l}</button>`;
+  const integrityBtn=`<button class="btn ghost sm" onclick="sysIntegrity()">Contrôle d'intégrité</button>`;
+  if(h.backend==="json"){
+    b.innerHTML=`<div class="adm-kpi">${_sysKc("Stockage","Fichier JSON",esc(h.file))}${_sysKc("Taille",_fmtB(h.size),h.modifiedAt?"modifié "+fmtAgo(h.modifiedAt):"")}${_sysKc("État",h.ok?"OK":"Erreur",h.lastError?esc(h.lastError):"",h.ok?"var(--green)":"var(--red)")}</div>
+      <div class="panel"><b>Maintenance</b><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${rep("resave","Réécrire les données")} ${integrityBtn}</div><div id="sysInteg"></div></div>
+      <div class="panel"><b>Collections</b><table style="margin-top:6px">${h.collections.map(c=>`<tr><td>${esc(c.collection)}</td><td class="r">${c.n}</td></tr>`).join("")}</table></div>`;
+    return;
+  }
+  if(h.error){ b.innerHTML=`<div class="panel"><div class="err">Base injoignable : ${esc(h.error)}</div><div style="margin-top:10px;display:flex;gap:6px">${rep("reconnect","Reconnecter le pool")}</div></div>`; return; }
+  const i=h.info||{}, s=h.stats||{};
+  const conns=Array.isArray(h.connections)?h.connections:[];
+  const longQ=Array.isArray(h.longQueries)?h.longQueries:[];
+  const tables=Array.isArray(h.tables)?h.tables:[];
+  const coll=Array.isArray(h.store)?h.store:[];
+  b.innerHTML=`<div class="adm-kpi">
+      ${_sysKc("État", h.ok?"Sain":"À surveiller", (h.warnings||[]).length+" alerte(s)", h.ok?"var(--green)":"#d97706")}
+      ${_sysKc("Latence", h.pingMs+" ms", "aller-retour SELECT 1")}
+      ${_sysKc("Taille base", _fmtB(i.size), esc(i.db||""))}
+      ${_sysKc("Connexions", h.totalConnections+" / "+(i.max_conn||"?"), conns.map(c=>c.n+" "+c.state).join(" · ")+_sysBar(i.max_conn?100*h.totalConnections/i.max_conn:0))}
+      ${_sysKc("Cache hit", (s.cache_hit!=null?s.cache_hit:"-")+" %", "cible ≥ 99 %", s.cache_hit!=null&&s.cache_hit<90?"#d97706":"")}
+      ${_sysKc("Transactions", Number(s.xact_commit||0).toLocaleString("fr-FR"), `${Number(s.xact_rollback||0).toLocaleString("fr-FR")} annulées · ${s.deadlocks||0} deadlock(s)`)}
+    </div>
+    ${(h.warnings||[]).length?`<div class="panel" style="border-color:#f59e0b"><b>Alertes</b>${h.warnings.map(w=>`<div style="color:#b45309;margin-top:4px">⚠ ${esc(w)}</div>`).join("")}</div>`:""}
+    <div class="panel"><b>Maintenance &amp; réparation</b>
+      <div class="note" style="margin:4px 0 8px">Les opérations lourdes (VACUUM, REINDEX) peuvent ralentir l'application pendant leur exécution : préférez les heures creuses.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${rep("analyze","ANALYZE (statistiques)")}
+        ${rep("vacuum","VACUUM ANALYZE","Lancer VACUUM ANALYZE sur toute la base ?")}
+        ${rep("reindex","Reconstruire les index","REINDEX TABLE store verrouille la table pendant l'opération. Continuer ?",true)}
+        ${rep("kill-idle","Terminer sessions bloquées (>5 min)","Terminer les sessions « idle in transaction » depuis plus de 5 minutes ?")}
+        ${rep("reconnect","Reconnecter le pool")}
+        ${rep("resave","Réécrire + vérifier la persistance")}
+        ${integrityBtn}
+        <button class="btn ghost sm" style="color:var(--red)" onclick="sysReload()">Recharger depuis la base…</button>
+      </div><div id="sysInteg"></div></div>
+    <div class="panel"><b>Requêtes actives</b>${longQ.length?`<div style="overflow-x:auto"><table style="margin-top:6px"><tr><th>PID</th><th>Utilisateur</th><th>État</th><th class="r">Durée</th><th>Attente</th><th>Requête</th><th></th></tr>
+      ${longQ.map(q=>`<tr><td>${q.pid}</td><td>${esc(q.usename||"")}</td><td>${esc(q.state||"")}</td><td class="r" style="${q.secs>300?"color:var(--red)":""}">${q.secs!=null?_fmtUp(q.secs):"-"}</td><td>${esc(q.wait_event_type||"")}</td><td><code style="font-size:11px">${esc(q.query||"")}</code></td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" onclick="sysAct('/sysops/db/repair/cancel',{pid:${q.pid}},'Annuler la requête du processus ${q.pid} ?')">Annuler</button> <button class="btn ghost sm" style="color:var(--red)" onclick="sysAct('/sysops/db/repair/terminate',{pid:${q.pid}},'Terminer la session ${q.pid} ?',true)">Terminer</button></td></tr>`).join("")}</table></div>`:'<div class="note-inline" style="margin-top:6px">Aucune requête active.</div>'}</div>
+    <div class="grid2">
+      <div class="panel"><b>Tables</b><div class="scroll" style="max-height:340px;margin-top:6px"><table><tr><th>Table</th><th class="r">Lignes</th><th class="r">Mortes</th><th class="r">Taille</th><th>Dernier vacuum</th></tr>
+        ${tables.map(t=>{ const lv=t.last_vacuum||t.last_autovacuum; return `<tr><td>${esc(t.name)}</td><td class="r">${Number(t.live).toLocaleString("fr-FR")}</td><td class="r" style="${t.dead>t.live*0.2&&t.dead>1000?"color:#d97706":""}">${Number(t.dead).toLocaleString("fr-FR")}</td><td class="r">${_fmtB(t.size)}</td><td class="note-inline">${lv?fmtAgo(lv):"jamais"}</td></tr>`; }).join("")}</table></div></div>
+      <div class="panel"><b>Collections applicatives (table store)</b><div class="scroll" style="max-height:340px;margin-top:6px"><table><tr><th>Collection</th><th class="r">Docs</th><th class="r">Taille</th><th>Mise à jour</th></tr>
+        ${coll.map(c=>`<tr style="cursor:pointer" onclick="_sys.tab='sql';_sys.tableSel={name:'store',collection:'${esc(c.collection)}'};sysopsView()"><td>${esc(c.collection)}</td><td class="r">${c.n.toLocaleString("fr-FR")}</td><td class="r">${_fmtB(c.bytes)}</td><td class="note-inline">${c.updated?fmtAgo(c.updated):""}</td></tr>`).join("")}</table></div></div>
+    </div>
+    <div class="note-inline">PostgreSQL ${esc(String(i.version||"").split(" ").slice(1,2).join(""))} · démarré ${i.started?fmtAgo(i.started):"-"}</div>`;
+}
+async function sysIntegrity(){
+  const el=document.getElementById("sysInteg"); if(el) el.innerHTML=mmLoading("Contrôle en cours…");
+  try{ const r=await api("/sysops/db/integrity");
+    if(el) el.innerHTML=`<div style="margin-top:10px">${r.issues.length?r.issues.map(x=>`<div style="padding:4px 0;color:${x.level==="error"?"var(--red)":"#b45309"}">${x.level==="error"?"✖":"⚠"} <b>${esc(x.where)}</b> : ${esc(x.msg)} ${x.sample&&x.sample.length?`<span class="note-inline">(${x.sample.map(esc).join(", ")})</span>`:""}</div>`).join(""):'<div style="color:var(--green)">✔ Aucune incohérence détectée.</div>'}</div>`;
+  }catch(e){ if(el) el.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+async function sysReload(){
+  const v=prompt("Recharger toutes les données depuis PostgreSQL remplace l'état en mémoire de l'application (utile après une correction SQL directe dans la table store).\n\nTapez RECHARGER pour confirmer :");
+  if(v!=="RECHARGER") return;
+  sysAct("/sysops/db/repair/reload",{confirm:"RECHARGER"});
+}
+/* ---- SQL console ---- */
+function _sysHist(){ try{ return JSON.parse(localStorage.getItem("sysSqlHist")||"[]"); }catch(e){ return []; } }
+function _sysHistPush(q){ try{ const h=_sysHist().filter(x=>x!==q); h.unshift(q); localStorage.setItem("sysSqlHist",JSON.stringify(h.slice(0,20))); }catch(e){} }
+async function sysSql(){
+  const t=await api("/sysops/db/tables"); const b=_sysBody("sql"); if(!b) return;
+  if(t.backend==="json"){ b.innerHTML=`<div class="panel">La console SQL nécessite PostgreSQL (stockage actuel : fichier JSON). Utilisez l'explorateur ci-dessous.</div><div class="panel"><b>Collections</b><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${t.tables.map(x=>`<button class="btn ghost sm" onclick="sysBrowse('${esc(x.name)}')">${esc(x.name)} (${x.rows})</button>`).join("")}</div></div><div id="sysBrowse"></div>`; return; }
+  const hist=_sysHist();
+  b.innerHTML=`<div style="display:grid;grid-template-columns:minmax(180px,240px) 1fr;gap:12px" class="sys-sql">
+    <div class="panel" style="margin:0"><b>Tables</b><input placeholder="Filtrer…" style="margin:6px 0" oninput="const q=this.value.toLowerCase();document.querySelectorAll('#sysTbl [data-t]').forEach(e=>e.style.display=e.dataset.t.includes(q)?'':'none')">
+      <div id="sysTbl" class="scroll" style="max-height:440px;margin:0">${t.tables.map(x=>`<div data-t="${esc(x.name.toLowerCase())}" style="display:flex;justify-content:space-between;gap:6px;padding:4px 2px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="sysBrowse('${esc(x.name)}','${esc(x.schema)}')"><span>${x.schema!=="public"?esc(x.schema)+".":""}${esc(x.name)}</span><span class="note-inline">${x.rows>=0?Number(x.rows).toLocaleString("fr-FR"):""}</span></div>`).join("")}</div></div>
+    <div style="min-width:0">
+      <div class="panel" style="margin-top:0">
+        <textarea id="sysSqlTxt" rows="7" spellcheck="false" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px" placeholder="SELECT collection, count(*) FROM store GROUP BY 1 ORDER BY 2 DESC" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();sysRunSql();}">${esc(_sys.sql||"")}</textarea>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+          <button class="btn p sm" onclick="sysRunSql()">Exécuter (Ctrl+Entrée)</button>
+          <label class="chk" style="margin:0"><input type="checkbox" id="sysWrite" ${_sys.write?"checked":""} onchange="_sys.write=this.checked;document.getElementById('sysWarn').style.display=this.checked?'':'none'"><span>Mode écriture</span></label>
+          ${hist.length?`<select style="margin:0;width:auto;max-width:260px" onchange="if(this.value){document.getElementById('sysSqlTxt').value=this.value;}"><option value="">Historique…</option>${hist.map(q=>`<option value="${esc(q)}">${esc(q.slice(0,70))}</option>`).join("")}</select>`:""}
+          <button class="btn ghost sm" id="sysCsv" style="display:none" onclick="sysCsv()">Exporter CSV</button>
+        </div>
+        <div id="sysWarn" class="err" style="margin-top:8px;${_sys.write?"":"display:none"}">Mode écriture : la requête sera validée (COMMIT) et journalisée. Les données de l'application vivent dans la table « store » et sont réécrites depuis la mémoire : après une modification, utilisez « Recharger depuis la base » (onglet Base de données).</div>
+        <div class="note-inline" style="margin-top:6px">Lecture seule par défaut (transaction READ ONLY, 15 s max, 1000 lignes affichées). Une instruction à la fois. Les champs sensibles (mots de passe, jetons, clés) sont masqués.</div>
+      </div>
+      <div id="sysSqlRes"></div><div id="sysBrowse"></div>
+    </div></div>
+    <style>@media(max-width:760px){.sys-sql{grid-template-columns:1fr!important}}</style>`;
+  if(_sys.tableSel){ const s=_sys.tableSel; _sys.tableSel=null; sysBrowse(s.name,"public",s.collection); }
+}
+async function sysRunSql(){
+  const ta=document.getElementById("sysSqlTxt"); const sql=(ta.value||"").trim(); if(!sql) return;
+  _sys.sql=sql; const write=!!(document.getElementById("sysWrite")||{}).checked;
+  const body={sql,write};
+  if(write){ const c=prompt("Mode écriture - cette requête sera exécutée et validée sur la base de production.\n\n"+sql.slice(0,400)+"\n\nTapez EXECUTER pour confirmer :"); if(c!=="EXECUTER") return; body.confirm="EXECUTER"; }
+  const out=document.getElementById("sysSqlRes"); out.innerHTML=mmLoading("Exécution…"); document.getElementById("sysBrowse").innerHTML="";
+  try{ const r=await api("/sysops/db/query",{method:"POST",body:JSON.stringify(body)}); _sysHistPush(sql); window._sysLast=r;
+    const cell=v=>{ if(v===null||v===undefined) return '<span class="note-inline">NULL</span>'; const s=typeof v==="object"?JSON.stringify(v):String(v); return s.length>160?`<span title="${esc(s.slice(0,2000))}">${esc(s.slice(0,160))}…</span>`:esc(s); };
+    out.innerHTML=`<div class="panel"><div class="note-inline">${esc(r.command||"")} · ${r.rowCount??0} ligne(s) · ${r.ms} ms${r.truncated?" · affichage limité à 1000 lignes":""}</div>
+      ${r.note?`<div class="err" style="margin-top:6px">${esc(r.note)}</div>`:""}
+      ${r.fields&&r.fields.length?`<div style="overflow:auto;max-height:480px;margin-top:6px"><table style="font-size:12px"><tr>${r.fields.map(f=>`<th>${esc(f)}</th>`).join("")}</tr>${r.rows.map(row=>`<tr>${row.map(v=>`<td style="white-space:nowrap">${cell(v)}</td>`).join("")}</tr>`).join("")}</table></div>`:""}</div>`;
+    document.getElementById("sysCsv").style.display=r.fields&&r.fields.length?"":"none";
+  }catch(e){ out.innerHTML=`<div class="panel"><div class="err">${esc(e.message)}</div></div>`; }
+}
+function sysCsv(){
+  const r=window._sysLast; if(!r||!r.fields) return;
+  const q=v=>{ const s=v==null?"":(typeof v==="object"?JSON.stringify(v):String(v)); return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const csv="\ufeff"+[r.fields.map(q).join(";")].concat(r.rows.map(row=>row.map(q).join(";"))).join("\n");
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download="requete.csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+async function sysBrowse(name, schema, collection, offset){
+  const el=document.getElementById("sysBrowse"); if(!el) return; el.innerHTML=mmLoading();
+  const off=offset||0, lim=50;
+  try{ const qs=`?limit=${lim}&offset=${off}&schema=${encodeURIComponent(schema||"public")}`+(collection?`&collection=${encodeURIComponent(collection)}`:"");
+    const r=await api(`/sysops/db/table/${encodeURIComponent(name)}${qs}`);
+    const cols=r.columns?r.columns.map(c=>c.column_name):Object.keys(r.rows[0]||{});
+    const cell=v=>{ if(v==null) return '<span class="note-inline">NULL</span>'; if(typeof v==="object") return `<details><summary style="cursor:pointer">${esc(JSON.stringify(v).slice(0,90))}…</summary><pre style="white-space:pre-wrap;max-width:720px;font-size:11px">${esc(JSON.stringify(v,null,2))}</pre></details>`; const s=String(v); return esc(s.length>120?s.slice(0,120)+"…":s); };
+    const nav=(o)=>`sysBrowse('${esc(name)}','${esc(schema||"public")}',${collection?`'${esc(collection)}'`:"null"},${o})`;
+    el.innerHTML=`<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${esc(name)}${collection?" · "+esc(collection):""}</b>
+      <span class="note-inline">${off+1}-${Math.min(off+lim,r.total)} sur ${Number(r.total).toLocaleString("fr-FR")}
+        <button class="btn ghost sm" ${off<=0?"disabled":""} onclick="${nav(Math.max(0,off-lim))}">‹</button><button class="btn ghost sm" ${off+lim>=r.total?"disabled":""} onclick="${nav(off+lim)}">›</button></span></div>
+      <div style="overflow:auto;max-height:520px;margin-top:6px"><table style="font-size:12px"><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr>${r.rows.map(row=>`<tr>${cols.map(c=>`<td style="vertical-align:top">${cell(row[c])}</td>`).join("")}</tr>`).join("")||`<tr><td class="note-inline">Aucune ligne</td></tr>`}</table></div></div>`;
+    const ta=document.getElementById("sysSqlTxt"); if(ta&&!ta.value) ta.value=collection?`SELECT id, updated_at, doc FROM store WHERE collection = '${collection.replace(/'/g,"''")}' ORDER BY updated_at DESC LIMIT 100`:`SELECT * FROM ${schema&&schema!=="public"?schema+".":""}${name} LIMIT 100`;
+  }catch(e){ el.innerHTML=`<div class="panel"><div class="err">${esc(e.message)}</div></div>`; }
+}
+/* ---- Services ---- */
+async function sysServices(){
+  const s=await api("/sysops/services"); const b=_sysBody("services"); if(!b) return;
+  const lbl={restart:"Redémarrer",reconnect:"Reconnecter",resave:"Réécrire",verify:"Vérifier",test:"Tester",run:"Exécuter maintenant"};
+  const btn=(sv,a)=> sv.key==="app"&&a==="restart" ? `<button class="btn ghost sm" onclick="sysRestartApp(false)">Redémarrer</button>`
+    : `<button class="btn ghost sm" onclick="sysAct('/sysops/services/${encodeURIComponent(sv.key)}/${a}')">${lbl[a]||a}</button>`;
+  const dk=s.docker||{};
+  const crow=c=>`<tr><td><b>${esc(c.service||c.name)}</b>${c.self?' <span class="tag gray">cette appli</span>':""}<div class="note-inline">${esc(c.name)} · ${esc(c.image)}</div></td><td>${_sysTag(c.state)}<div class="note-inline">${esc(c.status)}</div></td>
+    <td style="white-space:nowrap">${c.self?`<button class="btn ghost sm" onclick="sysRestartApp(true,'${c.id}')">Redémarrer</button>`:`<button class="btn ghost sm" onclick="sysAct('/sysops/docker/${c.id}/restart',{},'Redémarrer ${esc(c.name)} ?',true)">Redémarrer</button>
+      ${c.state==="running"?`<button class="btn ghost sm" onclick="sysAct('/sysops/docker/${c.id}/stop',{},'Arrêter ${esc(c.name)} ? Le service sera indisponible.',true)">Arrêter</button>`:`<button class="btn ghost sm" onclick="sysAct('/sysops/docker/${c.id}/start')">Démarrer</button>`}`}
+      <button class="btn ghost sm" onclick="sysLogs('${c.id}')">Journaux</button> <button class="btn ghost sm" onclick="sysCStats('${c.id}')">Stats</button></td></tr>`;
+  b.innerHTML=`<div class="panel"><b>Services de l'application</b><table style="margin-top:6px"><tr><th>Service</th><th>État</th><th>Détail</th><th></th></tr>
+      ${s.services.map(sv=>`<tr><td><b>${esc(sv.label)}</b></td><td>${_sysTag(sv.state)}</td><td class="note-inline">${esc(sv.detail||"")}</td><td style="white-space:nowrap">${(sv.actions||[]).map(a=>btn(sv,a)).join(" ")}</td></tr>`).join("")}</table></div>
+    <div class="panel"><b>Conteneurs Docker</b>${dk.available?(dk.error?`<div class="err" style="margin-top:6px">${esc(dk.error)}</div>`:`<div class="note-inline" style="margin-top:2px">Projet : ${esc(dk.project||"(tous)")}</div><table style="margin-top:6px"><tr><th>Conteneur</th><th>État</th><th></th></tr>${dk.containers.map(crow).join("")||'<tr><td class="note-inline">Aucun conteneur</td></tr>'}</table>`)
+      :`<div class="note" style="margin-top:6px">Le socket Docker n'est pas monté dans l'application : la gestion des conteneurs (base PostgreSQL, proxy Caddy…) est désactivée. Pour l'activer, démarrez la pile avec <code>docker-compose.sysops.yml</code> (voir le fichier pour les précautions de sécurité).</div>`}</div>
+    <div id="sysLog"></div>`;
+}
+async function sysLogs(id){
+  const el=document.getElementById("sysLog"); el.innerHTML=mmLoading();
+  try{ const r=await api(`/sysops/docker/${id}/logs?tail=400`);
+    el.innerHTML=`<div class="panel"><div style="display:flex;justify-content:space-between"><b>Journaux - ${esc(r.name)}</b><button class="btn ghost sm" onclick="sysLogs('${id}')">Actualiser</button></div><pre id="sysLogPre" style="max-height:460px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;font-size:11.5px;white-space:pre-wrap;margin-top:6px">${esc(r.logs||"(vide)")}</pre></div>`;
+    const p=document.getElementById("sysLogPre"); if(p) p.scrollTop=p.scrollHeight; el.scrollIntoView({behavior:"smooth"});
+  }catch(e){ el.innerHTML=`<div class="panel"><div class="err">${esc(e.message)}</div></div>`; }
+}
+async function sysCStats(id){
+  const el=document.getElementById("sysLog"); el.innerHTML=mmLoading();
+  try{ const r=await api(`/sysops/docker/${id}/stats`); const t=r.top||{};
+    el.innerHTML=`<div class="panel"><b>${esc(r.name)}</b><div class="adm-kpi" style="margin-top:6px">${_sysKc("CPU",r.cpuPct+" %","")}${_sysKc("Mémoire",_fmtB(r.mem),r.memLimit?"limite "+_fmtB(r.memLimit)+_sysBar(100*r.mem/r.memLimit):"")}${_sysKc("Processus",r.pids||"-","")}</div>
+      ${t.Titles?`<div style="overflow:auto;max-height:320px"><table style="font-size:12px"><tr>${t.Titles.map(x=>`<th>${esc(x)}</th>`).join("")}</tr>${(t.Processes||[]).map(p=>`<tr>${p.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</table></div>`:""}</div>`;
+    el.scrollIntoView({behavior:"smooth"});
+  }catch(e){ el.innerHTML=`<div class="panel"><div class="err">${esc(e.message)}</div></div>`; }
+}
+/* ---- Processes ---- */
+async function sysProcs(){
+  const p=await api("/sysops/processes"); const b=_sysBody("procs"); if(!b) return;
+  const q=(_sys.procQ||"").toLowerCase();
+  const rows=p.rows.filter(r=>!q||(r.name+" "+(r.cmd||"")+" "+r.pid).toLowerCase().includes(q));
+  const totalRss=p.rows.reduce((a,r)=>a+(r.rss||0),0);
+  const prev=document.getElementById("sysProcQ"); const hadFocus=prev&&document.activeElement===prev;
+  b.innerHTML=`<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <b>Processus en cours (${p.rows.length})</b>
+      <input id="sysProcQ" placeholder="Filtrer (nom, commande, PID)…" value="${esc(_sys.procQ||"")}" style="margin:0;max-width:260px" oninput="_sys.procQ=this.value;sysProcs()"></div>
+    <div class="note-inline" style="margin-top:4px">Source : ${esc(p.source)} · périmètre : ${p.scope==="container"?"conteneur de l'application (les processus des autres conteneurs sont visibles via Services → Stats)":"hôte"} · mémoire totale ${_fmtB(totalRss)} · actualisation toutes les 8 s</div>
+    <div style="overflow:auto;max-height:560px;margin-top:6px"><table style="font-size:12px"><tr><th>PID</th><th>Nom</th><th class="r">CPU</th><th class="r">Mémoire</th><th class="r">Depuis</th><th>Commande</th></tr>
+      ${rows.slice(0,300).map(r=>`<tr ${r.pid===p.self?'style="background:var(--nav-active-bg)"':""}><td>${r.pid}</td><td><b>${esc(r.name)}</b>${r.pid===p.self?' <span class="tag gray">appli</span>':""}</td><td class="r">${r.cpuPct==null?"-":r.cpuPct+" %"}</td><td class="r">${_fmtB(r.rss)}</td><td class="r">${r.uptimeSec!=null?_fmtUp(r.uptimeSec):esc(r.elapsed||"")}</td><td><code style="font-size:11px">${esc((r.cmd||"").slice(0,160))}</code></td></tr>`).join("")}</table></div></div>`;
+  if(hadFocus){ const n=document.getElementById("sysProcQ"); n.focus(); n.setSelectionRange(n.value.length,n.value.length); }
+}
+/* ---- Disk ---- */
+async function sysDisk(sizes){
+  const d=await api("/sysops/disk"+(sizes?"?sizes=1":"")); const b=_sysBody("disk"); if(!b) return;
+  b.innerHTML=`<div class="adm-kpi">${d.volumes.map(v=>v.error?_sysKc(esc(v.labels.join(", ")),"-",esc(v.error)):_sysKc(esc(v.labels.join(" · ")), v.usedPct+" %", `${_fmtB(v.free)} libres sur ${_fmtB(v.total)}`+_sysBar(v.usedPct), v.usedPct>=90?"var(--red,#dc2626)":v.usedPct>=75?"#d97706":"")).join("")}</div>
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><b>Occupation des dossiers de l'application</b>
+      <button class="btn ghost sm" onclick="this.disabled=true;this.textContent='Calcul…';sysDisk(true)">${sizes?"Recalculer":"Calculer"}</button></div>
+      ${d.dirs.length?`<table style="margin-top:6px"><tr><th>Dossier</th><th class="r">Fichiers</th><th class="r">Taille</th></tr>${d.dirs.map(x=>`<tr><td>${esc(x.label)} <span class="note-inline">${esc(x.path)}</span></td><td class="r">${x.files.toLocaleString("fr-FR")}${x.truncated?"+":""}</td><td class="r">${_fmtB(x.bytes)}</td></tr>`).join("")}</table>`:'<div class="note-inline" style="margin-top:6px">Le calcul parcourt les fichiers (uploads, données, modèles, sauvegardes) et peut prendre quelques secondes.</div>'}</div>
+    <div class="note-inline">Alerte orange à 75 %, rouge à 90 %. La taille de la base PostgreSQL est visible dans l'onglet Base de données.</div>`;
+}
+/* ---- Firewall ---- */
+async function sysFirewall(){
+  const b0=document.getElementById("sysBody"); if(b0) b0.innerHTML=mmLoading("Analyse du pare-feu et test des ports…");
+  const f=await api("/sysops/firewall"+(_sys.fwHost?"?host="+encodeURIComponent(_sys.fwHost):"")); const b=_sysBody("firewall"); if(!b) return;
+  const en=f.enabled===true?'<span class="tag green">● Actif</span>':f.enabled===false?'<span class="tag red">● Inactif</span>':'<span class="tag gray">● Inconnu</span>';
+  const pst={"ouvert":"green","fermé":"gray","filtré":"amber"};
+  const sens=[5432,6379,2375,3306,27017];
+  b.innerHTML=`<div class="adm-kpi">${_sysKc("Pare-feu", en, esc((f.sources||[]).join(", ")||"aucune source lisible"))}${f.ufw?_sysKc("Règles ufw", f.ufw.rules.length, f.ufw.defaults&&f.ufw.defaults.input?"entrant par défaut : "+esc(f.ufw.defaults.input):""):""}${_sysKc("Plateforme", esc(f.platform),"")}</div>
+    ${(f.warnings||[]).length?`<div class="panel" style="border-color:#f59e0b">${f.warnings.map(w=>`<div style="color:#b45309">⚠ ${esc(w)}</div>`).join("")}</div>`:""}
+    ${f.ufw?`<div class="panel"><b>Règles ufw</b><table style="margin-top:6px"><tr><th>Action</th><th>Port</th><th>Protocole</th><th>Depuis</th><th>Sens</th><th>IP</th></tr>${f.ufw.rules.map(r=>`<tr><td>${r.action==="allow"?'<span class="tag green">autoriser</span>':r.action==="limit"?'<span class="tag amber">limiter</span>':'<span class="tag red">'+esc(r.action)+'</span>'}</td><td>${esc(r.port)}</td><td>${esc(r.proto)}</td><td>${esc(r.from==="0.0.0.0/0"||r.from==="::/0"?"partout":r.from)}</td><td>${esc(r.direction)}</td><td>${r.v6?"IPv6":"IPv4"}</td></tr>`).join("")||'<tr><td class="note-inline">Aucune règle</td></tr>'}</table></div>`:""}
+    <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>Test d'exposition des ports</b>
+      <span><input id="sysFwHost" value="${esc(f.probe.host)}" style="margin:0;max-width:220px;display:inline-block"> <button class="btn ghost sm" onclick="_sys.fwHost=document.getElementById('sysFwHost').value.trim();sysFirewall()">Tester</button></span></div>
+      <div class="note-inline" style="margin-top:4px">Connexion TCP depuis le serveur vers ${esc(f.probe.host)}. Depuis l'intérieur, certains ports peuvent paraître ouverts alors qu'ils sont bloqués de l'extérieur : utilisez le nom de domaine public pour un résultat représentatif.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${f.probe.results.map(r=>`<div class="adm-kc" style="min-width:110px;${r.state==="ouvert"&&sens.includes(r.port)?"border-color:var(--red)":""}"><div class="l">Port ${r.port}</div><div class="v" style="font-size:16px"><span class="tag ${pst[r.state]||"gray"}">${esc(r.state)}</span></div></div>`).join("")}</div></div>
+    ${f.ufwStatus?`<div class="panel"><b>ufw status</b><pre style="font-size:11.5px;white-space:pre-wrap">${esc(f.ufwStatus)}</pre></div>`:""}
+    ${f.windows?`<div class="panel"><b>Pare-feu Windows</b><pre style="font-size:11.5px;white-space:pre-wrap">${esc(f.windows)}</pre></div>`:""}
+    ${f.nft?`<details class="panel"><summary><b>nftables</b></summary><pre style="font-size:11px;white-space:pre-wrap">${esc(f.nft)}</pre></details>`:""}
+    ${f.iptables?`<details class="panel"><summary><b>iptables</b></summary><pre style="font-size:11px;white-space:pre-wrap">${esc(f.iptables)}</pre></details>`:""}`;
+}
+/* ---- PostHog ---- */
+async function sysAnalytics(){
+  const c=await api("/sysops/posthog"); const b=_sysBody("analytics"); if(!b) return;
+  const ck=(id,l,v,h)=>`<label class="chk"><input type="checkbox" id="${id}" ${v?"checked":""}><span>${l}${h?` <span class="note-inline">${h}</span>`:""}</span></label>`;
+  const st=c.status||{};
+  b.innerHTML=`<div class="adm-kpi">${_sysKc("PostHog", c.active?"Actif":"Inactif", c.active?esc(c.host):"non configuré", c.active?"var(--green)":"")}${_sysKc("Événements serveur", st.sent||0, (st.failed||0)+" échec(s)"+(st.lastSendAt?" · dernier "+fmtAgo(st.lastSendAt):""), st.lastError?"#d97706":"")}</div>
+    ${st.lastError?`<div class="panel"><div class="err">Dernière erreur d'envoi : ${esc(st.lastError)}</div></div>`:""}
+    <div class="panel"><b>Configuration</b>
+      <div class="note" style="margin:4px 0 8px">Mesure d'audience produit (pages vues, clics, parcours). Clé de projet et hôte : PostHog → Project settings. La clé « phc_… » est publique par conception.</div>
+      ${ck("phEnabled","Activer PostHog",c.enabled)}
+      <div class="grid2"><div><label>Clé de projet (phc_…)</label><input id="phKey" value="${esc(c.apiKey||"")}" placeholder="phc_xxxxxxxxxxxxxxxxxxxx"></div>
+        <div><label>Hôte</label><select id="phHostSel" onchange="document.getElementById('phHost').style.display=this.value==='custom'?'':'none'">
+          <option value="https://eu.i.posthog.com" ${c.host==="https://eu.i.posthog.com"?"selected":""}>PostHog Cloud EU</option>
+          <option value="https://us.i.posthog.com" ${c.host==="https://us.i.posthog.com"?"selected":""}>PostHog Cloud US</option>
+          <option value="custom" ${!/^https:\/\/(eu|us)\.i\.posthog\.com$/.test(c.host)?"selected":""}>Auto-hébergé…</option></select>
+          <input id="phHost" value="${esc(c.host)}" placeholder="https://posthog.mondomaine.com" style="${/^https:\/\/(eu|us)\.i\.posthog\.com$/.test(c.host)?"display:none":""}"></div></div>
+      <div style="margin-top:8px">
+        ${ck("phAuto","Autocapture des clics et formulaires",c.autocapture,"(valeurs des champs jamais envoyées)")}
+        ${ck("phPv","Pages vues (navigation dans l'application)",c.capturePageviews)}
+        ${ck("phIdent","Identifier les utilisateurs connectés",c.identifyUsers,"(identifiant interne, rôle, entreprise)")}
+        ${ck("phEmail","Inclure l'email et le nom",c.sendEmail,"(données personnelles - à déclarer dans vos mentions légales)")}
+        ${ck("phRec","Enregistrement des sessions (replay)",c.sessionRecording,"(toutes les saisies sont masquées)")}
+        ${ck("phSrv","Événements serveur (connexions, créations d'entreprise et d'utilisateurs, actions système)",c.serverEvents)}
+      </div>
+      <div class="err hidden" id="phErr" style="margin-top:6px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="sysPhSave()">Enregistrer</button>
+        ${c.active?`<button class="btn ghost" onclick="sysAct('/sysops/services/posthog/test')">Envoyer un événement de test</button>`:""}</div>
+      <div class="note-inline" style="margin-top:8px">Rechargez la page après l'activation pour démarrer le suivi dans votre navigateur.</div></div>`;
+}
+async function sysPhSave(){
+  const g=id=>document.getElementById(id);
+  const sel=g("phHostSel").value;
+  const body={enabled:g("phEnabled").checked,apiKey:g("phKey").value.trim(),host:sel==="custom"?g("phHost").value.trim():sel,
+    autocapture:g("phAuto").checked,capturePageviews:g("phPv").checked,identifyUsers:g("phIdent").checked,sendEmail:g("phEmail").checked,sessionRecording:g("phRec").checked,serverEvents:g("phSrv").checked};
+  try{ await api("/sysops/posthog",{method:"PUT",body:JSON.stringify(body)}); alert("Configuration PostHog enregistrée."); sysopsView(); }
+  catch(e){ const el=g("phErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+
 async function superadminsView(){
   let list;
   try{ list=await api("/tenants/superadmins/list"); }
@@ -4462,7 +4847,7 @@ async function superadminsView(){
       <div class="panel"><b>Créer un super-admin</b>
         <label>Nom complet</label><input id="saName" placeholder="Ex. MASSO FERDINE">
         <label>Email</label><input id="saEmail" type="email" placeholder="nom@exemple.com">
-        <label>Mot de passe (min. 10, maj/min/chiffre)</label><input id="saPw" type="text" placeholder="laisser vide = mot de passe temporaire généré">
+        <label>Mot de passe (min. 8, maj/min/chiffre/spécial)</label><input id="saPw" type="text" placeholder="laisser vide = mot de passe temporaire généré">
         <div class="err hidden" id="saErr" style="margin-top:8px"></div>
         <div style="margin-top:10px"><button class="btn p" onclick="saCreate()">Créer</button></div>
       </div>
@@ -5622,8 +6007,9 @@ async function tenantForm(id) {
     <div class="grid2" style="margin-top:6px">
       <div><label>Email de l'administrateur</label><input id="tAdmEmail" placeholder="admin@entreprise.cm"></div>
       <div><label>Nom de l'administrateur</label><input id="tAdmName"></div>
+      <div><label>Mot de passe de l'administrateur</label><span class="pw-wrap"><input id="tAdmPass" type="password" autocomplete="new-password" placeholder="vide = mot de passe temporaire généré"><span class="pw-eye" onclick="togglePw(this)" title="Afficher / masquer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span></span></div>
     </div>
-    <p style="font-size:11px;color:var(--muted)">Un mot de passe temporaire sera généré et affiché une fois.</p>`}
+    <p style="font-size:11px;color:var(--muted)">Min. 8 caractères avec majuscule, minuscule, chiffre et caractère spécial. Laissez vide pour générer un mot de passe temporaire (affiché une seule fois).</p>`}
     <div class="err hidden" id="tErr"></div>
     <button class="btn p" style="margin-top:12px" onclick="tenantSave('${id||''}')">${id?"Enregistrer":"Créer l'entreprise"}</button>
   </div>`;
@@ -5640,7 +6026,7 @@ async function tenantUsers(tid, name) {
       ${users.length ? users.map(u=>`<div class="doc-row"><div style="flex:1">
         <b>${esc(u.fullName)}</b>
         <select onchange="sadmSetRole('${u.id}', this.value)" style="margin:0 0 0 6px;max-width:82px;display:inline-block;padding:2px">
-          ${["GPF","CD","RJ","UI","ADM"].map(r=>`<option ${u.role===r?"selected":""}>${r}</option>`).join("")}</select>
+          ${["ADM","GPF","CD","RJ","UI","RQ","RC","RS","RP"].map(r=>`<option ${u.role===r?"selected":""}>${r}</option>`).join("")}</select>
         <br><small style="color:var(--muted)">${esc(u.email)}${u.active?'':' - <span style="color:var(--red)">désactivé</span>'}</small></div>
         <div style="display:flex;gap:4px">
           <button class="btn ghost sm" title="Modules & droits" onclick="sadmRights('${u.id}')">Modules & droits</button>
@@ -5651,7 +6037,9 @@ async function tenantUsers(tid, name) {
     <b style="font-size:12px">Ajouter un utilisateur</b>
     <div class="grid2" style="margin-top:6px">
       <input id="nuEmail" placeholder="email" style="margin:0"><input id="nuName" placeholder="nom complet" style="margin:0">
-      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>RQ</option><option value="RC">RC - Comptabilité</option><option value="RS">RS - Stock</option><option value="RP">RP - Paie</option></select></div>
+      <select id="nuRole" style="margin:0"><option>ADM</option><option>GPF</option><option>CD</option><option>RJ</option><option>UI</option><option>RQ</option><option value="RC">RC - Comptabilité</option><option value="RS">RS - Stock</option><option value="RP">RP - Paie</option></select>
+      <span class="pw-wrap"><input id="nuPass" type="password" autocomplete="new-password" placeholder="mot de passe (vide = temporaire généré)" style="margin:0"><span class="pw-eye" onclick="togglePw(this)" title="Afficher / masquer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span></span></div>
+    <p style="font-size:11px;color:var(--muted);margin:4px 0 0">Min. 8 caractères avec majuscule, minuscule, chiffre et caractère spécial. Laissez vide pour générer un mot de passe temporaire.</p>
     <div class="err hidden" id="nuErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
       <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>
@@ -5698,9 +6086,11 @@ async function sadmSaveRights(uid, btn) {
   } catch (e) { alert(e.message); }
 }
 async function tenantAddUser(tid, name) {
-  try { const r = await api("/tenants/"+tid+"/users",{method:"POST",body:JSON.stringify({
-      email:nuEmail.value,fullName:nuName.value,role:nuRole.value})});
-    alert(t("Utilisateur créé.")+(r.tempPassword?` ${t("Mot de passe temporaire :")} ${r.tempPassword}`:""));
+  const body={email:nuEmail.value.trim(),fullName:nuName.value.trim(),role:nuRole.value};
+  if(nuPass.value) body.password=nuPass.value;
+  try { const r = await api("/tenants/"+tid+"/users",{method:"POST",body:JSON.stringify(body)});
+    if(r.tempPassword) prompt(t("Utilisateur créé.")+" "+t("Mot de passe temporaire :"), r.tempPassword);
+    else alert(t("Utilisateur créé."));
     document.querySelector(".modal-bg").remove(); tenantUsers(tid,name);
   } catch(e){ nuErr.textContent=e.message; nuErr.classList.remove("hidden"); }
 }
@@ -5720,14 +6110,16 @@ async function tenantSave(id){
     modules:[...view.querySelectorAll("input[data-mod]")].filter(c=>c.checked).map(c=>c.dataset.mod)};
   if(window._tenLogo!==undefined)body.logo=window._tenLogo;
   if(!id){ const ae=document.getElementById("tAdmEmail"), an=document.getElementById("tAdmName");
-    if(ae&&ae.value){ body.adminEmail=ae.value; body.adminName=an.value; } }
+    const ap=document.getElementById("tAdmPass");
+    if(ae&&ae.value){ body.adminEmail=ae.value.trim(); body.adminName=an.value.trim(); if(ap&&ap.value) body.adminPassword=ap.value; } }
   const _featBoxes=[...view.querySelectorAll("input[data-feat]")];
   const disabledFeatures=_featBoxes.filter(c=>!c.checked).map(c=>c.dataset.feat);
   try{ if(id){await api("/tenants/"+id,{method:"PUT",body:JSON.stringify(body)});
       await api("/tenants/"+id+"/modules",{method:"PUT",body:JSON.stringify({modules:body.modules})});
       if(_featBoxes.length) await api("/tenants/"+id+"/features",{method:"PUT",body:JSON.stringify({disabledFeatures})});}
     else { const r=await api("/tenants",{method:"POST",body:JSON.stringify(body)});
-      if(r.admin&&r.admin.tempPassword) alert(t("Entreprise créée. Administrateur :")+` ${esc(r.admin.email)} - ${t("mot de passe temporaire")} : ${r.admin.tempPassword}`);
+      if(r.admin&&r.admin.tempPassword) prompt(t("Entreprise créée. Administrateur :")+` ${r.admin.email} - ${t("mot de passe temporaire")} :`, r.admin.tempPassword);
+      else if(r.admin) alert(t("Entreprise créée. Administrateur :")+` ${r.admin.email}`);
       else alert(t("Entreprise enregistrée.")); tenantsView(); return; }
     alert(t("Entreprise enregistrée."));tenantsView();
   }catch(e){tErr.textContent=e.message;tErr.classList.remove("hidden");}

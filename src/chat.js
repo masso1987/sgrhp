@@ -35,4 +35,8 @@ function deliver(userId, payload) {
   for (const ws of s) { try { ws.send(data); } catch {} }
 }
 function online(userId) { return clients.has(userId); }
-module.exports = { attach, deliver, online };
+function stats() {
+  let sockets = 0; for (const s of clients.values()) sockets += s.size;
+  return { attached: !!wss, users: clients.size, sockets };
+}
+module.exports = { attach, deliver, online, stats };

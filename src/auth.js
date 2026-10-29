@@ -156,8 +156,11 @@ function confirmAccount(token) {
 
 /* ---------- login ---------- */
 function login(req, res) {
-  const { email, password, totp } = req.body || {};
-  const user = db.users.find(u => u.email === email);
+  const { password, totp } = req.body || {};
+  const email = String((req.body || {}).email || "").trim().toLowerCase();
+  // Exact match first (legacy mixed-case accounts), then case-insensitive.
+  const user = db.users.find(u => u.email === (req.body || {}).email) ||
+    db.users.find(u => String(u.email || "").toLowerCase() === email);
   const fail = (msg, code = 401) => res.status(code).json({ error: msg });
 
   if (!user) return fail("Identifiants invalides");
@@ -206,6 +209,7 @@ function login(req, res) {
     SECRET, { expiresIn: `${policy().sessionHours}h` });
   audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" }, "LOGIN", "User", user.id, {});
   try { recordLogin(user, req); } catch (e) {}
+  try { require("./analytics").capture(user.id, "user_logged_in", { role: user.role, tenantId: user.tenantId || "t1", twoFactor: !!user.totpSecret }); } catch (e) {}
   touchActivity(user.id);
   res.json({ token, idleMinutes: policy().idleMinutes,
     user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });

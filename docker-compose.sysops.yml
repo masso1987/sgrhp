@@ -1,0 +1,27 @@
+# Optional host access for the super-admin system console (Plateforme > Système).
+# Without this file the console still shows app health, database health/repair,
+# SQL console, disk space, in-container processes and a port-exposure test.
+# With it, it can also list/restart/stop the stack's containers, read their logs
+# and show the host's ufw firewall rules.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.sysops.yml up -d
+#
+# SECURITY: access to the Docker socket is equivalent to root on the host.
+# Only enable it when super-admin accounts are protected by 2FA (ENFORCE_2FA=true).
+# The console only acts on containers of this compose project unless
+# SYSOPS_DOCKER_ALL=1 is set.
+services:
+  app:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/ufw:/host/etc/ufw:ro
+      - /etc/default:/host/etc/default:ro
+    # The app runs as a non-root user: give it the host's docker group so it can use the socket.
+    # Find the id with:  getent group docker | cut -d: -f3
+    group_add:
+      - "${DOCKER_GID:-999}"
+    environment:
+      SYSOPS_PROBE_HOST: ${DOMAIN:-}
+      # SYSOPS_SQL_WRITE: "0"     # uncomment to forbid write mode in the SQL console
+      # SYSOPS_DOCKER_ALL: "1"    # uncomment to manage every container on the host

@@ -23,10 +23,13 @@ const _tenantModules = (u) => { const t = (db.tenants || []).find(x => x.id === 
 const _grantModuleIfTenant = (u, key) => { if (_tenantModules(u).includes(key) && !((u.modules||[]).includes(key))) u.modules = [...new Set([...(u.modules||[]), key])]; };
 
 router.post("/", allow("ADM"), (req, res) => {
-  const { email, fullName, role, portfolioIds = [], password } = req.body;
+  const { role, portfolioIds = [], password } = req.body || {};
+  const email = String((req.body || {}).email || "").trim().toLowerCase();
+  const fullName = String((req.body || {}).fullName || "").trim();
   if (!email || !fullName || !["GPF","CD","RJ","UI","ADM","RQ","RC","RS","RP"].includes(role) || !password)
-    return res.status(400).json({ error: "email, fullName, valid role and password required" });
-  if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Email exists" });
+    return res.status(400).json({ error: "Email, nom complet, rôle valide et mot de passe obligatoires" });
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email invalide" });
+  if (db.users.find(u => String(u.email || "").toLowerCase() === email)) return res.status(409).json({ error: "Cet email existe déjà" });
   const pwErr = passwordPolicy(password);
   if (pwErr) return res.status(400).json({ error: pwErr });
   const mailer = require("../mailer");
@@ -39,6 +42,7 @@ router.post("/", allow("ADM"), (req, res) => {
   if (smtpOn) require("../auth").newConfirmToken(u);   // inactive until the user confirms by email
   db.users.push(u); save();
   audit(req.user, "CREATED", "User", u.id, { email, role, pendingConfirmation: smtpOn });
+  try { require("../analytics").capture(req.user.id, "user_created", { tenantId: u.tenantId, role, by: "ADM" }); } catch (e) {}
   if (smtpOn) {
     const base = `${req.protocol}://${req.get("host")}`;
     try { mailer.trySend(u.email, "Confirmez votre compte SGRHP",

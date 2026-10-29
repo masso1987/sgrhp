@@ -152,7 +152,7 @@ function createDemo(opts, actor) {
   try { require("./seed").seedTenantData(demoId); } catch (e) { /* best effort */ }
 
   let adminEmail = (opts.adminEmail && String(opts.adminEmail).trim()) || "demo@sgrhp.cm";
-  if (db.users.find(u => u.email === adminEmail)) adminEmail = "demo+" + demoId.slice(-6) + "@sgrhp.cm";
+  if (db.users.find(u => String(u.email || "").toLowerCase() === adminEmail.toLowerCase())) adminEmail = "demo+" + demoId.slice(-6) + "@sgrhp.cm";
   const tempPassword = opts.adminPassword || ("Demo" + now.getFullYear() + "!" + Math.floor(100 + Math.random() * 900));
   const admin = {
     id: id("usr"), tenantId: demoId, email: adminEmail, fullName: "Compte Demo",

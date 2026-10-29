@@ -13,6 +13,16 @@ const { allow } = require("../rbac");
 const { audit } = require("../audit");
 const { hash, passwordPolicy, isRecentlyActive, markOffline } = require("../auth");
 
+/* Temporary password that always satisfies passwordPolicy (upper/lower/digit/special). */
+function tempPassword(prefix = "Bienvenue") {
+  return prefix + require("crypto").randomInt(1000, 10000) + "!" + new Date().getFullYear();
+}
+const normEmail = (e) => String(e || "").trim().toLowerCase();
+const emailTaken = (e) => db.users.some(u => normEmail(u.email) === normEmail(e));
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const TENANT_ROLES = ["ADM", "GPF", "CD", "RJ", "UI", "RQ", "RC", "RS", "RP"];
+const ROLE_MODULE = { RQ: "quality", RC: "accounting", RS: "stock", RP: "payroll" };
+
 /* Catalogue of platform modules. HR & Careers ship first; others are placeholders. */
 const MODULES = [
   { key: "hr", label: "Administration RH", core: true },
@@ -285,6 +295,18 @@ router.post("/", allow("SADM"), (req, res) => {
   if (err) return res.status(400).json({ error: err });
   if (tenants().find(x => x.niu && x.niu.toUpperCase() === String(b.niu).toUpperCase()))
     return res.status(409).json({ error: "Un tenant avec ce NIU existe déjà" });
+  // Validate the initial administrator BEFORE creating anything, so a bad email or
+  // password is reported instead of silently producing a company with no admin.
+  const wantAdmin = !!(b.adminEmail && String(b.adminEmail).trim());
+  let adminPw = null;
+  if (wantAdmin) {
+    if (!b.adminName || !String(b.adminName).trim()) return res.status(400).json({ error: "Nom de l'administrateur obligatoire" });
+    if (!EMAIL_RE.test(normEmail(b.adminEmail))) return res.status(400).json({ error: "Email de l'administrateur invalide" });
+    if (emailTaken(b.adminEmail)) return res.status(409).json({ error: "L'email de l'administrateur est déjà utilisé par un autre compte" });
+    adminPw = b.adminPassword || tempPassword();
+    const pwErr = passwordPolicy(adminPw);
+    if (pwErr) return res.status(400).json({ error: "Mot de passe administrateur : " + pwErr });
+  }
   const t = { id: id("ten"), status: "ACTIVE", createdAt: new Date().toISOString(), createdBy: req.user.id,
     modules: MODULES.filter(m => m.core).map(m => m.key),   // HR + Careers on by default
     legalRepTitle: b.legalRepTitle || "Directeur Général" };
@@ -295,19 +317,16 @@ router.post("/", allow("SADM"), (req, res) => {
   tenants().push(t);
   require("../seed").seedTenantData(t.id);   // baseline referentials/conventions/config for the new tenant
   let adminInfo = null;
-  if (b.adminEmail && b.adminName) {
-    if (!db.users.find(u => u.email === b.adminEmail)) {
-      const pw = b.adminPassword || ("Bienvenue" + new Date().getFullYear());
-      if (!passwordPolicy(pw)) {
-        const u = { id: id("usr"), tenantId: t.id, email: b.adminEmail, fullName: b.adminName,
-          role: "ADM", portfolioIds: [], password: hash(pw), active: true };
-        db.users.push(u);
-        adminInfo = { email: u.email, tempPassword: b.adminPassword ? undefined : pw };
-      }
-    }
+  if (wantAdmin) {
+    const u = { id: id("usr"), tenantId: t.id, email: normEmail(b.adminEmail), fullName: String(b.adminName).trim(),
+      role: "ADM", portfolioIds: [], password: hash(adminPw), active: true, confirmed: true,
+      createdAt: new Date().toISOString() };
+    db.users.push(u);
+    adminInfo = { email: u.email, tempPassword: b.adminPassword ? undefined : adminPw };
   }
   save();
   audit(req.user, "CREATED", "Tenant", t.id, { name: t.name, niu: t.niu, modules: t.modules, admin: !!adminInfo });
+  try { require("../analytics").capture(req.user.id, "tenant_created", { tenantId: t.id, modules: t.modules, withAdmin: !!adminInfo }); } catch (e) {}
   res.status(201).json({ ...t, admin: adminInfo });
 });
 
@@ -385,17 +404,22 @@ router.get("/:id/users", allow("SADM"), (req, res) => {
 router.post("/:id/users", allow("SADM"), (req, res) => {
   const t = tenants().find(x => x.id === req.params.id);
   if (!t) return res.status(404).json({ error: "Tenant introuvable" });
-  const { email, fullName, role = "ADM", password } = req.body || {};
+  const { role = "ADM", password } = req.body || {};
+  const email = normEmail((req.body || {}).email), fullName = String((req.body || {}).fullName || "").trim();
   if (!email || !fullName) return res.status(400).json({ error: "Email et nom complet obligatoires" });
-  if (!["GPF", "CD", "RJ", "UI", "ADM"].includes(role)) return res.status(400).json({ error: "Rôle invalide" });
-  if (db.users.find(u => u.email === email)) return res.status(409).json({ error: "Cet email existe déjà" });
-  const pw = password || ("Bienvenue" + new Date().getFullYear());   // temp password, admin changes it
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Email invalide" });
+  if (!TENANT_ROLES.includes(role)) return res.status(400).json({ error: "Rôle invalide" });
+  if (emailTaken(email)) return res.status(409).json({ error: "Cet email existe déjà" });
+  const pw = password || tempPassword();   // temp password, the user changes it
   const pwErr = passwordPolicy(pw);
   if (pwErr) return res.status(400).json({ error: pwErr });
   const u = { id: id("usr"), tenantId: t.id, email, fullName, role, portfolioIds: [],
-    password: hash(pw), active: true };
+    password: hash(pw), active: true, confirmed: true, createdAt: new Date().toISOString() };
+  const mod = ROLE_MODULE[role];
+  if (mod && (t.modules || []).includes(mod)) u.modules = [mod];
   db.users.push(u); save();
   audit(req.user, "CREATED", "User", u.id, { tenant: t.id, role, provisioned: true });
+  try { require("../analytics").capture(req.user.id, "user_created", { tenantId: t.id, role, by: "SADM" }); } catch (e) {}
   res.status(201).json({ id: u.id, email: u.email, fullName: u.fullName, role: u.role,
     tempPassword: password ? undefined : pw });   // returned once so the SADM can hand it over
 });
@@ -405,7 +429,7 @@ router.post("/:id/users/:uid/reset", allow("SADM"), (req, res) => {
   const t = tenants().find(x => x.id === req.params.id);
   const u = db.users.find(x => x.id === req.params.uid && (x.tenantId || "t1") === (t && t.id));
   if (!t || !u) return res.status(404).json({ error: "Utilisateur introuvable" });
-  const pw = "Reinit" + Math.floor(1000 + Math.random() * 9000) + "Rh";
+  const pw = tempPassword("Reinit");
   u.password = hash(pw); u.failedLogins = 0; u.lockedUntil = null; save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true, tenant: t.id });
   res.json({ tempPassword: pw });
@@ -544,12 +568,13 @@ router.get("/superadmins/list", allow("SADM"), (req, res) => {
     twoFactor: !!u.totpSecret, self: u.id === req.user.id })));
 });
 router.post("/superadmins", allow("SADM"), (req, res) => {
-  const { email, fullName, password } = req.body || {};
+  const { password } = req.body || {};
+  const email = normEmail((req.body || {}).email), fullName = String((req.body || {}).fullName || "").trim();
   if (!email || !fullName) return res.status(400).json({ error: "Email et nom complet obligatoires" });
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email invalide" });
-  if (db.users.find(u => (u.email || "").toLowerCase() === email.toLowerCase()))
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Email invalide" });
+  if (emailTaken(email))
     return res.status(409).json({ error: "Cet email existe déjà - utilisez « Promouvoir » pour lui donner le rôle super-admin." });
-  const pw = password || ("Admin" + new Date().getFullYear() + "!");
+  const pw = password || tempPassword("Admin");
   const pwErr = passwordPolicy(pw);
   if (pwErr) return res.status(400).json({ error: pwErr });
   const u = { id: id("usr"), email, fullName, role: "SADM", tenantId: "platform",
@@ -570,7 +595,7 @@ router.post("/superadmins/promote", allow("SADM"), (req, res) => {
 router.post("/superadmins/:uid/reset", allow("SADM"), (req, res) => {
   const u = db.users.find(x => x.id === req.params.uid && x.role === "SADM");
   if (!u) return res.status(404).json({ error: "Super-admin introuvable" });
-  const pw = "Reinit" + Math.floor(1000 + Math.random() * 9000) + "Sa!";
+  const pw = tempPassword("Reinit");
   u.password = hash(pw); u.failedLogins = 0; u.lockedUntil = null; save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true, platform: true });
   res.json({ tempPassword: pw });

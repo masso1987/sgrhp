@@ -69,4 +69,12 @@ async function trySend(to, subject, text) {
   try { if (!to || !to.length) return false; await send(to, subject, text); return true; }
   catch (e) { console.error("[mailer] envoi échoué:", e.message); return false; }
 }
-module.exports = { send, trySend, reset, cfg, recipientsFor, render };
+/** Connection test for the system console: opens the SMTP session without sending. */
+async function verify() {
+  reset();
+  const t = build();
+  if (!t) throw new Error("Configuration email désactivée ou incomplète");
+  if (t.options && t.options.sendmail) return true;
+  return t.verify();
+}
+module.exports = { send, trySend, reset, cfg, recipientsFor, render, verify };

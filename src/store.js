@@ -16,16 +16,20 @@ for (const k of ["tenants","users","portfolios","docTypes","employees","files","
 
 /* Storage backend: PostgreSQL when DATABASE_URL is set, JSON file otherwise (dev). */
 const USE_PG = !!process.env.DATABASE_URL;
-let pg = null, saveQueue = Promise.resolve();
+let pg = null, saveQueue = Promise.resolve(), pendingSave = null;
 
 function save() {
   if (USE_PG) {
-    // serialise writes; failures are logged and surfaced by the health endpoint
-    saveQueue = saveQueue.then(() => pg.save(db)).catch(e => {
+    // Serialise writes; failures are logged and surfaced by the health endpoint.
+    // Each run writes the whole in-memory state, so saves requested while one is
+    // still waiting in the queue are redundant: they share that queued run instead
+    // of each adding a full rewrite (bursts of mutations used to back up for minutes).
+    if (pendingSave) return pendingSave;
+    pendingSave = saveQueue = saveQueue.then(() => { pendingSave = null; return pg.save(db); }).catch(e => {
       console.error("[store] PostgreSQL write failed:", e.message);
       module.exports.lastError = e.message;
     });
-    return saveQueue;
+    return pendingSave;
   }
   const tmp = FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 1));

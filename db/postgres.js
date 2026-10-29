@@ -42,12 +42,24 @@ const COLLECTIONS = {
 
 let pool;
 
-async function init() {
-  pool = new Pool({
+function newPool() {
+  const p = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.PGSSL === "require" ? { rejectUnauthorized: false } : undefined,
     max: Number(process.env.PGPOOL_MAX || 10),
   });
+  // An idle connection dropped by the server (DB restart, network cut) is emitted here;
+  // without a listener Node treats it as an uncaught error and the whole app crashes.
+  // The pool discards the broken client and opens a new one on the next query.
+  p.on("error", (e) => console.error("[store] connexion PostgreSQL perdue (le pool se reconnectera) :", e.message));
+  // Same for a client that is checked out (e.g. mid-transaction in save()): the running query
+  // rejects and the save is retried later, but the event itself must not kill the process.
+  p.on("connect", (client) => client.on("error", (e) => console.error("[store] connexion PostgreSQL interrompue :", e.message)));
+  return p;
+}
+
+async function init() {
+  pool = newPool();
 
   // The database may still be accepting connections when the app boots.
   const attempts = Number(process.env.DB_CONNECT_RETRIES || 10);
@@ -172,4 +184,14 @@ async function verifyPersistence(db) {
 
 async function close() { if (pool) await pool.end(); }
 
-module.exports = { init, load, save, close, verifyPersistence, TENANT, get pool() { return pool; } };
+/** Replace the connection pool (system console « reconnect »): new pool first, old one drained. */
+async function reconnect() {
+  const old = pool;
+  const next = newPool();
+  try { await next.query("SELECT 1"); } catch (e) { next.end().catch(() => {}); throw e; }
+  pool = next;
+  if (old) old.end().catch(() => {});
+  return true;
+}
+
+module.exports = { init, load, save, close, reconnect, verifyPersistence, TENANT, get pool() { return pool; } };

@@ -6,6 +6,9 @@ const { login, authenticate } = require("./auth");
 const { seed } = require("./seed");
 
 const { initStorage } = require("./store");
+const sysops = require("./routes/sysops");
+// A CSP directive entry must be non-empty: fall back to 'self' when analytics is off.
+const phOrigins = () => { try { return require("./analytics").cspOrigins().join(" ") || "'self'"; } catch (e) { return "'self'"; } };
 const app = express();
 app.disable("x-powered-by");
 // Behind Apache/Caddy/App Service: use X-Forwarded-For so rate limits and audit
@@ -19,11 +22,13 @@ app.use(helmet({
     useDefaults: false,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      // PostHog origins are added at request time once a super-admin enables analytics.
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", (req, res) => phOrigins()],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "blob:"],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "ws:", "wss:", "blob:"],
+      connectSrc: ["'self'", "ws:", "wss:", "blob:", (req, res) => phOrigins()],
+      workerSrc: ["'self'", "blob:"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       frameAncestors: ["'none'"],
@@ -37,6 +42,7 @@ app.use((req, res, next) => {
   res.setHeader("Permissions-Policy", "geolocation=(self), microphone=(), camera=(), payment=()");
   next();
 });
+app.use(sysops.metrics);
 app.use(express.json({ limit: "30mb" }));
 
 // Brute-force protection on authentication (§8.2)
@@ -77,7 +83,10 @@ app.get("/api/legal", (req, res) => {
   res.json((s && s.legal) || {});
 });
 const BUILD_VERSION = "2026-09-29 - PAIE-75 (correction de bulletin: recalcul integral des cotisations et impots (CNPS, IRPP, CAC, CFC, RAV, TDL) a partir des gains corriges — plus de taxes figees sur une ancienne base; un bulletin corrige redevient coherent, comme un calcul neuf)";
+app.locals.build = BUILD_VERSION;
 app.get("/api/version", (req, res) => res.json({ build: BUILD_VERSION }));
+// Public: PostHog project key + host for the SPA (nothing is returned unless enabled).
+app.get("/api/analytics-config", (req, res) => res.json(require("./analytics").publicConfig()));
 app.get("/api/branding", (req, res) => {
   const s = require("./routes/settings").settings();
   const b = Object.assign({}, s.branding);
@@ -236,16 +245,29 @@ app.use("/api/smq", requireModule("quality"), require("./routes/smq"));
 app.use("/api/messages", require("./routes/messages"));
 app.use("/api/insurance", require("./routes/insurance"));
 app.use("/api/backup", require("./routes/backup"));
+app.use("/api/sysops", sysops.router);   // console système (SADM)
+
+// Background jobs are registered with the system console (last run, errors, « exécuter »).
+const H = 60 * 60 * 1000;
+const jobSla = sysops.job("sla", "Délais SLA des workflows", 60e3, () => require("./workflow").slaScan());
+const jobDaily = sysops.job("daily", "Rappels d'échéance, échelons, comptes dormants, digests", 24 * H, async () => {
+  const ex = require("./expiry"), errs = [];
+  for (const step of [ex.scanAndRemind, ex.advanceEchelons, ex.sweepDormant, require("./digest").sendDigests])
+    try { await step(); } catch (e) { errs.push(e.message); }   // one failing step must not skip the others
+  if (errs.length) throw new Error(errs.join("; "));
+});
+const jobDemo = sysops.job("demo", "Purge des démos expirées", 6 * H, () => require("./demo").sweepExpiredDemos());
+const jobBackup = sysops.job("backup", "Sauvegardes planifiées", 5 * 60e3, () => require("./routes/backup").runDueSchedules());
 
 // SLA timer scan every minute (§5.4)
-setInterval(() => { try { require("./workflow").slaScan(); } catch (e) { console.error(e); } }, 60e3);
+setInterval(jobSla, 60e3);
 // Rappels d'échéance (documents/CNI/contrats) : une fois par jour + peu après le démarrage.
-setInterval(() => { try { require("./expiry").scanAndRemind(); } catch (e) { console.error(e); } try { require("./expiry").advanceEchelons(); } catch (e) { console.error(e); } try { require("./expiry").sweepDormant(); } catch (e) { console.error(e); } try { require("./digest").sendDigests().catch(() => {}); } catch (e) { console.error(e); } }, 24 * 60 * 60 * 1000);
+setInterval(jobDaily, 24 * H);
 try { require("./expiry").sweepDormant(); } catch (e) {}
-setInterval(() => { try { require("./demo").sweepExpiredDemos(); } catch (e) { console.error("[demo]", e.message); } }, 6 * 60 * 60 * 1000);
+setInterval(jobDemo, 6 * H);
 try { require("./demo").sweepExpiredDemos(); } catch (e) {}
 setTimeout(() => { try { require("./expiry").scanAndRemind(); } catch (e) {} try { require("./expiry").advanceEchelons(); } catch (e) {} }, 30000);
-setInterval(() => { try { require("./routes/backup").runDueSchedules(); } catch (e) { console.error("[backup]", e.message); } }, 5 * 60 * 1000);
+setInterval(jobBackup, 5 * 60e3);
 
 // 404 - JSON for the API, custom page for everything else.
 app.use((req, res, next) => {
