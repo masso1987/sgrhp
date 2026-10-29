@@ -1984,16 +1984,18 @@ async function dl(empId, fileId, name) {
 async function portfolios() {
   const [pfs, types, cnvs, sels, rubs] = await Promise.all([api("/portfolios"), api("/portfolios/doc-types"), api("/config/conventions"), api("/config/salary-elements"), api("/payroll/rubriques").catch(() => [])]);
   PFS = pfs;
-  const sel = window._pfSel || pfs[0].id;
-  const pf = pfs.find(p =>p.id === sel) || pfs[0];
-  view.innerHTML = `<h1>Configuration des portefeuilles</h1>
+  // A newly created company has no portfolio yet: only the creation panel applies.
+  const pf = pfs.find(p =>p.id === window._pfSel) || pfs[0];
+  const createPanel = `<h1>Configuration des portefeuilles</h1>
     <div class="panel" style="max-width:640px"><b>Créer un portefeuille</b>
       <div style="display:flex;gap:8px;margin-top:8px">
         <input id="npfName" placeholder="Portfolio name (e.g. ENEO Missions)" style="margin:0">
         <button class="btn p sm" onclick="pfCreate()">+ Créer</button></div>
       <small style="color:var(--muted)">CNI is included automatically and cannot be removed. Assign it to GPF users in the Users screen.</small>
       <div class="err hidden" id="npfErr"></div></div>
-    <div class="note">CNI is mandatory for <b>all</b>portfolios and cannot be unchecked. Every change is traced in the audit log.</div>
+    <div class="note">CNI is mandatory for <b>all</b>portfolios and cannot be unchecked. Every change is traced in the audit log.</div>`;
+  if (!pf) { view.innerHTML = createPanel + `<div class="panel note">Aucun portefeuille pour l'instant. Créez le premier ci-dessus pour configurer ses pièces obligatoires et ses rubriques de salaire.</div>`; return; }
+  view.innerHTML = createPanel + `
     <div class="panel">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <select style="max-width:280px;margin:0" onchange="window._pfSel=this.value;portfolios()">
@@ -2013,7 +2015,7 @@ async function portfolios() {
     <table style="width:100%;margin-top:8px"><tr><th style="text-align:left">Document</th><th style="width:80px">Requis</th><th style="width:110px">À la création</th></tr>
       ${types.slice().sort(docSort).map((t, i) => { const rc = (pf.requiredCreation||["V"]).includes(t.code); return `
       <tr><td><b>${i + 1}.</b> ${esc(docLabelL(t))} ${t.code === "V" ? '<span class="tag red">'+tt("VERROUILLÉ","LOCKED")+'</span>' : ""}</td>
-        <td style="text-align:center"><input type="checkbox" data-code="${t.code}" ${t.code === "V" || pf.required.includes(t.code) ? "checked" : ""} ${t.code === "V" ? "disabled" : ""} onchange="pfReqToggle(this)"></td>
+        <td style="text-align:center"><input type="checkbox" data-code="${t.code}" ${t.code === "V" || (pf.required || []).includes(t.code) ? "checked" : ""} ${t.code === "V" ? "disabled" : ""} onchange="pfReqToggle(this)"></td>
         <td style="text-align:center"><input type="checkbox" data-rc="${t.code}" ${t.code === "V" || rc ? "checked" : ""} ${t.code === "V" ? "disabled" : ""}></td></tr>`; }).join("")}
     </table>
     <div class="err hidden" id="pErr"></div>
