@@ -265,6 +265,23 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 .appfoot{padding:10px 16px;text-align:center;font-size:12px;color:var(--muted);border-top:1px solid var(--border);background:var(--sidebar-bg)}
 .appfoot a{color:var(--muted);text-decoration:none}
 .appfoot a:hover{text-decoration:underline}
+/* Welcome tour */
+.sb-modtitle{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.tour-btn{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:999px;width:20px;height:20px;padding:0;font-size:11px;font-weight:700;line-height:18px;cursor:pointer;flex:none}
+.tour-btn:hover{color:var(--accent);border-color:var(--accent)}
+.tour-block{position:fixed;inset:0;z-index:1000;background:transparent}
+.tour-spot{position:fixed;z-index:1001;border-radius:8px;box-shadow:0 0 0 9999px rgba(15,23,42,.55);pointer-events:none;transition:all .2s ease;outline:2px solid #fff}
+.tour-spot.none{width:0!important;height:0!important;top:50%!important;left:50%!important;outline:none}
+.tour-pop{position:fixed;z-index:1002;width:340px;max-width:calc(100vw - 32px);background:var(--sidebar-bg,#fff);color:var(--text,#1f2937);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.28);padding:16px 16px 12px;font-size:13.5px;line-height:1.5}
+.tour-pop .t-step{font-size:11px;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.05em}
+.tour-pop h3{margin:4px 0 6px;font-size:16px}
+.tour-pop p{margin:0 0 12px}
+.tour-pop .t-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tour-pop .t-actions .grow{flex:1}
+.tour-pop .t-dots{display:flex;gap:3px;flex-wrap:wrap;margin:0 0 10px}
+.tour-pop .t-dots i{width:6px;height:6px;border-radius:50%;background:var(--border,#e5e7eb)}
+.tour-pop .t-dots i.on{background:var(--accent)}
+@media(max-width:820px){.tour-pop{left:16px!important;right:16px;bottom:16px;top:auto!important;width:auto}}
 </style>
 </head>
 <body>
@@ -1561,9 +1578,180 @@ function renderSubnav() {
     if (n.sec && n.sec !== _lastSec) { head = `<div class="sb-subsec">${esc(n.sec)}</div>`; _lastSec = n.sec; }
     return head + `<div class="nav" id="nav-${n.k}" onclick="go('${n.k}')">${esc(n.label)}</div>`;
   }).join("");
-  nav.innerHTML = mobileBar + `<div class="sb-modtitle">${esc(label)}</div>` + itemsHtml;
+  const tourBtn = tourSteps(window.CURRENT_GROUP).length ? `<button class="tour-btn" onclick="event.stopPropagation();startTour('${window.CURRENT_GROUP}')" title="${tt("Visite guidée de ce module", "Guided tour of this module")}">?</button>` : "";
+  nav.innerHTML = mobileBar + `<div class="sb-modtitle"><span>${esc(label)}</span>${tourBtn}</div>` + itemsHtml;
   document.querySelectorAll(".modtab").forEach(e =>e.classList.toggle("active", e.id === "mod-" + window.CURRENT_GROUP));
   if (window.CURRENT_VIEW) { const el = document.getElementById("nav-" + window.CURRENT_VIEW); if (el) el.classList.add("active"); }
+  maybeAutoTour();
+}
+
+/* ---------- Welcome tour (Gestion Admin., RH, Stock) ----------
+ * One step per menu item, limited to what the user can see (NAV_VISIBLE), so every role
+ * gets its own tour. Starts by itself the first time a user opens one of these modules
+ * (remembered per user in this browser) and can be replayed with the « ? » button. */
+const TOUR = {
+  principal: {
+    fr: ["Bienvenue dans la Gestion administrative", "Le quotidien du personnel : tableau de bord, dossiers des employés, documents officiels, présence, assurance et demandes mobiles. Suivez la visite pour découvrir chaque écran."],
+    en: ["Welcome to Administrative management", "Day-to-day staff management: dashboard, employee files, official documents, attendance, insurance and mobile requests. Follow the tour to discover each screen."],
+    steps: {
+      dash: ["Vue d'ensemble en temps réel : effectif par portefeuille, documents en attente de validation et délais, présence du jour, congés, état de la paie, CNI qui expirent et fins de CDD à venir.", "Real-time overview: headcount per portfolio, documents awaiting validation and deadlines, today's attendance, leave, payroll status, expiring ID cards and upcoming fixed-term contract ends."],
+      employees: ["Les dossiers du personnel : créez un employé (identité, contrat, salaire, portefeuille), joignez les pièces obligatoires, suivez la checklist du dossier et soumettez-le à la validation.", "Staff files: create an employee (identity, contract, salary, portfolio), attach the required documents, follow the file checklist and submit it for validation."],
+      generated: ["Tous les documents dont la validation est terminée (contrats, attestations, avenants…). Téléchargez-les ou imprimez-les ; chaque impression est journalisée.", "Every document whose validation is complete (contracts, certificates, amendments…). Download or print them; every print is logged."],
+      avi: ["Attestations de virement irrévocable pour les prêts bancaires des salariés : joignez la lettre de demande, générez l'AVI numérotée et suivez sa validation.", "Irrevocable transfer certificates for employees' bank loans: attach the request letter, generate the numbered certificate and track its validation."],
+      presence: ["Pointage et présence : horaires par portefeuille, sites de pointage, revue des pointages et calcul mensuel des jours, heures et heures supplémentaires.", "Time and attendance: schedules per portfolio, clock-in sites, clock-in review and monthly days, hours and overtime."],
+      assurance: ["Assurance maladie : compagnies et réseau de soins, ayants droit des salariés à valider et suivi de la consommation.", "Health insurance: insurers and care network, employees' dependants to approve, and consumption tracking."],
+      emprequests: ["Les demandes envoyées par les salariés depuis l'application mobile (AVI, acomptes…), à consulter et traiter ici.", "Requests sent by employees from the mobile app (transfer certificates, salary advances…), to review and process here."],
+      astuces: ["Publiez des conseils et informations RH que les salariés retrouvent dans leur application mobile.", "Publish HR tips and information that employees see in their mobile app."],
+      dataio: ["Importez vos employés en masse depuis Excel ou CSV, avec contrôle des données, et exportez les dossiers du personnel.", "Bulk-import employees from Excel or CSV with data checks, and export staff files."],
+      queue: ["Votre file de validation : approuvez ou rejetez (avec motif) les documents soumis. Le délai est suivi et une alerte part avant dépassement.", "Your validation queue: approve or reject (with a reason) the submitted documents. The deadline is tracked and an alert goes out before it is missed."],
+    },
+  },
+  rh: {
+    fr: ["Bienvenue dans le module RH", "L'administration RH avancée : postes, carrière et performance, simulation de coûts, échéances, contrôle de paie et conventions collectives."],
+    en: ["Welcome to the HR module", "Advanced HR administration: job descriptions, careers and performance, cost simulation, deadlines, payroll control and collective agreements."],
+    steps: {
+      fiches: ["Fiches de poste : importez les descriptions de poste (Word ou PDF) ; l'application en extrait les sections (missions, compétences…) pour les rattacher aux employés.", "Job descriptions: upload them (Word or PDF); the app extracts their sections (duties, skills…) to link them to employees."],
+      career: ["Carrière et performance : plans de carrière, objectifs (OKR), évaluations 360°, entretiens, points de suivi et plans de succession.", "Careers and performance: career plans, objectives (OKRs), 360° reviews, interviews, check-ins and succession plans."],
+      ficheprix: ["Simulez le coût de mise à disposition d'un salarié, du salaire jusqu'au prix client TTC, et éditez la fiche en PDF ou Excel.", "Simulate the cost of placing an employee, from salary to the client price including tax, and export the sheet as PDF or Excel."],
+      expiring: ["Toutes les échéances à surveiller : CNI, pièces du dossier, fins de CDD et habilitations. Regroupez par portefeuille ou par type et envoyez les rappels par email.", "Every deadline to watch: ID cards, file documents, fixed-term contract ends and certifications. Group by portfolio or type and send email reminders."],
+      bordereaux: ["Contrôle de paie par client : saisie des éléments variables, bordereau à signer, puis rapprochement automatique entre la paie calculée et le bordereau signé avant l'ordre de virement.", "Payroll control per client: enter variable items, get the statement to sign, then the calculated payroll is automatically reconciled with the signed statement before the transfer order."],
+      acomptes: ["Enregistrez les acomptes sur salaire par client et par mois (avec la référence OM/MoMo) ; ils sont déduits automatiquement de la paie du mois.", "Record salary advances per client and month (with the mobile money reference); they are deducted automatically from that month's payroll."],
+      bordfields: ["Personnalisez le bordereau : ajoutez des colonnes liées à vos rubriques de paie, pour un client ou pour tous.", "Customise the statement: add columns linked to your payroll items, for one client or for all."],
+      conventions: ["Conventions collectives : la grille salariale (catégorie × échelon → salaire de base) proposée à la création d'un employé.", "Collective agreements: the salary grid (category × step → base salary) offered when creating an employee."],
+    },
+  },
+  stock: {
+    fr: ["Bienvenue dans la Gestion de stock", "Catalogue, achats, ventes et caisse, mouvements, transferts, dépenses et rapports. Voici chaque écran du module."],
+    en: ["Welcome to Stock management", "Catalogue, purchases, sales and point of sale, movements, transfers, expenses and reports. Here is every screen of the module."],
+    steps: {
+      stockhome: ["Le tableau de bord du stock : les indicateurs clés des ventes, des achats et des produits à réapprovisionner.", "The stock dashboard: key figures for sales, purchases and products to restock."],
+      stockproducts: ["Votre catalogue : créez les produits (référence, prix d'achat et de vente, TVA, seuil d'alerte, unité, catégorie, marque) et consultez leur stock.", "Your catalogue: create products (reference, purchase and sale price, VAT, alert threshold, unit, category, brand) and check their stock."],
+      stockunits: ["Les unités de mesure (pièce, carton, kg…) utilisées pour les produits et les quantités.", "Units of measure (piece, box, kg…) used for products and quantities."],
+      stockcats: ["Les catégories pour classer les produits et filtrer les rapports.", "Categories to classify products and filter reports."],
+      stockbrands: ["Les marques des produits.", "Product brands."],
+      stockwarranties: ["Les durées de garantie à associer aux produits.", "Warranty periods to attach to products."],
+      stockvariations: ["Les modèles de variations (taille, couleur…) pour gérer les déclinaisons d'un même produit.", "Variation templates (size, colour…) to manage the versions of one product."],
+      stockpricegroups: ["Les groupes de prix : des tarifs différents selon le type de client (gros, détail, partenaire…).", "Price groups: different prices by type of customer (wholesale, retail, partner…)."],
+      stockimport: ["Importez votre catalogue produits en masse depuis un fichier CSV.", "Bulk-import your product catalogue from a CSV file."],
+      stockopening: ["Importez les quantités de départ (stock d'ouverture) ; les catégories, unités et marques manquantes sont créées automatiquement.", "Import starting quantities (opening stock); missing categories, units and brands are created automatically."],
+      stocklabels: ["Imprimez des étiquettes pour vos produits.", "Print labels for your products."],
+      stockpo: ["Les bons de commande fournisseur : préparez et suivez vos commandes avant réception.", "Supplier purchase orders: prepare and track your orders before delivery."],
+      stockpurchases: ["Les achats et réceptions : enregistrez les marchandises reçues ; le stock et le coût d'achat sont mis à jour, avec le suivi du paiement fournisseur.", "Purchases and receipts: record goods received; stock and purchase cost are updated, with supplier payment tracking."],
+      stockreturns: ["Les retours d'achat : renvoyez des articles au fournisseur, le stock est diminué.", "Purchase returns: send items back to the supplier; stock is reduced."],
+      stockso: ["Les commandes client, enregistrées avant livraison et facturation.", "Customer orders, recorded before delivery and invoicing."],
+      stocksales: ["Toutes les ventes : l'historique, les paiements, les factures et les reçus.", "All sales: history, payments, invoices and receipts."],
+      stockpos: ["Le point de vente (caisse) : recherchez les produits, encaissez et imprimez le reçu en quelques secondes.", "The point of sale: find products, take payment and print the receipt in seconds."],
+      stockquotes: ["Les devis clients, transformables en vente.", "Customer quotes, which can be turned into a sale."],
+      stocksalesreturns: ["Les retours de vente : reprenez des articles vendus, le stock est réintégré.", "Sales returns: take back sold items; stock is added back."],
+      stockadjust: ["L'ajustement de stock : corrigez les écarts (casse, perte, inventaire) avec un motif.", "Stock adjustment: correct differences (breakage, loss, stock count) with a reason."],
+      stockmoves: ["Le journal de tous les mouvements de stock (entrées, sorties, transferts, ajustements) pour la traçabilité.", "The log of every stock movement (in, out, transfers, adjustments) for traceability."],
+      stockepi: ["La dotation EPI : les équipements de protection prévus par salarié ; « Livrer » les sort du stock.", "PPE allocation: protective equipment planned per employee; « Deliver » takes it out of stock."],
+      stocklocations: ["Les emplacements et magasins où le stock est conservé.", "Locations and warehouses where stock is kept."],
+      stocktransfers: ["Les transferts de stock entre emplacements.", "Stock transfers between locations."],
+      stockexpenses: ["Les dépenses de fonctionnement (transport, loyer…), rattachées à un compte de paiement.", "Running expenses (transport, rent…), linked to a payment account."],
+      stockexpensecats: ["Les catégories de dépenses.", "Expense categories."],
+      stockaccounts: ["Les comptes de paiement (caisse, banque, mobile money) pour encaisser les ventes et payer les achats et dépenses.", "Payment accounts (cash, bank, mobile money) to collect sales and pay purchases and expenses."],
+      stocknotif: ["Les modèles de messages envoyés aux clients et fournisseurs.", "Message templates sent to customers and suppliers."],
+      stockreports: ["Les rapports : stock, ventes, achats, marges et dépenses par période.", "Reports: stock, sales, purchases, margins and expenses by period."],
+      stocksuppliers: ["Les fournisseurs : coordonnées et historique des achats.", "Suppliers: contact details and purchase history."],
+      stockclients: ["Les clients : coordonnées, groupe de prix et historique des ventes.", "Customers: contact details, price group and sales history."],
+    },
+  },
+};
+const _tourL = (pair) => (LANG === "en" ? pair[1] : pair[0]);
+function tourSteps(g) {
+  const T = TOUR[g]; if (!T || !ME || ME.role === "SADM") return [];
+  const visible = (NAV_VISIBLE || []).filter(n => (n.grp || "admin") === g && T.steps[n.k]);
+  if (!visible.length) return [];
+  return [{ intro: true, title: (LANG === "en" ? T.en : T.fr)[0], text: (LANG === "en" ? T.en : T.fr)[1] }]
+    .concat(visible.map(n => ({ k: n.k, text: _tourL(T.steps[n.k]) })))
+    .concat([{ outro: true, title: tt("Vous êtes prêt !", "You're all set!"),
+      text: tt("Relancez cette visite à tout moment avec le bouton « ? » à côté du nom du module, en haut du menu.", "Replay this tour at any time with the « ? » button next to the module name, at the top of the menu.") }]);
+}
+const _tourKey = (g) => `mmTour:${(ME && ME.id) || ""}:${g}`;
+function _tourSeen(g) { try { return localStorage.getItem(_tourKey(g)) === "1"; } catch (e) { return true; } }
+function _tourMarkSeen(g) { try { localStorage.setItem(_tourKey(g), "1"); } catch (e) {} }
+function maybeAutoTour() {
+  const g = window.CURRENT_GROUP;
+  if (window._TOUR || !window.CURRENT_VIEW || !TOUR[g] || _tourSeen(g)) return;
+  const l = document.getElementById("launcher"); if (l && !l.classList.contains("hidden")) return;
+  if (tourSteps(g).length < 3) return;
+  _tourMarkSeen(g);              // once per user and module, even if they close it right away
+  setTimeout(() => { if (!window._TOUR && window.CURRENT_GROUP === g) startTour(g); }, 700);
+}
+function startTour(g) {
+  endTour(true);
+  const steps = tourSteps(g); if (!steps.length) return;
+  _tourMarkSeen(g);
+  window._TOUR = { g, steps, i: 0, mobile: window.innerWidth <= 820 };
+  const block = document.createElement("div"); block.className = "tour-block"; block.id = "tourBlock";
+  const spot = document.createElement("div"); spot.className = "tour-spot none"; spot.id = "tourSpot";
+  const pop = document.createElement("div"); pop.className = "tour-pop"; pop.id = "tourPop";
+  pop.setAttribute("role", "dialog"); pop.setAttribute("aria-live", "polite");
+  document.body.append(block, spot, pop);
+  window.addEventListener("resize", _tourPlace); window.addEventListener("keydown", _tourKeys);
+  _tourShow();
+}
+function endTour(silent) {
+  const T = window._TOUR; window._TOUR = null;
+  ["tourBlock", "tourSpot", "tourPop"].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); });
+  window.removeEventListener("resize", _tourPlace); window.removeEventListener("keydown", _tourKeys);
+  if (T && T.mobile && !silent) closeSidebar();
+}
+function _tourKeys(e) {
+  if (!window._TOUR) return;
+  if (e.key === "Escape") endTour();
+  else if (e.key === "ArrowRight") tourGo(1);
+  else if (e.key === "ArrowLeft") tourGo(-1);
+}
+function tourGo(d) {
+  const T = window._TOUR; if (!T) return;
+  const i = T.i + d; if (i < 0) return;
+  if (i >= T.steps.length) return endTour();
+  T.i = i; _tourShow();
+}
+function tourOpen(k) { endTour(); go(k); }
+function _tourShow() {
+  const T = window._TOUR; if (!T) return;
+  const s = T.steps[T.i], n = T.steps.length;
+  // Keep the module's menu on screen (the phone menu slides in from the left).
+  if (window.CURRENT_GROUP !== T.g) { window.CURRENT_GROUP = T.g; renderSubnav(); }
+  if (T.mobile) { const nv = document.getElementById("nav"); if (nv && !nv.classList.contains("open")) toggleSidebar(); }
+  const el = s.k ? document.getElementById("nav-" + s.k) : null;
+  if (el) el.scrollIntoView({ block: T.mobile ? "center" : "nearest" });   // phones: keep it clear of the bottom card
+  const title = s.title || (el ? el.textContent.trim() : "");
+  const last = T.i === n - 1;
+  document.getElementById("tourPop").innerHTML = `
+    <div class="t-step">${s.intro ? tt("Visite guidée", "Guided tour") : s.outro ? tt("Terminé", "Done") : tt(`Étape ${T.i} sur ${n - 2}`, `Step ${T.i} of ${n - 2}`)}</div>
+    <h3>${esc(title)}</h3><p>${esc(s.text)}</p>
+    <div class="t-dots">${T.steps.map((_, j) => `<i class="${j === T.i ? "on" : ""}"></i>`).join("")}</div>
+    <div class="t-actions">
+      ${last ? "" : `<button class="btn ghost sm" onclick="endTour()">${tt("Passer", "Skip")}</button>`}
+      ${s.k ? `<button class="btn ghost sm" onclick="tourOpen('${s.k}')">${tt("Ouvrir cet écran", "Open this screen")}</button>` : ""}
+      <span class="grow"></span>
+      ${T.i > 0 ? `<button class="btn ghost sm" onclick="tourGo(-1)">${tt("Précédent", "Back")}</button>` : ""}
+      <button class="btn p sm" onclick="tourGo(1)">${last ? tt("Terminer", "Finish") : s.intro ? tt("Commencer", "Start") : tt("Suivant", "Next")}</button>
+    </div>`;
+  T.el = el;
+  requestAnimationFrame(_tourPlace);
+}
+function _tourPlace() {
+  const T = window._TOUR; if (!T) return;
+  const spot = document.getElementById("tourSpot"), pop = document.getElementById("tourPop");
+  const el = T.el && document.body.contains(T.el) ? T.el : null;
+  T.mobile = window.innerWidth <= 820;
+  if (!el) {                      // intro / outro: centred card, whole screen dimmed
+    spot.className = "tour-spot none";
+    if (!T.mobile) { pop.style.left = Math.max(16, (window.innerWidth - pop.offsetWidth) / 2) + "px"; pop.style.top = Math.max(16, (window.innerHeight - pop.offsetHeight) / 2) + "px"; }
+    return;
+  }
+  const r = el.getBoundingClientRect(), pad = 4;
+  spot.className = "tour-spot";
+  Object.assign(spot.style, { left: (r.left - pad) + "px", top: (r.top - pad) + "px", width: (r.width + pad * 2) + "px", height: (r.height + pad * 2) + "px" });
+  if (T.mobile) return;           // bottom sheet on phones (CSS)
+  const left = Math.min(r.right + 16, window.innerWidth - pop.offsetWidth - 16);
+  const top = Math.min(Math.max(16, r.top + r.height / 2 - pop.offsetHeight / 2), window.innerHeight - pop.offsetHeight - 16);
+  pop.style.left = left + "px"; pop.style.top = top + "px";
 }
 function goGroup(g) {
   window.CURRENT_GROUP = g; renderSubnav();
