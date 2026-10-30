@@ -288,6 +288,7 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 
 <div id="login">
   <div style="text-align:center"><img data-app-logo style="max-height:64px;margin-bottom:8px"></div><h1 data-brand-name style="text-align:center;margin-bottom:16px">MBOKA Mon RH</h1>
+  <div id="lMain">
   <label>Email</label><input id="lEmail" value="" placeholder="votre@email.com" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
   <label>Mot de passe</label><span class="pw-wrap"><input id="lPass" type="password" value="" placeholder="Mot de passe" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"><span class="pw-eye" onclick="togglePw(this)" title="Afficher / masquer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span></span>
   <div id="lTotpWrap" class="hidden"><label>Code 2FA (6 chiffres)</label>
@@ -298,15 +299,17 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
   </div>
   <div class="err hidden" id="lErr"></div>
   <button class="btn p" style="width:100%" onclick="doLogin()">Se connecter</button>
+  </div>
 
-  <div id="lNewPw" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-    <b style="font-size:13px">Choisissez votre nouveau mot de passe</b>
+  <div id="lNewPw" class="hidden">
+    <b style="font-size:15px">Choisissez votre nouveau mot de passe</b>
     <p style="font-size:12px;color:var(--muted);margin:6px 0">Vous vous êtes connecté avec un mot de passe temporaire, valable une seule fois.
       Choisissez maintenant votre propre mot de passe : 8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un caractère spécial.</p>
     <label>Nouveau mot de passe</label><input id="lNew1" type="password" autocomplete="new-password">
     <label>Confirmer le nouveau mot de passe</label><input id="lNew2" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')saveFirstPassword()">
     <div class="err hidden" id="lNewErr"></div>
     <button class="btn p" style="width:100%;margin-top:8px" onclick="saveFirstPassword()">Enregistrer et se connecter</button>
+    <a href="#" onclick="showNewPwStep(false);return false" style="display:block;text-align:center;margin-top:10px;font-size:13px;color:var(--accent)">Retour à la connexion</a>
   </div>
 
   <div id="lSetup" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
@@ -1283,8 +1286,7 @@ async function doLogin() {
 
     if (r.status === 403 && j.passwordChangeRequired) {                   // one-time password: choose a new one first
       _pwChangeToken = j.changeToken;
-      lNewPw.classList.remove("hidden"); lNewErr.classList.add("hidden");
-      lNew1.focus();
+      showNewPwStep(true);
       return;
     }
     if (r.status === 428 && j.setupRequired) return start2faEnrolment();   // 2FA mandatory, not yet configured
@@ -1308,6 +1310,12 @@ async function doLogin() {
 
 /** Login step after a one-time password: save the user's own password, then log in with it. */
 let _pwChangeToken = null;
+// The new-password form replaces the login fields, so it cannot be missed (even on a phone).
+function showNewPwStep(on) {
+  lMain.classList.toggle("hidden", on); lNewPw.classList.toggle("hidden", !on);
+  lNewErr.classList.add("hidden"); lNew1.value = ""; lNew2.value = "";
+  if (on) { lNewPw.scrollIntoView({ block: "center" }); lNew1.focus(); } else { _pwChangeToken = null; lPass.value = ""; lPass.focus(); }
+}
 async function saveFirstPassword() {
   lNewErr.classList.add("hidden");
   try {
@@ -1316,8 +1324,8 @@ async function saveFirstPassword() {
       body: JSON.stringify({ changeToken: _pwChangeToken, next: lNew1.value }) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error);
-    lPass.value = lNew1.value; lNew1.value = ""; lNew2.value = ""; _pwChangeToken = null;
-    lNewPw.classList.add("hidden");
+    const pw = lNew1.value;
+    showNewPwStep(false); lPass.value = pw;
     doLogin();                     // continues with 2FA if the account needs it
   } catch (e) { lNewErr.textContent = e.message; lNewErr.classList.remove("hidden"); }
 }

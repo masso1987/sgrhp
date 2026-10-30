@@ -202,7 +202,7 @@ function login(req, res) {
   if (viaReset || user.mustChangePassword) {
     user.failedLogins = 0; save();
     const changeToken = jwt.sign({ id: user.id, purpose: "pwchange", via: viaReset ? "reset" : "otp" }, SECRET, { expiresIn: "15m" });
-    return res.status(403).json({ error: "Choisissez un nouveau mot de passe pour continuer.", passwordChangeRequired: true, changeToken });
+    return res.status(403).json({ error: "Mot de passe temporaire accepté : choisissez votre nouveau mot de passe. Si le formulaire ne s'affiche pas, rechargez la page (Ctrl+F5) puis reconnectez-vous.", passwordChangeRequired: true, changeToken });
   }
 
   // Two-factor: policy-driven (Settings > Security)
