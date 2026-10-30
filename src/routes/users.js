@@ -71,7 +71,7 @@ router.put("/:id/modules", allow("ADM", "SADM"), (req, res) => {
   const user = targetUser(req, req.params.id);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable" });
   const activated = _tenantModules(user);
-  const grantable = ["payroll", "accounting", "invoicing", "stock", "quality"]; // non-core, licence-gated
+  const grantable = ["payroll", "accounting", "invoicing", "stock", "btp", "quality"]; // non-core, licence-gated
   const ids = (req.body && req.body.modules || []).filter(k => grantable.includes(k) && activated.includes(k));
   const before = user.modules || [];
   user.modules = [...new Set(ids)]; save();

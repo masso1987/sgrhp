@@ -31,6 +31,7 @@ const MODULES = [
   { key: "accounting", label: "Comptabilité", core: false },
   { key: "invoicing", label: "Facturation", core: false },
   { key: "stock", label: "Gestion de stock", core: false },
+  { key: "btp", label: "Stock BTP (chantiers)", core: false },
   { key: "quality", label: "Qualité (SMQ)", core: false },
 ];
 
@@ -66,6 +67,7 @@ const DEFAULT_PRICING = {
   accounting: { monthly: 25000, yearly: 250000 },
   invoicing:  { monthly: 15000, yearly: 150000 },
   stock:      { monthly: 20000, yearly: 200000 },
+  btp:        { monthly: 25000, yearly: 250000 },
   quality:    { monthly: 20000, yearly: 200000 },
 };
 function pricingCfg() {

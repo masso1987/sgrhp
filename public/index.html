@@ -265,6 +265,54 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 .appfoot{padding:10px 16px;text-align:center;font-size:12px;color:var(--muted);border-top:1px solid var(--border);background:var(--sidebar-bg)}
 .appfoot a{color:var(--muted);text-decoration:none}
 .appfoot a:hover{text-decoration:underline}
+/* Stock BTP */
+.btp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.btp-subtitle{color:var(--muted);font-size:13px;margin-top:4px}
+.btp-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btp-pill{border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;background:var(--sidebar-bg);text-transform:capitalize}
+.btp-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+.btp-kpi{display:flex;gap:12px;align-items:flex-start;background:var(--sidebar-bg,#fff);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.btp-ico{flex:none;width:40px;height:40px;border-radius:10px;background:#e6f6f3;color:#0f9b8e;display:flex;align-items:center;justify-content:center}
+.btp-lbl{font-size:12px;color:var(--muted)}
+.btp-val{font-size:21px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btp-sub{font-size:11.5px;margin-top:3px}
+.btp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+@media(max-width:1180px){.btp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.btp-grid{grid-template-columns:1fr}.btp-kpis{grid-template-columns:1fr 1fr}.btp-val{font-size:18px}}
+.btp-card{background:var(--sidebar-bg,#fff);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,24,40,.04);min-width:0;margin-bottom:12px}
+.btp-grid .btp-card{margin-bottom:0}
+.btp-card h3{font-size:14px;margin:0 0 10px}
+.btp-chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.btp-muted{color:var(--muted);font-size:12px}
+.btp-bar{flex:1;height:14px;background:var(--zebra,#f1f5f9);border-radius:4px;overflow:hidden}
+.btp-bar span{display:block;height:100%;background:#0f9b8e;border-radius:4px}
+.btp-hbar{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:12.5px}
+.btp-hbar .n{width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btp-hbar b{width:44px;text-align:right}
+.btp-mini{width:100%;font-size:12.5px;border-collapse:collapse}
+.btp-mini th{font-size:11.5px;color:var(--muted);text-align:left;font-weight:600;padding:4px 4px}
+.btp-mini td{padding:6px 4px}
+.btp-table{width:100%;border-collapse:collapse;font-size:13px}
+.btp-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
+.btp-table td{padding:8px 6px;border-bottom:1px solid var(--border);vertical-align:middle}
+.btp-donut{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.btp-donut-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.btp-donut-c b{font-size:14px}.btp-donut-c span{font-size:11px;color:var(--muted)}
+.btp-legend{flex:1;min-width:150px;font-size:12.5px}
+.btp-legend div{display:flex;align-items:center;gap:8px;margin:6px 0}
+.btp-legend i{width:10px;height:10px;border-radius:3px;flex:none}
+.btp-legend span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btp-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.btp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.btp-wh.off{opacity:.6}
+.btp-wh-stats{display:flex;gap:16px;margin:10px 0}
+.btp-wh-stats div{display:flex;flex-direction:column}.btp-wh-stats span{font-size:11.5px;color:var(--muted)}
+.btp-modal{max-height:88vh}
+.btp-modal-body{overflow:auto}
+.btp-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 12px}
+.btp-form .full{grid-column:1/-1}
+.btp-line{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+.btp-modal-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
 /* Welcome tour */
 .sb-modtitle{display:flex;align-items:center;justify-content:space-between;gap:6px}
 .tour-btn{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:999px;width:20px;height:20px;padding:0;font-size:11px;font-weight:700;line-height:18px;cursor:pointer;flex:none}
@@ -1492,6 +1540,16 @@ const NAV = [
 { k: "stockreports", label: "Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], cap: "stock.rapports", module: "stock", grp: "stock" },
   { k: "stocksuppliers", label: "Fournisseurs", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
   { k: "stockclients", label: "Clients", sec: "Structure", roles: ["ADM","CD","GPF"], cap: "stock.tiers", module: "stock", grp: "stock" },
+  { k: "btphome", label: "Tableau de bord BTP", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpmaterials", label: "Matériaux", sec: "Catalogue", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpcategories", label: "Catégories", sec: "Catalogue", roles: ["ADM","CD"], module: "btp", grp: "btp" },
+  { k: "btpwarehouses", label: "Entrepôts", sec: "Sites", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpprojects", label: "Chantiers", sec: "Sites", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpmoves", label: "Mouvements de stock", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btprequests", label: "Demandes de matériel", sec: "Chantier", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpdeliveries", label: "Livraisons", sec: "Chantier", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpconsumption", label: "Consommations", sec: "Chantier", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpreports", label: "Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
 
   { k: "smqworkspace", label: "Mon espace", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
@@ -1540,6 +1598,7 @@ const NAV_GROUPS = [
   { g: "facturation", label: "Facturation" },
   { g: "comptabilite", label: "Comptabilité" },
   { g: "stock", label: "Stock" },
+  { g: "btp", label: "Stock BTP" },
   { g: "qualite", label: "Qualité" },
   { g: "discussion", label: "Discussion" },
   { g: "rapports", label: "Rapports" },
@@ -1697,6 +1756,22 @@ const TOUR = {
       stockclients: ["Les clients : coordonnées, groupe de prix et historique des ventes.", "Customers: contact details, price group and sales history."],
     },
   },
+  btp: {
+    fr: ["Bienvenue dans le Stock BTP", "Le stock de vos chantiers : matériaux, entrepôts et magasins de chantier, demandes de matériel, livraisons et consommations. Voici chaque écran."],
+    en: ["Welcome to Construction stock", "Stock for your building sites: materials, warehouses and site stores, material requests, deliveries and consumption. Here is every screen."],
+    steps: {
+      btphome: ["Le tableau de bord : valeur du stock, stock bas et ruptures, chantiers actifs, demandes à valider, entrées et sorties du mois.", "The dashboard: stock value, low and out-of-stock items, active sites, requests to approve, monthly stock in and out."],
+      btpmaterials: ["Le catalogue des matériaux : référence, unité de stock et d'achat (avec conversion), seuils de réapprovisionnement et coût moyen pondéré.", "The materials catalogue: reference, stock and purchase unit (with conversion), reorder thresholds and weighted average cost."],
+      btpcategories: ["Les catégories de matériaux (ciment, acier, plomberie…), que vous pouvez compléter.", "Material categories (cement, steel, plumbing…), which you can extend."],
+      btpwarehouses: ["Les lieux de stockage : entrepôt central, dépôts et magasins de chantier, avec le stock et sa valeur.", "Storage places: central warehouse, depots and site stores, with their stock and value."],
+      btpprojects: ["Les chantiers : client, dates, budget et statut. Chacun a son magasin de stock et sa fiche de coût matériaux.", "Building sites: client, dates, budget and status. Each has its own store and a material cost sheet."],
+      btpmoves: ["Le grand livre du stock : réceptions, transferts, ajustements… Rien ne se supprime ; une erreur se corrige par contre-passation.", "The stock ledger: receipts, transfers, adjustments… Nothing is deleted; a mistake is corrected by a reversal."],
+      btprequests: ["Les demandes de matériel : le chantier demande, le responsable approuve en tout ou partie, puis le magasin livre.", "Material requests: the site asks, a manager approves all or part, then the store delivers."],
+      btpdeliveries: ["Les livraisons : le bon de livraison sort le matériel de l'entrepôt et l'entre au magasin du chantier, avec PDF à signer.", "Deliveries: the delivery note moves material from the warehouse to the site store, with a PDF to sign."],
+      btpconsumption: ["Les consommations : ce qui est utilisé, retourné au magasin, cassé ou perdu sur chaque chantier.", "Consumption: what is used, returned to the store, damaged or lost on each site."],
+      btpreports: ["Les rapports : état du stock et journal des mouvements en Excel, et coût matériaux par chantier.", "Reports: stock status and movement log in Excel, and material cost per site."],
+    },
+  },
 };
 const _tourL = (pair) => (LANG === "en" ? pair[1] : pair[0]);
 function tourSteps(g) {
@@ -1807,6 +1882,7 @@ const GROUP_META = {
   facturation:{c:"#6366f1",svg:_SVG('<path d="M6 3h9l3 3v15l-2.2-1.4L13.6 21l-2.4-1.4L8.8 21l-2.4-1.4L4 21V6z"/><path d="M8 8h7M8 11.5h7M8 15h4"/>')},
   comptabilite:{c:"#a855f7",svg:_SVG('<path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M9 4v16"/><path d="M12 8h4M12 12h4"/>')},
   stock:{c:"#14b8a6",svg:_SVG('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>')},
+  btp:{c:"#0f9b8e",svg:_SVG('<path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/><path d="M12 5V2M9 3h6"/>')},
   qualite:{c:"#10b981",svg:_SVG('<path d="M12 3l7 3v5c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6z"/><path d="M9 12l2 2 4-4"/>')},
   rapports:{c:"#ef4444",svg:_SVG('<path d="M4 20V4M4 20h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="5" width="3" height="12"/>')},
   admin:{c:"#64748b",svg:_SVG('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>')},
@@ -1820,6 +1896,7 @@ const GROUP_DESC = {
   facturation: "Annexes, factures & suivi client",
   comptabilite: "Écritures, états OHADA & clôture",
   stock: "Produits, mouvements & achats/ventes",
+  btp: "Chantiers, entrepôts, matériaux & approvisionnement des sites",
   qualite: "SMQ, conformité & audits ISO 9001",
   rapports: "Journaux d'audit & rapports transverses",
   admin: "Paramètres, utilisateurs & circuits de validation",
@@ -1893,7 +1970,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sysops: sysopsView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, btphome: btpHomeView, btpmaterials: btpMaterialsView, btpcategories: btpCategoriesView, btpwarehouses: btpWarehousesView, btpprojects: btpProjectsView, btpproject: btpProjectView, btpmoves: btpMovesView, btprequests: btpRequestsView, btpdeliveries: btpDeliveriesView, btpconsumption: btpConsumptionView, btpreports: btpReportsView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sysops: sysopsView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -2332,7 +2409,7 @@ async function pfSave(id) {
 function pfReqToggle(cb){ const rc = view.querySelector('input[data-rc="'+cb.dataset.code+'"]'); if(rc && !cb.checked){ rc.checked=false; } }
 
 /* ---------- Users (ADM) ---------- */
-const MODULE_LABELS = { payroll: "Paie", accounting: "Comptabilité", invoicing: "Facturation", stock: "Gestion de stock", quality: "Qualité (SMQ)" };
+const MODULE_LABELS = { payroll: "Paie", accounting: "Comptabilité", invoicing: "Facturation", stock: "Gestion de stock", btp: "Stock BTP (chantiers)", quality: "Qualité (SMQ)" };
 async function modModal(uid) {
   const list = await api("/users"); const u = list.find(x =>x.id === uid);
   const me = await api("/me");
@@ -10061,6 +10138,494 @@ async function acctLoadRefs() {
   ACCT_ACCOUNTS = acc; ACCT_JOURNALS = jr;
 }
 function acctKpi(l, v) { return `<div style="flex:1;min-width:150px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px">${v}</div></div>`; }
+
+/* ====================== STOCK BTP (module « btp ») ======================
+ * Chantiers, entrepôts, matériaux, grand livre des mouvements, demandes de matériel,
+ * livraisons et consommations. Toutes les règles (stock, droits, isolation) sont côté
+ * serveur (src/routes/btp.js) ; ces écrans ne font qu'afficher et saisir. */
+const btpApi = (p, o) => api("/btp" + p, o);
+let BTP_META = null;
+async function btpMeta() { if (!BTP_META) BTP_META = await btpApi("/meta"); return BTP_META; }
+const btpCan = { config: () => ["ADM", "CD", "RS"].includes(ME.role), write: () => ["ADM", "CD", "GPF", "RS"].includes(ME.role), approve: () => ["ADM", "CD"].includes(ME.role) };
+const btpQ = n => (Math.round((Number(n) || 0) * 1000) / 1000).toLocaleString("fr-FR");
+const btpM = n => fCFA(n) + " F";
+const btpKey = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2);
+const btpToday = () => new Date().toISOString().slice(0, 10);
+const btpFr = d => d ? String(d).slice(0, 10).split("-").reverse().join("/") : "";
+const BTP_COLORS = ["#0f9b8e", "#1e6fd9", "#f08c2a", "#e8507a", "#7c3aed", "#22c55e", "#64748b", "#eab308"];
+const BTP_CHIP = {
+  ok: ["#dcfce7", "#166534", "OK"], bas: ["#fef3c7", "#92400e", "Stock bas"], rupture: ["#fee2e2", "#991b1b", "Rupture"],
+  brouillon: ["#f1f5f9", "#475569"], soumise: ["#fef3c7", "#92400e"], approuvee: ["#ccfbf1", "#115e59"], partielle: ["#e0f2fe", "#075985"],
+  rejetee: ["#fee2e2", "#991b1b"], livraison_partielle: ["#dbeafe", "#1e40af"], livree: ["#dcfce7", "#166534"], annulee: ["#f1f5f9", "#64748b"],
+  planifie: ["#dbeafe", "#1e40af"], actif: ["#dcfce7", "#166534"], suspendu: ["#fef3c7", "#92400e"], termine: ["#ccfbf1", "#115e59"], annule: ["#fee2e2", "#991b1b"],
+};
+const btpChip = (k, label) => { const c = BTP_CHIP[k] || ["#f1f5f9", "#475569"]; return `<span class="btp-chip" style="background:${c[0]};color:${c[1]}">${esc(label || c[2] || k)}</span>`; };
+const BTP_ICON = {
+  value: '<path d="M3 7h18v12H3z"/><path d="M16 13h2"/><path d="M3 7l3-4h12l3 4"/>', mat: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>',
+  wh: '<path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-8h10v8"/>', site: '<path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/>',
+  req: '<path d="M9 3h6v4H9z"/><path d="M6 5h12v16H6z"/><path d="M9 12h6M9 16h4"/>', truck: '<path d="M3 6h11v10H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>', use: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+};
+const btpIco = k => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${BTP_ICON[k] || ""}</svg>`;
+function btpKpi(icon, label, value, sub, subColor) {
+  return `<div class="btp-kpi"><div class="btp-ico">${btpIco(icon)}</div><div style="min-width:0"><div class="btp-lbl">${esc(label)}</div>
+    <div class="btp-val">${value}</div>${sub ? `<div class="btp-sub" style="color:${subColor || "#16a34a"}">${sub}</div>` : ""}</div></div>`;
+}
+function btpHead(title, subtitle, right) {
+  return `<div class="btp-head"><div><h1 style="margin:0">${esc(title)}</h1>${subtitle ? `<div class="btp-subtitle">${esc(subtitle)}</div>` : ""}</div><div class="btp-actions">${right || ""}</div></div>`;
+}
+function btpModal(title, body, wide) {
+  const bg = document.createElement("div"); bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal btp-modal" style="width:${wide ? 860 : 520}px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <b style="font-size:15px">${esc(title)}</b><button class="btn ghost sm" data-close>✕</button></div><div class="btp-modal-body">${body}</div></div>`;
+  const close = () => bg.remove();
+  bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-close]")) close(); });
+  document.body.appendChild(bg);
+  return { el: bg, close, $: sel => bg.querySelector(sel) };
+}
+async function btpDownload(path, filename, open) {
+  try {
+    const r = await fetch("/api/btp" + path, { headers: { Authorization: "Bearer " + TOKEN } });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || "Téléchargement impossible"); }
+    const url = URL.createObjectURL(await r.blob());
+    if (open) window.open(url, "_blank"); else { const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) { alert(e.message); }
+}
+const btpOpts = (list, sel, label, empty) => (empty !== undefined ? `<option value="">${esc(empty)}</option>` : "") + list.map(x => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(label(x))}</option>`).join("");
+function btpCharts() { (window._btpCharts || []).forEach(c => { try { c.destroy(); } catch (e) {} }); window._btpCharts = []; return window._btpCharts; }
+
+/* ---- Lignes de matériaux (formulaires de mouvement, demande, livraison) ---- */
+function btpLines(box, mats, opt = {}) {
+  const row = (l = {}) => `<div class="btp-line">
+    <select data-f="materialId" style="flex:3;min-width:180px;margin:0"><option value="">- matériau -</option>${mats.filter(m => m.active !== false).map(m => `<option value="${esc(m.id)}" ${m.id === l.materialId ? "selected" : ""}>${esc(m.ref + " - " + m.name)} (${esc(m.unit)}${opt.showStock ? " · stock " + btpQ(m.qty) : ""})</option>`).join("")}</select>
+    <input data-f="qty" type="number" step="any" placeholder="Qté" value="${l.qty != null ? esc(l.qty) : ""}" style="flex:1;min-width:80px;margin:0">
+    ${opt.cost ? `<input data-f="unitCost" type="number" step="any" placeholder="Coût unitaire" value="${l.unitCost != null ? esc(l.unitCost) : ""}" style="flex:1;min-width:100px;margin:0">` : ""}
+    ${opt.purchaseUnit ? `<label class="chk" style="margin:0;white-space:nowrap" title="Quantité saisie dans l'unité d'achat (convertie automatiquement)"><input type="checkbox" data-f="inPurchaseUnit"><span>Unité d'achat</span></label>` : ""}
+    <button class="btn ghost sm" data-del title="Retirer">✕</button></div>`;
+  box.innerHTML = `<div data-rows>${(opt.lines && opt.lines.length ? opt.lines : [{}]).map(row).join("")}</div><button class="btn ghost sm" data-add style="margin-top:6px">+ Ajouter une ligne</button>`;
+  box.addEventListener("click", e => {
+    if (e.target.closest("[data-add]")) box.querySelector("[data-rows]").insertAdjacentHTML("beforeend", row());
+    const d = e.target.closest("[data-del]"); if (d && box.querySelectorAll(".btp-line").length > 1) d.closest(".btp-line").remove();
+  });
+  return () => [...box.querySelectorAll(".btp-line")].map(r => {
+    const o = {}; r.querySelectorAll("[data-f]").forEach(i => { o[i.dataset.f] = i.type === "checkbox" ? i.checked : i.value; });
+    if (o.qty !== undefined) o.qty = Number(String(o.qty).replace(",", "."));
+    if (o.unitCost === "") delete o.unitCost; else if (o.unitCost !== undefined) o.unitCost = Number(String(o.unitCost).replace(",", "."));
+    return o;
+  }).filter(o => o.materialId && o.qty);
+}
+
+/* ---------------- Tableau de bord ---------------- */
+async function btpHomeView() {
+  const d = await btpApi("/dashboard"); const k = d.kpis;
+  const month = new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  view.innerHTML = btpHead("Tableau de bord BTP", "Stock, chantiers et approvisionnement des sites en un coup d'œil.",
+    `<span class="btp-pill">📅 ${esc(month)}</span><button class="btn ghost sm" onclick="btpDownload('/export/stock.xlsx','stock-btp.xlsx')">Exporter le stock (Excel)</button>`) + `
+    <div class="btp-kpis">
+      ${btpKpi("value", "Valeur du stock", btpM(k.stockValue), "Coût moyen pondéré (CUMP)", "var(--muted)")}
+      ${btpKpi("mat", "Matériaux suivis", k.materials, k.outOfStock ? `▼ ${k.outOfStock} en rupture` : "Aucune rupture", k.outOfStock ? "#dc2626" : "#16a34a")}
+      ${btpKpi("alert", "Stock bas", k.lowStock, k.lowStock ? "À réapprovisionner" : "Seuils respectés", k.lowStock ? "#d97706" : "#16a34a")}
+      ${btpKpi("site", "Chantiers actifs", k.activeProjects, `${k.warehouses} entrepôt(s) / magasin(s)`, "var(--muted)")}
+      ${btpKpi("req", "Demandes à valider", k.pendingRequests, k.toDeliver ? `${k.toDeliver} approuvée(s) à livrer` : "Rien à livrer", k.toDeliver ? "#1e6fd9" : "var(--muted)")}
+      ${btpKpi("use", "Consommé ce mois", btpM(k.consumedMonth), "Valeur des matériaux utilisés", "var(--muted)")}
+    </div>
+    <div class="btp-grid">
+      <div class="btp-card"><h3>Valeur du stock par entrepôt</h3>${d.byWarehouse.length ? `<table class="btp-mini"><tr><th>Entrepôt</th><th style="text-align:right">Valeur (F)</th><th style="width:40%"></th></tr>
+        ${d.byWarehouse.map(w => `<tr><td>${esc(w.name)}</td><td style="text-align:right">${fCFA(w.value)}</td><td><div class="btp-bar"><span style="width:${Math.max(3, w.value / d.byWarehouse[0].value * 100)}%"></span></div></td></tr>`).join("")}</table>` : mmEmpty("Aucun stock", "Enregistrez une réception pour commencer.")}</div>
+      <div class="btp-card"><h3>Entrées vs sorties (6 mois, F)</h3><div style="position:relative;height:220px"><canvas id="btpMonthly"></canvas></div></div>
+      <div class="btp-card"><h3>Stock par catégorie (F)</h3>${d.byCategory.length ? `<div class="btp-donut"><div style="position:relative;width:180px;height:180px;flex:none"><canvas id="btpCat"></canvas>
+        <div class="btp-donut-c"><b>${fCFA(k.stockValue)}</b><span>F en stock</span></div></div><div class="btp-legend">${d.byCategory.slice(0, 6).map((c, i) => `<div><i style="background:${BTP_COLORS[i]}"></i><span>${esc(c.name)}</span><b>${Math.round(c.value / (k.stockValue || 1) * 100)}%</b></div>`).join("")}</div></div>` : mmEmpty("Aucune valeur en stock")}</div>
+      <div class="btp-card"><h3>Coût matériaux / budget par chantier (%)</h3>${d.projects.length ? d.projects.map(p => { const pc = p.budget ? Math.round(p.materialCost / p.budget * 100) : 0; return `<div class="btp-hbar"><span class="n">${esc(p.name)}</span><div class="btp-bar"><span style="width:${Math.min(100, Math.max(2, pc))}%;${pc > 100 ? "background:#f08c2a" : ""}"></span></div><b>${p.budget ? pc + "%" : "-"}</b></div>`; }).join("") : mmEmpty("Aucun chantier en cours")}</div>
+      <div class="btp-card"><h3>Matériaux les plus consommés (F)</h3><div style="position:relative;height:220px"><canvas id="btpTop"></canvas></div></div>
+      <div class="btp-card"><h3>Alertes de stock</h3>${d.lowList.length ? `<table class="btp-mini"><tr><th>Matériau</th><th style="text-align:right">Stock</th><th style="text-align:right">Seuil</th><th></th></tr>
+        ${d.lowList.map(m => `<tr><td>${esc(m.name)}</td><td style="text-align:right">${btpQ(m.qty)} ${esc(m.unit)}</td><td style="text-align:right">${btpQ(m.threshold)}</td><td>${btpChip(m.state)}</td></tr>`).join("")}</table>` : mmEmpty("Aucune alerte", "Tous les matériaux sont au-dessus de leur seuil.")}</div>
+    </div>`;
+  if (!(await ensureChartJs()) || !window.Chart) return;
+  const charts = btpCharts(); const fmt = v => fCFA(v);
+  const mlab = d.monthly.map(m => new Date(m.month + "-01").toLocaleDateString("fr-FR", { month: "short" }));
+  const c1 = document.getElementById("btpMonthly");
+  if (c1) charts.push(new Chart(c1, { type: "bar", data: { labels: mlab, datasets: [
+    { label: "Entrées", data: d.monthly.map(m => m.in), backgroundColor: "#0f9b8e", borderRadius: 4 },
+    { label: "Sorties", data: d.monthly.map(m => m.out), backgroundColor: "#1e6fd9", borderRadius: 4 }] },
+    options: { maintainAspectRatio: false, plugins: { legend: { position: "top", labels: { boxWidth: 12 } } }, scales: { y: { ticks: { callback: fmt } } } } }));
+  const c2 = document.getElementById("btpCat");
+  if (c2) charts.push(new Chart(c2, { type: "doughnut", data: { labels: d.byCategory.map(c => c.name), datasets: [{ data: d.byCategory.map(c => c.value), backgroundColor: BTP_COLORS, borderWidth: 0 }] },
+    options: { maintainAspectRatio: false, cutout: "68%", plugins: { legend: { display: false } } } }));
+  const c3 = document.getElementById("btpTop");
+  if (c3) charts.push(new Chart(c3, { type: "bar", data: { labels: d.topConsumed.map(t => t.name), datasets: [{ label: "Consommé", data: d.topConsumed.map(t => t.value), backgroundColor: "#0f9b8e", borderRadius: 4 }] },
+    options: { indexAxis: "y", maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: fmt } } } } }));
+}
+
+/* ---------------- Matériaux ---------------- */
+async function btpMaterialsView() {
+  const [mats, cats, meta] = await Promise.all([btpApi("/materials"), btpApi("/categories"), btpMeta()]);
+  window._btpMats = mats;
+  view.innerHTML = btpHead("Matériaux", "Catalogue des matériaux de construction, stock total et valorisation au CUMP.",
+    `${btpCan.config() ? `<button class="btn p sm" onclick="btpMaterialForm()">+ Matériau</button>` : ""}<button class="btn ghost sm" onclick="btpDownload('/export/stock.xlsx','stock-btp.xlsx')">Excel</button>`) + `
+    <div class="btp-card"><div class="btp-filters">
+      <input id="bmQ" placeholder="Rechercher (référence, nom)…" oninput="btpMaterialsRender()" style="margin:0;max-width:260px">
+      <select id="bmCat" onchange="btpMaterialsRender()" style="margin:0;max-width:200px"><option value="">Toutes catégories</option>${cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select>
+      <select id="bmSt" onchange="btpMaterialsRender()" style="margin:0;max-width:170px"><option value="">Tous états</option><option value="bas">Stock bas</option><option value="rupture">Rupture</option><option value="ok">OK</option></select>
+      <label class="chk" style="margin:0"><input type="checkbox" id="bmInact" onchange="btpMaterialsRender()"><span>Inclure les inactifs</span></label></div>
+    <div id="bmList" style="overflow-x:auto"></div></div>`;
+  btpMaterialsRender();
+}
+function btpMaterialsRender() {
+  const q = (document.getElementById("bmQ").value || "").toLowerCase(), cat = bmCat.value, st = bmSt.value, inact = bmInact.checked;
+  const list = (window._btpMats || []).filter(m => (inact || m.active !== false) && (!cat || m.categoryId === cat) && (!st || m.state === st) && (!q || (m.ref + " " + m.name).toLowerCase().includes(q)));
+  document.getElementById("bmList").innerHTML = list.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Matériau</th><th>Catégorie</th><th>Unité</th><th style="text-align:right">Stock</th><th style="text-align:right">Seuil</th><th style="text-align:right">CUMP (F)</th><th style="text-align:right">Valeur (F)</th><th>État</th><th></th></tr>
+    ${list.map(m => `<tr${m.active === false ? ' style="opacity:.55"' : ""}><td>${esc(m.ref)}</td><td><b>${esc(m.name)}</b>${m.supplierName ? `<div class="btp-muted">${esc(m.supplierName)}</div>` : ""}</td><td>${esc(m.categoryName)}</td><td>${esc(m.unit)}</td>
+      <td style="text-align:right"><a href="#" onclick="btpMaterialStock('${m.id}');return false">${btpQ(m.qty)}</a></td><td style="text-align:right">${btpQ(m.reorderLevel || m.minStock)}</td>
+      <td style="text-align:right">${fCFA(m.avgCost)}</td><td style="text-align:right">${fCFA(m.value)}</td><td>${m.active === false ? btpChip("annulee", "Inactif") : btpChip(m.state)}</td>
+      <td style="text-align:right">${btpCan.config() ? `<button class="btn ghost sm" onclick="btpMaterialForm('${m.id}')">Modifier</button>` : ""}</td></tr>`).join("")}</table>`
+    : mmEmpty("Aucun matériau", btpCan.config() ? "Créez votre premier matériau avec « + Matériau »." : "");
+}
+async function btpMaterialStock(mid) {
+  const m = (window._btpMats || []).find(x => x.id === mid); const rows = await btpApi(`/materials/${mid}/stock`);
+  btpModal(`Stock par entrepôt - ${m.name}`, rows.length ? `<table class="btp-table"><tr><th>Entrepôt</th><th style="text-align:right">Quantité</th></tr>${rows.map(r => `<tr><td>${esc(r.warehouse)}</td><td style="text-align:right">${btpQ(r.qty)} ${esc(m.unit)}</td></tr>`).join("")}</table>` : mmEmpty("Aucun stock"));
+}
+async function btpMaterialForm(mid) {
+  const [cats, meta, sups] = await Promise.all([btpApi("/categories"), btpMeta(), api("/stock/suppliers").catch(() => [])]);
+  const m = mid ? (window._btpMats || []).find(x => x.id === mid) : { unit: "PCS", conversion: 1, vatRate: 19.25, active: true };
+  const units = sel => meta.units.map(u => `<option value="${u.code}" ${u.code === sel ? "selected" : ""}>${u.code} - ${esc(u.label)}</option>`).join("");
+  const md = btpModal(mid ? "Modifier le matériau" : "Nouveau matériau", `<div class="btp-form">
+    <div><label>Référence</label><input id="mfRef" value="${esc(m.ref || "")}" placeholder="Automatique (MAT-0001…)"></div>
+    <div><label>Nom *</label><input id="mfName" value="${esc(m.name || "")}"></div>
+    <div class="full"><label>Description</label><input id="mfDesc" value="${esc(m.description || "")}"></div>
+    <div><label>Catégorie</label><select id="mfCat"><option value="">-</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === m.categoryId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
+    <div><label>Code-barres / QR</label><input id="mfBar" value="${esc(m.barcode || "")}"></div>
+    <div><label>Unité de stock</label><select id="mfUnit" ${mid && m.qty ? "disabled title='Non modifiable : le matériau a du stock'" : ""}>${units(m.unit)}</select></div>
+    <div><label>Unité d'achat</label><select id="mfPU">${units(m.purchaseUnit || m.unit)}</select></div>
+    <div><label>1 unité d'achat = … unités de stock</label><input id="mfConv" type="number" step="any" value="${esc(m.conversion || 1)}"></div>
+    <div><label>Fournisseur préféré</label><select id="mfSup"><option value="">-</option>${(sups || []).map(s => `<option value="${esc(s.id)}" ${s.id === m.supplierId ? "selected" : ""}>${esc(s.name || s.contactId)}</option>`).join("")}</select></div>
+    <div><label>Stock minimum</label><input id="mfMin" type="number" step="any" value="${esc(m.minStock || 0)}"></div>
+    <div><label>Seuil de réapprovisionnement</label><input id="mfReo" type="number" step="any" value="${esc(m.reorderLevel || 0)}"></div>
+    <div><label>Stock maximum</label><input id="mfMax" type="number" step="any" value="${esc(m.maxStock || 0)}"></div>
+    <div><label>Prix d'achat (F, unité de stock)</label><input id="mfPrice" type="number" step="any" value="${esc(m.purchasePrice || 0)}"></div>
+    <div><label>TVA (%)</label><input id="mfVat" type="number" step="any" value="${esc(m.vatRate != null ? m.vatRate : 19.25)}"></div>
+    <div><label class="chk" style="margin-top:22px"><input type="checkbox" id="mfAct" ${m.active !== false ? "checked" : ""}><span>Actif</span></label></div>
+    </div><div class="err hidden" id="mfErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="mfSave">Enregistrer</button></div>`, true);
+  md.$("#mfSave").onclick = async () => {
+    const v = id => md.$(id).value;
+    const body = { ref: v("#mfRef"), name: v("#mfName"), description: v("#mfDesc"), categoryId: v("#mfCat"), barcode: v("#mfBar"), purchaseUnit: v("#mfPU"),
+      conversion: v("#mfConv"), supplierId: v("#mfSup"), minStock: v("#mfMin"), reorderLevel: v("#mfReo"), maxStock: v("#mfMax"), purchasePrice: v("#mfPrice"), vatRate: v("#mfVat"), active: md.$("#mfAct").checked };
+    if (!md.$("#mfUnit").disabled) body.unit = v("#mfUnit");
+    try { await btpApi(mid ? `/materials/${mid}` : "/materials", { method: mid ? "PUT" : "POST", body: JSON.stringify(body) }); md.close(); btpMaterialsView(); }
+    catch (e) { const er = md.$("#mfErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Catégories ---------------- */
+async function btpCategoriesView() {
+  const [cats, mats] = await Promise.all([btpApi("/categories"), btpApi("/materials")]);
+  view.innerHTML = btpHead("Catégories de matériaux", "Classement du catalogue ; ajoutez vos propres catégories.",
+    btpCan.config() ? `<input id="bcNew" placeholder="Nouvelle catégorie" style="margin:0;max-width:220px"><button class="btn p sm" onclick="btpCategorySave()">+ Ajouter</button>` : "") + `
+    <div class="btp-card" style="max-width:720px"><table class="btp-table"><tr><th>Catégorie</th><th style="text-align:right">Matériaux</th><th></th></tr>
+    ${cats.map(c => { const n = mats.filter(m => m.categoryId === c.id).length; return `<tr><td>${esc(c.name)}</td><td style="text-align:right">${n}</td><td style="text-align:right">${btpCan.config() ? `<button class="btn ghost sm" onclick="btpCategorySave('${c.id}','${esc(c.name).replace(/'/g, "&#39;")}')">Renommer</button>${n ? "" : ` <button class="btn ghost sm" style="color:var(--red)" onclick="btpCategoryDel('${c.id}')">Supprimer</button>`}` : ""}</td></tr>`; }).join("")}</table></div>`;
+}
+async function btpCategorySave(cid, current) {
+  const name = cid ? prompt("Nouveau nom de la catégorie :", current) : document.getElementById("bcNew").value;
+  if (!name || !name.trim()) return;
+  try { await btpApi(cid ? `/categories/${cid}` : "/categories", { method: cid ? "PUT" : "POST", body: JSON.stringify({ name: name.trim() }) }); btpCategoriesView(); } catch (e) { alert(e.message); }
+}
+async function btpCategoryDel(cid) {
+  if (!await mmConfirm({ message: "Supprimer cette catégorie ?", danger: true })) return;
+  try { await btpApi(`/categories/${cid}`, { method: "DELETE" }); btpCategoriesView(); } catch (e) { alert(e.message); }
+}
+
+/* ---------------- Entrepôts ---------------- */
+async function btpWarehousesView() {
+  const [whs, meta] = await Promise.all([btpApi("/warehouses"), btpMeta()]); window._btpWhs = whs;
+  view.innerHTML = btpHead("Entrepôts & magasins de chantier", "Lieux de stockage : entrepôt central, dépôts et magasins de chantier.",
+    btpCan.config() ? `<button class="btn p sm" onclick="btpWarehouseForm()">+ Entrepôt</button>` : "") +
+    `<div class="btp-cards">${whs.length ? whs.map(w => `<div class="btp-card btp-wh${w.active === false ? " off" : ""}">
+      <div style="display:flex;justify-content:space-between;gap:8px"><div><div class="btp-muted">${esc(w.ref)} · ${esc(w.typeLabel)}</div><b style="font-size:15px">${esc(w.name)}</b></div>${w.active === false ? btpChip("annulee", "Inactif") : ""}</div>
+      ${w.projectName ? `<div class="btp-muted" style="margin-top:4px">Chantier : ${esc(w.projectName)}</div>` : ""}${w.manager ? `<div class="btp-muted">Responsable : ${esc(w.manager)}${w.phone ? " · " + esc(w.phone) : ""}</div>` : ""}
+      <div class="btp-wh-stats"><div><span>Matériaux</span><b>${w.materials}</b></div><div><span>Valeur</span><b>${btpM(w.value)}</b></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" onclick="btpWarehouseStock('${w.id}')">Voir le stock</button>${btpCan.config() ? `<button class="btn ghost sm" onclick="btpWarehouseForm('${w.id}')">Modifier</button>` : ""}
+      <button class="btn ghost sm" onclick="btpDownload('/export/stock.xlsx?warehouseId=${w.id}','stock-${esc(w.ref)}.xlsx')">Excel</button></div></div>`).join("") : mmEmpty("Aucun entrepôt", "Créez l'entrepôt central ; chaque chantier crée son magasin automatiquement.")}</div>`;
+}
+async function btpWarehouseStock(wid) {
+  const w = window._btpWhs.find(x => x.id === wid); const rows = await btpApi(`/warehouses/${wid}/stock`);
+  btpModal(`Stock - ${w.name}`, rows.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Matériau</th><th style="text-align:right">Quantité</th><th style="text-align:right">Valeur (F)</th></tr>${rows.map(r => `<tr><td>${esc(r.ref)}</td><td>${esc(r.name)}</td><td style="text-align:right">${btpQ(r.qty)} ${esc(r.unit)}</td><td style="text-align:right">${fCFA(r.value)}</td></tr>`).join("")}</table>` : mmEmpty("Entrepôt vide"), true);
+}
+async function btpWarehouseForm(wid) {
+  const [meta, projects] = await Promise.all([btpMeta(), btpApi("/projects")]);
+  const w = wid ? window._btpWhs.find(x => x.id === wid) : { type: "central", active: true };
+  const md = btpModal(wid ? "Modifier l'entrepôt" : "Nouvel entrepôt", `<div class="btp-form">
+    <div><label>Nom *</label><input id="wfName" value="${esc(w.name || "")}"></div>
+    <div><label>Type</label><select id="wfType">${Object.entries(meta.warehouseTypes).map(([k, l]) => `<option value="${k}" ${k === w.type ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
+    <div class="full"><label>Adresse / localisation</label><input id="wfAddr" value="${esc(w.address || "")}"></div>
+    <div><label>Responsable</label><input id="wfMgr" value="${esc(w.manager || "")}"></div>
+    <div><label>Téléphone</label><input id="wfPhone" value="${esc(w.phone || "")}"></div>
+    <div><label>Chantier associé</label><select id="wfProj">${btpOpts(projects, w.projectId, p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Capacité (optionnelle)</label><input id="wfCap" type="number" step="any" value="${esc(w.capacity || "")}"></div>
+    <div><label class="chk" style="margin-top:22px"><input type="checkbox" id="wfAct" ${w.active !== false ? "checked" : ""}><span>Actif</span></label></div>
+    </div><div class="err hidden" id="wfErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="wfSave">Enregistrer</button></div>`, true);
+  md.$("#wfSave").onclick = async () => {
+    const v = id => md.$(id).value;
+    try { await btpApi(wid ? `/warehouses/${wid}` : "/warehouses", { method: wid ? "PUT" : "POST", body: JSON.stringify({ name: v("#wfName"), type: v("#wfType"), address: v("#wfAddr"), manager: v("#wfMgr"), phone: v("#wfPhone"), projectId: v("#wfProj"), capacity: v("#wfCap") || 0, active: md.$("#wfAct").checked }) }); md.close(); btpWarehousesView(); }
+    catch (e) { const er = md.$("#wfErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Chantiers ---------------- */
+async function btpProjectsView() {
+  const [ps, meta] = await Promise.all([btpApi("/projects"), btpMeta()]); window._btpProjects = ps;
+  view.innerHTML = btpHead("Chantiers", "Projets de construction : budget, magasin de chantier et coût des matériaux.",
+    btpCan.config() ? `<button class="btn p sm" onclick="btpProjectForm()">+ Chantier</button>` : "") +
+    `<div class="btp-card" style="overflow-x:auto">${ps.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Chantier</th><th>Client</th><th>Période</th><th>Statut</th><th style="text-align:right">Budget (F)</th><th style="text-align:right">Coût matériaux (F)</th><th style="width:150px">Budget utilisé</th><th style="text-align:right">Demandes</th><th></th></tr>
+      ${ps.map(p => `<tr><td>${esc(p.ref)}</td><td><a href="#" onclick="go('btpproject','${p.id}');return false"><b>${esc(p.name)}</b></a><div class="btp-muted">${esc(p.location || "")}</div></td><td>${esc(p.client || "")}</td>
+        <td class="btp-muted">${btpFr(p.startDate)}${p.endDate ? " → " + btpFr(p.endDate) : ""}</td><td>${btpChip(p.status, p.statusLabel)}</td><td style="text-align:right">${fCFA(p.budget)}</td><td style="text-align:right">${fCFA(p.materialCost)}</td>
+        <td>${p.budgetUsed != null ? `<div class="btp-hbar" style="margin:0"><div class="btp-bar"><span style="width:${Math.min(100, Math.max(2, p.budgetUsed))}%;${p.budgetUsed > 100 ? "background:#f08c2a" : ""}"></span></div><b>${p.budgetUsed}%</b></div>` : "-"}</td>
+        <td style="text-align:right">${p.pendingRequests || ""}</td><td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" onclick="go('btpproject','${p.id}')">Détail</button>${btpCan.config() ? ` <button class="btn ghost sm" onclick="btpProjectForm('${p.id}')">Modifier</button>` : ""}</td></tr>`).join("")}</table>`
+      : mmEmpty("Aucun chantier", btpCan.config() ? "Créez un chantier : son magasin de stock est créé automatiquement." : "")}</div>`;
+}
+async function btpProjectForm(pid) {
+  const meta = await btpMeta(); const p = pid ? window._btpProjects.find(x => x.id === pid) : { status: "planifie" };
+  const md = btpModal(pid ? "Modifier le chantier" : "Nouveau chantier", `<div class="btp-form">
+    <div><label>Nom du chantier *</label><input id="pfName" value="${esc(p.name || "")}"></div>
+    <div><label>Client / maître d'ouvrage</label><input id="pfClient" value="${esc(p.client || "")}"></div>
+    <div class="full"><label>Description</label><input id="pfDesc" value="${esc(p.description || "")}"></div>
+    <div><label>Localisation</label><input id="pfLoc" value="${esc(p.location || "")}"></div>
+    <div><label>Chef de projet</label><input id="pfMgr" value="${esc(p.manager || "")}"></div>
+    <div><label>Début</label><input id="pfStart" type="date" value="${esc(p.startDate || "")}"></div>
+    <div><label>Fin prévue</label><input id="pfEnd" type="date" value="${esc(p.endDate || "")}"></div>
+    <div><label>Fin réelle</label><input id="pfAct" type="date" value="${esc(p.actualEndDate || "")}"></div>
+    <div><label>Budget (F)</label><input id="pfBudget" type="number" step="any" value="${esc(p.budget || 0)}"></div>
+    <div><label>Statut</label><select id="pfStatus">${Object.entries(meta.projectStatus).map(([k, l]) => `<option value="${k}" ${k === p.status ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
+    ${pid ? "" : `<div><label class="chk" style="margin-top:22px"><input type="checkbox" id="pfWh" checked><span>Créer le magasin de chantier</span></label></div>`}
+    </div><div class="err hidden" id="pfErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="pfSave">Enregistrer</button></div>`, true);
+  md.$("#pfSave").onclick = async () => {
+    const v = id => md.$(id).value;
+    const body = { name: v("#pfName"), client: v("#pfClient"), description: v("#pfDesc"), location: v("#pfLoc"), manager: v("#pfMgr"), startDate: v("#pfStart"), endDate: v("#pfEnd"), actualEndDate: v("#pfAct"), budget: v("#pfBudget") || 0, status: v("#pfStatus") };
+    if (!pid) body.createSiteWarehouse = md.$("#pfWh").checked;
+    try { await btpApi(pid ? `/projects/${pid}` : "/projects", { method: pid ? "PUT" : "POST", body: JSON.stringify(body) }); md.close(); btpProjectsView(); }
+    catch (e) { const er = md.$("#pfErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+async function btpProjectView(pid) {
+  const p = await btpApi(`/projects/${pid}/summary`);
+  view.innerHTML = btpHead(`${p.ref} - ${p.name}`, [p.client, p.location, p.manager ? "Chef de projet : " + p.manager : ""].filter(Boolean).join(" · "),
+    `<button class="btn ghost sm" onclick="go('btpprojects')">← Chantiers</button><button class="btn ghost sm" onclick="btpDownload('/export/movements.xlsx?projectId=${p.id}','mouvements-${esc(p.ref)}.xlsx')">Mouvements (Excel)</button>
+     ${btpCan.write() ? `<button class="btn p sm" onclick="btpMoveForm({type:'consommation',projectId:'${p.id}',warehouseId:'${p.siteWarehouseId || ""}'})">+ Consommation</button>` : ""}`) + `
+    <div class="btp-kpis">
+      ${btpKpi("value", "Budget", btpM(p.budget), btpChip(p.status, (BTP_META && BTP_META.projectStatus[p.status]) || p.status), "")}
+      ${btpKpi("truck", "Livré sur chantier", btpM(p.delivered), "Valeur des livraisons", "var(--muted)")}
+      ${btpKpi("use", "Consommé", btpM(p.consumed), p.budgetUsed != null ? `${p.budgetUsed}% du budget (avec casse)` : "", p.budgetUsed > 100 ? "#dc2626" : "#16a34a")}
+      ${btpKpi("alert", "Casse & pertes", btpM(p.wasted), "Matériel endommagé ou manquant", p.wasted ? "#d97706" : "var(--muted)")}
+      ${btpKpi("req", "Demandes en cours", p.pendingRequests, p.siteWarehouse ? "Magasin : " + esc(p.siteWarehouse) : "", "var(--muted)")}
+    </div>
+    <div class="btp-card" style="overflow-x:auto"><h3>Matériaux du chantier</h3>${p.materials.length ? `<table class="btp-table"><tr><th>Matériau</th><th style="text-align:right">Livré</th><th style="text-align:right">Consommé</th><th style="text-align:right">Retourné</th><th style="text-align:right">Casse / perte</th><th style="text-align:right">Reste sur site</th><th style="text-align:right">Coût (F)</th></tr>
+      ${p.materials.map(m => `<tr><td>${esc(m.name)}</td><td style="text-align:right">${btpQ(m.delivered)} ${esc(m.unit)}</td><td style="text-align:right">${btpQ(m.consumed)}</td><td style="text-align:right">${btpQ(m.returned)}</td><td style="text-align:right">${btpQ(m.wasted)}</td><td style="text-align:right"><b>${btpQ(m.onSite)}</b></td><td style="text-align:right">${fCFA(m.cost)}</td></tr>`).join("")}</table>` : mmEmpty("Aucun mouvement sur ce chantier", "Faites une demande de matériel puis une livraison.")}</div>
+    <div class="btp-card"><h3>Demandes de matériel</h3>${p.requests.length ? p.requests.map(r => `<div style="display:flex;gap:10px;align-items:center;padding:4px 0"><b>${esc(r.ref)}</b>${btpChip(r.status, r.statusLabel)}<span class="btp-muted">${r.neededBy ? "souhaitée le " + btpFr(r.neededBy) : ""}</span></div>`).join("") : mmEmpty("Aucune demande")}</div>`;
+}
+
+/* ---------------- Mouvements ---------------- */
+async function btpMovesView() {
+  const [meta, whs, ps] = await Promise.all([btpMeta(), btpApi("/warehouses"), btpApi("/projects")]);
+  window._btpWhs = whs; window._btpProjects = ps;
+  const types = Object.entries(meta.movementTypes);
+  view.innerHTML = btpHead("Mouvements de stock", "Grand livre : chaque entrée, sortie et transfert. Une erreur se corrige par contre-passation, jamais par suppression.",
+    `${btpCan.write() ? `<select id="bmvNew" style="margin:0;max-width:200px" onchange="if(this.value){btpMoveForm({type:this.value});this.value=''}"><option value="">+ Nouveau mouvement…</option>${types.filter(([k]) => !["livraison", "annulation"].includes(k)).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select>` : ""}
+     <button class="btn ghost sm" onclick="btpMovesExport()">Excel</button>`) + `
+    <div class="btp-card"><div class="btp-filters">
+      <select id="mvType" onchange="btpMovesRender()" style="margin:0;max-width:180px"><option value="">Tous types</option>${types.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select>
+      <select id="mvWh" onchange="btpMovesRender()" style="margin:0;max-width:200px">${btpOpts(whs, "", w => w.name, "Tous entrepôts")}</select>
+      <select id="mvProj" onchange="btpMovesRender()" style="margin:0;max-width:200px">${btpOpts(ps, "", p => p.ref + " - " + p.name, "Tous chantiers")}</select>
+      <label style="margin:0">Du</label><input id="mvFrom" type="date" onchange="btpMovesRender()" style="margin:0;max-width:150px">
+      <label style="margin:0">au</label><input id="mvTo" type="date" onchange="btpMovesRender()" style="margin:0;max-width:150px"></div>
+    <div id="mvList" style="overflow-x:auto"></div></div>`;
+  btpMovesRender();
+}
+function btpMovesQuery() {
+  const p = new URLSearchParams(); const s = (k, id) => { const v = document.getElementById(id).value; if (v) p.set(k, v); };
+  s("type", "mvType"); s("warehouseId", "mvWh"); s("projectId", "mvProj"); s("from", "mvFrom"); s("to", "mvTo"); return p.toString();
+}
+function btpMovesExport() { btpDownload("/export/movements.xlsx?" + btpMovesQuery(), "mouvements-btp.xlsx"); }
+async function btpMovesRender() {
+  const box = document.getElementById("mvList"); box.innerHTML = mmLoading();
+  const list = await btpApi("/movements?" + btpMovesQuery());
+  box.innerHTML = list.length ? `<table class="btp-table"><tr><th>Date</th><th>Opération</th><th>Type</th><th>Matériau</th><th>Entrepôt</th><th>Chantier</th><th style="text-align:right">Quantité</th><th style="text-align:right">Valeur (F)</th><th>Motif</th><th></th></tr>
+    ${list.map(m => `<tr${m.reversed || m.type === "annulation" ? ' style="opacity:.6"' : ""}><td>${btpFr(m.date)}</td><td>${esc(m.ref)}</td><td>${esc(m.typeLabel)}${m.reversed ? ` ${btpChip("annulee", "Contre-passé")}` : ""}</td><td>${esc(m.material)}</td><td>${esc(m.warehouse)}</td><td>${esc(m.project)}</td>
+      <td style="text-align:right;font-weight:600;color:${m.qty < 0 ? "#dc2626" : "#16a34a"}">${m.qty > 0 ? "+" : ""}${btpQ(m.qty)} ${esc(m.unit)}</td><td style="text-align:right">${fCFA(m.value)}</td><td class="btp-muted">${esc(m.reason || m.activity || m.docRef || "")}</td>
+      <td style="text-align:right">${btpCan.config() && !m.reversed && m.type !== "annulation" ? `<button class="btn ghost sm" onclick="btpReverse('${esc(m.ref)}')">Contre-passer</button>` : ""}</td></tr>`).join("")}</table>`
+    : mmEmpty("Aucun mouvement", "Commencez par un stock initial ou une réception.");
+}
+async function btpReverse(ref) {
+  const reason = prompt(`Contre-passer toute l'opération ${ref} ? Indiquez le motif :`); if (!reason || !reason.trim()) return;
+  try { await btpApi(`/movements/${encodeURIComponent(ref)}/reverse`, { method: "POST", body: JSON.stringify({ reason: reason.trim() }) }); if (document.getElementById("mvList")) btpMovesRender(); else go(window.CURRENT_VIEW); }
+  catch (e) { alert(e.message); }
+}
+async function btpMoveForm(preset = {}) {
+  const [meta, mats, whs, ps] = await Promise.all([btpMeta(), btpApi("/materials"), btpApi("/warehouses"), btpApi("/projects")]);
+  const t = preset.type; const lbl = meta.movementTypes[t];
+  const two = t === "transfert" || t === "retour", needProj = t === "consommation", withCost = t === "reception" || t === "initial", needReason = ["ajustement", "endommage", "perte"].includes(t);
+  const activeWh = whs.filter(w => w.active !== false);
+  const md = btpModal(lbl, `<div class="btp-form">
+    <div><label>${two ? "Depuis l'entrepôt" : "Entrepôt"} *</label><select id="mvW">${btpOpts(activeWh, preset.warehouseId, w => w.name, "-")}</select></div>
+    ${two ? `<div><label>Vers l'entrepôt *</label><select id="mvW2">${btpOpts(activeWh, preset.toWarehouseId, w => w.name, "-")}</select></div>` : ""}
+    <div><label>Chantier${needProj ? " *" : ""}</label><select id="mvP">${btpOpts(ps.filter(p => !["annule", "termine"].includes(p.status) || p.id === preset.projectId), preset.projectId, p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Date</label><input id="mvD" type="date" value="${btpToday()}" max="${btpToday()}"></div>
+    ${needProj ? `<div><label>Lot / activité</label><input id="mvAct" placeholder="ex. Coulage dalle R+1"></div>` : ""}
+    ${t === "reception" ? `<div><label>N° bon fournisseur / facture</label><input id="mvDoc"></div>` : ""}
+    <div class="full"><label>Motif${needReason ? " *" : ""}</label><input id="mvR" placeholder="${t === "ajustement" ? "ex. Écart d'inventaire" : ""}"></div>
+    ${t === "ajustement" ? `<div class="full note">Quantité positive pour ajouter, négative pour retirer.</div>` : ""}
+    <div class="full"><label>Matériaux</label><div id="mvLines"></div></div>
+    </div><div class="err hidden" id="mvErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="mvSave">Valider le mouvement</button></div>`, true);
+  if (needProj) md.$("#mvP").onchange = () => { const p = ps.find(x => x.id === md.$("#mvP").value); if (p && p.siteWarehouseId) md.$("#mvW").value = p.siteWarehouseId; };
+  const read = btpLines(md.$("#mvLines"), mats, { cost: withCost, purchaseUnit: withCost, showStock: !withCost });
+  const key = btpKey();     // même clé si on reclique : l'opération n'est enregistrée qu'une fois
+  md.$("#mvSave").onclick = async () => {
+    const btn = md.$("#mvSave"); btn.disabled = true;
+    const v = id => md.$(id) ? md.$(id).value : "";
+    try {
+      const r = await btpApi("/movements", { method: "POST", body: JSON.stringify({ type: t, warehouseId: v("#mvW"), toWarehouseId: v("#mvW2"), projectId: v("#mvP"), date: v("#mvD"), activity: v("#mvAct"), docRef: v("#mvDoc"), reason: v("#mvR"), clientKey: key, lines: read() }) });
+      md.close(); if (typeof toast === "function") toast(`Mouvement ${r.ref} enregistré`); go(window.CURRENT_VIEW, window.CURRENT_VIEW === "btpproject" ? preset.projectId : undefined);
+    } catch (e) { btn.disabled = false; const er = md.$("#mvErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Demandes de matériel ---------------- */
+async function btpRequestsView() {
+  const [list, meta] = await Promise.all([btpApi("/requests"), btpMeta()]); window._btpReqs = list;
+  view.innerHTML = btpHead("Demandes de matériel", "Le chantier demande, le responsable approuve (en tout ou partie), le magasin livre.",
+    `<button class="btn p sm" onclick="btpRequestForm()">+ Demande</button>`) + `
+    <div class="btp-card"><div class="btp-filters"><select id="rqSt" onchange="btpRequestsRender()" style="margin:0;max-width:220px"><option value="">Tous statuts</option>${Object.entries(meta.requestStatus).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></div>
+    <div id="rqList" style="overflow-x:auto"></div></div>`;
+  btpRequestsRender();
+}
+const BTP_PRIO = { basse: "Basse", normale: "Normale", haute: "Haute", urgente: "Urgente" };
+function btpRequestsRender() {
+  const st = document.getElementById("rqSt").value; const list = (window._btpReqs || []).filter(r => !st || r.status === st);
+  document.getElementById("rqList").innerHTML = list.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Chantier</th><th>Demandeur</th><th>Priorité</th><th>Souhaitée le</th><th>Lignes</th><th>Statut</th><th></th></tr>
+    ${list.map(r => `<tr><td><b>${esc(r.ref)}</b></td><td>${esc(r.project)}</td><td>${esc(r.createdByName)}</td><td>${r.priority === "urgente" || r.priority === "haute" ? `<b style="color:#dc2626">${BTP_PRIO[r.priority]}</b>` : BTP_PRIO[r.priority] || ""}</td>
+      <td>${btpFr(r.neededBy)}</td><td>${r.lines.length}</td><td>${btpChip(r.status, r.statusLabel)}</td><td style="text-align:right"><button class="btn ghost sm" onclick="btpRequestDetail('${r.id}')">Ouvrir</button></td></tr>`).join("")}</table>`
+    : mmEmpty("Aucune demande", "Créez une demande de matériel pour un chantier.");
+}
+async function btpRequestForm() {
+  const [mats, whs, ps] = await Promise.all([btpApi("/materials"), btpApi("/warehouses"), btpApi("/projects")]);
+  const md = btpModal("Nouvelle demande de matériel", `<div class="btp-form">
+    <div><label>Chantier *</label><select id="rfP">${btpOpts(ps.filter(p => ["planifie", "actif"].includes(p.status)), "", p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Entrepôt qui fournit *</label><select id="rfW">${btpOpts(whs.filter(w => w.active !== false && w.type !== "chantier"), "", w => w.name, "-")}</select></div>
+    <div><label>Souhaitée le</label><input id="rfD" type="date"></div>
+    <div><label>Priorité</label><select id="rfPr">${Object.entries(BTP_PRIO).map(([k, l]) => `<option value="${k}" ${k === "normale" ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    <div class="full"><label>Motif / travaux concernés</label><input id="rfR"></div>
+    <div class="full"><label>Matériaux demandés</label><div id="rfLines"></div></div>
+    </div><div class="err hidden" id="rfErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn ghost sm" data-s="0">Enregistrer le brouillon</button><button class="btn p sm" data-s="1">Soumettre</button></div>`, true);
+  const read = btpLines(md.$("#rfLines"), mats, { showStock: true });
+  md.el.querySelectorAll("[data-s]").forEach(b => b.onclick = async () => {
+    const v = id => md.$(id).value;
+    try { await btpApi("/requests", { method: "POST", body: JSON.stringify({ projectId: v("#rfP"), warehouseId: v("#rfW"), neededBy: v("#rfD"), priority: v("#rfPr"), reason: v("#rfR"), submit: b.dataset.s === "1", lines: read() }) }); md.close(); btpRequestsView(); }
+    catch (e) { const er = md.$("#rfErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  });
+}
+async function btpRequestDetail(rid) {
+  const r = (window._btpReqs || []).find(x => x.id === rid); if (!r) return;
+  const canApprove = btpCan.approve() && r.status === "soumise", mine = r.createdBy === ME.id;
+  const canDeliver = btpCan.write() && ["approuvee", "partielle", "livraison_partielle"].includes(r.status);
+  const md = btpModal(`Demande ${r.ref}`, `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${btpChip(r.status, r.statusLabel)}<span>Chantier : <b>${esc(r.project)}</b></span><span class="btp-muted">depuis ${esc(r.warehouse)} · ${esc(BTP_PRIO[r.priority] || "")}${r.neededBy ? " · souhaitée le " + btpFr(r.neededBy) : ""}</span></div>
+    ${r.reason ? `<div class="note" style="margin-bottom:8px">${esc(r.reason)}</div>` : ""}
+    <table class="btp-table"><tr><th>Matériau</th><th style="text-align:right">Demandé</th><th style="text-align:right">Approuvé</th><th style="text-align:right">Livré</th></tr>
+    ${r.lines.map(l => `<tr><td>${esc(l.material)}</td><td style="text-align:right">${btpQ(l.qty)} ${esc(l.unit)}</td><td style="text-align:right">${canApprove ? `<input type="number" step="any" min="0" max="${l.qty}" value="${l.qty}" data-ap="${esc(l.materialId)}" style="width:90px;margin:0;text-align:right">` : btpQ(l.approvedQty)}</td><td style="text-align:right">${btpQ(l.delivered)}</td></tr>`).join("")}</table>
+    <div style="margin-top:10px"><b style="font-size:12px;color:var(--muted)">HISTORIQUE</b>${r.history.map(h => `<div class="btp-muted" style="padding:2px 0">${new Date(h.at).toLocaleString("fr-FR")} - ${esc(h.action)}${h.by ? " · " + esc(h.by) : ""}${h.note ? " : " + esc(h.note) : ""}</div>`).join("")}</div>
+    <div class="err hidden" id="rdErr"></div>
+    <div class="btp-modal-foot">
+      ${mine && r.status === "brouillon" ? `<button class="btn p sm" data-a="submit">Soumettre</button>` : ""}
+      ${(mine || btpCan.approve()) && ["brouillon", "soumise", "approuvee", "partielle"].includes(r.status) ? `<button class="btn ghost sm" data-a="cancel">Annuler la demande</button>` : ""}
+      ${canApprove ? `<button class="btn ghost sm" style="color:var(--red)" data-a="reject">Rejeter</button><button class="btn p sm" data-a="approve">Approuver</button>` : ""}
+      ${canDeliver ? `<button class="btn p sm" data-a="deliver">Livrer…</button>` : ""}</div>`, true);
+  md.el.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
+    const a = b.dataset.a; let body = {};
+    if (a === "deliver") { md.close(); return btpDeliveryForm({ requestId: r.id }); }
+    if (a === "reject") { const n = prompt("Motif du rejet :"); if (!n || !n.trim()) return; body.note = n.trim(); }
+    if (a === "cancel" && !await mmConfirm({ message: "Annuler cette demande ?", danger: true })) return;
+    if (a === "approve") body.lines = [...md.el.querySelectorAll("[data-ap]")].map(i => ({ materialId: i.dataset.ap, approvedQty: Number(i.value) }));
+    try { await btpApi(`/requests/${r.id}/${a}`, { method: "POST", body: JSON.stringify(body) }); md.close(); btpRequestsView(); }
+    catch (e) { const er = md.$("#rdErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  });
+}
+
+/* ---------------- Livraisons ---------------- */
+async function btpDeliveriesView() {
+  const list = await btpApi("/deliveries");
+  view.innerHTML = btpHead("Livraisons chantier", "Bons de livraison : sortie de l'entrepôt et entrée au magasin du chantier en une seule opération.",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpDeliveryForm()">+ Livraison</button>` : "") +
+    `<div class="btp-card" style="overflow-x:auto">${list.length ? `<table class="btp-table"><tr><th>N° BL</th><th>Date</th><th>Chantier</th><th>De → Vers</th><th>Demande</th><th>Réceptionnaire</th><th>Lignes</th><th>Statut</th><th></th></tr>
+      ${list.map(d => `<tr${d.status === "annulee" ? ' style="opacity:.6"' : ""}><td><b>${esc(d.ref)}</b></td><td>${btpFr(d.date)}</td><td>${esc(d.project)}</td><td class="btp-muted">${esc(d.from)} → ${esc(d.to)}</td><td>${esc(d.request || "-")}</td><td>${esc(d.receivedBy || "")}</td>
+        <td title="${esc(d.lines.map(l => l.material + " : " + btpQ(l.qty) + " " + l.unit).join("\n"))}">${d.lines.length}</td><td>${d.status === "annulee" ? btpChip("annulee", "Annulée") : btpChip("livree", "Livrée")}</td>
+        <td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" onclick="btpDownload('/deliveries/${d.id}/pdf','${esc(d.ref)}.pdf',true)">PDF</button>${btpCan.config() && d.status !== "annulee" ? ` <button class="btn ghost sm" onclick="btpReverse('${esc(d.movementRef)}')">Annuler</button>` : ""}</td></tr>`).join("")}</table>`
+      : mmEmpty("Aucune livraison", "Livrez une demande approuvée, ou créez une livraison directe.")}</div>`;
+}
+async function btpDeliveryForm(preset = {}) {
+  const [mats, whs, ps, reqs] = await Promise.all([btpApi("/materials"), btpApi("/warehouses"), btpApi("/projects"), btpApi("/requests")]);
+  const open = reqs.filter(r => ["approuvee", "partielle", "livraison_partielle"].includes(r.status));
+  const md = btpModal("Nouvelle livraison (bon de livraison)", `<div class="btp-form">
+    <div><label>Demande approuvée</label><select id="dfR">${btpOpts(open, preset.requestId, r => r.ref + " - " + r.project, "Livraison directe (sans demande)")}</select></div>
+    <div><label>Chantier *</label><select id="dfP">${btpOpts(ps.filter(p => !["annule", "termine"].includes(p.status)), "", p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Expédié depuis *</label><select id="dfF">${btpOpts(whs.filter(w => w.active !== false), "", w => w.name, "-")}</select></div>
+    <div><label>Livré au magasin</label><select id="dfT">${btpOpts(whs.filter(w => w.active !== false), "", w => w.name, "Magasin du chantier")}</select></div>
+    <div><label>Date</label><input id="dfD" type="date" value="${btpToday()}" max="${btpToday()}"></div>
+    <div><label>Réceptionnaire</label><input id="dfRec" placeholder="Nom de la personne qui réceptionne"></div>
+    <div><label>Transporteur</label><input id="dfCar"></div>
+    <div class="full"><label>Observations</label><input id="dfN"></div>
+    <div class="full"><label>Matériaux livrés</label><div id="dfLines"></div></div>
+    </div><div class="err hidden" id="dfErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="dfSave">Valider la livraison</button></div>`, true);
+  let read = btpLines(md.$("#dfLines"), mats, { showStock: true });
+  const fromRequest = () => {   // pré-remplit avec le reste à livrer de la demande choisie
+    const r = open.find(x => x.id === md.$("#dfR").value); if (!r) return;
+    md.$("#dfP").value = r.projectId; md.$("#dfF").value = r.warehouseId;
+    const box = md.$("#dfLines"); const fresh = box.cloneNode(false); box.replaceWith(fresh);
+    read = btpLines(fresh, mats, { showStock: true, lines: r.lines.map(l => ({ materialId: l.materialId, qty: Math.max(0, Math.round((l.approvedQty - l.delivered) * 1000) / 1000) })).filter(l => l.qty > 0) });
+  };
+  md.$("#dfR").onchange = fromRequest; fromRequest();
+  const key = btpKey();
+  md.$("#dfSave").onclick = async () => {
+    const btn = md.$("#dfSave"); btn.disabled = true; const v = id => md.$(id).value;
+    try {
+      const d = await btpApi("/deliveries", { method: "POST", body: JSON.stringify({ requestId: v("#dfR"), projectId: v("#dfP"), fromWarehouseId: v("#dfF"), toWarehouseId: v("#dfT"), date: v("#dfD"), receivedBy: v("#dfRec"), carrier: v("#dfCar"), note: v("#dfN"), clientKey: key, lines: read() }) });
+      md.close(); if (await mmConfirm({ title: `Livraison ${d.ref} enregistrée`, message: "Imprimer le bon de livraison maintenant ?", confirmLabel: "Ouvrir le PDF" })) btpDownload(`/deliveries/${d.id}/pdf`, d.ref + ".pdf", true);
+      if (window.CURRENT_VIEW === "btpdeliveries") btpDeliveriesView(); else go("btpdeliveries");
+    } catch (e) { btn.disabled = false; const er = md.$("#dfErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Consommations ---------------- */
+async function btpConsumptionView() {
+  const [list, ps] = await Promise.all([btpApi("/movements?limit=1000"), btpApi("/projects")]);
+  const site = list.filter(m => ["consommation", "retour", "endommage", "perte"].includes(m.type) && m.qty < 0);
+  const tot = t => site.filter(m => m.type === t && !m.reversed).reduce((s, m) => s - m.value, 0);
+  view.innerHTML = btpHead("Consommations & retours", "Ce qui est utilisé, retourné ou perdu sur les chantiers.",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpMoveForm({type:'consommation'})">+ Consommation</button><button class="btn ghost sm" onclick="btpMoveForm({type:'retour'})">Retour au magasin</button><button class="btn ghost sm" onclick="btpMoveForm({type:'endommage'})">Casse</button><button class="btn ghost sm" onclick="btpMoveForm({type:'perte'})">Perte</button>` : "") + `
+    <div class="btp-kpis">${btpKpi("use", "Consommé", btpM(tot("consommation")), "Tous chantiers", "var(--muted)")}${btpKpi("truck", "Retourné au magasin", btpM(tot("retour")), "Matériel non utilisé", "var(--muted)")}${btpKpi("alert", "Casse & pertes", btpM(tot("endommage") + tot("perte")), "À surveiller", "#d97706")}</div>
+    <div class="btp-card" style="overflow-x:auto">${site.length ? `<table class="btp-table"><tr><th>Date</th><th>Type</th><th>Chantier</th><th>Matériau</th><th>Activité / motif</th><th style="text-align:right">Quantité</th><th style="text-align:right">Valeur (F)</th><th>Saisi par</th></tr>
+      ${site.map(m => `<tr${m.reversed ? ' style="opacity:.55"' : ""}><td>${btpFr(m.date)}</td><td>${esc(m.typeLabel)}${m.reversed ? " " + btpChip("annulee", "Contre-passé") : ""}</td><td>${esc(m.project)}</td><td>${esc(m.material)}</td><td class="btp-muted">${esc(m.activity || m.reason || "")}</td><td style="text-align:right">${btpQ(-m.qty)} ${esc(m.unit)}</td><td style="text-align:right">${fCFA(-m.value)}</td><td class="btp-muted">${esc(m.createdByName || "")}</td></tr>`).join("")}</table>`
+      : mmEmpty("Aucune consommation", "Enregistrez ce qui a été utilisé sur un chantier.")}</div>`;
+}
+
+/* ---------------- Rapports ---------------- */
+async function btpReportsView() {
+  const [ps, whs, meta] = await Promise.all([btpApi("/projects"), btpApi("/warehouses"), btpMeta()]);
+  view.innerHTML = btpHead("Rapports BTP", "Exports Excel filtrables et synthèse par chantier.") + `
+    <div class="btp-grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+      <div class="btp-card"><h3>État du stock</h3><p class="btp-muted">Stock par entrepôt et stock total, avec seuils et valorisation au CUMP.</p>
+        <select id="rpWh" style="margin:6px 0">${btpOpts(whs, "", w => w.name, "Tous les entrepôts")}</select>
+        <button class="btn p sm" onclick="btpDownload('/export/stock.xlsx'+(rpWh.value?'?warehouseId='+rpWh.value:''),'stock-btp.xlsx')">Télécharger (Excel)</button></div>
+      <div class="btp-card"><h3>Journal des mouvements</h3><p class="btp-muted">Tous les mouvements sur une période, par chantier, entrepôt ou type.</p>
+        <div class="btp-filters" style="margin:6px 0"><input id="rpFrom" type="date" style="margin:0"><input id="rpTo" type="date" style="margin:0"></div>
+        <select id="rpProj" style="margin:0 0 6px">${btpOpts(ps, "", p => p.ref + " - " + p.name, "Tous les chantiers")}</select>
+        <select id="rpType" style="margin:0 0 6px"><option value="">Tous les types</option>${Object.entries(meta.movementTypes).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select>
+        <button class="btn p sm" onclick="btpReportMoves()">Télécharger (Excel)</button></div>
+    </div>
+    <div class="btp-card" style="overflow-x:auto"><h3>Coût matériaux par chantier</h3>${ps.length ? `<table class="btp-table"><tr><th>Chantier</th><th>Statut</th><th style="text-align:right">Budget</th><th style="text-align:right">Livré</th><th style="text-align:right">Consommé</th><th style="text-align:right">Casse / pertes</th><th style="text-align:right">Coût matériaux</th><th style="text-align:right">% budget</th></tr>
+      ${ps.map(p => `<tr><td><a href="#" onclick="go('btpproject','${p.id}');return false">${esc(p.ref + " - " + p.name)}</a></td><td>${btpChip(p.status, p.statusLabel)}</td><td style="text-align:right">${fCFA(p.budget)}</td><td style="text-align:right">${fCFA(p.delivered)}</td><td style="text-align:right">${fCFA(p.consumed)}</td><td style="text-align:right">${fCFA(p.wasted)}</td><td style="text-align:right"><b>${fCFA(p.materialCost)}</b></td><td style="text-align:right">${p.budgetUsed != null ? p.budgetUsed + "%" : "-"}</td></tr>`).join("")}</table>` : mmEmpty("Aucun chantier")}</div>`;
+}
+function btpReportMoves() {
+  const p = new URLSearchParams(); const s = (k, id) => { const v = document.getElementById(id).value; if (v) p.set(k, v); };
+  s("from", "rpFrom"); s("to", "rpTo"); s("projectId", "rpProj"); s("type", "rpType");
+  btpDownload("/export/movements.xlsx?" + p, "mouvements-btp.xlsx");
+}
 async function ensureChartJs(){ if(window.Chart) return true;
   return new Promise((resolve)=>{ const sc=document.createElement("script");
     sc.src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";

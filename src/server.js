@@ -245,6 +245,7 @@ app.use("/api", require("./routes/mobileAdmin")); // provisioning, sites/geofenc
 app.use("/api/billing", requireModule("invoicing"), require("./routes/billing"));
 app.use("/api/accounting", requireModule("accounting"), require("./routes/accounting"));
 app.use("/api/stock", requireModule("stock"), require("./routes/stock"));
+app.use("/api/btp", requireModule("btp"), require("./routes/btp"));
 app.use("/api/smq", requireModule("quality"), require("./routes/smq"));
 app.use("/api/messages", require("./routes/messages"));
 app.use("/api/insurance", require("./routes/insurance"));
