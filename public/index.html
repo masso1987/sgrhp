@@ -295,6 +295,7 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
 .btp-table{width:100%;border-collapse:collapse;font-size:13px}
 .btp-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
 .btp-table td{padding:8px 6px;border-bottom:1px solid var(--border);vertical-align:middle}
+.btp-table td:first-child{white-space:nowrap}
 .btp-donut{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 .btp-donut-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
 .btp-donut-c b{font-size:14px}.btp-donut-c span{font-size:11px;color:var(--muted)}
@@ -1543,13 +1544,24 @@ const NAV = [
   { k: "btphome", label: "Tableau de bord BTP", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btpmaterials", label: "Matériaux", sec: "Catalogue", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btpcategories", label: "Catégories", sec: "Catalogue", roles: ["ADM","CD"], module: "btp", grp: "btp" },
+  { k: "btpbrands", label: "Marques", sec: "Catalogue", roles: ["ADM","CD"], module: "btp", grp: "btp" },
+  { k: "btpimport", label: "Import (Excel / CSV)", sec: "Catalogue", roles: ["ADM","CD"], module: "btp", grp: "btp" },
   { k: "btpwarehouses", label: "Entrepôts", sec: "Sites", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btpprojects", label: "Chantiers", sec: "Sites", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpclients", label: "Clients", sec: "Sites", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btpmoves", label: "Mouvements de stock", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpsuppliers", label: "Fournisseurs", sec: "Achats", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btppo", label: "Bons de commande", sec: "Achats", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btppurchases", label: "Achats & factures", sec: "Achats", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpreturns", label: "Retours fournisseur", sec: "Achats", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btprequests", label: "Demandes de matériel", sec: "Chantier", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btpdeliveries", label: "Livraisons", sec: "Chantier", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btpconsumption", label: "Consommations", sec: "Chantier", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpepi", label: "Dotation EPI", sec: "Chantier", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpexpenses", label: "Dépenses", sec: "Finances", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpaccounts", label: "Comptes de paiement", sec: "Finances", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
   { k: "btpreports", label: "Rapports", sec: "Rapports", roles: ["ADM","CD","RJ","GPF"], module: "btp", grp: "btp" },
+  { k: "btpnotif", label: "Modèles de notification", sec: "Configuration", roles: ["ADM","CD"], module: "btp", grp: "btp" },
 
   { k: "smqworkspace", label: "Mon espace", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
   { k: "smqhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","RQ","CD","RJ","GPF"], module: "quality", grp: "qualite" },
@@ -1770,6 +1782,17 @@ const TOUR = {
       btpdeliveries: ["Les livraisons : le bon de livraison sort le matériel de l'entrepôt et l'entre au magasin du chantier, avec PDF à signer.", "Deliveries: the delivery note moves material from the warehouse to the site store, with a PDF to sign."],
       btpconsumption: ["Les consommations : ce qui est utilisé, retourné au magasin, cassé ou perdu sur chaque chantier.", "Consumption: what is used, returned to the store, damaged or lost on each site."],
       btpreports: ["Les rapports : état du stock et journal des mouvements en Excel, et coût matériaux par chantier.", "Reports: stock status and movement log in Excel, and material cost per site."],
+      btpbrands: ["Les marques des matériaux.", "Material brands."],
+      btpimport: ["L'import Excel / CSV : créez vos matériaux et chargez votre stock de départ en une fois.", "Excel / CSV import: create your materials and load your starting stock in one go."],
+      btpclients: ["Les clients (maîtres d'ouvrage) liés aux chantiers ; fiches communes avec le module Stock.", "Clients (project owners) linked to sites; shared with the Stock module."],
+      btpsuppliers: ["Les fournisseurs : coordonnées, conditions de paiement, solde dû et relevé.", "Suppliers: contact details, payment terms, balance due and statement."],
+      btppo: ["Les bons de commande : commandés au fournisseur, puis réceptionnés en une ou plusieurs fois. Le stock n'augmente qu'à la réception.", "Purchase orders: ordered from the supplier, then received in one or more deliveries. Stock only increases on receipt."],
+      btppurchases: ["Les achats : chaque réception est une facture fournisseur, avec TVA, transport, paiements et reste dû.", "Purchases: each receipt is a supplier invoice, with VAT, transport, payments and balance due."],
+      btpreturns: ["Les retours fournisseur : le stock baisse et un avoir réduit ce que vous devez.", "Supplier returns: stock goes down and a credit reduces what you owe."],
+      btpepi: ["La dotation EPI : équipements de protection remis aux salariés depuis le stock BTP.", "PPE issues: protective equipment given to employees from construction stock."],
+      btpexpenses: ["Les dépenses de chantier hors matériaux (transport, location, carburant…), comptées dans le coût du chantier.", "Site expenses other than materials (transport, rental, fuel…), counted in the site cost."],
+      btpaccounts: ["Les comptes de paiement : caisses, banques et mobile money, avec leur solde et leur relevé.", "Payment accounts: cash boxes, banks and mobile money, with balance and statement."],
+      btpnotif: ["Les modèles de notification : personnalisez les messages envoyés pour les demandes, livraisons, commandes et alertes de stock.", "Notification templates: customise the messages sent for requests, deliveries, orders and stock alerts."],
     },
   },
 };
@@ -1970,7 +1993,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, btphome: btpHomeView, btpmaterials: btpMaterialsView, btpcategories: btpCategoriesView, btpwarehouses: btpWarehousesView, btpprojects: btpProjectsView, btpproject: btpProjectView, btpmoves: btpMovesView, btprequests: btpRequestsView, btpdeliveries: btpDeliveriesView, btpconsumption: btpConsumptionView, btpreports: btpReportsView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sysops: sysopsView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, btphome: btpHomeView, btpmaterials: btpMaterialsView, btpcategories: btpCategoriesView, btpwarehouses: btpWarehousesView, btpprojects: btpProjectsView, btpproject: btpProjectView, btpmoves: btpMovesView, btprequests: btpRequestsView, btpdeliveries: btpDeliveriesView, btpconsumption: btpConsumptionView, btpreports: btpReportsView, btpbrands: btpBrandsView, btpimport: btpImportView, btpclients: btpClientsView, btpsuppliers: btpSuppliersView, btppo: btpPOView, btppurchases: btpPurchasesView, btpreturns: btpReturnsView, btpepi: btpEpiView, btpexpenses: btpExpensesView, btpaccounts: btpAccountsView, btpnotif: btpNotifView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sysops: sysopsView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -10201,6 +10224,9 @@ function btpLines(box, mats, opt = {}) {
     <select data-f="materialId" style="flex:3;min-width:180px;margin:0"><option value="">- matériau -</option>${mats.filter(m => m.active !== false).map(m => `<option value="${esc(m.id)}" ${m.id === l.materialId ? "selected" : ""}>${esc(m.ref + " - " + m.name)} (${esc(m.unit)}${opt.showStock ? " · stock " + btpQ(m.qty) : ""})</option>`).join("")}</select>
     <input data-f="qty" type="number" step="any" placeholder="Qté" value="${l.qty != null ? esc(l.qty) : ""}" style="flex:1;min-width:80px;margin:0">
     ${opt.cost ? `<input data-f="unitCost" type="number" step="any" placeholder="Coût unitaire" value="${l.unitCost != null ? esc(l.unitCost) : ""}" style="flex:1;min-width:100px;margin:0">` : ""}
+    ${opt.price ? `<input data-f="unitPrice" type="number" step="any" placeholder="Prix HT unitaire" title="Prix HT par unité saisie" value="${l.unitPrice != null ? esc(l.unitPrice) : ""}" style="flex:1;min-width:110px;margin:0">
+      <input data-f="discountPct" type="number" step="any" placeholder="Remise %" value="${l.discountPct ? esc(l.discountPct) : ""}" style="width:80px;margin:0">
+      <input data-f="vatRate" type="number" step="any" placeholder="TVA %" title="Vide = TVA du matériau" value="${l.vatRate != null ? esc(l.vatRate) : ""}" style="width:76px;margin:0">` : ""}
     ${opt.purchaseUnit ? `<label class="chk" style="margin:0;white-space:nowrap" title="Quantité saisie dans l'unité d'achat (convertie automatiquement)"><input type="checkbox" data-f="inPurchaseUnit"><span>Unité d'achat</span></label>` : ""}
     <button class="btn ghost sm" data-del title="Retirer">✕</button></div>`;
   box.innerHTML = `<div data-rows>${(opt.lines && opt.lines.length ? opt.lines : [{}]).map(row).join("")}</div><button class="btn ghost sm" data-add style="margin-top:6px">+ Ajouter une ligne</button>`;
@@ -10211,7 +10237,7 @@ function btpLines(box, mats, opt = {}) {
   return () => [...box.querySelectorAll(".btp-line")].map(r => {
     const o = {}; r.querySelectorAll("[data-f]").forEach(i => { o[i.dataset.f] = i.type === "checkbox" ? i.checked : i.value; });
     if (o.qty !== undefined) o.qty = Number(String(o.qty).replace(",", "."));
-    if (o.unitCost === "") delete o.unitCost; else if (o.unitCost !== undefined) o.unitCost = Number(String(o.unitCost).replace(",", "."));
+    for (const k of ["unitCost", "unitPrice", "discountPct", "vatRate"]) { if (o[k] === "") delete o[k]; else if (o[k] !== undefined) o[k] = Number(String(o[k]).replace(",", ".")); }
     return o;
   }).filter(o => o.materialId && o.qty);
 }
@@ -10228,6 +10254,8 @@ async function btpHomeView() {
       ${btpKpi("alert", "Stock bas", k.lowStock, k.lowStock ? "À réapprovisionner" : "Seuils respectés", k.lowStock ? "#d97706" : "#16a34a")}
       ${btpKpi("site", "Chantiers actifs", k.activeProjects, `${k.warehouses} entrepôt(s) / magasin(s)`, "var(--muted)")}
       ${btpKpi("req", "Demandes à valider", k.pendingRequests, k.toDeliver ? `${k.toDeliver} approuvée(s) à livrer` : "Rien à livrer", k.toDeliver ? "#1e6fd9" : "var(--muted)")}
+      ${btpKpi("truck", "Commandes en cours", k.openPOs, "Bons de commande à recevoir", "var(--muted)")}
+      ${btpKpi("value", "Dû aux fournisseurs", btpM(k.payables), k.payables ? "Factures à régler" : "Aucune facture due", k.payables ? "#d97706" : "#16a34a")}
       ${btpKpi("use", "Consommé ce mois", btpM(k.consumedMonth), "Valeur des matériaux utilisés", "var(--muted)")}
     </div>
     <div class="btp-grid">
@@ -10286,7 +10314,7 @@ async function btpMaterialStock(mid) {
   btpModal(`Stock par entrepôt - ${m.name}`, rows.length ? `<table class="btp-table"><tr><th>Entrepôt</th><th style="text-align:right">Quantité</th></tr>${rows.map(r => `<tr><td>${esc(r.warehouse)}</td><td style="text-align:right">${btpQ(r.qty)} ${esc(m.unit)}</td></tr>`).join("")}</table>` : mmEmpty("Aucun stock"));
 }
 async function btpMaterialForm(mid) {
-  const [cats, meta, sups] = await Promise.all([btpApi("/categories"), btpMeta(), api("/stock/suppliers").catch(() => [])]);
+  const [cats, meta, sups, brands] = await Promise.all([btpApi("/categories"), btpMeta(), btpApi("/suppliers"), btpApi("/brands")]);
   const m = mid ? (window._btpMats || []).find(x => x.id === mid) : { unit: "PCS", conversion: 1, vatRate: 19.25, active: true };
   const units = sel => meta.units.map(u => `<option value="${u.code}" ${u.code === sel ? "selected" : ""}>${u.code} - ${esc(u.label)}</option>`).join("");
   const md = btpModal(mid ? "Modifier le matériau" : "Nouveau matériau", `<div class="btp-form">
@@ -10294,6 +10322,7 @@ async function btpMaterialForm(mid) {
     <div><label>Nom *</label><input id="mfName" value="${esc(m.name || "")}"></div>
     <div class="full"><label>Description</label><input id="mfDesc" value="${esc(m.description || "")}"></div>
     <div><label>Catégorie</label><select id="mfCat"><option value="">-</option>${cats.map(c => `<option value="${esc(c.id)}" ${c.id === m.categoryId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
+    <div><label>Marque</label><select id="mfBrand"><option value="">-</option>${brands.map(c => `<option value="${esc(c.id)}" ${c.id === m.brandId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>
     <div><label>Code-barres / QR</label><input id="mfBar" value="${esc(m.barcode || "")}"></div>
     <div><label>Unité de stock</label><select id="mfUnit" ${mid && m.qty ? "disabled title='Non modifiable : le matériau a du stock'" : ""}>${units(m.unit)}</select></div>
     <div><label>Unité d'achat</label><select id="mfPU">${units(m.purchaseUnit || m.unit)}</select></div>
@@ -10308,7 +10337,7 @@ async function btpMaterialForm(mid) {
     </div><div class="err hidden" id="mfErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="mfSave">Enregistrer</button></div>`, true);
   md.$("#mfSave").onclick = async () => {
     const v = id => md.$(id).value;
-    const body = { ref: v("#mfRef"), name: v("#mfName"), description: v("#mfDesc"), categoryId: v("#mfCat"), barcode: v("#mfBar"), purchaseUnit: v("#mfPU"),
+    const body = { ref: v("#mfRef"), name: v("#mfName"), description: v("#mfDesc"), categoryId: v("#mfCat"), brandId: v("#mfBrand"), barcode: v("#mfBar"), purchaseUnit: v("#mfPU"),
       conversion: v("#mfConv"), supplierId: v("#mfSup"), minStock: v("#mfMin"), reorderLevel: v("#mfReo"), maxStock: v("#mfMax"), purchasePrice: v("#mfPrice"), vatRate: v("#mfVat"), active: md.$("#mfAct").checked };
     if (!md.$("#mfUnit").disabled) body.unit = v("#mfUnit");
     try { await btpApi(mid ? `/materials/${mid}` : "/materials", { method: mid ? "PUT" : "POST", body: JSON.stringify(body) }); md.close(); btpMaterialsView(); }
@@ -10376,17 +10405,17 @@ async function btpProjectsView() {
   view.innerHTML = btpHead("Chantiers", "Projets de construction : budget, magasin de chantier et coût des matériaux.",
     btpCan.config() ? `<button class="btn p sm" onclick="btpProjectForm()">+ Chantier</button>` : "") +
     `<div class="btp-card" style="overflow-x:auto">${ps.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Chantier</th><th>Client</th><th>Période</th><th>Statut</th><th style="text-align:right">Budget (F)</th><th style="text-align:right">Coût matériaux (F)</th><th style="width:150px">Budget utilisé</th><th style="text-align:right">Demandes</th><th></th></tr>
-      ${ps.map(p => `<tr><td>${esc(p.ref)}</td><td><a href="#" onclick="go('btpproject','${p.id}');return false"><b>${esc(p.name)}</b></a><div class="btp-muted">${esc(p.location || "")}</div></td><td>${esc(p.client || "")}</td>
+      ${ps.map(p => `<tr><td>${esc(p.ref)}</td><td><a href="#" onclick="go('btpproject','${p.id}');return false"><b>${esc(p.name)}</b></a><div class="btp-muted">${esc(p.location || "")}</div></td><td>${esc(p.clientName || "")}</td>
         <td class="btp-muted">${btpFr(p.startDate)}${p.endDate ? " → " + btpFr(p.endDate) : ""}</td><td>${btpChip(p.status, p.statusLabel)}</td><td style="text-align:right">${fCFA(p.budget)}</td><td style="text-align:right">${fCFA(p.materialCost)}</td>
         <td>${p.budgetUsed != null ? `<div class="btp-hbar" style="margin:0"><div class="btp-bar"><span style="width:${Math.min(100, Math.max(2, p.budgetUsed))}%;${p.budgetUsed > 100 ? "background:#f08c2a" : ""}"></span></div><b>${p.budgetUsed}%</b></div>` : "-"}</td>
         <td style="text-align:right">${p.pendingRequests || ""}</td><td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" onclick="go('btpproject','${p.id}')">Détail</button>${btpCan.config() ? ` <button class="btn ghost sm" onclick="btpProjectForm('${p.id}')">Modifier</button>` : ""}</td></tr>`).join("")}</table>`
       : mmEmpty("Aucun chantier", btpCan.config() ? "Créez un chantier : son magasin de stock est créé automatiquement." : "")}</div>`;
 }
 async function btpProjectForm(pid) {
-  const meta = await btpMeta(); const p = pid ? window._btpProjects.find(x => x.id === pid) : { status: "planifie" };
+  const [meta, clients] = await Promise.all([btpMeta(), btpApi("/clients")]); const p = pid ? window._btpProjects.find(x => x.id === pid) : { status: "planifie" };
   const md = btpModal(pid ? "Modifier le chantier" : "Nouveau chantier", `<div class="btp-form">
     <div><label>Nom du chantier *</label><input id="pfName" value="${esc(p.name || "")}"></div>
-    <div><label>Client / maître d'ouvrage</label><input id="pfClient" value="${esc(p.client || "")}"></div>
+    <div><label>Client / maître d'ouvrage</label><select id="pfClientId">${btpOpts(clients, p.clientId, c => c.name, "- (texte libre ci-dessous) -")}</select><input id="pfClient" placeholder="ou nom libre" value="${esc(p.clientId ? "" : (p.client || ""))}" style="margin-top:4px"></div>
     <div class="full"><label>Description</label><input id="pfDesc" value="${esc(p.description || "")}"></div>
     <div><label>Localisation</label><input id="pfLoc" value="${esc(p.location || "")}"></div>
     <div><label>Chef de projet</label><input id="pfMgr" value="${esc(p.manager || "")}"></div>
@@ -10399,7 +10428,7 @@ async function btpProjectForm(pid) {
     </div><div class="err hidden" id="pfErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="pfSave">Enregistrer</button></div>`, true);
   md.$("#pfSave").onclick = async () => {
     const v = id => md.$(id).value;
-    const body = { name: v("#pfName"), client: v("#pfClient"), description: v("#pfDesc"), location: v("#pfLoc"), manager: v("#pfMgr"), startDate: v("#pfStart"), endDate: v("#pfEnd"), actualEndDate: v("#pfAct"), budget: v("#pfBudget") || 0, status: v("#pfStatus") };
+    const body = { name: v("#pfName"), clientId: v("#pfClientId"), client: v("#pfClient"), description: v("#pfDesc"), location: v("#pfLoc"), manager: v("#pfMgr"), startDate: v("#pfStart"), endDate: v("#pfEnd"), actualEndDate: v("#pfAct"), budget: v("#pfBudget") || 0, status: v("#pfStatus") };
     if (!pid) body.createSiteWarehouse = md.$("#pfWh").checked;
     try { await btpApi(pid ? `/projects/${pid}` : "/projects", { method: pid ? "PUT" : "POST", body: JSON.stringify(body) }); md.close(); btpProjectsView(); }
     catch (e) { const er = md.$("#pfErr"); er.textContent = e.message; er.classList.remove("hidden"); }
@@ -10415,6 +10444,7 @@ async function btpProjectView(pid) {
       ${btpKpi("truck", "Livré sur chantier", btpM(p.delivered), "Valeur des livraisons", "var(--muted)")}
       ${btpKpi("use", "Consommé", btpM(p.consumed), p.budgetUsed != null ? `${p.budgetUsed}% du budget (avec casse)` : "", p.budgetUsed > 100 ? "#dc2626" : "#16a34a")}
       ${btpKpi("alert", "Casse & pertes", btpM(p.wasted), "Matériel endommagé ou manquant", p.wasted ? "#d97706" : "var(--muted)")}
+      ${btpKpi("use", "EPI & dépenses", btpM(p.epi + p.expenses), `Coût total : ${btpM(p.totalCost)}`, "var(--muted)")}
       ${btpKpi("req", "Demandes en cours", p.pendingRequests, p.siteWarehouse ? "Magasin : " + esc(p.siteWarehouse) : "", "var(--muted)")}
     </div>
     <div class="btp-card" style="overflow-x:auto"><h3>Matériaux du chantier</h3>${p.materials.length ? `<table class="btp-table"><tr><th>Matériau</th><th style="text-align:right">Livré</th><th style="text-align:right">Consommé</th><th style="text-align:right">Retourné</th><th style="text-align:right">Casse / perte</th><th style="text-align:right">Reste sur site</th><th style="text-align:right">Coût (F)</th></tr>
@@ -10625,6 +10655,404 @@ function btpReportMoves() {
   const p = new URLSearchParams(); const s = (k, id) => { const v = document.getElementById(id).value; if (v) p.set(k, v); };
   s("from", "rpFrom"); s("to", "rpTo"); s("projectId", "rpProj"); s("type", "rpType");
   btpDownload("/export/movements.xlsx?" + p, "mouvements-btp.xlsx");
+}
+
+/* ---------------- Marques (liste simple) ---------------- */
+async function btpBrandsView() {
+  const [brands, mats] = await Promise.all([btpApi("/brands"), btpApi("/materials")]);
+  view.innerHTML = btpHead("Marques", "Marques des matériaux (ciment, acier, sanitaire…).",
+    btpCan.config() ? `<input id="bbNew" placeholder="Nouvelle marque" style="margin:0;max-width:220px"><button class="btn p sm" onclick="btpBrandSave()">+ Ajouter</button>` : "") + `
+    <div class="btp-card" style="max-width:720px">${brands.length ? `<table class="btp-table"><tr><th>Marque</th><th style="text-align:right">Matériaux</th><th></th></tr>
+    ${brands.map(c => { const n = mats.filter(m => m.brandId === c.id).length; return `<tr><td>${esc(c.name)}</td><td style="text-align:right">${n}</td><td style="text-align:right">${btpCan.config() ? `<button class="btn ghost sm" onclick="btpBrandSave('${c.id}','${esc(c.name).replace(/'/g, "&#39;")}')">Renommer</button>${n ? "" : ` <button class="btn ghost sm" style="color:var(--red)" onclick="btpBrandDel('${c.id}')">Supprimer</button>`}` : ""}</td></tr>`; }).join("")}</table>` : mmEmpty("Aucune marque")}</div>`;
+}
+async function btpBrandSave(bid, current) {
+  const name = bid ? prompt("Nouveau nom de la marque :", current) : document.getElementById("bbNew").value;
+  if (!name || !name.trim()) return;
+  try { await btpApi(bid ? `/brands/${bid}` : "/brands", { method: bid ? "PUT" : "POST", body: JSON.stringify({ name: name.trim() }) }); btpBrandsView(); } catch (e) { alert(e.message); }
+}
+async function btpBrandDel(bid) { if (!await mmConfirm({ message: "Supprimer cette marque ?", danger: true })) return; try { await btpApi(`/brands/${bid}`, { method: "DELETE" }); btpBrandsView(); } catch (e) { alert(e.message); } }
+
+/* ---------------- Fournisseurs & clients (fiches partagées avec le module Stock) ---------------- */
+const btpSuppliersView = () => btpContactsView("suppliers");
+const btpClientsView = () => btpContactsView("clients");
+async function btpContactsView(kind) {
+  const sup = kind === "suppliers"; const list = await btpApi("/" + kind); window._btpContacts = list;
+  view.innerHTML = btpHead(sup ? "Fournisseurs" : "Clients (maîtres d'ouvrage)", sup ? "Fiches communes avec le module Stock : soldes, relevés et conditions de paiement." : "Clients des chantiers ; fiches communes avec le module Stock.",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpContactForm('${kind}')">+ ${sup ? "Fournisseur" : "Client"}</button>` : "") + `
+    <div class="btp-card"><div class="btp-filters"><input id="ctQ" placeholder="Rechercher…" oninput="btpContactsRender('${kind}')" style="margin:0;max-width:260px"></div><div id="ctList" style="overflow-x:auto"></div></div>`;
+  btpContactsRender(kind);
+}
+function btpContactsRender(kind) {
+  const sup = kind === "suppliers"; const q = (document.getElementById("ctQ").value || "").toLowerCase();
+  const list = (window._btpContacts || []).filter(c => !q || [c.contactId, c.name, c.taxId, c.mobile, c.email, c.contactPerson].join(" ").toLowerCase().includes(q));
+  document.getElementById("ctList").innerHTML = list.length ? `<table class="btp-table"><tr><th>ID</th><th>Nom</th><th>NIU</th><th>Contact</th><th>Téléphone</th><th>Email</th>${sup ? `<th style="text-align:right">Solde dû (F)</th>` : ""}<th></th></tr>
+    ${list.map(c => `<tr><td>${esc(c.contactId || "")}</td><td><b>${esc(c.name || "")}</b>${c.city ? `<div class="btp-muted">${esc(c.city)}</div>` : ""}</td><td>${esc(c.taxId || "")}</td><td>${esc(c.contactPerson || "")}</td><td>${esc(c.mobile || "")}</td><td>${esc(c.email || "")}</td>
+      ${sup ? `<td style="text-align:right;font-weight:600;color:${c.balance > 0 ? "#b45309" : "inherit"}">${fCFA(c.balance)}</td>` : ""}
+      <td style="text-align:right;white-space:nowrap">${sup ? `<button class="btn ghost sm" onclick="btpSupplierStatement('${c.id}')">Relevé</button> ` : ""}${btpCan.write() ? `<button class="btn ghost sm" onclick="btpContactForm('${kind}','${c.id}')">Modifier</button>` : ""}</td></tr>`).join("")}</table>`
+    : mmEmpty(sup ? "Aucun fournisseur" : "Aucun client");
+}
+async function btpContactForm(kind, cid) {
+  const sup = kind === "suppliers"; const c = cid ? (window._btpContacts || []).find(x => x.id === cid) : {};
+  const f = (k, l, t) => `<div${t === "full" ? ' class="full"' : ""}><label>${l}</label><input data-c="${k}" ${t === "num" ? 'type="number" step="any"' : ""} value="${esc(c[k] != null ? c[k] : "")}"></div>`;
+  const md = btpModal(cid ? "Modifier la fiche" : (sup ? "Nouveau fournisseur" : "Nouveau client"), `<div class="btp-form">
+    ${f("name", "Nom / raison sociale *")}${f("contactPerson", "Personne à contacter")}${f("mobile", "Téléphone")}${f("email", "Email")}
+    ${f("taxId", "NIU")}${f("rccm", "N° RCCM / registre")}${f("address1", "Adresse", "full")}${f("city", "Ville")}${f("paymentTerms", "Conditions de paiement")}
+    ${sup ? f("openingBalance", "Solde d'ouverture dû (F)", "num") + f("bankInfo", "Coordonnées bancaires / mobile money", "full") : ""}${f("note", "Note", "full")}
+    </div><div class="err hidden" id="ctErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="ctSave">Enregistrer</button></div>`, true);
+  md.$("#ctSave").onclick = async () => {
+    const body = {}; md.el.querySelectorAll("[data-c]").forEach(i => body[i.dataset.c] = i.value);
+    try { await btpApi(cid ? `/${kind}/${cid}` : `/${kind}`, { method: cid ? "PUT" : "POST", body: JSON.stringify(body) }); md.close(); btpContactsView(kind); }
+    catch (e) { const er = md.$("#ctErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+async function btpSupplierStatement(sid) {
+  const s = await btpApi(`/suppliers/${sid}/statement`);
+  btpModal(`Relevé - ${s.supplier.name}`, `<div class="btp-muted" style="margin-bottom:6px">Solde d'ouverture : ${btpM(s.opening)}</div>
+    ${s.rows.length ? `<table class="btp-table"><tr><th>Date</th><th>Pièce</th><th>Libellé</th><th style="text-align:right">Achats</th><th style="text-align:right">Règlements / avoirs</th><th style="text-align:right">Solde</th></tr>
+    ${s.rows.map(r => `<tr><td>${btpFr(r.date)}</td><td>${esc(r.ref)}</td><td>${esc(r.label)}</td><td style="text-align:right">${r.debit ? fCFA(r.debit) : ""}</td><td style="text-align:right">${r.credit ? fCFA(r.credit) : ""}</td><td style="text-align:right">${fCFA(r.balance)}</td></tr>`).join("")}</table>` : mmEmpty("Aucune opération")}
+    <div style="text-align:right;margin-top:8px;font-size:15px">Solde dû : <b>${btpM(s.balance)}</b></div>`, true);
+}
+
+/* ---------------- Bons de commande ---------------- */
+const BTP_PO_CHIP = { brouillon: "brouillon", envoye: "soumise", partiel: "livraison_partielle", recu: "livree", annule: "annulee" };
+async function btpPOView() {
+  const list = await btpApi("/po"); window._btpPOs = list;
+  view.innerHTML = btpHead("Bons de commande", "Commandes aux fournisseurs. Le stock n'augmente qu'à la réception, éventuellement en plusieurs fois.",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpPOForm()">+ Bon de commande</button>` : "") +
+    `<div class="btp-card" style="overflow-x:auto">${list.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Date</th><th>Fournisseur</th><th>Livraison</th><th>Chantier</th><th>Prévue le</th><th style="text-align:right">Total TTC (F)</th><th>Statut</th><th></th></tr>
+      ${list.map(p => `<tr><td><b>${esc(p.ref)}</b></td><td>${btpFr(p.date)}</td><td>${esc(p.supplier)}</td><td>${esc(p.warehouse)}</td><td>${esc(p.project || "")}</td><td>${btpFr(p.expectedDate)}</td>
+        <td style="text-align:right">${fCFA(p.totalTTC)}</td><td>${btpChip(BTP_PO_CHIP[p.status], p.statusLabel)}</td><td style="text-align:right"><button class="btn ghost sm" onclick="btpPODetail('${p.id}')">Ouvrir</button></td></tr>`).join("")}</table>`
+      : mmEmpty("Aucun bon de commande")}</div>`;
+}
+async function btpPOForm(pid) {
+  const [sups, whs, ps, mats] = await Promise.all([btpApi("/suppliers"), btpApi("/warehouses"), btpApi("/projects"), btpApi("/materials")]);
+  const po = pid ? window._btpPOs.find(x => x.id === pid) : {};
+  const md = btpModal(pid ? `Modifier ${po.ref}` : "Nouveau bon de commande", `<div class="btp-form">
+    <div><label>Fournisseur *</label><select id="poS">${btpOpts(sups, po.supplierId, s => s.name, "-")}</select></div>
+    <div><label>Livrer à *</label><select id="poW">${btpOpts(whs.filter(w => w.active !== false), po.warehouseId, w => w.name, "-")}</select></div>
+    <div><label>Chantier</label><select id="poP">${btpOpts(ps.filter(p => !["annule", "termine"].includes(p.status)), po.projectId, p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Livraison prévue le</label><input id="poE" type="date" value="${esc(po.expectedDate || "")}"></div>
+    <div><label>Transport / frais de livraison (F)</label><input id="poSh" type="number" step="any" value="${esc(po.shipping || "")}"></div>
+    <div class="full"><label>Note</label><input id="poN" value="${esc(po.note || "")}"></div>
+    <div class="full"><label>Lignes (prix HT ; TVA vide = TVA du matériau)</label><div id="poLines"></div></div>
+    </div>${sups.length ? "" : `<div class="note">Créez d'abord un fournisseur (Achats › Fournisseurs).</div>`}<div class="err hidden" id="poErr"></div>
+    <div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn ghost sm" data-s="0">Enregistrer le brouillon</button>${pid ? "" : `<button class="btn p sm" data-s="1">Enregistrer et envoyer</button>`}</div>`, true);
+  const read = btpLines(md.$("#poLines"), mats, { price: true, purchaseUnit: true, lines: (po.lines || []).map(l => ({ materialId: l.materialId, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct, vatRate: l.vatRate })) });
+  md.el.querySelectorAll("[data-s]").forEach(b => b.onclick = async () => {
+    const v = id => md.$(id).value;
+    try { await btpApi(pid ? `/po/${pid}` : "/po", { method: pid ? "PUT" : "POST", body: JSON.stringify({ supplierId: v("#poS"), warehouseId: v("#poW"), projectId: v("#poP"), expectedDate: v("#poE"), shipping: v("#poSh") || 0, note: v("#poN"), send: b.dataset.s === "1", lines: read() }) }); md.close(); btpPOView(); }
+    catch (e) { const er = md.$("#poErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  });
+}
+function btpTotalsBlock(d) {
+  return `<div style="display:flex;justify-content:flex-end;margin-top:8px"><table class="btp-mini" style="width:auto;min-width:260px">
+    <tr><td>Total HT</td><td style="text-align:right">${fCFA(d.totalHT)}</td></tr><tr><td>TVA</td><td style="text-align:right">${fCFA(d.totalVAT)}</td></tr>
+    ${d.shipping ? `<tr><td>Transport</td><td style="text-align:right">${fCFA(d.shipping)}</td></tr>` : ""}<tr><td><b>Total TTC</b></td><td style="text-align:right"><b>${btpM(d.totalTTC)}</b></td></tr>
+    ${d.paid != null ? `<tr><td>Payé</td><td style="text-align:right">${fCFA(d.paid)}</td></tr>${d.credited ? `<tr><td>Avoirs (retours)</td><td style="text-align:right">${fCFA(d.credited)}</td></tr>` : ""}<tr><td><b>Reste à payer</b></td><td style="text-align:right"><b>${btpM(d.due)}</b></td></tr>` : ""}</table></div>`;
+}
+function btpPODetail(pid) {
+  const p = window._btpPOs.find(x => x.id === pid);
+  const md = btpModal(`Bon de commande ${p.ref}`, `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${btpChip(BTP_PO_CHIP[p.status], p.statusLabel)}<span>Fournisseur : <b>${esc(p.supplier)}</b></span><span class="btp-muted">Livrer à ${esc(p.warehouse)}${p.project ? " · " + esc(p.project) : ""}${p.expectedDate ? " · prévue le " + btpFr(p.expectedDate) : ""}</span></div>
+    <table class="btp-table"><tr><th>Matériau</th><th style="text-align:right">Commandé</th><th style="text-align:right">Reçu</th><th style="text-align:right">Prix HT</th><th style="text-align:right">Remise</th><th style="text-align:right">TVA</th><th style="text-align:right">Montant HT</th></tr>
+    ${p.lines.map(l => `<tr><td>${esc(l.material)}</td><td style="text-align:right">${btpQ(l.qty)} ${esc(l.unit)}</td><td style="text-align:right">${btpQ(l.received)}</td><td style="text-align:right">${fCFA(l.unitPrice)}</td><td style="text-align:right">${l.discountPct ? l.discountPct + "%" : ""}</td><td style="text-align:right">${l.vatRate}%</td><td style="text-align:right">${fCFA(l.ht)}</td></tr>`).join("")}</table>
+    ${btpTotalsBlock(p)}${p.note ? `<div class="note">${esc(p.note)}</div>` : ""}<div class="err hidden" id="pdErr"></div>
+    <div class="btp-modal-foot">${btpCan.write() && p.status === "brouillon" ? `<button class="btn ghost sm" data-a="edit">Modifier</button><button class="btn p sm" data-a="send">Envoyer au fournisseur</button>` : ""}
+      ${btpCan.write() && ["brouillon", "envoye", "partiel"].includes(p.status) ? `<button class="btn ghost sm" style="color:var(--red)" data-a="cancel">${p.status === "partiel" ? "Clôturer (abandonner le reliquat)" : "Annuler la commande"}</button>` : ""}
+      ${btpCan.write() && ["envoye", "partiel"].includes(p.status) ? `<button class="btn p sm" data-a="receive">Réceptionner…</button>` : ""}</div>`, true);
+  md.el.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
+    const a = b.dataset.a;
+    if (a === "edit") { md.close(); return btpPOForm(pid); }
+    if (a === "receive") { md.close(); return btpPOReceive(pid); }
+    if (a === "cancel" && !await mmConfirm({ message: "Confirmer ?", danger: true })) return;
+    try { await btpApi(`/po/${pid}/${a}`, { method: "POST", body: "{}" }); md.close(); btpPOView(); }
+    catch (e) { const er = md.$("#pdErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  });
+}
+function btpPOReceive(pid) {
+  const p = window._btpPOs.find(x => x.id === pid);
+  const md = btpModal(`Réception - ${p.ref}`, `<div class="btp-form">
+    <div><label>N° facture / BL fournisseur</label><input id="rcInv"></div><div><label>Date de réception</label><input id="rcD" type="date" value="${btpToday()}" max="${btpToday()}"></div>
+    <div><label>Échéance de paiement</label><input id="rcDue" type="date"></div><div><label>Transport facturé (F)</label><input id="rcSh" type="number" step="any"></div></div>
+    <table class="btp-table" style="margin-top:6px"><tr><th>Matériau</th><th style="text-align:right">Reste à recevoir</th><th style="text-align:right">Reçu maintenant</th></tr>
+    ${p.lines.map(l => { const left = Math.max(0, Math.round((l.qty - l.received) * 1000) / 1000); return `<tr><td>${esc(l.material)}</td><td style="text-align:right">${btpQ(left)} ${esc(l.unit)}</td><td style="text-align:right"><input type="number" step="any" min="0" max="${left}" value="${left}" data-rc="${esc(l.materialId)}" style="width:110px;margin:0;text-align:right"></td></tr>`; }).join("")}</table>
+    <div class="note">La réception crée la facture d'achat et ajoute le stock dans « ${esc(p.warehouse)} ». Le transport est inclus dans le coût des matériaux.</div>
+    <div class="err hidden" id="rcErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="rcSave">Valider la réception</button></div>`, true);
+  const key = btpKey();
+  md.$("#rcSave").onclick = async () => {
+    const btn = md.$("#rcSave"); btn.disabled = true; const v = id => md.$(id).value;
+    const lines = [...md.el.querySelectorAll("[data-rc]")].map(i => ({ materialId: i.dataset.rc, qty: Number(i.value) })).filter(l => l.qty > 0);
+    try { const r = await btpApi(`/po/${pid}/receive`, { method: "POST", body: JSON.stringify({ supplierInvoice: v("#rcInv"), date: v("#rcD"), dueDate: v("#rcDue"), shipping: v("#rcSh") || 0, clientKey: key, lines }) }); md.close(); if (typeof toast === "function") toast(`Achat ${r.ref} enregistré`); btpPOView(); }
+    catch (e) { btn.disabled = false; const er = md.$("#rcErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Achats & factures fournisseur ---------------- */
+const BTP_PAY = { non_paye: ["rejetee", "Non payé"], partiel: ["soumise", "Payé en partie"], paye: ["livree", "Payé"], annulee: ["annulee", "Annulé"] };
+async function btpPurchasesView() {
+  const list = await btpApi("/purchases"); window._btpPurchases = list;
+  const due = list.reduce((s, p) => s + Math.max(0, p.due), 0);
+  view.innerHTML = btpHead("Achats & factures", "Chaque réception de marchandise est une facture d'achat : paiements, retours et reste dû.",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpPurchaseForm()">+ Achat direct</button>` : "") + `
+    <div class="btp-kpis">${btpKpi("value", "Achats (TTC)", btpM(list.filter(p => p.status !== "annulee").reduce((s, p) => s + p.totalTTC, 0)), list.length + " facture(s)", "var(--muted)")}${btpKpi("alert", "Reste à payer", btpM(due), due ? "Voir les relevés fournisseurs" : "Tout est réglé", due ? "#d97706" : "#16a34a")}</div>
+    <div class="btp-card" style="overflow-x:auto">${list.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Date</th><th>Fournisseur</th><th>Facture fourn.</th><th>Commande</th><th>Entrepôt</th><th style="text-align:right">TTC (F)</th><th style="text-align:right">Reste (F)</th><th>Paiement</th><th></th></tr>
+      ${list.map(p => `<tr${p.status === "annulee" ? ' style="opacity:.55"' : ""}><td><b>${esc(p.ref)}</b></td><td>${btpFr(p.date)}</td><td>${esc(p.supplier)}</td><td>${esc(p.supplierInvoice || "")}</td><td>${esc(p.po || "-")}</td><td>${esc(p.warehouse)}</td>
+        <td style="text-align:right">${fCFA(p.totalTTC)}</td><td style="text-align:right">${fCFA(p.due)}</td><td>${btpChip(BTP_PAY[p.payStatus][0], BTP_PAY[p.payStatus][1])}</td>
+        <td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" onclick="btpPurchaseDetail('${p.id}')">Ouvrir</button></td></tr>`).join("")}</table>` : mmEmpty("Aucun achat", "Réceptionnez un bon de commande ou saisissez un achat direct.")}</div>`;
+}
+async function btpPurchaseForm() {
+  const [sups, whs, ps, mats] = await Promise.all([btpApi("/suppliers"), btpApi("/warehouses"), btpApi("/projects"), btpApi("/materials")]);
+  const md = btpModal("Achat direct (sans bon de commande)", `<div class="btp-form">
+    <div><label>Fournisseur *</label><select id="paS">${btpOpts(sups, "", s => s.name, "-")}</select></div>
+    <div><label>Entrepôt de réception *</label><select id="paW">${btpOpts(whs.filter(w => w.active !== false), "", w => w.name, "-")}</select></div>
+    <div><label>Chantier</label><select id="paP">${btpOpts(ps.filter(p => !["annule", "termine"].includes(p.status)), "", p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Date</label><input id="paD" type="date" value="${btpToday()}" max="${btpToday()}"></div>
+    <div><label>N° facture fournisseur</label><input id="paInv"></div><div><label>Échéance</label><input id="paDue" type="date"></div>
+    <div><label>Transport (F)</label><input id="paSh" type="number" step="any"></div>
+    <div class="full"><label>Lignes</label><div id="paLines"></div></div></div>
+    <div class="err hidden" id="paErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="paSave">Valider l'achat</button></div>`, true);
+  const read = btpLines(md.$("#paLines"), mats, { price: true, purchaseUnit: true }); const key = btpKey();
+  md.$("#paSave").onclick = async () => {
+    const btn = md.$("#paSave"); btn.disabled = true; const v = id => md.$(id).value;
+    try { await btpApi("/purchases", { method: "POST", body: JSON.stringify({ supplierId: v("#paS"), warehouseId: v("#paW"), projectId: v("#paP"), date: v("#paD"), supplierInvoice: v("#paInv"), dueDate: v("#paDue"), shipping: v("#paSh") || 0, clientKey: key, lines: read() }) }); md.close(); btpPurchasesView(); }
+    catch (e) { btn.disabled = false; const er = md.$("#paErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+function btpPurchaseDetail(pid) {
+  const p = window._btpPurchases.find(x => x.id === pid); const live = p.status !== "annulee";
+  const md = btpModal(`Achat ${p.ref}`, `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${btpChip(BTP_PAY[p.payStatus][0], BTP_PAY[p.payStatus][1])}<span>Fournisseur : <b>${esc(p.supplier)}</b></span>
+      <span class="btp-muted">${btpFr(p.date)} · ${esc(p.warehouse)}${p.supplierInvoice ? " · facture " + esc(p.supplierInvoice) : ""}${p.po ? " · commande " + esc(p.po) : ""}${p.dueDate ? " · échéance " + btpFr(p.dueDate) : ""}</span></div>
+    <table class="btp-table"><tr><th>Matériau</th><th style="text-align:right">Quantité</th><th style="text-align:right">Prix HT</th><th style="text-align:right">Remise</th><th style="text-align:right">TVA</th><th style="text-align:right">Montant HT</th><th style="text-align:right">Coût stock</th></tr>
+    ${p.lines.map(l => `<tr><td>${esc(l.material)}</td><td style="text-align:right">${btpQ(l.qty)} ${esc(l.unit)}</td><td style="text-align:right">${fCFA(l.unitPrice)}</td><td style="text-align:right">${l.discountPct ? l.discountPct + "%" : ""}</td><td style="text-align:right">${l.vatRate}%</td><td style="text-align:right">${fCFA(l.ht)}</td><td style="text-align:right">${fCFA(l.unitCost)}</td></tr>`).join("")}</table>
+    ${btpTotalsBlock(p)}${p.cancelReason ? `<div class="note">Annulé : ${esc(p.cancelReason)}</div>` : ""}<div class="err hidden" id="puErr"></div>
+    <div class="btp-modal-foot">${live && btpCan.config() && p.paid === 0 && !p.credited ? `<button class="btn ghost sm" style="color:var(--red)" data-a="cancel">Annuler l'achat</button>` : ""}
+      ${live && btpCan.write() ? `<button class="btn ghost sm" data-a="return">Retour fournisseur…</button>` : ""}${live && btpCan.config() && p.due > 0 ? `<button class="btn p sm" data-a="pay">Enregistrer un paiement…</button>` : ""}</div>`, true);
+  md.el.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
+    const a = b.dataset.a; md.close();
+    if (a === "pay") return btpPayForm(pid);
+    if (a === "return") return btpReturnForm(pid);
+    if (a === "cancel") return btpReverse(p.movementRef);
+  });
+}
+async function btpPayForm(pid) {
+  const p = window._btpPurchases.find(x => x.id === pid); const accs = (await btpApi("/accounts")).filter(a => a.active !== false);
+  const md = btpModal(`Paiement - ${p.ref} (${p.supplier})`, `<div class="btp-form">
+    <div><label>Montant (F) *</label><input id="pyA" type="number" step="any" value="${p.due}"></div>
+    <div><label>Payé depuis *</label><select id="pyAcc">${btpOpts(accs, "", a => `${a.name} (${a.typeLabel}, solde ${fCFA(a.balance)} F)`, "-")}</select></div>
+    <div><label>Date</label><input id="pyD" type="date" value="${btpToday()}" max="${btpToday()}"></div><div><label>Mode / référence</label><input id="pyM" placeholder="Chèque n°, virement, OM…"></div>
+    </div>${accs.length ? "" : `<div class="note">Créez d'abord un compte de paiement (Finances › Comptes de paiement).</div>`}<div class="btp-muted">Reste à payer : ${btpM(p.due)}</div>
+    <div class="err hidden" id="pyErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="pySave">Enregistrer le paiement</button></div>`);
+  const key = btpKey();
+  md.$("#pySave").onclick = async () => {
+    const btn = md.$("#pySave"); btn.disabled = true; const v = id => md.$(id).value;
+    try { await btpApi(`/purchases/${pid}/pay`, { method: "POST", body: JSON.stringify({ amount: v("#pyA"), accountId: v("#pyAcc"), date: v("#pyD"), method: v("#pyM"), clientKey: key }) }); md.close(); btpPurchasesView(); }
+    catch (e) { btn.disabled = false; const er = md.$("#pyErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Retours fournisseur ---------------- */
+async function btpReturnsView() {
+  const list = await btpApi("/returns");
+  view.innerHTML = btpHead("Retours fournisseur", "Marchandise renvoyée au fournisseur : le stock baisse et un avoir réduit la dette envers lui.",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpReturnForm()">+ Retour</button>` : "") +
+    `<div class="btp-card" style="overflow-x:auto">${list.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Date</th><th>Fournisseur</th><th>Achat</th><th>Entrepôt</th><th>Motif</th><th>Matériaux</th><th style="text-align:right">Avoir TTC (F)</th><th>Statut</th></tr>
+      ${list.map(x => `<tr${x.status === "annulee" ? ' style="opacity:.55"' : ""}><td><b>${esc(x.ref)}</b></td><td>${btpFr(x.date)}</td><td>${esc(x.supplier)}</td><td>${esc(x.purchase)}</td><td>${esc(x.warehouse)}</td><td class="btp-muted">${esc(x.reason)}</td>
+        <td class="btp-muted">${x.lines.map(l => esc(l.material) + " × " + btpQ(l.qty)).join(", ")}</td><td style="text-align:right">${fCFA(x.creditTTC)}</td><td>${x.status === "annulee" ? btpChip("annulee", "Annulé") : btpChip("livree", "Validé")}</td></tr>`).join("")}</table>` : mmEmpty("Aucun retour fournisseur")}</div>`;
+}
+async function btpReturnForm(purchaseId) {
+  const purchases = (await btpApi("/purchases")).filter(p => p.status !== "annulee");
+  const md = btpModal("Retour fournisseur", `<div class="btp-form">
+    <div class="full"><label>Achat d'origine *</label><select id="rtP">${btpOpts(purchases, purchaseId, p => `${p.ref} - ${p.supplier} (${btpFr(p.date)})`, "-")}</select></div>
+    <div class="full"><label>Motif *</label><input id="rtR" placeholder="ex. Sacs abîmés à la livraison"></div>
+    <div><label>Date</label><input id="rtD" type="date" value="${btpToday()}" max="${btpToday()}"></div></div>
+    <div id="rtLines" style="margin-top:6px"></div><div class="err hidden" id="rtErr"></div>
+    <div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="rtSave">Valider le retour</button></div>`, true);
+  const fill = () => { const p = purchases.find(x => x.id === md.$("#rtP").value);
+    md.$("#rtLines").innerHTML = p ? `<table class="btp-table"><tr><th>Matériau</th><th style="text-align:right">Acheté</th><th style="text-align:right">Quantité retournée</th></tr>${p.lines.map(l => `<tr><td>${esc(l.material)}</td><td style="text-align:right">${btpQ(l.qty)} ${esc(l.unit)}</td><td style="text-align:right"><input type="number" step="any" min="0" max="${l.qty}" data-rt="${esc(l.materialId)}" style="width:110px;margin:0;text-align:right"></td></tr>`).join("")}</table>` : ""; };
+  md.$("#rtP").onchange = fill; fill();
+  md.$("#rtSave").onclick = async () => {
+    const v = id => md.$(id).value; const lines = [...md.el.querySelectorAll("[data-rt]")].map(i => ({ materialId: i.dataset.rt, qty: Number(i.value) })).filter(l => l.qty > 0);
+    try { await btpApi("/returns", { method: "POST", body: JSON.stringify({ purchaseId: v("#rtP"), reason: v("#rtR"), date: v("#rtD"), lines }) }); md.close(); go("btpreturns"); }
+    catch (e) { const er = md.$("#rtErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Dépenses de chantier ---------------- */
+async function btpExpensesView() {
+  const [list, ps] = await Promise.all([btpApi("/expenses"), btpApi("/projects")]); window._btpExpenses = list;
+  const month = btpToday().slice(0, 7);
+  view.innerHTML = btpHead("Dépenses", "Frais de chantier hors matériaux (transport, location d'engins, carburant…), comptés dans le coût du chantier.",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpExpenseForm()">+ Dépense</button>` : "") + `
+    <div class="btp-kpis">${btpKpi("value", "Dépenses du mois", btpM(list.filter(e => e.date.startsWith(month)).reduce((s, e) => s + e.amount, 0)), "", "")}${btpKpi("site", "Total sur chantiers", btpM(list.filter(e => e.projectId).reduce((s, e) => s + e.amount, 0)), "", "")}</div>
+    <div class="btp-card"><div class="btp-filters"><select id="exP" onchange="btpExpensesRender()" style="margin:0;max-width:240px">${btpOpts(ps, "", p => p.ref + " - " + p.name, "Tous les chantiers")}</select></div><div id="exList" style="overflow-x:auto"></div></div>`;
+  btpExpensesRender();
+}
+function btpExpensesRender() {
+  const pid = document.getElementById("exP").value; const list = (window._btpExpenses || []).filter(e => !pid || e.projectId === pid);
+  document.getElementById("exList").innerHTML = list.length ? `<table class="btp-table"><tr><th>Réf.</th><th>Date</th><th>Catégorie</th><th>Description</th><th>Chantier</th><th>Payé par</th><th>Fournisseur</th><th style="text-align:right">Montant (F)</th></tr>
+    ${list.map(e => `<tr><td>${esc(e.ref)}</td><td>${btpFr(e.date)}</td><td>${esc(e.category)}</td><td>${esc(e.description)}${e.docRef ? `<div class="btp-muted">${esc(e.docRef)}</div>` : ""}</td><td>${esc(e.project || "")}</td><td>${esc(e.account || "-")}</td><td>${esc(e.supplier || "")}</td><td style="text-align:right">${fCFA(e.amount)}</td></tr>`).join("")}
+    <tr><td colspan="7" style="text-align:right"><b>Total</b></td><td style="text-align:right"><b>${fCFA(list.reduce((s, e) => s + e.amount, 0))}</b></td></tr></table>` : mmEmpty("Aucune dépense");
+}
+async function btpExpenseForm() {
+  const [cats, ps, accs, sups] = await Promise.all([btpApi("/expense-categories"), btpApi("/projects"), btpApi("/accounts"), btpApi("/suppliers")]);
+  const md = btpModal("Nouvelle dépense", `<div class="btp-form">
+    <div><label>Catégorie *</label><div style="display:flex;gap:4px"><select id="exC" style="margin:0">${btpOpts(cats, "", c => c.name, "-")}</select>${btpCan.config() ? `<button class="btn ghost sm" id="exCnew" title="Nouvelle catégorie">+</button>` : ""}</div></div>
+    <div><label>Montant (F) *</label><input id="exA" type="number" step="any"></div>
+    <div class="full"><label>Description *</label><input id="exDesc"></div>
+    <div><label>Chantier</label><select id="exPj">${btpOpts(ps.filter(p => !["annule"].includes(p.status)), "", p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Payé depuis</label><select id="exAcc">${btpOpts(accs.filter(a => a.active !== false), "", a => `${a.name} (solde ${fCFA(a.balance)} F)`, "- non payé / hors compte -")}</select></div>
+    <div><label>Fournisseur / prestataire</label><select id="exS">${btpOpts(sups, "", s => s.name, "-")}</select></div>
+    <div><label>Date</label><input id="exD" type="date" value="${btpToday()}" max="${btpToday()}"></div><div><label>N° pièce / reçu</label><input id="exDoc"></div>
+    </div><div class="err hidden" id="exErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="exSave">Enregistrer</button></div>`, true);
+  if (md.$("#exCnew")) md.$("#exCnew").onclick = async () => { const n = prompt("Nouvelle catégorie de dépense :"); if (!n || !n.trim()) return;
+    try { const c = await btpApi("/expense-categories", { method: "POST", body: JSON.stringify({ name: n.trim() }) }); md.$("#exC").insertAdjacentHTML("beforeend", `<option value="${esc(c.id)}">${esc(c.name)}</option>`); md.$("#exC").value = c.id; } catch (e) { alert(e.message); } };
+  const key = btpKey();
+  md.$("#exSave").onclick = async () => {
+    const btn = md.$("#exSave"); btn.disabled = true; const v = id => md.$(id).value;
+    try { await btpApi("/expenses", { method: "POST", body: JSON.stringify({ categoryId: v("#exC"), amount: v("#exA"), description: v("#exDesc"), projectId: v("#exPj"), accountId: v("#exAcc"), supplierId: v("#exS"), date: v("#exD"), docRef: v("#exDoc"), clientKey: key }) }); md.close(); btpExpensesView(); }
+    catch (e) { btn.disabled = false; const er = md.$("#exErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Comptes de paiement ---------------- */
+async function btpAccountsView() {
+  const list = await btpApi("/accounts"); window._btpAccounts = list;
+  view.innerHTML = btpHead("Comptes de paiement", "Caisses, comptes bancaires et mobile money : paiements fournisseurs, dépenses, entrées et sorties.",
+    btpCan.config() ? `<button class="btn p sm" onclick="btpAccountForm()">+ Compte</button>` : "") +
+    `<div class="btp-cards">${list.length ? list.map(a => `<div class="btp-card btp-wh${a.active === false ? " off" : ""}"><div class="btp-muted">${esc(a.typeLabel)}${a.number ? " · " + esc(a.number) : ""}</div><b style="font-size:15px">${esc(a.name)}</b>
+      <div class="btp-wh-stats"><div><span>Solde</span><b style="font-size:18px;color:${a.balance < 0 ? "#dc2626" : "inherit"}">${btpM(a.balance)}</b></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" onclick="btpAccountStatement('${a.id}')">Relevé</button>${btpCan.config() && a.active !== false ? `<button class="btn ghost sm" onclick="btpAccountEntry('${a.id}')">Entrée / sortie</button><button class="btn ghost sm" onclick="btpAccountForm('${a.id}')">Modifier</button>` : ""}</div></div>`).join("")
+      : mmEmpty("Aucun compte", "Créez une caisse ou un compte bancaire pour enregistrer les paiements.")}</div>`;
+}
+function btpAccountForm(aid) {
+  const a = aid ? window._btpAccounts.find(x => x.id === aid) : { type: "caisse", active: true };
+  const md = btpModal(aid ? "Modifier le compte" : "Nouveau compte de paiement", `<div class="btp-form">
+    <div><label>Nom *</label><input id="acN" value="${esc(a.name || "")}" placeholder="ex. Caisse chantier Akwa"></div>
+    <div><label>Type</label><select id="acT">${[["caisse", "Caisse"], ["banque", "Banque"], ["mobile", "Mobile money"]].map(([k, l]) => `<option value="${k}" ${k === a.type ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    <div><label>N° de compte / téléphone</label><input id="acNum" value="${esc(a.number || "")}"></div><div><label>Banque / opérateur</label><input id="acB" value="${esc(a.bank || "")}"></div>
+    ${aid ? `<div><label class="chk" style="margin-top:22px"><input type="checkbox" id="acAct" ${a.active !== false ? "checked" : ""}><span>Actif</span></label></div>` : `<div><label>Solde d'ouverture (F)</label><input id="acO" type="number" step="any" value="0"></div>`}
+    </div><div class="err hidden" id="acErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="acSave">Enregistrer</button></div>`);
+  md.$("#acSave").onclick = async () => {
+    const v = id => md.$(id) ? md.$(id).value : undefined; const body = { name: v("#acN"), type: v("#acT"), number: v("#acNum"), bank: v("#acB") };
+    if (aid) body.active = md.$("#acAct").checked; else body.openingBalance = v("#acO") || 0;
+    try { await btpApi(aid ? `/accounts/${aid}` : "/accounts", { method: aid ? "PUT" : "POST", body: JSON.stringify(body) }); md.close(); btpAccountsView(); }
+    catch (e) { const er = md.$("#acErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+function btpAccountEntry(aid) {
+  const a = window._btpAccounts.find(x => x.id === aid);
+  const md = btpModal(`Entrée / sortie - ${a.name}`, `<div class="btp-form">
+    <div><label>Sens</label><select id="aeS"><option value="1">Entrée (approvisionnement)</option><option value="-1">Sortie (retrait)</option></select></div>
+    <div><label>Montant (F) *</label><input id="aeA" type="number" step="any" min="0"></div><div class="full"><label>Libellé *</label><input id="aeL" placeholder="ex. Alimentation de la caisse depuis la banque"></div>
+    <div><label>Date</label><input id="aeD" type="date" value="${btpToday()}" max="${btpToday()}"></div></div>
+    <div class="err hidden" id="aeErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="aeSave">Enregistrer</button></div>`);
+  md.$("#aeSave").onclick = async () => {
+    const v = id => md.$(id).value;
+    try { await btpApi(`/accounts/${aid}/entries`, { method: "POST", body: JSON.stringify({ amount: Number(v("#aeS")) * Math.abs(Number(v("#aeA"))), label: v("#aeL"), date: v("#aeD") }) }); md.close(); btpAccountsView(); }
+    catch (e) { const er = md.$("#aeErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+async function btpAccountStatement(aid) {
+  const s = await btpApi(`/accounts/${aid}/statement`);
+  btpModal(`Relevé - ${s.account.name}`, `<div class="btp-muted" style="margin-bottom:6px">Solde d'ouverture : ${btpM(s.opening)}</div>
+    ${s.rows.length ? `<table class="btp-table"><tr><th>Date</th><th>Pièce</th><th>Libellé</th><th style="text-align:right">Montant</th><th style="text-align:right">Solde</th></tr>
+    ${s.rows.map(r => `<tr><td>${btpFr(r.date)}</td><td>${esc(r.ref)}</td><td>${esc(r.label)}</td><td style="text-align:right;color:${r.amount < 0 ? "#dc2626" : "#16a34a"}">${r.amount > 0 ? "+" : ""}${fCFA(r.amount)}</td><td style="text-align:right">${fCFA(r.balance)}</td></tr>`).join("")}</table>` : mmEmpty("Aucune opération")}
+    <div style="text-align:right;margin-top:8px;font-size:15px">Solde : <b>${btpM(s.balance)}</b></div>`, true);
+}
+
+/* ---------------- Dotation EPI ---------------- */
+async function btpEpiView() {
+  const list = await btpApi("/epi");
+  view.innerHTML = btpHead("Dotation EPI", "Équipements de protection remis aux salariés depuis le stock BTP (casques, gants, chaussures…).",
+    btpCan.write() ? `<button class="btn p sm" onclick="btpEpiForm()">+ Dotation</button>` : "") +
+    `<div class="btp-card" style="overflow-x:auto">${list.length ? `<table class="btp-table"><tr><th>Date</th><th>Opération</th><th>Salarié</th><th>Équipement</th><th style="text-align:right">Quantité</th><th>Chantier</th><th>Entrepôt</th><th>Saisi par</th></tr>
+      ${list.map(m => `<tr${m.reversed ? ' style="opacity:.55"' : ""}><td>${btpFr(m.date)}</td><td>${esc(m.ref)}${m.reversed ? " " + btpChip("annulee", "Contre-passé") : ""}</td><td><b>${esc(m.employee)}</b></td><td>${esc(m.material)}</td><td style="text-align:right">${btpQ(-m.qty)} ${esc(m.unit)}</td><td>${esc(m.project || "")}</td><td>${esc(m.warehouse)}</td><td class="btp-muted">${esc(m.createdByName || "")}</td></tr>`).join("")}</table>` : mmEmpty("Aucune dotation", "Remettez des équipements de protection à un salarié.")}</div>`;
+}
+async function btpEpiForm() {
+  const [emps, whs, ps, mats] = await Promise.all([btpApi("/employees"), btpApi("/warehouses"), btpApi("/projects"), btpApi("/materials")]);
+  const md = btpModal("Dotation EPI", `<div class="btp-form">
+    <div><label>Salarié *</label><select id="epE">${btpOpts(emps, "", e => e.name + (e.matricule ? " (" + e.matricule + ")" : ""), "-")}</select></div>
+    <div><label>Sortie de l'entrepôt *</label><select id="epW">${btpOpts(whs.filter(w => w.active !== false), "", w => w.name, "-")}</select></div>
+    <div><label>Chantier</label><select id="epP">${btpOpts(ps.filter(p => !["annule", "termine"].includes(p.status)), "", p => p.ref + " - " + p.name, "-")}</select></div>
+    <div><label>Date</label><input id="epD" type="date" value="${btpToday()}" max="${btpToday()}"></div><div class="full"><label>Note</label><input id="epN"></div>
+    <div class="full"><label>Équipements remis</label><div id="epLines"></div></div></div>
+    <div class="err hidden" id="epErr"></div><div class="btp-modal-foot"><button class="btn ghost sm" data-close>Annuler</button><button class="btn p sm" id="epSave">Valider la dotation</button></div>`, true);
+  const read = btpLines(md.$("#epLines"), mats, { showStock: true }); const key = btpKey();
+  md.$("#epSave").onclick = async () => {
+    const btn = md.$("#epSave"); btn.disabled = true; const v = id => md.$(id).value;
+    try { await btpApi("/epi", { method: "POST", body: JSON.stringify({ employeeId: v("#epE"), warehouseId: v("#epW"), projectId: v("#epP"), date: v("#epD"), note: v("#epN"), clientKey: key, lines: read() }) }); md.close(); btpEpiView(); }
+    catch (e) { btn.disabled = false; const er = md.$("#epErr"); er.textContent = e.message; er.classList.remove("hidden"); }
+  };
+}
+
+/* ---------------- Modèles de notification ---------------- */
+async function btpNotifView() {
+  const list = await btpApi("/notif-templates");
+  view.innerHTML = btpHead("Modèles de notification", "Messages envoyés (dans l'application et par email si configuré) lors des événements du Stock BTP.") +
+    list.map(t => `<div class="btp-card" data-key="${esc(t.key)}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(t.label)}</b>
+      <label class="chk" style="margin:0"><input type="checkbox" data-f="enabled" ${t.enabled ? "checked" : ""}><span>Activé</span></label></div>
+      <label>Objet</label><input data-f="subject" value="${esc(t.subject)}"><label>Message</label><textarea data-f="body" rows="2">${esc(t.body)}</textarea>
+      <div class="btp-muted">Variables : ${esc((t.defaults.subject + " " + t.defaults.body).match(/\{\{\s*\w+\s*\}\}/g).filter((v, i, a) => a.indexOf(v) === i).join(" "))}${t.custom ? " · <b>personnalisé</b>" : ""}</div>
+      <div class="btp-modal-foot" style="margin-top:8px">${t.custom ? `<button class="btn ghost sm" onclick="btpNotifSave('${t.key}',true)">Revenir au texte par défaut</button>` : ""}<button class="btn p sm" onclick="btpNotifSave('${t.key}')">Enregistrer</button></div></div>`).join("");
+}
+async function btpNotifSave(key, reset) {
+  const card = document.querySelector(`[data-key="${key}"]`); const g = f => card.querySelector(`[data-f="${f}"]`);
+  try { await btpApi(`/notif-templates/${key}`, reset ? { method: "DELETE" } : { method: "PUT", body: JSON.stringify({ subject: g("subject").value, body: g("body").value, enabled: g("enabled").checked }) }); if (typeof toast === "function") toast("Modèle enregistré"); btpNotifView(); }
+  catch (e) { alert(e.message); }
+}
+
+/* ---------------- Import (matériaux, stock d'ouverture) ---------------- */
+const BTP_IMPORT = {
+  materials: { title: "Importer des matériaux", fields: [["ref", "Référence"], ["name", "Nom *"], ["category", "Catégorie"], ["brand", "Marque"], ["unit", "Unité"], ["purchasePrice", "Prix d'achat"], ["reorderLevel", "Seuil de réappro."], ["minStock", "Stock minimum"], ["vatRate", "TVA %"], ["barcode", "Code-barres"], ["description", "Description"]] },
+  opening: { title: "Importer le stock d'ouverture", fields: [["ref", "Référence"], ["name", "Nom"], ["qty", "Quantité *"], ["unitCost", "Coût unitaire"], ["unit", "Unité"], ["category", "Catégorie"]] },
+};
+async function btpImportView() {
+  const whs = (await btpApi("/warehouses")).filter(w => w.active !== false);
+  view.innerHTML = btpHead("Import (Excel / CSV)", "Créez vos matériaux et chargez votre stock de départ depuis un fichier Excel (.xlsx) ou CSV.") + `
+    <div class="btp-grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
+      <div class="btp-card"><h3>1. Matériaux</h3><p class="btp-muted">Une ligne par matériau. Les catégories et marques absentes sont créées ; les références déjà existantes sont ignorées.</p>
+        <input type="file" accept=".xlsx,.xls,.csv,.txt" onchange="btpImportFile(this,'materials')"></div>
+      <div class="btp-card"><h3>2. Stock d'ouverture</h3><p class="btp-muted">Quantités de départ dans un entrepôt. Une seule erreur et rien n'est importé (vous corrigez puis recommencez).</p>
+        <label>Entrepôt *</label><select id="imW">${btpOpts(whs, "", w => w.name, "-")}</select>
+        <input type="file" accept=".xlsx,.xls,.csv,.txt" onchange="btpImportFile(this,'opening')"></div>
+    </div><div id="imZone"></div>`;
+}
+async function btpImportFile(input, kind) {
+  const file = input.files[0]; if (!file) return;
+  const zone = document.getElementById("imZone"); zone.innerHTML = mmLoading();
+  try {
+    const data = await new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(file); });
+    const p = await btpApi("/import/parse", { method: "POST", body: JSON.stringify({ data, filename: file.name }) });
+    window._btpImport = { kind, rows: p.rows };
+    const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+    const guess = (key, label) => { const cands = [key, label.replace(/[*.]/g, ""), ...({ ref: ["reference", "code", "sku"], name: ["nom", "designation", "libelle", "materiau"], qty: ["quantite", "qte", "stock"], unitCost: ["cout", "prix", "pu"], purchasePrice: ["prix", "prixachat", "pu"], unit: ["unite"], category: ["categorie", "famille"], brand: ["marque"] }[key] || [])].map(norm);
+      const i = p.headers.findIndex(h => cands.includes(norm(h))); return i; };
+    const def = BTP_IMPORT[kind];
+    zone.innerHTML = `<div class="btp-card"><h3>${def.title} - ${esc(file.name)} (${p.total} ligne(s))</h3><p class="btp-muted">Associez chaque champ à une colonne de votre fichier.</p>
+      <div class="btp-form">${def.fields.map(([k, l]) => { const g = guess(k, l); return `<div><label>${esc(l)}</label><select data-map="${k}"><option value="">- ignorer -</option>${p.headers.map((h, i) => `<option value="${i}" ${i === g ? "selected" : ""}>${esc(h || "Colonne " + (i + 1))}</option>`).join("")}</select></div>`; }).join("")}</div>
+      <div style="overflow-x:auto;margin-top:8px"><table class="btp-table"><tr>${p.headers.map(h => `<th>${esc(h)}</th>`).join("")}</tr>${p.rows.slice(0, 5).map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table></div>
+      <div id="imRes"></div><div class="btp-modal-foot"><button class="btn p sm" onclick="btpImportRun()">Importer ${p.rows.length} ligne(s)</button></div></div>`;
+  } catch (e) { zone.innerHTML = mmError(e.message); }
+  input.value = "";
+}
+async function btpImportRun() {
+  const st = window._btpImport; const map = {}; document.querySelectorAll("[data-map]").forEach(s => { if (s.value !== "") map[s.dataset.map] = Number(s.value); });
+  const rows = st.rows.map(r => { const o = {}; for (const [k, i] of Object.entries(map)) o[k] = r[i]; return o; });
+  const res = document.getElementById("imRes");
+  try {
+    if (st.kind === "materials") {
+      if (map.name === undefined) throw new Error("Associez au moins la colonne « Nom ».");
+      const r = await btpApi("/materials/import", { method: "POST", body: JSON.stringify({ rows }) });
+      res.innerHTML = `<div class="note" style="margin-top:8px"><b>${r.created} matériau(x) créé(s)</b>, ${r.skipped.length} ignoré(s), ${r.errors.length} erreur(s).${[...r.errors.map(e => `<br>Ligne ${e.line} : ${esc(e.error)}`), ...r.skipped.slice(0, 20).map(s => `<br>Ligne ${s.line} : ${esc(s.reason)} (${esc(s.ref)})`)].join("")}</div>`;
+    } else {
+      if (map.qty === undefined || (map.ref === undefined && map.name === undefined)) throw new Error("Associez la quantité et la référence (ou le nom).");
+      const wid = document.getElementById("imW").value; if (!wid) throw new Error("Choisissez l'entrepôt.");
+      // Appel direct : en cas d'erreur, la réponse liste les lignes fautives (api() ne garde que le message).
+      const resp = await fetch("/api/btp/opening/import", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN }, body: JSON.stringify({ warehouseId: wid, rows, clientKey: btpKey() }) });
+      const r = await resp.json().catch(() => ({}));
+      if (!resp.ok) { res.innerHTML = `<div class="err" style="margin-top:8px">${esc(r.error || "Import impossible")}${(r.errors || []).slice(0, 30).map(e => `<br>Ligne ${e.line} : ${esc(e.error)}`).join("")}</div>`; return; }
+      res.innerHTML = `<div class="note" style="margin-top:8px"><b>Stock d'ouverture importé</b> (opération ${esc(r.ref)}) : ${r.lines} ligne(s), ${r.createdMaterials} matériau(x) créé(s).</div>`;
+    }
+  } catch (e) { res.innerHTML = `<div class="err" style="margin-top:8px">${esc(e.message)}</div>`; }
 }
 async function ensureChartJs(){ if(window.Chart) return true;
   return new Promise((resolve)=>{ const sc=document.createElement("script");
