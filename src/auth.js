@@ -173,7 +173,17 @@ function login(req, res) {
     const mins = Math.ceil((new Date(user.lockedUntil) - Date.now()) / 60000);
     return fail(`Compte temporairement verrouillé - réessayez dans ${mins} min`, 423);
   }
-  if (!verifyPw(password || "", user.password)) {
+  // « Mot de passe oublié » sends a separate one-time password: the real one keeps working
+  // until the user replaces it, so nobody can lock an account just by knowing its email.
+  let viaReset = false;
+  if (!verifyPw(password || "", user.password) && user.resetPassword && verifyPw(password || "", user.resetPassword)) {
+    if (!user.resetExpires || Date.now() > new Date(user.resetExpires).getTime()) {
+      delete user.resetPassword; delete user.resetExpires; save();
+      return fail("Mot de passe temporaire expiré - demandez une nouvelle réinitialisation.", 401);
+    }
+    viaReset = true;
+  }
+  if (!viaReset && !verifyPw(password || "", user.password)) {
     const p = policy(user);
     user.failedLogins = (user.failedLogins || 0) + 1;
     if (user.failedLogins >= p.maxFailed) {
@@ -186,9 +196,14 @@ function login(req, res) {
     return fail("Identifiants invalides");
   }
 
-  // Reset link / temporary password expires after 30 minutes.
-  if (user.tempPasswordExpires && Date.now() > new Date(user.tempPasswordExpires).getTime())
-    return fail("Mot de passe temporaire expiré - demandez une nouvelle réinitialisation.", 401);
+  // A one-time password expires, and its first use only lets the user choose a new password.
+  if (!viaReset && user.tempPasswordExpires && Date.now() > new Date(user.tempPasswordExpires).getTime())
+    return fail("Mot de passe temporaire expiré - demandez une nouvelle réinitialisation à votre administrateur.", 401);
+  if (viaReset || user.mustChangePassword) {
+    user.failedLogins = 0; save();
+    const changeToken = jwt.sign({ id: user.id, purpose: "pwchange", via: viaReset ? "reset" : "otp" }, SECRET, { expiresIn: "15m" });
+    return res.status(403).json({ error: "Choisissez un nouveau mot de passe pour continuer.", passwordChangeRequired: true, changeToken });
+  }
 
   // Two-factor: policy-driven (Settings > Security)
   const needs2fa = twoFaRequiredFor(user);
@@ -297,8 +312,39 @@ function changePassword(req, res) {
   if (!verifyPw(current || "", user.password)) return res.status(401).json({ error: "Mot de passe actuel incorrect" });
   const err = passwordPolicy(next);
   if (err) return res.status(400).json({ error: err });
-  user.password = hash(next); save();
+  user.password = hash(next); clearOneTime(user); save();
   audit(req.user, "CONFIG_CHANGED", "User", user.id, { password: "changed" });
+  res.json({ ok: true });
+}
+
+/* ---------- one-time passwords ----------
+ * A password chosen by someone else (account created or reset by an administrator) is a
+ * one-time password: it expires, and logging in with it opens no session, it only allows
+ * choosing a new password (then the user logs in normally, 2FA included). */
+const OTP_HOURS = 24, RESET_MINUTES = 30;
+function issueOneTimePassword(user, plain) {
+  user.password = hash(plain); user.mustChangePassword = true;
+  user.tempPasswordExpires = new Date(Date.now() + OTP_HOURS * 3600e3).toISOString();
+  user.failedLogins = 0; user.lockedUntil = null;
+  delete user.resetPassword; delete user.resetExpires;
+}
+function clearOneTime(user) {
+  delete user.mustChangePassword; delete user.tempPasswordExpires; delete user.resetPassword; delete user.resetExpires;
+}
+/** Login step 2 for a one-time password: { changeToken, next } -> sets the user's own password. */
+function firstPasswordChange(req, res) {
+  const { changeToken, next } = req.body || {};
+  let p = null; try { p = jwt.verify(String(changeToken || ""), SECRET); } catch (e) {}
+  const user = p && p.purpose === "pwchange" && db.users.find(u => u.id === p.id);
+  const otpHash = user && (p.via === "reset" ? user.resetPassword : (user.mustChangePassword ? user.password : null));
+  if (!user || !otpHash) return res.status(401).json({ error: "Étape expirée - reconnectez-vous avec votre mot de passe temporaire." });
+  const err = passwordPolicy(next);
+  if (err) return res.status(400).json({ error: err });
+  if (verifyPw(next, otpHash)) return res.status(400).json({ error: "Le nouveau mot de passe doit être différent du mot de passe temporaire." });
+  user.password = hash(next); clearOneTime(user);
+  user.tokenVersion = (user.tokenVersion || 0) + 1;   // sessions opened with the old password are closed
+  save();
+  audit({ id: user.id, fullName: user.fullName, role: user.role, tenantId: user.tenantId || "t1" }, "CONFIG_CHANGED", "User", user.id, { password: "changed", from: p.via === "reset" ? "reset" : "one-time password" });
   res.json({ ok: true });
 }
 
@@ -312,9 +358,9 @@ function forgotPassword(req, res) {
   const user = db.users.find(u => (u.email || "").toLowerCase() === email);
   if (!user || user.active === false) return res.json(generic);
   const tmp = "Cible" + crypto.randomBytes(4).toString("hex") + "!A";
-  user.password = hash(tmp); user.failedLogins = 0; user.lockedUntil = null;
-  user.tempPasswordExpires = new Date(Date.now() + 30 * 60 * 1000).toISOString(); save();
-  try { mailer.trySend(user.email, "Réinitialisation de votre mot de passe", `Bonjour ${user.fullName},\n\nVotre mot de passe temporaire est : ${tmp}\n\nCe mot de passe expire dans 30 minutes. Connectez-vous puis changez-le dans « Mon compte » immédiatement.`, user); } catch (e) {}
+  user.resetPassword = hash(tmp);
+  user.resetExpires = new Date(Date.now() + RESET_MINUTES * 60 * 1000).toISOString(); save();
+  try { mailer.trySend(user.email, "Réinitialisation de votre mot de passe", `Bonjour ${user.fullName},\n\nVotre mot de passe temporaire est : ${tmp}\n\nIl expire dans ${RESET_MINUTES} minutes et ne sert qu'une fois : connectez-vous avec, l'application vous demandera aussitôt de choisir votre nouveau mot de passe.\n\nSi vous n'avez rien demandé, ignorez ce message : votre mot de passe actuel reste valable.`, user); } catch (e) {}
   return res.json(generic);
 }
 
@@ -330,4 +376,4 @@ function totpDisable(req, res) {
 }
 
 module.exports = { login, logout, authenticate, verifyToken, hash, verifyPw, me, passwordPolicy, isRecentlyActive, markOffline, newConfirmToken, confirmAccount,
-  totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, policy, twoFaRequiredFor, clientIp, parseUA, SECRET };
+  totpSetup, totpConfirm, totpDisable, changePassword, forgotPassword, firstPasswordChange, issueOneTimePassword, policy, twoFaRequiredFor, clientIp, parseUA, SECRET };

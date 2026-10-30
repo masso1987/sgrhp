@@ -3,7 +3,7 @@ const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
 const { mine, stamp } = require("../store");
 const { audit } = require("../audit");
-const { hash, passwordPolicy } = require("../auth");
+const { passwordPolicy, issueOneTimePassword } = require("../auth");
 
 // A tenant admin never sees the platform super-administrator.
 router.get("/", allow("ADM"), (req, res) =>
@@ -34,7 +34,8 @@ router.post("/", allow("ADM"), (req, res) => {
   if (pwErr) return res.status(400).json({ error: pwErr });
   const mailer = require("../mailer");
   const smtpOn = !!(mailer.cfg(req) || {}).enabled;
-  const u = stamp({ id: id("usr"), email, fullName, role, portfolioIds, password: hash(password), active: true, confirmed: true }, req);
+  const u = stamp({ id: id("usr"), email, fullName, role, portfolioIds, active: true, confirmed: true }, req);
+  issueOneTimePassword(u, password);   // chosen by the administrator: the user replaces it at first login
   if (role === "RQ") _grantModuleIfTenant(u, "quality");
   if (role === "RC") _grantModuleIfTenant(u, "accounting");
   if (role === "RS") _grantModuleIfTenant(u, "stock");
@@ -126,8 +127,8 @@ router.put("/:id/smq", allow("ADM", "SADM"), (req, res) => {
 router.post("/:id/reset", allow("ADM", "SADM"), (req, res) => {
   const u = targetUser(req, req.params.id);
   if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
-  const tmp = "Cible" + Math.random().toString(36).slice(2, 7) + new Date().getFullYear() + "!";
-  u.password = hash(tmp); u.failedLogins = 0; u.lockedUntil = null; save();
+  const tmp = "Cible" + require("crypto").randomBytes(4).toString("hex") + new Date().getFullYear() + "!";
+  issueOneTimePassword(u, tmp); save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true });
   res.json({ ok: true, tempPassword: tmp });
 });

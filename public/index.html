@@ -299,6 +299,16 @@ tbody tr:hover>td{background:var(--nav-active-bg)}
   <div class="err hidden" id="lErr"></div>
   <button class="btn p" style="width:100%" onclick="doLogin()">Se connecter</button>
 
+  <div id="lNewPw" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+    <b style="font-size:13px">Choisissez votre nouveau mot de passe</b>
+    <p style="font-size:12px;color:var(--muted);margin:6px 0">Vous vous êtes connecté avec un mot de passe temporaire, valable une seule fois.
+      Choisissez maintenant votre propre mot de passe : 8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un caractère spécial.</p>
+    <label>Nouveau mot de passe</label><input id="lNew1" type="password" autocomplete="new-password">
+    <label>Confirmer le nouveau mot de passe</label><input id="lNew2" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')saveFirstPassword()">
+    <div class="err hidden" id="lNewErr"></div>
+    <button class="btn p" style="width:100%;margin-top:8px" onclick="saveFirstPassword()">Enregistrer et se connecter</button>
+  </div>
+
   <div id="lSetup" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
     <b style="font-size:13px">Configuration de la double authentification</b>
     <p style="font-size:12px;color:var(--muted);margin:6px 0">Scannez ce QR code avec Google Authenticator, Microsoft Authenticator ou FreeOTP,
@@ -1263,7 +1273,7 @@ function sessionEnded(msg) {
 }
 
 async function doLogin() {
-  lErr.classList.add("hidden");
+  lErr.classList.add("hidden", "err"); lErr.style.color = "";   // « Mot de passe oublié » restyles it as a notice
   try {
     const body = { email: lEmail.value.trim(), password: lPass.value };
     if (!lTotpWrap.classList.contains("hidden") && lTotp.value) body.totp = lTotp.value.trim();
@@ -1271,6 +1281,12 @@ async function doLogin() {
       body: JSON.stringify(body) });
     const j = await r.json();
 
+    if (r.status === 403 && j.passwordChangeRequired) {                   // one-time password: choose a new one first
+      _pwChangeToken = j.changeToken;
+      lNewPw.classList.remove("hidden"); lNewErr.classList.add("hidden");
+      lNew1.focus();
+      return;
+    }
     if (r.status === 428 && j.setupRequired) return start2faEnrolment();   // 2FA mandatory, not yet configured
     if (r.status === 401 && j.totpRequired) {                             // ask for the code
       lTotpWrap.classList.remove("hidden");
@@ -1288,6 +1304,22 @@ async function doLogin() {
     armIdle(j.idleMinutes || 30);
     boot();
   } catch (e) { lErr.textContent = e.message; lErr.classList.remove("hidden"); }
+}
+
+/** Login step after a one-time password: save the user's own password, then log in with it. */
+let _pwChangeToken = null;
+async function saveFirstPassword() {
+  lNewErr.classList.add("hidden");
+  try {
+    if (lNew1.value !== lNew2.value) throw new Error(t("Les deux mots de passe ne correspondent pas."));
+    const r = await fetch("/api/password/first-change", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ changeToken: _pwChangeToken, next: lNew1.value }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    lPass.value = lNew1.value; lNew1.value = ""; lNew2.value = ""; _pwChangeToken = null;
+    lNewPw.classList.add("hidden");
+    doLogin();                     // continues with 2FA if the account needs it
+  } catch (e) { lNewErr.textContent = e.message; lNewErr.classList.remove("hidden"); }
 }
 
 /** First-time enrolment straight from the login screen. */
@@ -2387,7 +2419,7 @@ async function smqMgrToggle(uid,name,on){
 async function resetUserPw(uid,name){
   if(!await mmConfirm({message:"Réinitialiser le mot de passe de "+name+" ?\nUn mot de passe temporaire sera généré.",danger:true}))return;
   try{ const r=await api("/users/"+uid+"/reset",{method:"POST",body:JSON.stringify({})});
-    prompt("Mot de passe temporaire pour "+name+" (à communiquer et à changer à la première connexion) :", r.tempPassword); }
+    prompt("Mot de passe temporaire pour "+name+" (à communiquer ; valable 24 h, à remplacer à la première connexion) :", r.tempPassword); }
   catch(e){ alert(e.message); }
 }
 async function pfModal(uid) {
@@ -5834,7 +5866,7 @@ async function saCreate(){
   const body={ fullName:g("saName").value.trim(), email:g("saEmail").value.trim(), password:g("saPw").value };
   if(!body.password) delete body.password;
   try{ const r=await api("/tenants/superadmins",{method:"POST",body:JSON.stringify(body)});
-    alert("Super-admin créé : "+r.email+(r.tempPassword?("\\nMot de passe temporaire : "+r.tempPassword+"\\nÀ communiquer puis à changer à la 1re connexion."):""));
+    alert("Super-admin créé : "+r.email+(r.tempPassword?("\\nMot de passe temporaire : "+r.tempPassword+"\\nÀ communiquer : valable 24 h, à remplacer à la première connexion."):""));
     superadminsView(); }
   catch(e){ const el=g("saErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
@@ -5850,7 +5882,7 @@ async function saPromote(){
 async function saReset(uid,name){
   if(!await mmConfirm({message:"Réinitialiser le mot de passe de "+name+" ?",danger:true}))return;
   try{ const r=await api("/tenants/superadmins/"+uid+"/reset",{method:"POST"});
-    alert("Nouveau mot de passe temporaire pour "+name+" :\\n"+r.tempPassword); }
+    alert("Nouveau mot de passe temporaire pour "+name+" :\\n"+r.tempPassword+"\\nValable 24 h, à remplacer à la première connexion."); }
   catch(e){ alert(e.message); }
 }
 async function saToggle(uid,active){
@@ -6102,7 +6134,7 @@ async function tenantDemoCreate(){
       <div style="font-size:13px;line-height:1.6">Entreprise : <b>${esc(r.tenant.name)}</b><br>Tous les modules actives - ${r.employees} salaries fictifs<br>Expire le : <b>${new Date(r.expiresAt).toLocaleDateString("fr-FR")}</b></div>
       <div style="margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2)">
         <b style="font-size:12px;color:var(--muted)">IDENTIFIANTS DE CONNEXION</b><br>
-        Email : <code>${esc(r.admin.email)}</code><br>Mot de passe : <code>${esc(r.admin.tempPassword)}</code>
+        Email : <code>${esc(r.admin.email)}</code><br>Mot de passe : <code>${esc(r.admin.tempPassword)}</code><br><small>Valable 24 h, à remplacer à la première connexion.</small>
         <div class="note" style="font-size:11px;margin-top:6px">Notez ces identifiants : le mot de passe n'est affiche qu'une seule fois. Les donnees creees dans ce compte seront effacees a l'expiration.</div>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn p sm" onclick="this.closest('.modal-bg').remove()">J'ai note</button></div></div>`;
@@ -6279,7 +6311,7 @@ async function tenantAddUser(tid, name) {
   const body={email:nuEmail.value.trim(),fullName:nuName.value.trim(),role:nuRole.value};
   if(nuPass.value) body.password=nuPass.value;
   try { const r = await api("/tenants/"+tid+"/users",{method:"POST",body:JSON.stringify(body)});
-    if(r.tempPassword) prompt(t("Utilisateur créé.")+" "+t("Mot de passe temporaire :"), r.tempPassword);
+    if(r.tempPassword) prompt(t("Utilisateur créé.")+" "+t("Mot de passe temporaire :")+" ("+t("valable 24 h, à remplacer à la première connexion")+")", r.tempPassword);
     else alert(t("Utilisateur créé."));
     document.querySelector(".modal-bg").remove(); tenantUsers(tid,name);
   } catch(e){ nuErr.textContent=e.message; nuErr.classList.remove("hidden"); }
@@ -6287,7 +6319,7 @@ async function tenantAddUser(tid, name) {
 async function tenantReset(tid, uid) {
   if(!await mmConfirm({message:t("Réinitialiser le mot de passe de cet utilisateur ?"),danger:true}))return;
   try { const r = await api(`/tenants/${tid}/users/${uid}/reset`,{method:"POST",body:JSON.stringify({})});
-    alert(t("Nouveau mot de passe temporaire :")+" "+r.tempPassword); } catch(e){ alert(e.message); }
+    alert(t("Nouveau mot de passe temporaire :")+" "+r.tempPassword+"\n"+t("Valable 24 h, à remplacer à la première connexion.")); } catch(e){ alert(e.message); }
 }
 function tenPickLogo(inp){const f=inp.files[0];if(!f)return;if(f.size>200000)return alert("Logo trop volumineux (max ~200 Ko)");
   const rd=new FileReader();rd.onload=()=>{window._tenLogo=rd.result;tLogoPrev.src=rd.result;tLogoPrev.style.display="inline-block";};rd.readAsDataURL(f);}
@@ -6308,7 +6340,7 @@ async function tenantSave(id){
       await api("/tenants/"+id+"/modules",{method:"PUT",body:JSON.stringify({modules:body.modules})});
       if(_featBoxes.length) await api("/tenants/"+id+"/features",{method:"PUT",body:JSON.stringify({disabledFeatures})});}
     else { const r=await api("/tenants",{method:"POST",body:JSON.stringify(body)});
-      if(r.admin&&r.admin.tempPassword) prompt(t("Entreprise créée. Administrateur :")+` ${r.admin.email} - ${t("mot de passe temporaire")} :`, r.admin.tempPassword);
+      if(r.admin&&r.admin.tempPassword) prompt(t("Entreprise créée. Administrateur :")+` ${r.admin.email} - ${t("mot de passe temporaire")} (${t("valable 24 h, à remplacer à la première connexion")}) :`, r.admin.tempPassword);
       else if(r.admin) alert(t("Entreprise créée. Administrateur :")+` ${r.admin.email}`);
       else alert(t("Entreprise enregistrée.")); tenantsView(); return; }
     alert(t("Entreprise enregistrée."));tenantsView();

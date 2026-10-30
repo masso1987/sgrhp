@@ -11,11 +11,11 @@ const router = require("express").Router();
 const { db, save, id } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
-const { hash, passwordPolicy, isRecentlyActive, markOffline } = require("../auth");
+const { hash, passwordPolicy, isRecentlyActive, markOffline, issueOneTimePassword } = require("../auth");
 
 /* Temporary password that always satisfies passwordPolicy (upper/lower/digit/special). */
 function tempPassword(prefix = "Bienvenue") {
-  return prefix + require("crypto").randomInt(1000, 10000) + "!" + new Date().getFullYear();
+  return prefix + require("crypto").randomBytes(4).toString("hex") + "!" + new Date().getFullYear();
 }
 const normEmail = (e) => String(e || "").trim().toLowerCase();
 const emailTaken = (e) => db.users.some(u => normEmail(u.email) === normEmail(e));
@@ -319,9 +319,9 @@ router.post("/", allow("SADM"), (req, res) => {
   let adminInfo = null;
   if (wantAdmin) {
     const u = { id: id("usr"), tenantId: t.id, email: normEmail(b.adminEmail), fullName: String(b.adminName).trim(),
-      role: "ADM", portfolioIds: [], password: hash(adminPw), active: true, confirmed: true,
+      role: "ADM", portfolioIds: [], active: true, confirmed: true,
       createdAt: new Date().toISOString() };
-    db.users.push(u);
+    issueOneTimePassword(u, adminPw); db.users.push(u);
     adminInfo = { email: u.email, tempPassword: b.adminPassword ? undefined : adminPw };
   }
   save();
@@ -414,7 +414,8 @@ router.post("/:id/users", allow("SADM"), (req, res) => {
   const pwErr = passwordPolicy(pw);
   if (pwErr) return res.status(400).json({ error: pwErr });
   const u = { id: id("usr"), tenantId: t.id, email, fullName, role, portfolioIds: [],
-    password: hash(pw), active: true, confirmed: true, createdAt: new Date().toISOString() };
+    password: null, active: true, confirmed: true, createdAt: new Date().toISOString() };
+  issueOneTimePassword(u, pw);
   const mod = ROLE_MODULE[role];
   if (mod && (t.modules || []).includes(mod)) u.modules = [mod];
   db.users.push(u); save();
@@ -430,7 +431,7 @@ router.post("/:id/users/:uid/reset", allow("SADM"), (req, res) => {
   const u = db.users.find(x => x.id === req.params.uid && (x.tenantId || "t1") === (t && t.id));
   if (!t || !u) return res.status(404).json({ error: "Utilisateur introuvable" });
   const pw = tempPassword("Reinit");
-  u.password = hash(pw); u.failedLogins = 0; u.lockedUntil = null; save();
+  issueOneTimePassword(u, pw); save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true, tenant: t.id });
   res.json({ tempPassword: pw });
 });
@@ -578,7 +579,8 @@ router.post("/superadmins", allow("SADM"), (req, res) => {
   const pwErr = passwordPolicy(pw);
   if (pwErr) return res.status(400).json({ error: pwErr });
   const u = { id: id("usr"), email, fullName, role: "SADM", tenantId: "platform",
-    portfolioIds: [], password: hash(pw), active: true, createdAt: new Date().toISOString() };
+    portfolioIds: [], password: null, active: true, createdAt: new Date().toISOString() };
+  issueOneTimePassword(u, pw);
   db.users.push(u); save();
   audit(req.user, "CREATED", "User", u.id, { role: "SADM", platform: true });
   res.status(201).json({ id: u.id, email: u.email, fullName: u.fullName, tempPassword: password ? undefined : pw });
@@ -596,7 +598,7 @@ router.post("/superadmins/:uid/reset", allow("SADM"), (req, res) => {
   const u = db.users.find(x => x.id === req.params.uid && x.role === "SADM");
   if (!u) return res.status(404).json({ error: "Super-admin introuvable" });
   const pw = tempPassword("Reinit");
-  u.password = hash(pw); u.failedLogins = 0; u.lockedUntil = null; save();
+  issueOneTimePassword(u, pw); save();
   audit(req.user, "CONFIG_CHANGED", "User", u.id, { passwordReset: true, platform: true });
   res.json({ tempPassword: pw });
 });

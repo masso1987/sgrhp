@@ -65,6 +65,7 @@ app.use(require("./routes/download"));
 
 app.post("/api/login", loginLimiter, login);
 app.post("/api/forgot-password", loginLimiter, require("./auth").forgotPassword);
+app.post("/api/password/first-change", loginLimiter, require("./auth").firstPasswordChange);
 app.post("/api/2fa/setup", loginLimiter, require("./auth").totpSetup);
 app.post("/api/2fa/confirm", loginLimiter, require("./auth").totpConfirm);
 
