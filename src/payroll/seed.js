@@ -21,7 +21,7 @@ function seedPayroll(tid) {
   if (!has("payRubriques")) {
     for (const r of CATALOGUE)
       db.payRubriques.push({
-        id: id("rub"), tenantId: tid, code: r.code, label: r.label, family: r.family,
+        id: id("rub"), tenantId: tid, code: r.code, label: String(r.label).toUpperCase(), family: r.family,
         formula: r.formula, base: r.base || null, nombre: r.nombre || null,
         taux: r.taux != null ? r.taux : null, tauxPat: r.tauxPat != null ? r.tauxPat : null,
         cnps: !!r.cnps, impo: !!r.impo, sens: r.sens || "GAIN",

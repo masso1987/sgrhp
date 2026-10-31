@@ -397,6 +397,12 @@ function _buildPayrollPassation(req, run, allowSuspense) {
   const etatPat = _mapAcc(map, "_ETAT_PAT", "447100");
   const attente = _mapAcc(map, "_ATTENTE", "471000");
   const isMapped = (code) => map.some(x => String(x.code) === String(code) && x.account);
+  // Rubriques renumérotées par la société : un ancien code (bulletin clôturé avant le changement) ou
+  // une clé interne est ramené au code affiché actuel, celui du plan de correspondance.
+  const _rubs = mine(db.payRubriques, req);
+  const curCode = (c) => { c = String(c); if (_rubs.some(r => String(r.code) === c)) return c;
+    const r = _rubs.find(r => String(r.baseCode || r.code) === c || (r.previousCodes || []).map(String).includes(c)); return r ? String(r.code) : c; };
+  const keyOf = (c) => { const r = _rubs.find(r => String(r.code) === String(c)); return r ? String(r.baseCode || r.code) : String(c); };
   const D = {}, C = {}; const addD = (a, v) => { v = R2(v); if (v) D[a] = R2((D[a]||0)+v); }; const addC = (a, v) => { v = R2(v); if (v) C[a] = R2((C[a]||0)+v); };
   const unmapped = {}; let suspense = 0; const reg = { brut:0, chargesPat:0, net:0, retSal:0, autres:0 };
   const flag = (code, amt) => { unmapped[code] = R2((unmapped[code]||0) + amt); if (allowSuspense) suspense = R2(suspense + amt); };
@@ -405,13 +411,13 @@ function _buildPayrollPassation(req, run, allowSuspense) {
     reg.brut += R2(t.brutTotal); reg.chargesPat += R2(t.chargesPatronales); reg.net += R2(t.netAPayer);
     reg.retSal += R2((t.cnpsSalarie||0)+(t.totalImpots||0)); reg.autres += R2(t.autresRetenues);
     for (const l of lines) {
-      const code = l.code || "";
+      const code = l.code ? curCode(l.code) : "";
       if (l.kind === "GAIN" || l.kind === "AVANTAGE") { const m = isMapped(code); if (!m) flag(code, l.gain); addD(m ? _mapAcc(map, code, "661000") : (allowSuspense ? attente : "661000"), l.gain); continue; }
       if (l.kind === "RETENUE") { const m = isMapped(code); if (!m) flag(code, l.retenue); addC(m ? _mapAcc(map, code, "421000") : (allowSuspense ? attente : "421000"), l.retenue); continue; }
       if (R2(l.retenue)) { const m = isMapped(code); if (!m) flag(code, l.retenue); addC(m ? _mapAcc(map, code, "447100") : (allowSuspense ? attente : "447100"), l.retenue); }
       if (R2(l.employer)) {
         const own = _mapAcc(map, code, ""); const ownIsDebt = /^(43|44)/.test(own); let chargeAcc, debtAcc;
-        if (ownIsDebt) { const PAT_OF = { "5000":"5200","5050":"5060" }; chargeAcc = _mapAcc(map, PAT_OF[code] || String(Number(code)+200), ""); if (!chargeAcc || /^(43|44)/.test(chargeAcc)) chargeAcc = own.startsWith("43") ? "664100" : "641100"; debtAcc = own; }
+        if (ownIsDebt) { const PAT_OF = { "5000":"5200","5050":"5060" }; const _pk = PAT_OF[String(l.key || keyOf(code))]; chargeAcc = _mapAcc(map, _pk ? curCode(_pk) : String(Number(code)+200), ""); if (!chargeAcc || /^(43|44)/.test(chargeAcc)) chargeAcc = own.startsWith("43") ? "664100" : "641100"; debtAcc = own; }
         else { chargeAcc = own || "664100"; debtAcc = /^664/.test(chargeAcc) ? cnpsPat : etatPat; }
         addD(chargeAcc, l.employer); addC(debtAcc, l.employer);
       }

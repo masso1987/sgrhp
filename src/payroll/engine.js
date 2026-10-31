@@ -163,6 +163,8 @@ function computePayslip(input, configOverride) {
   } = input || {};
   const hourlyRate = input.hourlyRate || (baseSalary / cfg.standardMonthlyHours);
   const lines = [];
+  // Codes produits par le moteur : clé interne fixe (`key`) + code affiché propre à la société (cfg.codeMap).
+  const K = (internal) => ({ key: internal, code: (cfg.codeMap && cfg.codeMap[internal]) || internal });
   const add = (o) => { lines.push(o); return o; };
 
   /* 1) GAINS */
@@ -170,15 +172,15 @@ function computePayslip(input, configOverride) {
   const dailyRate = standardDays ? baseSalary / standardDays : baseSalary;
   const PRORATA = (standardDays && workedDays < standardDays) ? workedDays / standardDays : 1;
   const r3 = (x) => Math.round(x * 1000) / 1000;
-  add({ code: "1000", label: "Salaire de base", kind: "GAIN", nombre: workedDays, base: Math.round(dailyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
+  add({ ...K("1000"), label: "Salaire de base", kind: "GAIN", nombre: workedDays, base: Math.round(dailyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
   const senR = seniorityRate(seniorityYears, cfg);
   // Prime d'ancienneté = taux × salaire minimum de la catégorie (1er échelon / échelon A), et non le salaire de l'échelon courant (Arrêté n°019 MTPS 1993).
   const _anBase = (input.ancienneteBase != null && Number(input.ancienneteBase) > 0) ? Number(input.ancienneteBase) : baseSalary;
-  if (senR > 0) add({ code: "1040", label: "Prime d'ancienneté", kind: "GAIN", base: _anBase, rate: senR, gain: r0(_anBase * senR), cnps: true, impo: true });
+  if (senR > 0) add({ ...K("1040"), label: "Prime d'ancienneté", kind: "GAIN", base: _anBase, rate: senR, gain: r0(_anBase * senR), cnps: true, impo: true });
   const ot = overtime || {};
   // Codes Sage (vérifiés sur bulletins réels) : +20%=1083, +30%=1088, +40%=1092, +50%=1096, +100%=2000.
   // Le libellé et le taux affiché suivent le taux réel configuré (ex. SIC CACAO : +25% -> "125%").
-  const otL = (h, rate, code) => { if (h) { const mult = 1 + rate; add({ code, label: "Heures supp. " + Math.round(mult * 100) + "%", kind: "GAIN", nombre: h, base: Math.round(hourlyRate * 100) / 100, rate: mult, taux: Math.round(mult * 100), gain: r0(h * hourlyRate * mult), hours: h, cnps: true, impo: true }); } };
+  const otL = (h, rate, code) => { if (h) { const mult = 1 + rate; add({ ...K(code), label: "Heures supp. " + Math.round(mult * 100) + "%", kind: "GAIN", nombre: h, base: Math.round(hourlyRate * 100) / 100, rate: mult, taux: Math.round(mult * 100), gain: r0(h * hourlyRate * mult), hours: h, cnps: true, impo: true }); } };
   const _otc = cfg.overtime || {};
   otL(ot.tier1, _otc.tier1Rate != null ? _otc.tier1Rate : 0.20, "1083");
   otL(ot.tier2, _otc.tier2Rate != null ? _otc.tier2Rate : 0.30, "1088");
@@ -189,13 +191,13 @@ function computePayslip(input, configOverride) {
   // mensuel plein — comme avant. Le montant (gain) reste inchangé = Base × ratio.
   for (const g of gains) if (g && g.amount) {
     const doPr = !!(g.prorate && PRORATA < 1); const pr = doPr ? PRORATA : 1;
-    add({ code: g.code || "2000", label: g.label || "Prime", kind: "GAIN",
+    add({ ...(g.code ? { code: g.code } : K("2000")), label: g.label || "Prime", kind: "GAIN",
       nombre: doPr ? r3(pr) : 1, base: g.amount, rate: 1,
       gain: r0(g.amount * pr), cnps: g.cnps !== false, impo: g.impo !== false });
   }
   for (const n of nonTaxable) if (n && n.amount) {
     const doPr = !!(n.prorate && PRORATA < 1); const pr = doPr ? PRORATA : 1;
-    add({ code: n.code || "3000", label: n.label || "Indemnité", kind: "GAIN",
+    add({ ...(n.code ? { code: n.code } : K("3000")), label: n.label || "Indemnité", kind: "GAIN",
       nombre: doPr ? r3(pr) : 1, base: n.amount, rate: 1,
       gain: r0(n.amount * pr), cnps: false, impo: false });
   }
@@ -207,7 +209,7 @@ function computePayslip(input, configOverride) {
     const pr = (transport.prorate && PRORATA < 1) ? PRORATA : 1;
     const amt = r0(fullAmt * pr);
     transportTaxable = Math.max(0, amt - (cfg.transportExemptionCap || 0));
-    const _tpr = (transport.prorate && PRORATA < 1); add({ code: transport.code || "3513", label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: _tpr ? r3(pr) : 1, base: fullAmt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
+    const _tpr = (transport.prorate && PRORATA < 1); add({ ...(transport.code ? { code: transport.code } : K("3513")), label: transport.label || "Indemnité de transport", kind: "GAIN", nombre: _tpr ? r3(pr) : 1, base: fullAmt, rate: 1, gain: amt, cnps: false, impo: false, _transportTaxable: transportTaxable });
   }
 
   // ===== Fractions imposable / cotisable PAR RUBRIQUE (avantages) =====
@@ -255,9 +257,9 @@ function computePayslip(input, configOverride) {
   /* 3) COTISATIONS CNPS */
   const pvidE = r0(cnpsBase * cfg.cnps.pvidEmployee), pvidP = r0(cnpsBase * cfg.cnps.pvidEmployer);
   const pfP = r0(cnpsBase * cfg.cnps.familyEmployer), rpP = r0(atBase * cfg.cnps.workAccidentEmployer);
-  add({ code: "5000", label: "CNPS Pension (PVID)", kind: "COTIS", base: cnpsBase, rate: cfg.cnps.pvidEmployee, retenue: pvidE, employerRate: cfg.cnps.pvidEmployer, employer: pvidP });
-  add({ code: "5010", label: "CNPS Prestations familiales", kind: "COTIS", base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.familyEmployer, employer: pfP });
-  add({ code: "5020", label: "CNPS Accident de travail", kind: "COTIS", base: atBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
+  add({ ...K("5000"), label: "CNPS Pension (PVID)", kind: "COTIS", base: cnpsBase, rate: cfg.cnps.pvidEmployee, retenue: pvidE, employerRate: cfg.cnps.pvidEmployer, employer: pvidP });
+  add({ ...K("5010"), label: "CNPS Prestations familiales", kind: "COTIS", base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.familyEmployer, employer: pfP });
+  add({ ...K("5020"), label: "CNPS Accident de travail", kind: "COTIS", base: atBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
 
   /* 4) IMPÔTS */
   const sni = Math.max(0, NETIMPO_EFF * cfg.irpp.fraisProRate
@@ -269,14 +271,14 @@ function computePayslip(input, configOverride) {
   const ravBase = input.ravBase != null ? input.ravBase : BRUT;      // ^^CRTV keyed on BRUT
   const tdlBase = input.tdlBase != null ? input.tdlBase : baseSalary; // ^^TAXCOM keyed on SALBASE
   const rav = bracketAmount(cfg.rav, ravBase), tdl = bracketAmount(cfg.tdl, tdlBase);
-  add({ code: "5025", label: "IRPP", kind: "IMPOT", base: null, rate: 0, retenue: irpp }); // IRPP = bareme par tranche : base et taux non affiches (comme Sage)
-  add({ code: "5045", label: "CAC (10% IRPP)", kind: "IMPOT", base: irpp, rate: cfg.irpp.cacRate, retenue: cac });
-  add({ code: "5050", label: "Crédit Foncier (CFC)", kind: "IMPOT", base: BASECF, rate: cfg.cfc.employee, retenue: cfcE, employerRate: cfg.cfc.employer, employer: cfcP });
-  add({ code: "5070", label: "FNE", kind: "IMPOT", base: BRUT, rate: 0, retenue: 0, employerRate: cfg.fne.employer, employer: fneP });
-  add({ code: "5080", label: "Redevance audiovisuelle (RAV)", kind: "IMPOT", base: ravBase, rate: 0, retenue: rav });
-  add({ code: "5090", label: "Taxe communale (TDL)", kind: "IMPOT", base: tdlBase, rate: 0, retenue: tdl });
+  add({ ...K("5025"), label: "IRPP", kind: "IMPOT", base: null, rate: 0, retenue: irpp }); // IRPP = bareme par tranche : base et taux non affiches (comme Sage)
+  add({ ...K("5045"), label: "CAC (10% IRPP)", kind: "IMPOT", base: irpp, rate: cfg.irpp.cacRate, retenue: cac });
+  add({ ...K("5050"), label: "Crédit Foncier (CFC)", kind: "IMPOT", base: BASECF, rate: cfg.cfc.employee, retenue: cfcE, employerRate: cfg.cfc.employer, employer: cfcP });
+  add({ ...K("5070"), label: "FNE", kind: "IMPOT", base: BRUT, rate: 0, retenue: 0, employerRate: cfg.fne.employer, employer: fneP });
+  add({ ...K("5080"), label: "Redevance audiovisuelle (RAV)", kind: "IMPOT", base: ravBase, rate: 0, retenue: rav });
+  add({ ...K("5090"), label: "Taxe communale (TDL)", kind: "IMPOT", base: tdlBase, rate: 0, retenue: tdl });
 
-  for (const d of otherDeductions) if (d && d.amount) add({ code: d.code || "7000", label: d.label || "Retenue", kind: "RETENUE", base: d.amount, rate: 1, retenue: r0(d.amount) });
+  for (const d of otherDeductions) if (d && d.amount) add({ ...(d.code ? { code: d.code } : K("7000")), label: d.label || "Retenue", kind: "RETENUE", base: d.amount, rate: 1, retenue: r0(d.amount) });
 
   /* 5) TOTAUX */
   const totalImpots = irpp + cac + cfcE + rav + tdl;

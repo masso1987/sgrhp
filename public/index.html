@@ -8037,7 +8037,7 @@ function payslipRenderTotals(edit, s) {
   let t = s.result.totals;
   if (edit) {  // live preview from PAYSLIP_EDIT
     const G = PAYSLIP_EDIT.filter(l =>l.kind === "GAIN");
-    const ret = c => (PAYSLIP_EDIT.find(l =>l.code === c) || {}).retenue || 0;
+    const ret = c => (PAYSLIP_EDIT.find(l =>String(l.key || l.code) === c) || {}).retenue || 0; // par clé interne (code affiché propre à la société)
     const brut = G.reduce((a, l) =>a + (Number(l.gain) || 0), 0);
     const cnps = ret("5000"), imp = ret("5025") + ret("5045") + ret("5050") + ret("5080") + ret("5090");
     const totRet = PAYSLIP_EDIT.reduce((a, l) =>a + (Number(l.retenue) || 0), 0);
@@ -8697,8 +8697,8 @@ function rubModal(r) {
 
     <div class="rmPane" data-rp="gen">
       <div class="grid2">
-        <div><label>Code ${(isEdit && !r.system && !r.inUse) ? '<span class="note-inline">(modifiable)</span>' : ""}</label><input id="rmCode" value="${esc(r.code || "")}" ${(isEdit && (r.system || r.inUse)) ? "disabled" : ""}></div>
-        <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}"></div>
+        <div><label>Code ${isEdit ? '<span class="note-inline">(propre à votre société' + (r.baseCode && String(r.baseCode) !== String(r.code) ? ' · code d\'origine ' + esc(String(r.baseCode)) : '') + ')</span>' : ""}</label><input id="rmCode" value="${esc(r.code || "")}" maxlength="10" style="text-transform:uppercase"></div>
+        <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}" style="text-transform:uppercase"></div>
         <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
         <div><label>Sens</label><select id="rmSens">${opt("GAIN", r.sens)}${opt("RETENUE", r.sens)}${opt("PATRONAL", r.sens)}</select></div>
         <div style="display:flex;gap:14px;align-items:end;padding-bottom:6px">
@@ -8796,7 +8796,7 @@ function rmCstHint(inp, hintId) {
   h.innerHTML = c ? `→ <b>${esc(c.label)}</b> · ${esc(c.type)}${c.valeur != null ? ` · valeur ${c.valeur}` : ""}` : "";
 }
 async function rubSave(id, needForce) {
-  const body = { code: rmCode.value.trim(), label: rmLabel.value.trim(), family: rmFamily.value,
+  const body = { code: rmCode.value.trim().toUpperCase(), label: rmLabel.value.trim().toUpperCase(), family: rmFamily.value,
     formula: rmFormula.value, base: rmBase.value.trim(), nombre: rmNombre.value.trim(), taux: rmTaux.value, sens: rmSens.value,
     cnps: rmCnps.checked, impo: rmImpo.checked, prorata: (document.getElementById("rmProrata") ? document.getElementById("rmProrata").checked : true) };
   if (needForce) { if (!document.getElementById("rmForce").checked) { rmErr.textContent = "Cochez la confirmation pour modifier une rubrique utilisée."; rmErr.classList.remove("hidden"); return; } body.force = true; }
@@ -8808,6 +8808,8 @@ async function rubSave(id, needForce) {
     // Synchronise le compte comptable (dans les deux sens via /accounting/rubrique-map)
     if (compte !== undefined && (saved && saved.id)) { try { await api("/payroll/rubriques/" + saved.id + "/compte", { method: "PUT", body: JSON.stringify({ account: (compte || "").trim() }) }); } catch (_) {} }
     document.querySelector(".modal-bg").remove();
+    const rn = saved && saved.renumber;
+    if (rn) alert("Code changé pour votre société uniquement. Mis à jour : " + rn.elements + " élément(s) de salaire, " + rn.variables + " élément(s) variable(s), " + rn.bordereaux + " bordereau(x), " + rn.bulletins + " bulletin(s) de période ouverte, " + rn.comptes + " correspondance(s) comptable(s). Les bulletins clôturés gardent l'ancien code.");
     const rc = saved && saved.recompute;
     if (rc && (rc.recomputed || rc.skippedEdited || rc.closed)) {
       let msg = rc.recomputed + " bulletin(s) recalculé(s) avec la modification.";

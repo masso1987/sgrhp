@@ -65,6 +65,20 @@ function sendCSV(res, name, rows) {
   res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
   res.send(toCSV(rows));
 }
+// Numérotation des rubriques PAR SOCIÉTÉ : chaque rubrique garde une clé interne fixe (baseCode,
+// = son code d'origine) et un code affiché (code) que la société peut changer sans toucher les autres.
+const rubKey = (r) => String(r.baseCode || r.code);
+function codeMapOf(req) { const m = {}; for (const r of mine(db.payRubriques, req)) { const k = rubKey(r); if (k !== String(r.code)) m[k] = String(r.code); } return m; }
+function keyMapOf(req) { const m = {}; for (const r of mine(db.payRubriques, req)) { const k = rubKey(r); if (k !== String(r.code)) m[String(r.code)] = k; } return m; }
+const C = (req, internal) => (req ? codeMapOf(req)[internal] : null) || internal;  // clé interne -> code affiché
+const keyOfCode = (req, code) => code == null ? code : ((req ? keyMapOf(req)[String(code)] : null) || String(code)); // code affiché -> clé interne
+const lineKey = (l) => String(l.key || l.code);
+// Complète chaque ligne d'un bulletin : key = clé interne, code = code affiché de la société.
+function applyCodeMap(lines, req) {
+  const fwd = codeMapOf(req), rev = keyMapOf(req);
+  for (const l of lines || []) { if (l.key) continue; const c = String(l.code); if (rev[c]) l.key = rev[c]; else { l.key = c; if (fwd[c]) l.code = fwd[c]; } }
+  return lines;
+}
 function canRunPayroll(req) { return hasPayPerm(req, "payroll.run"); }
 function hasPayPerm(req, perm) {
   if (req.user.role === "ADM" || req.user.role === "RP") return true;
@@ -105,7 +119,7 @@ function recomputePayslip(s, req) {
   const irpp = r0(progressive(sni, cfg.irpp.brackets));
   const cac = r0(irpp * cfg.irpp.cacRate);
   const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0(BRUT * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
-  const salLine = gains.find(l => String(l.code) === "1000");
+  const salLine = gains.find(l => lineKey(l) === "1000");
   const ravBase = (s.input && s.input.ravBase != null) ? s.input.ravBase : BRUT;
   // TDL (taxe communale) : assise sur le SALAIRE DE BASE MENSUEL (non proratise). Ordre de repli :
   // tdlBase fige au calcul -> salaire de base mensuel du meta -> (defaut) ligne de salaire.
@@ -116,7 +130,7 @@ function recomputePayslip(s, req) {
     : (salLine ? (salLine.gain || 0) : BRUT)));
   const rav = bracketAmount(cfg.rav, ravBase), tdl = bracketAmount(cfg.tdl, tdlBase);
   // Réécrit les lignes statutaires (créées si absentes) pour rester cohérent avec les bases corrigées.
-  const setL = (code, label, kind, patch) => { let l = L.find(x => String(x.code) === code); if (!l) { l = { code, label, kind }; const firstCot = L.findIndex(x => x.kind === "COTIS" || x.kind === "IMPOT"); if (firstCot >= 0) L.splice(firstCot, 0, l); else L.push(l); } Object.assign(l, patch); };
+  const setL = (key, label, kind, patch) => { let l = L.find(x => lineKey(x) === key); if (!l) { l = { key, code: C(req, key), label, kind }; const firstCot = L.findIndex(x => x.kind === "COTIS" || x.kind === "IMPOT"); if (firstCot >= 0) L.splice(firstCot, 0, l); else L.push(l); } Object.assign(l, patch); };
   setL("5000", "CNPS Pension (PVID)", "COTIS", { base: cnpsBase, rate: cfg.cnps.pvidEmployee, retenue: pvidE, employerRate: cfg.cnps.pvidEmployer, employer: pvidP });
   setL("5010", "CNPS Prestations familiales", "COTIS", { base: cnpsBase, rate: 0, retenue: 0, employerRate: cfg.cnps.familyEmployer, employer: pfP });
   setL("5020", "CNPS Accident de travail", "COTIS", { base: atBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
@@ -201,7 +215,7 @@ function configOf(req) {
   if (!c._salissureCnpsMigrated) {
     let changed = 0;
     for (const r of mine(db.payRubriques, req)) {
-      const isSal = r.code === "2129" || r.code === "3010" || /saliss|salubrit/i.test(r.label || "");
+      const isSal = rubKey(r) === "2129" || rubKey(r) === "3010" || /saliss|salubrit/i.test(r.label || "");
       if (isSal && r.cnps !== false) { r.cnps = false; if (r.impo == null) r.impo = true; changed++; }
     }
     c._salissureCnpsMigrated = true; if (changed) save(); else save();
@@ -211,12 +225,17 @@ function configOf(req) {
   //  - Prime/indemnité d'électricité (2134) : avantage -> HORS assiette CNPS (reste imposable).
   if (!c._rubFlagsV2Migrated) {
     for (const r of mine(db.payRubriques, req)) {
-      const isRepr = r.code === "3512" || /repr[ée]sentation/i.test(r.label || "");
+      const isRepr = rubKey(r) === "3512" || /repr[ée]sentation/i.test(r.label || "");
       if (isRepr) { r.impo = false; r.cnps = false; }
-      const isElec = r.code === "2134" || /[ée]lectricit/i.test(r.label || "");
+      const isElec = rubKey(r) === "2134" || /[ée]lectricit/i.test(r.label || "");
       if (isElec && r.cnps !== false) { r.cnps = false; if (r.impo == null) r.impo = true; }
     }
     c._rubFlagsV2Migrated = true; save();
+  }
+  // Migration : libellés de rubriques toujours en MAJUSCULES (rubriques créées avant la règle).
+  if (!c._rubLabelsUpperMigrated) {
+    for (const r of mine(db.payRubriques, req)) if (r.label != null && r.label !== String(r.label).toUpperCase()) r.label = String(r.label).toUpperCase();
+    c._rubLabelsUpperMigrated = true; save();
   }
   return c;
 }
@@ -284,19 +303,19 @@ function structureToInput(emp, req) {
   const elements = mine(db.salaryElements, req);
   const rubOf = (code) => mine(db.payRubriques, req).find(r => r.code === code);
   // Default tag -> rubrique mapping (used when an element has no explicit rubriqueCode)
-  const TAG_RUB = { salary_base: "1000", allowance_transport: "3513", allowance_housing: "3510",
-    allowance_dirt: "2129", bonus_performance: "2127" };
+  const TAG_RUB = { salary_base: C(req, "1000"), allowance_transport: C(req, "3513"), allowance_housing: C(req, "3510"),
+    allowance_dirt: C(req, "2129"), bonus_performance: C(req, "2127") };
   const salary = emp.salary || {};
   const gains = []; let baseSalary = 0, transport = null;
   for (const el of elements) {
     const amount = Number(salary[el.name]);
     if (!amount) continue;
-    const code = el.rubriqueCode || TAG_RUB[el.tag] || null; const rub = code ? rubOf(code) : null;
-    if (code === "1000" || el.tag === "salary_base" || /salaire de base/i.test(el.name || "")) { baseSalary = amount; continue; }
+    const code = el.rubriqueCode || TAG_RUB[el.tag] || null; const rub = code ? rubOf(code) : null; const key = keyOfCode(req, code);
+    if (key === "1000" || el.tag === "salary_base" || /salaire de base/i.test(el.name || "")) { baseSalary = amount; continue; }
     // La prime d'ancienneté est calculée automatiquement par le moteur (Arrêté n°019 MTPS : % du salaire minimum de la catégorie). On ignore donc toute valeur saisie manuellement (codes 1040/1055 ou libellé « ancienneté »).
-    if (code === "1040" || code === "1055" || /anciennet/i.test(el.name || "")) continue;
-    if (el.tag === "allowance_transport") { transport = { code: code || "3513", label: (rub && rub.label) || el.name, amount, prorate: rubProrates(rub) }; continue; }
-    gains.push({ code: code || "2000", label: (rub && rub.label) || el.name, amount, prorate: rubProrates(rub),
+    if (key === "1040" || key === "1055" || /anciennet/i.test(el.name || "")) continue;
+    if (el.tag === "allowance_transport") { transport = { code: code || C(req, "3513"), label: (rub && rub.label) || el.name, amount, prorate: rubProrates(rub) }; continue; }
+    gains.push({ code: code || C(req, "2000"), label: (rub && rub.label) || el.name, amount, prorate: rubProrates(rub),
       cnps: rub ? !!rub.cnps : true, impo: rub ? !!rub.impo : true });
   }
   if (!baseSalary) baseSalary = baseSalaryOf(emp, req); // fallback to the salary grid
@@ -331,18 +350,18 @@ function elementsToInput(emp, period, req, opts) {
         // Repli (famille inconnue) : non soumis seulement si ni imposable ni cotisable.
         if (_fam === "NON_SOUMISE" || (!_fam && !f.impo && !f.cnps)) nonTaxable.push({ code: e.code, label: e.label, amount: Number(e.amount), prorate: _pr });
         else gains.push({ code: e.code, label: e.label, amount: Number(e.amount), cnps: f.cnps, impo: f.impo, prorate: _pr }); break; }
-      case "ACOMPTE": otherDeductions.push({ code: e.code && String(e.code) !== "ACOMPTE" ? String(e.code) : "7000", label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
-      case "PRET": otherDeductions.push({ code: e.code && String(e.code) !== "PRET" ? String(e.code) : "7010", label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
-      case "RETENUE": otherDeductions.push({ code: e.code && String(e.code) !== "RETENUE" ? String(e.code) : "7030", label: e.label || "Retenue diverse", amount: Number(e.amount) }); break;
+      case "ACOMPTE": otherDeductions.push({ code: e.code && String(e.code) !== "ACOMPTE" ? String(e.code) : C(req, "7000"), label: e.label || "Acompte sur salaire", amount: Number(e.amount) }); break;
+      case "PRET": otherDeductions.push({ code: e.code && String(e.code) !== "PRET" ? String(e.code) : C(req, "7010"), label: e.label || "Remboursement de prêt", amount: Number(e.amount) }); break;
+      case "RETENUE": otherDeductions.push({ code: e.code && String(e.code) !== "RETENUE" ? String(e.code) : C(req, "7030"), label: e.label || "Retenue diverse", amount: Number(e.amount) }); break;
       case "HS20": overtime.tier1 += Number(e.hours || 0); break;
       case "HS30": overtime.tier2 += Number(e.hours || 0); break;
       case "HS40": overtime.tier3 += Number(e.hours || 0); break;
       case "HS100": overtime.hundred += Number(e.hours || 0); break;
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
-      case "AVANTAGE": { const f = _flags(e, true, false); const _hasAmt = e.amount != null && e.amount !== ""; avantages.push({ avId: e.avId || null, code: e.code || "4000", label: e.label || "Avantage en nature", amount: _hasAmt ? Number(e.amount) : null, type: e.avType || e.code || null, units: e.units != null ? Number(e.units) : null, cnps: f.cnps, impo: f.impo }); break; }
-      case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: "2514", label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)), prorate: rubProrates(_rubOf("2514")) }); break; }
-      case "RAPPEL": gains.push({ code: "2035", label: e.label || "Rappel de salaire", amount: Number(e.amount), prorate: rubProrates(_rubOf("2035")) }); break;
+      case "AVANTAGE": { const f = _flags(e, true, false); const _hasAmt = e.amount != null && e.amount !== ""; avantages.push({ avId: e.avId || null, code: e.code || C(req, "4000"), label: e.label || "Avantage en nature", amount: _hasAmt ? Number(e.amount) : null, type: e.avType || e.code || null, units: e.units != null ? Number(e.units) : null, cnps: f.cnps, impo: f.impo }); break; }
+      case "TREIZE": { const _senM = seniorityRate(seniorityYears(emp, period), configOf(req)); gains.push({ code: C(req, "2514"), label: e.label || "13e mois", amount: Number(e.amount) || Math.round(struct.baseSalary * (1 + _senM)), prorate: rubProrates(_rubOf(C(req, "2514"))) }); break; }
+      case "RAPPEL": gains.push({ code: C(req, "2035"), label: e.label || "Rappel de salaire", amount: Number(e.amount), prorate: rubProrates(_rubOf(C(req, "2035"))) }); break;
       default: break;
     }
   }
@@ -350,11 +369,11 @@ function elementsToInput(emp, period, req, opts) {
   for (const ln of mine(db.payLoans, req).filter(l => l.employeeId === emp.id && l.active !== false)) {
     const diff = periodDiff(ln.startPeriod, period);
     if (diff >= 0 && diff < ln.installments)
-      otherDeductions.push({ code: "7010", label: `${ln.label || "Prêt"} (${diff + 1}/${ln.installments})`, amount: Number(ln.monthlyAmount) });
+      otherDeductions.push({ code: C(req, "7010"), label: `${ln.label || "Prêt"} (${diff + 1}/${ln.installments})`, amount: Number(ln.monthlyAmount) });
   }
   // Acomptes sur salaire (registre dédié) : retenus à 100% sur le mois concerné.
   for (const ac of mine(db.payAcomptes, req).filter(a => a.employeeId === emp.id && a.period === period && a.status === "VALIDE")) {
-    if (Number(ac.amount) > 0) otherDeductions.push({ code: "7000", label: "Acompte sur salaire", amount: Number(ac.amount) });
+    if (Number(ac.amount) > 0) otherDeductions.push({ code: C(req, "7000"), label: "Acompte sur salaire", amount: Number(ac.amount) });
   }
   const cfg = configOf(req);
   const joursEl = els.find(e => e.type === "JOURS");
@@ -364,7 +383,7 @@ function elementsToInput(emp, period, req, opts) {
   // Injection ponctuelle (calcul à l'envers) : une rubrique d'ajustement en gain imposable/cotisable.
   if (opts.extraGain && Number(opts.extraGain.amount)) {
     const g = opts.extraGain;
-    gains.push({ code: g.code || "2000", label: g.label || "Ajustement", amount: Number(g.amount), cnps: g.cnps !== false, impo: g.impo !== false });
+    gains.push({ code: g.code || C(req, "2000"), label: g.label || "Ajustement", amount: Number(g.amount), cnps: g.cnps !== false, impo: g.impo !== false });
   }
   const _anBase = categorielBaseA(emp, req);
   return {
@@ -384,8 +403,10 @@ function computeFor(emp, period, req, opts) {
   seedAvantagesNature(req);
   const cfg = Object.assign({}, configOf(req)); // clone : on ne persiste pas la liste sur la config
   cfg.avantagesNatureList = mine(db.payAvantagesNature, req).filter(a => a.active !== false);
+  cfg.codeMap = codeMapOf(req);
   const input = elementsToInput(emp, period, req, opts);
   const result = computePayslip(input, cfg);
+  applyCodeMap(result.lines, req);
   return { input, result };
 }
 // Calcul à l'envers : trouve le montant de la rubrique d'ajustement donnant le net cible.
@@ -442,8 +463,8 @@ function employeeRubriques(emp, req) {
   const els = mine(db.salaryElements, req);
   const pf = mine(db.portfolios, req).find(p => p.id === emp.portfolioId);
   const allowedNames = (pf && Array.isArray(pf.salaryElements) && pf.salaryElements.length) ? new Set(pf.salaryElements) : null;
-  const TAG_RUB = { salary_base: "1000", allowance_transport: "3513", allowance_housing: "3510", allowance_dirt: "2129", bonus_performance: "2127" };
-  const codes = new Set(["1000"]); // salaire de base toujours présent
+  const TAG_RUB = { salary_base: C(req, "1000"), allowance_transport: C(req, "3513"), allowance_housing: C(req, "3510"), allowance_dirt: C(req, "2129"), bonus_performance: C(req, "2127") };
+  const codes = new Set([C(req, "1000")]); // salaire de base toujours présent
   for (const el of els) {
     if (allowedNames && !allowedNames.has(el.name)) continue;
     const c = el.rubriqueCode || TAG_RUB[el.tag]; if (c) codes.add(String(c));
@@ -484,7 +505,7 @@ function seedAvantagesNature(req) {
     const old = (configOf(req).avantagesNature) || {};
     for (const d of AVN_DEFAULTS) {
       const r = (d.legacy && old[d.legacy] != null) ? Number(old[d.legacy]) : d.rate;
-      db.payAvantagesNature.push(stamp({ id: id("avn"), code: d.code, label: d.label, rate: r, rubriqueCode: d.rubriqueCode, active: true, createdAt: new Date().toISOString() }, req));
+      db.payAvantagesNature.push(stamp({ id: id("avn"), code: d.code, label: d.label, rate: r, rubriqueCode: d.rubriqueCode ? C(req, d.rubriqueCode) : d.rubriqueCode, active: true, createdAt: new Date().toISOString() }, req));
     }
     save();
   }
@@ -493,7 +514,7 @@ function seedAvantagesNature(req) {
   if (!c._avnBikMigrated) {
     for (const a of mine(db.payAvantagesNature, req)) {
       if (a.rate == null) a.rate = (a.impoRate != null ? Number(a.impoRate) : 0);
-      if (String(a.code).toUpperCase() === "AVLOG" && !a.rubriqueCode) { a.rubriqueCode = "3510"; if (!a.rate) a.rate = 0.15; }
+      if (String(a.code).toUpperCase() === "AVLOG" && !a.rubriqueCode) { a.rubriqueCode = C(req, "3510"); if (!a.rate) a.rate = 0.15; }
     }
     c._avnBikMigrated = true; save();
   }
@@ -540,12 +561,12 @@ function rubriqueInUse(rub, req) {
   const tid = req.user.tenantId || "t1";
   return db.payslips.some(s => (s.tenantId || "t1") === tid &&
     (s.status === "CALCULATED" || s.status === "CLOSED") &&
-    Array.isArray(s.result && s.result.lines) && s.result.lines.some(l => l.code === rub.code));
+    Array.isArray(s.result && s.result.lines) && s.result.lines.some(l => l.code === rub.code || lineKey(l) === rubKey(rub)));
 }
 const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active", "prorata"];
 
 router.get("/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =>
-  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, prorata: rubProrates(r), inUse: rubriqueInUse(r, req) })))));
+  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, label: r.label != null ? String(r.label).toUpperCase() : r.label, prorata: rubProrates(r), inUse: rubriqueInUse(r, req) })))));
 // Rubriques attribuées à un salarié (pour le calcul à l'envers et les éléments variables), triées.
 router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
@@ -635,7 +656,7 @@ router.get("/rubriques/:id/eval", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (
 router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
   const b = req.body || {};
   if (!b.code || !b.label) return res.status(400).json({ error: "Code et libellé obligatoires" });
-  if (mine(db.payRubriques, req).some(r => r.code === b.code))
+  if (mine(db.payRubriques, req).some(r => r.code === String(b.code) || rubKey(r) === String(b.code)))
     return res.status(409).json({ error: `Le code ${b.code} existe déjà` });
   const r = stamp({ id: id("rub"), code: String(b.code), label: String(b.label).toUpperCase(), family: b.family || "BRUT",
     formula: b.formula || "Montant pris tel quel", base: b.base || null, nombre: b.nombre || null,
@@ -651,7 +672,7 @@ router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
 
 router.post("/rubriques/import-catalogue", allow("RP", "ADM"), (req, res) => {
   const { CATALOGUE } = require("../payroll/seed");
-  const have = new Set(mine(db.payRubriques, req).map(r => r.code));
+  const have = new Set(mine(db.payRubriques, req).flatMap(r => [r.code, rubKey(r)]));
   let added = 0;
   for (const r of CATALOGUE) {
     if (have.has(r.code)) continue;
@@ -686,6 +707,34 @@ function recomputeAffectedPayslips(req, code) {
   }
   return { recomputed, skippedEdited, closed };
 }
+// Répercute un changement de code de rubrique (oldC -> newC) sur les données DE LA SOCIÉTÉ seulement.
+// Les bulletins des périodes clôturées ne sont pas modifiés (ils gardent l'ancien code imprimé).
+function cascadeRubriqueCode(req, oldC, newC, key) {
+  const n = { elements: 0, avantages: 0, bordereauFields: 0, comptes: 0, variables: 0, bordereaux: 0, bulletins: 0 };
+  const sw = (o, f) => { if (o && String(o[f]) === oldC) { o[f] = newC; return 1; } return 0; };
+  for (const x of mine(db.salaryElements, req)) n.elements += sw(x, "rubriqueCode");
+  for (const x of mine(db.payAvantagesNature, req)) n.avantages += sw(x, "rubriqueCode");
+  for (const x of mine(db.bordereauFields, req)) n.bordereauFields += sw(x, "rubriqueCode");
+  for (const x of mine(db.acctRubriqueMap, req)) n.comptes += sw(x, "code");
+  for (const c of mine(db.payrollConfig, req)) sw(c.housing, "code");
+  for (const x of mine(db.payElements, req)) if (!runLocked(x.period, req)) n.variables += sw(x, "code");
+  for (const sh of mine(db.payElementSheets, req)) {
+    if (runLocked(sh.period, req)) continue;
+    let k = 0; for (const l of sh.lines || []) for (const p of l.primes || []) k += sw(p, "code");
+    n.bordereaux += k ? 1 : 0;
+  }
+  const runById = {}; for (const r of mine(db.payRuns, req)) runById[r.id] = r;
+  for (const sp of mine(db.payslips, req)) {
+    const run = runById[sp.runId]; if (!run || run.status === "CLOSED") continue;
+    let k = 0;
+    for (const l of (sp.result && sp.result.lines) || []) if (String(l.code) === oldC) { if (!l.key) l.key = key; l.code = newC; k++; }
+    const inp = sp.input || {};
+    for (const arr of [inp.gains, inp.nonTaxable, inp.otherDeductions, inp.avantages]) for (const x of arr || []) k += sw(x, "code");
+    k += sw(inp.transport, "code");
+    n.bulletins += k ? 1 : 0;
+  }
+  return n;
+}
 router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Rubrique introuvable" });
@@ -697,14 +746,19 @@ router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
       warning: `La rubrique « ${r.code} ${r.label} » est déjà utilisée dans des bulletins de paie calculés/clôturés. ` +
         `La modifier affectera l'ensemble de la paie et nécessitera un recalcul. Confirmez pour appliquer.` });
   const before = { ...r };
-  // Le code est modifiable uniquement pour une rubrique personnalisée (non baseline) et non encore
-  // utilisée en paie — c'est le cas d'une rubrique dupliquée que l'on adapte.
+  // Le code affiché est modifiable pour toute rubrique, uniquement dans cette société : la clé interne
+  // (baseCode) ne change jamais, le nouveau code est répercuté sur les données de la société.
+  let renumber = null;
   if (b.code !== undefined && String(b.code).trim() && String(b.code).trim() !== String(r.code)) {
-    const nc = String(b.code).trim();
-    if (r.system) return res.status(409).json({ error: "Le code d'une rubrique du référentiel Sage ne peut pas être modifié. Dupliquez-la pour en créer une nouvelle." });
-    if (inUse) return res.status(409).json({ error: "Rubrique déjà utilisée en paie - son code ne peut plus être modifié." });
-    if (mine(db.payRubriques, req).some(x => x.id !== r.id && String(x.code) === nc)) return res.status(409).json({ error: `Le code ${nc} existe déjà.` });
+    const nc = String(b.code).trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{1,10}$/.test(nc)) return res.status(400).json({ error: "Code invalide (lettres, chiffres, - ou _, 10 caractères au plus)." });
+    const others = mine(db.payRubriques, req).filter(x => x.id !== r.id);
+    if (others.some(x => String(x.code) === nc)) return res.status(409).json({ error: `Le code ${nc} existe déjà dans cette société.` });
+    if (others.some(x => rubKey(x) === nc)) return res.status(409).json({ error: `Le code ${nc} est réservé (code d'origine d'une autre rubrique de la société).` });
+    if (!r.baseCode) r.baseCode = String(r.code);
+    r.previousCodes = [...(r.previousCodes || []), String(r.code)];
     r.code = nc;
+    renumber = cascadeRubriqueCode(req, String(before.code), nc, rubKey(r));
   }
   for (const f of RUB_FIELDS) if (b[f] !== undefined) {
     r[f] = (f === "taux" || f === "tauxPat") ? (b[f] === "" || b[f] == null ? null : Number(b[f]))
@@ -713,11 +767,12 @@ router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   if (r.label != null) r.label = String(r.label).toUpperCase(); // libellés de rubrique toujours en MAJUSCULES
   save();
   // Répercuter la modification sur les bulletins déjà calculés (périodes ouvertes, hors corrections manuelles).
-  const recompute = recomputeAffectedPayslips(req, before.code);
-  if (recompute.recomputed) save();
+  const recompute = recomputeAffectedPayslips(req, r.code);
+  if (recompute.recomputed || renumber) save();
+  if (renumber) audit(req.user, "RUBRIQUE_RENUMBERED", "PayRubrique", r.id, { from: before.code, to: r.code, baseCode: r.baseCode, ...renumber });
   audit(req.user, inUse ? "FORCED_CHANGE" : "UPDATED", "PayRubrique", r.id,
     { code: r.code, inUse, recomputed: recompute.recomputed, before: { label: before.label, taux: before.taux, cnps: before.cnps, impo: before.impo } });
-  res.json({ ...r, inUse, recompute });
+  res.json({ ...r, inUse, recompute, renumber });
 });
 
 router.delete("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
@@ -1175,7 +1230,7 @@ router.put("/bordereaux/:id/lines", allow("RP","ADM","GPF"), (req,res)=>{
     line.absence=clean(nu.absence, 0, 31);
     line.hs120=clean(nu.hs120,0,null); line.hs130=clean(nu.hs130,0,null); line.hs140=clean(nu.hs140,0,null); line.hsNuit=clean(nu.hsNuit,0,null);
     line.congeAmount=clean(nu.congeAmount,0,null);
-    line.primes=Array.isArray(nu.primes)?nu.primes.filter(p=>p&&p.label&&Number(p.amount)>0).map(p=>({code:String(p.code||"2000").slice(0,10), label:String(p.label).slice(0,40), amount:Math.round(Number(p.amount)), cnps:p.cnps!==false, impo:p.impo!==false})):[];
+    line.primes=Array.isArray(nu.primes)?nu.primes.filter(p=>p&&p.label&&Number(p.amount)>0).map(p=>({code:String(p.code||C(req,"2000")).slice(0,10), label:String(p.label).slice(0,40), amount:Math.round(Number(p.amount)), cnps:p.cnps!==false, impo:p.impo!==false})):[];
     if(nu.custom && typeof nu.custom==="object"){ line.custom=line.custom||{}; const defs=fieldsForSheet(req, s.portfolioId); for(const d of defs){ const v=Number(nu.custom[d.key]); line.custom[d.key]=Number.isFinite(v)&&v>0?v:0; } }
     if(JSON.stringify(line)!==before) changes++;
   }
@@ -1226,14 +1281,14 @@ function pushElementsFromSheet(s, req){
     if(Number(l.hs140)>0) add({ employeeId:l.employeeId, type:"HS40", hours:Number(l.hs140), label:"HS 140%" });
     if(Number(l.hsNuit)>0) add({ employeeId:l.employeeId, type:"NUIT", hours:Number(l.hsNuit), label:"Heures de nuit" });
     for(const p of (l.primes||[])){
-      add({ employeeId:l.employeeId, type:"PRIME", code:String(p.code||"2000"), amount:Math.round(Number(p.amount)), label:p.label, cnps:p.cnps!==false, impo:p.impo!==false });
+      add({ employeeId:l.employeeId, type:"PRIME", code:String(p.code||C(req,"2000")), amount:Math.round(Number(p.amount)), label:p.label, cnps:p.cnps!==false, impo:p.impo!==false });
     }
-    if(Number(l.congeAmount)>0){ add({ employeeId:l.employeeId, type:"PRIME", code:"3702", amount:Math.round(Number(l.congeAmount)), label:"Congés annuels (allocation)", cnps:true, impo:true, conge:true }); }
+    if(Number(l.congeAmount)>0){ add({ employeeId:l.employeeId, type:"PRIME", code:C(req,"3702"), amount:Math.round(Number(l.congeAmount)), label:"Congés annuels (allocation)", cnps:true, impo:true, conge:true }); }
     // colonnes personnalisées -> éléments mappés (rubrique/heures)
     const _defs=fieldsForSheet(req, s.portfolioId); const _rubs=mine(db.payRubriques, req);
     for(const d of _defs){ const v=Number((l.custom||{})[d.key]); if(!(v>0)) continue;
       if(d.kind==="HOURS"){ add({ employeeId:l.employeeId, type:d.overtimeType, hours:v, label:d.label, fieldKey:d.key }); }
-      else { const rub=_rubs.find(r=>String(r.code)===String(d.rubriqueCode))||{}; add({ employeeId:l.employeeId, type:"PRIME", code:String(d.rubriqueCode||"2000"), amount:Math.round(v), label:d.label, cnps:!!rub.cnps, impo:!!rub.impo, fieldKey:d.key }); }
+      else { const rub=_rubs.find(r=>String(r.code)===String(d.rubriqueCode))||{}; add({ employeeId:l.employeeId, type:"PRIME", code:String(d.rubriqueCode||C(req,"2000")), amount:Math.round(v), label:d.label, cnps:!!rub.cnps, impo:!!rub.impo, fieldKey:d.key }); }
     }
   }
 }
@@ -1415,7 +1470,7 @@ function buildControl(s, req){
       cmp(l.employeeId,"hs140","HS 140%", l.hs140, ot.tier3, { groupe:"Temps", source:TS, items:[{k:"Feuille signée",v:(l.hs140||0)+" h"},{k:"Bulletin calculé",v:(ot.tier3||0)+" h"}] }),
       cmp(l.employeeId,"nuit","Heures de nuit", l.hsNuit, ot.night, { groupe:"Temps", source:TS, items:[{k:"Feuille signée",v:(l.hsNuit||0)+" h"},{k:"Bulletin calculé",v:(ot.night||0)+" h"}] }),
       cmp(l.employeeId,"primes","Primes variables (total)", primesSoumis, gainsFromEls, { groupe:"Temps", source:"Primes du bordereau signé → éléments injectés en paie", items:(l.primes||[]).map(p=>({k:p.label,v:String(Math.round(p.amount)).replace(/\B(?=(\d{3})+(?!\d))/g," ")})) }),
-      cmp(l.employeeId,"acompte","Acompte sur salaire", acompteTotalAll(l.employeeId, s.period, req), sumOD("7000"), { groupe:"Acompte", source:"Registre des acomptes (tous statuts) → retenue sur bulletin (validés uniquement)", items:acoList.map(a=>({k:(a.momo?("N° "+a.momo):"Acompte")+" — "+(a.status==="VALIDE"?"Validé":"Brouillon"),v:String(a.amount).replace(/\B(?=(\d{3})+(?!\d))/g," ")})), note:brouillons.length?(brouillons.length+" acompte(s) en brouillon non retenu(s) — à valider dans « Acomptes sur salaire »."):"" }),
+      cmp(l.employeeId,"acompte","Acompte sur salaire", acompteTotalAll(l.employeeId, s.period, req), sumOD(C(req,"7000")), { groupe:"Acompte", source:"Registre des acomptes (tous statuts) → retenue sur bulletin (validés uniquement)", items:acoList.map(a=>({k:(a.momo?("N° "+a.momo):"Acompte")+" — "+(a.status==="VALIDE"?"Validé":"Brouillon"),v:String(a.amount).replace(/\B(?=(\d{3})+(?!\d))/g," ")})), note:brouillons.length?(brouillons.length+" acompte(s) en brouillon non retenu(s) — à valider dans « Acomptes sur salaire »."):"" }),
       cmp(l.employeeId,"pret","Échéance prêt", loan, sumOD("7010"), { groupe:"Acompte", source:"Échéancier de prêt → retenue sur bulletin", items:(loanE.detail||[]).map(d=>({k:d.label+" ("+d.n+"/"+d.of+")",v:String(d.amount).replace(/\B(?=(\d{3})+(?!\d))/g," ")})) }),
     ];
     // colonnes personnalisées : bordereau signé vs élément injecté (par fieldKey)
@@ -1979,7 +2034,7 @@ router.post("/reverse/:eid", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, 
   const period = b.period || new Date().toISOString().slice(0, 7);
   const targetNet = Number(b.targetNet);
   if (!(targetNet > 0)) return res.status(400).json({ error: "Net à payer cible invalide" });
-  const code = String(b.code || "2000");
+  const code = String(b.code || C(req, "2000"));
   const rub = mine(db.payRubriques, req).find(r => String(r.code) === code);
   const label = b.label || (rub && rub.label) || "Ajustement (net cible)";
   const cnps = rub ? !!rub.cnps : true, impo = rub ? !!rub.impo : true;
@@ -2252,10 +2307,10 @@ function drawPayslip(doc, s, emp, tenant) {
   T(X.retp, TY + 13, "Retenue", { b: 1, s: 6.5, w: X.end - X.retp, a: "center" });
   const SLBL = { "5000":"PENSION VIEILLESSE","5010":"ALLOCATIONS FAMILIALES","5020":"ACCIDENT DE TRAVAIL","5025":"IRPP1","5045":"CAC/IRPP 1","5050":"CREDIT FONCIER","5060":"CREDIT FONCIER PATR.","5070":"FNE","5080":"REDEVANCE CRTV","5090":"TAXE COMMUNALE" };
   const _clbl = rubCatalogLabel(s.tenantId);
-  const dlbl = (l) => (_clbl(l.code) || SLBL[l.code] || l.label || "").toUpperCase();
+  const dlbl = (l) => (_clbl(l.code) || SLBL[lineKey(l)] || l.label || "").toUpperCase();
   let y = TY + 24;
   const cell = (x, xe, v, al) => { if (v || v === 0) T(x + 1, y, v, { s: 7.5, w: xe - x - 2, a: al || "right" }); };
-  const _isTransportC = (l) => l._transportTaxable !== undefined || String(l.code) === "3513";
+  const _isTransportC = (l) => l._transportTaxable !== undefined || lineKey(l) === "3513";
   const _allGainsC = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
   // Placement d'une ligne (Rémunération vs Éléments non soumis) : suit la FAMILLE de la rubrique.
   //   NON_SOUMISE -> éléments non soumis ; BRUT/COTISATION -> rémunération ; sinon repli sur les
@@ -2433,7 +2488,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const gcols = [{x:L,w:24,a:"left"},{x:L+24,w:150,a:"left"},{x:L+174,w:52,a:"right"},{x:L+226,w:74,a:"right"},{x:L+300,w:52,a:"right"},{x:L+352,w:95,a:"right"},{x:L+447,w:W-447,a:"right"}];
   // Classement : éléments soumis (imposables ou cotisables) vs non soumis. Le transport (assiette
   // spécifique) reste dans la rémunération. Les non soumis sont présentés sous le total des cotisations.
-  const _isTransport = (l) => l._transportTaxable !== undefined || String(l.code) === "3513";
+  const _isTransport = (l) => l._transportTaxable !== undefined || lineKey(l) === "3513";
   // Placement (Rémunération vs Éléments non soumis) : suit la FAMILLE de la rubrique, pas les
   // cases CNPS/IRPP. Une rubrique de famille BRUT reste dans la rémunération même si elle n'est
   // ni cotisable ni imposable ; seule la famille NON_SOUMISE va dans les éléments non soumis.
