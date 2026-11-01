@@ -330,7 +330,7 @@ function elementsToInput(emp, period, req, opts) {
   const overtime = { tier1: 0, tier2: 0, tier3: 0, night: 0, hundred: 0, sundayHoliday: 0 };
   let absenceDays = 0;
   // 2) variable elements entered for this period (on top of the structure)
-  const els = mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
+  const els = opts.structureOnly ? [] : mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
   const _rubOf = (code) => mine(db.payRubriques, req).find(r => String(r.code) === String(code));
   // Drapeaux fiscaux d'un élément variable : explicite sur l'élément > rubrique du référentiel > défaut.
   const _flags = (e, defImpo, defCnps) => {
@@ -366,13 +366,13 @@ function elementsToInput(emp, period, req, opts) {
     }
   }
   // Prêts avec échéancier: auto-deduct the monthly installment while within the schedule.
-  for (const ln of mine(db.payLoans, req).filter(l => l.employeeId === emp.id && l.active !== false)) {
+  if (!opts.structureOnly) for (const ln of mine(db.payLoans, req).filter(l => l.employeeId === emp.id && l.active !== false)) {
     const diff = periodDiff(ln.startPeriod, period);
     if (diff >= 0 && diff < ln.installments)
       otherDeductions.push({ code: C(req, "7010"), label: `${ln.label || "Prêt"} (${diff + 1}/${ln.installments})`, amount: Number(ln.monthlyAmount) });
   }
   // Acomptes sur salaire (registre dédié) : retenus à 100% sur le mois concerné.
-  for (const ac of mine(db.payAcomptes, req).filter(a => a.employeeId === emp.id && a.period === period && a.status === "VALIDE")) {
+  if (!opts.structureOnly) for (const ac of mine(db.payAcomptes, req).filter(a => a.employeeId === emp.id && a.period === period && a.status === "VALIDE")) {
     if (Number(ac.amount) > 0) otherDeductions.push({ code: C(req, "7000"), label: "Acompte sur salaire", amount: Number(ac.amount) });
   }
   const cfg = configOf(req);
@@ -563,10 +563,10 @@ function rubriqueInUse(rub, req) {
     (s.status === "CALCULATED" || s.status === "CLOSED") &&
     Array.isArray(s.result && s.result.lines) && s.result.lines.some(l => l.code === rub.code || lineKey(l) === rubKey(rub)));
 }
-const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active", "prorata"];
+const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active", "prorata", "legalNature"];
 
 router.get("/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =>
-  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, label: r.label != null ? String(r.label).toUpperCase() : r.label, prorata: rubProrates(r), inUse: rubriqueInUse(r, req) })))));
+  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, label: r.label != null ? String(r.label).toUpperCase() : r.label, prorata: rubProrates(r), inUse: rubriqueInUse(r, req), legalNatureSuggested: require("../payroll/legalNature").suggestNature(r) })))));
 // Rubriques attribuées à un salarié (pour le calcul à l'envers et les éléments variables), triées.
 router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
@@ -3499,4 +3499,5 @@ function _ficheSagePDF(req, res, opts){
 module.exports = router;
 
 module.exports.payslipSig = payslipSig;
+module.exports.salaryHelpers = { computeFor, configOf, codeMapOf, categorielBaseA, baseSalaryOf, seniorityYears, lineKey };
 module.exports.payslipBuffer = payslipBuffer;

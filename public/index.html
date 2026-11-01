@@ -1473,6 +1473,7 @@ const NAV = [
   { k: "fiches", label: "Fiches de poste", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
   { k: "career", label: "Career & Perf.", roles: ["GPF","CD","RJ","ADM"], grp: "rh" },
   { k: "ficheprix", label: "Fiche de Prix", sec: "Simulation", roles: ["ADM","CD","RJ","GPF"], grp: "rh" },
+  { k: "salaryanalysis", label: "Analyse salariale", sec: "Simulation", roles: ["ADM","CD","RJ","GPF","RP"], grp: "rh" },
   { k: "expiring", label: "Alertes d’expiration", sec: "Suivi", roles: ["ADM","CD","RJ","GPF"], grp: "rh" },
   { k: "bordereaux", label: "Bordereaux & contrôle paie", sec: "Contrôle paie", roles: ["ADM","CD","RJ","GPF","RP"], tmodule: "payroll", grp: "rh" },
   { k: "acomptes", label: "Acomptes sur salaire", sec: "Contrôle paie", roles: ["ADM","CD","RJ","GPF","RP"], tmodule: "payroll", grp: "rh" },
@@ -1993,7 +1994,7 @@ function go(k, arg) {
   if (_it && (_it.grp || "admin") !== window.CURRENT_GROUP) window.CURRENT_GROUP = _it.grp || "admin";
   renderSubnav();
   document.querySelectorAll(".nav").forEach(e =>e.classList.toggle("active", e.id === "nav-" + k));
-const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, btphome: btpHomeView, btpmaterials: btpMaterialsView, btpcategories: btpCategoriesView, btpwarehouses: btpWarehousesView, btpprojects: btpProjectsView, btpproject: btpProjectView, btpmoves: btpMovesView, btprequests: btpRequestsView, btpdeliveries: btpDeliveriesView, btpconsumption: btpConsumptionView, btpreports: btpReportsView, btpbrands: btpBrandsView, btpimport: btpImportView, btpclients: btpClientsView, btpsuppliers: btpSuppliersView, btppo: btpPOView, btppurchases: btpPurchasesView, btpreturns: btpReturnsView, btpepi: btpEpiView, btpexpenses: btpExpensesView, btpaccounts: btpAccountsView, btpnotif: btpNotifView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sysops: sysopsView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
+const _VIEWS = { employees, portfolios, users, audit: auditView, queue: queueView, generated: generatedView, avi: aviView, templates: templatesView, settings: settingsView, dash: dashView, fiches: fichesView, career: careerView, ficheprix: fichePrixView, salaryanalysis: salaryAnalysisView, conventions: conventionsView, expiring: expiringView, reports: reportsView, params: paramsView, account: accountView, dataio: dataioView, tenants: tenantsView, subs: subsView, pricing: pricingView, legal: legalView, superadmins: superadminsView, logins: loginsView, adminhome: adminHomeView, plathome: platformHomeView, mailtpl: mailtplView, workflows: workflowsView, payhome: payHome, payroll: payrollView, bordereaux: payBordereauxView, bordereau: payBordereauView, bordfields: bordFieldsView, acomptes: payAcomptesView, payconfig: payconfigView, payfiche: payFicheView, payetats: payEtatsView, ga: gaView, gaedit: gaEditView, garun: gaRunView, billhome: billHome, billing: billingView, billingcfg: billingCfgView, invoices: invoicesView, acct: acctHome, acctsaisie: acctSaisieView, acctbalance: acctBalanceView, acctplan: acctPlanView, acctjournals: acctJournalsView, acctrubmap: acctRubMapView, acctetats: acctEtatsView, acctlegal: acctLegalView, acctcloture: acctClotureView, acctanalytic: acctAnalyticView, accttiers: acctTiersView, acctsearch: acctSearchView, acctbank: acctBankView, accttierstates: acctTiersStatesView, acctimport: acctImportView, stockhome: stockHome, stockproducts: stockProductsView, stockcats: stockCatsView, stockunits: stockUnitsView, stocksuppliers: stockSuppliersView, stockclients: stockClientsView, stockbrands: stockBrandsView, stockwarranties: stockWarrantiesView, stockvariations: stockVariationsView, stockpricegroups: stockPriceGroupsView, stockimport: stockImportView, stockopening: stockOpeningView, stocklabels: stockLabelsView, stockpo: stockPOView, stockpurchases: stockPurchasesView, stockreturns: stockReturnsView, stockso: stockSOView, stocksales: stockSalesView, stockpos: stockPOSView, stockquotes: stockQuotesView, stocksalesreturns: stockSalesReturnsView, stocklocations: stockLocationsView, stocktransfers: stockTransfersView, stockexpenses: stockExpensesView, stockexpensecats: stockExpenseCatsView, stockaccounts: stockAccountsView, stocknotif: stockNotifView, stockreports: stockReportsView, stockin: stockInView, stockout: stockOutView, stockadjust: stockAdjustView, stockmoves: stockMovesView, stockepi: stockEpiView, btphome: btpHomeView, btpmaterials: btpMaterialsView, btpcategories: btpCategoriesView, btpwarehouses: btpWarehousesView, btpprojects: btpProjectsView, btpproject: btpProjectView, btpmoves: btpMovesView, btprequests: btpRequestsView, btpdeliveries: btpDeliveriesView, btpconsumption: btpConsumptionView, btpreports: btpReportsView, btpbrands: btpBrandsView, btpimport: btpImportView, btpclients: btpClientsView, btpsuppliers: btpSuppliersView, btppo: btpPOView, btppurchases: btpPurchasesView, btpreturns: btpReturnsView, btpepi: btpEpiView, btpexpenses: btpExpensesView, btpaccounts: btpAccountsView, btpnotif: btpNotifView, smqworkspace: smqWorkspaceView, smqhome: smqHome, smqconform: smqConformiteView, smqprocesses: smqProcessesView, smqaxes: smqAxesView, smqstakeholders: smqStakeholdersView, smqscope: smqScopeView, smqveille: smqVeilleView, smqgov: smqGovView, smqdocs: smqDocsView, smqregister: smqRegisterView, smqdoctypes: smqDocTypesView, smqindicators: smqIndicatorsView, smqtdb: smqTdbListView, smqimprovements: smqImprovementsView, smqevents: smqEventsView, smqaudits: smqAuditsView, smqactions: smqActionsView, smqrisks: smqRisksView, smqsatisfaction: smqSatisfactionView, smqclaims: smqClaimsView, smqevals: smqEvalsView, smqcompetences: smqCompetencesView, smqsuppliers: smqSupplierEvalsView, smqequipment: smqEquipmentView, smqreviews: smqReviewsView, smqconformity: smqConformityView, discussion: discussionView, backuphome: backuphomeView, platusers: platusersView, platmaint: platMaintView, sysops: sysopsView, presence: presenceView, sites: sitesView, pointage: pointageReviewView, assurance: assuranceView, assreseau: assReseauView, assconso: assConsoView, ayantsdroit: ayantsDroitView, emprequests: empRequestsView, astuces: astucesView, none };
   const _fn = _VIEWS[k] || none;
   const _v = document.getElementById("view");
   if (_v) _v.innerHTML = mmLoading();
@@ -2940,6 +2941,7 @@ async function empDetail(id) {
   <span style="float:right;display:inline-flex;gap:6px">
     ${e.dormant ? '<span class="note" style="align-self:center">Fiche verrouillée (sommeil)</span>' : ((ME.role === "ADM" || ME.role === "GPF" || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">Modifier</button>` : "")}
     ${(ME.role === "ADM" || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">Supprimer</button>` : ""}
+    ${["ADM","CD","RJ","GPF","RP"].includes(ME.role) ? `<button class="btn ghost sm" onclick="go('salaryanalysis','${e.id}')">Analyser la rémunération</button>` : ""}
     <button class="btn ghost sm" onclick="empExport('${e.id}','${esc(e.lastName)}')">Dossier (PDF)</button></span></h1>
     ${rejBanner}
     ${["GPF","ADM","CD","RJ"].includes(ME.role) ? `<div id="appAcctBox" class="panel"><b style="font-size:12px;color:var(--muted)">COMPTE APPLICATION MOBILE</b><div class="note" style="margin-top:4px">Chargement…</div></div>` : ""}
@@ -3769,6 +3771,93 @@ async function cnvPrefillAll(){ if(!await mmConfirm({title:"Pré-remplir toutes 
 async function cnvSeedCmr(){ if(!await mmConfirm({title:"Importer les conventions",message:"Importer la liste des conventions collectives du Cameroun ? Les conventions déjà présentes seront ignorées.",confirmLabel:"Importer"}))return; try{ const r=await api('/config/conventions/seed-cameroon',{method:'POST'}); alert(r.added+" convention(s) ajoutée(s)."); conventionsView(); }catch(e){ alert(e.message); } }
 /* ================= RH : Fiche de Prix (simulateur) ================= */
 function fpMoney(v){ return Math.round(Number(v||0)).toLocaleString('fr-FR')+' F'; }
+/* ================= Analyse salariale (module RH) : audit de conformité ================= */
+const SA_NATURES = [["SALAIRE_BASE","Salaire de base"],["SURSALAIRE","Sursalaire"],["ANCIENNETE","Prime d'ancienneté"],["HS","Heures supplémentaires"],["PRIME","Prime liée au travail"],["GRATIFICATION","Gratification (13e mois, bonus)"],["TRANSPORT","Prime de transport"],["AN_LOGEMENT","Indemnité de logement (15 %)"],["AN_ELECTRICITE","Indemnité d'électricité (4 %)"],["AN_EAU","Indemnité d'eau (2 %)"],["AN_DOMESTIQUE","Indemnité de domestique (5 %)"],["AN_VEHICULE","Indemnité de véhicule (10 %)"],["AN_NOURRITURE","Indemnité de nourriture (10 %)"],["FRAIS_PANIER","Frais : prime de panier"],["FRAIS_SALISSURE","Frais : prime de salissure"],["FRAIS_OUTILLAGE","Frais : prime d'outillage"],["FRAIS_KILOMETRIQUE","Frais : indemnité kilométrique"],["FRAIS_MISSION","Frais : mission / déplacement"],["FRAIS_REPRESENTATION","Frais : représentation"],["RUPTURE_LICENCIEMENT","Indemnité de licenciement (dommages-intérêts)"],["RUPTURE_FIN_CARRIERE","Indemnité de fin de carrière"],["BONNE_SEPARATION","Prime de bonne séparation"],["DEPART_RETRAITE","Prime de départ à la retraite"],["PREAVIS","Indemnité de préavis"],["CONGES","Allocation de congés"],["CHOMAGE_TECHNIQUE","Chômage technique"],["SOCIAL_EXONERE","Avantage social exonéré"],["HORS_ANALYSE","Hors analyse"]];
+function saNatureOptions(cur, suggested) {
+  const sug = SA_NATURES.find(n => n[0] === suggested);
+  return `<option value="">${sug ? "Automatique : " + esc(sug[1]) : "Automatique"}</option>` + SA_NATURES.map(n => `<option value="${n[0]}" ${n[0] === cur ? "selected" : ""}>${esc(n[1])}</option>`).join("");
+}
+const SA_STATUS = { CONFORME: ["green", "Conforme"], A_OPTIMISER: ["amber", "À optimiser"], A_JUSTIFIER: ["amber", "À vérifier"], EN_RISQUE: ["red", "En risque"] };
+const SA_TYPE = { SURIMPOSITION: ["amber", "Surimposition"], RISQUE: ["red", "Risque"], PARAMETRAGE: ["gray", "Paramétrage"] };
+const SA_LEVEL = { SUR: "Sûr", A_JUSTIFIER: "À justifier", A_CONFIRMER: "À confirmer" };
+const saTag = (m, k) => { const t = m[k] || ["gray", k]; return `<span class="tag ${t[0]}">${esc(t[1])}</span>`; };
+const saSigned = (n) => (n > 0 ? "+" : n < 0 ? "−" : "") + fCFA(Math.abs(n));
+async function salaryAnalysisView(empId) {
+  const [emps, pfs] = await Promise.all([api("/employees").catch(() => []), api("/portfolios").catch(() => [])]);
+  const list = (Array.isArray(emps) ? emps : (emps.items || [])).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
+    .sort((a, b) => ((a.lastName || "") + (a.firstName || "")).localeCompare((b.lastName || "") + (b.firstName || ""), "fr"));
+  view.innerHTML = `<h1>Analyse salariale</h1>
+    <div class="note" style="margin-bottom:10px">Audit de conformité de la rémunération, à partir des éléments de salaire de la fiche (simulation : rien n'est modifié). Chaque rubrique est comparée au traitement IRPP / CNPS que sa nature légale impose, et chaque écart est chiffré pour le salarié et pour l'employeur.</div>
+    <div class="panel" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+      <div><label>Périmètre</label><select id="saScope" onchange="saScopeChange()"><option value="emp">Un salarié</option><option value="pf">Un portefeuille</option>${ME.role !== "GPF" ? '<option value="all">Toute l\'entreprise</option>' : ""}</select></div>
+      <div id="saEmpWrap" style="min-width:260px;flex:1"><label>Salarié</label><select id="saEmp">${list.map(e => `<option value="${e.id}" ${e.id === empId ? "selected" : ""}>${esc((e.lastName || "") + " " + (e.firstName || ""))}${e.matricule ? " · " + esc(e.matricule) : ""}</option>`).join("")}</select></div>
+      <div id="saPfWrap" class="hidden" style="min-width:260px;flex:1"><label>Portefeuille</label><select id="saPf">${(pfs || []).map(p => `<option value="${p.id}">${esc(p.name || p.id)}</option>`).join("")}</select></div>
+      <div><label>Mode</label><select id="saMode" disabled><option>Audit de conformité</option></select></div>
+      <button class="btn p" onclick="saRun()">Lancer l'analyse</button>
+    </div>
+    <div id="saOut"></div>`;
+  if (empId) saRun();
+}
+function saScopeChange() { const s = saScope.value; saEmpWrap.classList.toggle("hidden", s !== "emp"); saPfWrap.classList.toggle("hidden", s !== "pf"); }
+async function saRun() {
+  const out = document.getElementById("saOut"); out.innerHTML = mmLoading("Analyse en cours…");
+  try {
+    const s = saScope.value;
+    if (s === "emp") { if (!saEmp.value) { out.innerHTML = '<div class="note">Aucun salarié.</div>'; return; } saRenderEmp(await api("/salary-analysis/employee/" + saEmp.value, { method: "POST", body: "{}" })); }
+    else saRenderPf(await api("/salary-analysis/portfolio/" + (s === "all" ? "_all" : saPf.value), { method: "POST", body: "{}" }));
+  } catch (e) { out.innerHTML = `<div class="note" style="background:var(--red-bg)">${esc(e.message)}</div>`; }
+}
+function saRenderEmp(r) {
+  const s = r.summary, c = r.current, k = r.compliant;
+  const row = (lbl, a, b, strong) => { const d = (b || 0) - (a || 0); return `<tr${strong ? ' style="font-weight:700"' : ""}><td>${lbl}</td><td class="r">${fCFA(a)}</td><td class="r">${fCFA(b)}</td><td class="r" style="color:${d ? (d > 0 ? "var(--green)" : "var(--red)") : "var(--muted)"}">${d ? saSigned(d) : "—"}</td></tr>`; };
+  const finding = (f) => `<div class="panel" style="margin-bottom:8px;border-left:4px solid ${f.type === "RISQUE" ? "var(--red)" : f.type === "SURIMPOSITION" ? "var(--amber)" : "var(--border, #ccc)"}">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${saTag(SA_TYPE, f.type)} <span class="tag gray">${esc(SA_LEVEL[f.level] || f.level)}</span> <span class="tag gray">${esc(f.topic)}</span> <b>${esc(f.title)}</b></div>
+      <div class="note" style="margin-top:6px">${f.code ? "Rubrique " + esc(f.code) + " · " : ""}${esc(f.natureLabel || "")}${f.natureSuggested ? " (nature proposée automatiquement)" : ""}${f.amount ? " · " + fCFA(f.amount) + " F" : ""}<br>Actuel : ${esc(f.current)} — Légal : ${esc(f.legal)}</div>
+      ${f.type !== "PARAMETRAGE" ? `<table style="width:100%;margin-top:6px;font-size:12px"><tr><th>Si corrigé</th><th class="r">IRPP+CAC</th><th class="r">CNPS salarié</th><th class="r">Charges patronales</th><th class="r">Net salarié</th><th class="r">Coût employeur</th></tr>
+        <tr><td>Par mois</td><td class="r">${saSigned(f.impact.irpp)}</td><td class="r">${saSigned(f.impact.cnpsSal)}</td><td class="r">${saSigned(f.impact.patronal)}</td><td class="r"><b>${saSigned(f.impact.net)}</b></td><td class="r"><b>${saSigned(f.impact.cout)}</b></td></tr>
+        <tr><td>Par an</td><td></td><td></td><td></td><td class="r">${saSigned(f.annual.net)}</td><td class="r">${saSigned(f.annual.cout)}</td></tr></table>` : ""}
+      <div class="grid2" style="margin-top:6px"><div><b style="font-size:12px">Pour le salarié</b><div style="font-size:13px">${esc(f.employee)}</div></div><div><b style="font-size:12px">Pour l'employeur</b><div style="font-size:13px">${esc(f.employer)}</div></div></div>
+      <div style="font-size:13px;margin-top:6px"><b>Action :</b> ${esc(f.action)}</div>
+      ${f.pieces ? `<div style="font-size:12px;margin-top:4px"><b>Pièces à conserver :</b> ${esc(f.pieces)}</div>` : ""}
+      <div class="note" style="margin-top:4px">Référence : ${esc(f.ref || "")}</div></div>`;
+  document.getElementById("saOut").innerHTML = `
+    <h2 style="margin-top:14px">${esc(r.employee.name)} ${saTag(SA_STATUS, r.status)}</h2>
+    <div class="note">Catégorie ${esc(r.employee.category || "—")} · salaire de base ${fCFA(r.employee.baseSalary)} F · simulation ${esc(r.period)} (structure de salaire, hors éléments variables)</div>
+    <div class="cards" style="margin-top:10px">
+      <div class="card"><div class="kpi" style="color:var(--green)">${fCFA(s.gainNetMensuel)}</div><div class="lbl">Gain net sûr / mois pour le salarié</div></div>
+      <div class="card"><div class="kpi" style="color:var(--amber)">${fCFA(s.gainNetJustifiable)}</div><div class="lbl">Gain net possible si justifié / mois</div></div>
+      <div class="card"><div class="kpi">${fCFA(s.economieEmployeurMensuelle)}</div><div class="lbl">Économie employeur / mois</div></div>
+      <div class="card"><div class="kpi" style="color:var(--red)">${fCFA(s.expositionMensuelle)}</div><div class="lbl">Exposition en cas de contrôle / mois</div></div>
+    </div>
+    <div class="panel"><b>Bulletin simulé : actuel vs conforme</b> <span class="note">(corrections sûres appliquées, dans les deux sens)</span>
+      <div style="overflow:auto"><table style="width:100%;margin-top:6px"><tr><th></th><th class="r">Actuel</th><th class="r">Conforme</th><th class="r">Écart</th></tr>
+      ${row("Brut", c.brutTotal, k.brutTotal)}${row("Base CNPS", c.netCotisable, k.netCotisable)}${row("Base imposable", c.netImposable, k.netImposable)}
+      ${row("CNPS salarié", c.cnpsSalarie, k.cnpsSalarie)}${row("IRPP", c.irpp, k.irpp)}${row("CAC", c.cac, k.cac)}${row("CFC salarié", c.cfcSalarie, k.cfcSalarie)}${row("RAV", c.rav, k.rav)}${row("TDL", c.tdl, k.tdl)}
+      ${row("Net à payer", c.netAPayer, k.netAPayer, true)}${row("Charges patronales", c.chargesPatronales, k.chargesPatronales)}${row("Coût employeur total", c.coutTotalEmployeur, k.coutTotalEmployeur, true)}</table></div></div>
+    <h3>Constats (${r.findings.length})</h3>
+    ${r.findings.length ? r.findings.map(finding).join("") : '<div class="note">Aucun écart : chaque rubrique est traitée comme sa nature légale l\'impose.</div>'}
+    <div class="panel"><b>Rubriques analysées</b><div style="overflow:auto"><table style="width:100%;margin-top:6px;font-size:13px"><tr><th>Code</th><th>Rubrique</th><th class="r">Montant</th><th>Nature légale</th><th>Traitement actuel</th><th>Traitement légal</th><th></th></tr>
+      ${r.rubriques.map(x => `<tr><td>${esc(x.code)}</td><td>${esc(x.label)}</td><td class="r">${fCFA(x.amount)}</td><td>${esc(x.natureLabel)}${x.natureSuggested ? ' <span class="note-inline" title="Proposée d\'après le libellé ; confirmez-la dans la fiche rubrique">(auto)</span>' : ""}</td><td>${esc(x.current)}</td><td>${esc(x.legal)}</td><td>${x.conforme ? '<span class="tag green">OK</span>' : '<span class="tag amber">Écart</span>'}</td></tr>`).join("")}</table></div>
+      <div class="note" style="margin-top:6px">Une nature « (auto) » est proposée d'après le libellé. Pour la confirmer ou la changer : Paie › Paramètres › Rubriques, champ « Nature légale ». Règles du ${esc(r.rulesVersion)}.</div></div>`;
+}
+function saRenderPf(r) {
+  const s = r.summary;
+  document.getElementById("saOut").innerHTML = `
+    <h2 style="margin-top:14px">${esc(r.portfolio.name)}</h2>
+    <div class="cards">
+      <div class="card"><div class="kpi">${s.analysed}</div><div class="lbl">Salariés analysés${s.skipped ? " (" + s.skipped + " sans salaire de base)" : ""}</div></div>
+      <div class="card"><div class="kpi" style="color:var(--green)">${s.conformes}</div><div class="lbl">Conformes</div></div>
+      <div class="card"><div class="kpi" style="color:var(--amber)">${s.aOptimiser + s.aJustifier}</div><div class="lbl">À optimiser / à vérifier</div></div>
+      <div class="card"><div class="kpi" style="color:var(--red)">${s.enRisque}</div><div class="lbl">En risque</div></div>
+      <div class="card"><div class="kpi" style="color:var(--green)">${fCFA(s.gainNetMensuel)}</div><div class="lbl">Gain net sûr / mois (${fCFA(s.annual.gainNet)} / an)</div></div>
+      <div class="card"><div class="kpi" style="color:var(--red)">${fCFA(s.expositionMensuelle)}</div><div class="lbl">Exposition / mois (${fCFA(s.annual.exposition)} / an)</div></div>
+    </div>
+    ${r.recurring.length ? `<div class="panel"><b>Constats les plus fréquents</b> <span class="note">(un constat répété signale souvent un paramétrage de rubrique à corriger une fois pour tous)</span>
+      <table style="width:100%;margin-top:6px;font-size:13px"><tr><th>Constat</th><th></th><th class="r">Salariés</th><th class="r">Effet net / mois</th></tr>
+      ${r.recurring.map(x => `<tr><td>${esc(x.title)}</td><td>${saTag(SA_TYPE, x.type)}</td><td class="r">${x.count}</td><td class="r">${saSigned(x.net)}</td></tr>`).join("")}</table></div>` : ""}
+    <div class="panel"><b>Salariés</b> <span class="note">(triés par enjeu ; cliquez pour le détail)</span><div style="overflow:auto"><table style="width:100%;margin-top:6px;font-size:13px"><tr><th>Salarié</th><th>Statut</th><th class="r">Constats</th><th class="r">Gain net sûr / mois</th><th class="r">Exposition / mois</th><th>Principal constat</th></tr>
+      ${r.employees.map(x => `<tr style="cursor:pointer" onclick="go('salaryanalysis','${x.employee.id}')"><td>${esc(x.employee.name)}</td><td>${saTag(SA_STATUS, x.status)}</td><td class="r">${x.summary.findings}</td><td class="r">${fCFA(x.summary.gainNetMensuel)}</td><td class="r">${fCFA(x.summary.expositionMensuelle)}</td><td>${esc((x.top[0] || {}).title || "—")}</td></tr>`).join("")}</table></div></div>`;
+}
 async function fichePrixView(){
   const list=await api("/ficheprix").catch(()=>[]);
   view.innerHTML=`<h1>Fiche de Prix</h1>
@@ -8701,6 +8790,7 @@ function rubModal(r) {
         <div><label>Libellé</label><input id="rmLabel" value="${esc(r.label || "")}" style="text-transform:uppercase"></div>
         <div><label>Famille</label><select id="rmFamily">${opt("BRUT", r.family)}${opt("COTISATION", r.family)}${opt("NON_SOUMISE", r.family)}</select></div>
         <div><label>Sens</label><select id="rmSens">${opt("GAIN", r.sens)}${opt("RETENUE", r.sens)}${opt("PATRONAL", r.sens)}</select></div>
+        <div><label>Nature légale <span class="note-inline">(analyse salariale)</span></label><select id="rmNature">${saNatureOptions(r.legalNature || "", r.legalNatureSuggested)}</select></div>
         <div style="display:flex;gap:14px;align-items:end;padding-bottom:6px">
           <label class="chk" style="margin:0"><input type="checkbox" id="rmCnps" ${r.cnps ? "checked" : ""}><span>Soumis CNPS</span></label>
           <label class="chk" style="margin:0"><input type="checkbox" id="rmImpo" ${r.impo ? "checked" : ""}><span>Soumis IRPP</span></label></div>
@@ -8798,7 +8888,7 @@ function rmCstHint(inp, hintId) {
 async function rubSave(id, needForce) {
   const body = { code: rmCode.value.trim().toUpperCase(), label: rmLabel.value.trim().toUpperCase(), family: rmFamily.value,
     formula: rmFormula.value, base: rmBase.value.trim(), nombre: rmNombre.value.trim(), taux: rmTaux.value, sens: rmSens.value,
-    cnps: rmCnps.checked, impo: rmImpo.checked, prorata: (document.getElementById("rmProrata") ? document.getElementById("rmProrata").checked : true) };
+    cnps: rmCnps.checked, impo: rmImpo.checked, legalNature: (document.getElementById("rmNature") || {}).value || "", prorata: (document.getElementById("rmProrata") ? document.getElementById("rmProrata").checked : true) };
   if (needForce) { if (!document.getElementById("rmForce").checked) { rmErr.textContent = "Cochez la confirmation pour modifier une rubrique utilisée."; rmErr.classList.remove("hidden"); return; } body.force = true; }
   const compte = (document.getElementById("rmCompte") || {}).value;
   try {
