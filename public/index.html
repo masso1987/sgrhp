@@ -117,7 +117,7 @@ tr[onclick]:hover{background:var(--nav-active-bg)}
 body.compact td{padding:5px 8px}body.compact .panel{padding:11px}body.compact .card{padding:11px}
 body.compact .nav{padding:7px 16px}body.compact h1{font-size:17px;margin-bottom:9px}
 .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:100;display:flex;align-items:center;justify-content:center}
-.modal{background:#fff;border-radius:12px;padding:20px;width:440px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column}
+.modal{background:#fff;border-radius:12px;padding:20px;width:440px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;overflow-y:auto}
 .modal .scroll{overflow-y:auto;flex:1;border:1px solid var(--border);border-radius:8px;padding:6px;margin:10px 0}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
 .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px}
@@ -1531,7 +1531,7 @@ const NAV = [
   { k: "stocksalesreturns", label: "Retours de vente", sec: "Ventes", roles: ["ADM","CD","GPF"], cap: "stock.ventes", module: "stock", grp: "stock" },
   { k: "stockadjust", label: "Ajustement", sec: "Stock", roles: ["ADM","CD","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
   { k: "stockmoves", label: "Journal des mouvements", sec: "Stock", roles: ["ADM","CD","RJ","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
-  { k: "stockepi", label: "Dotation EPI", sec: "Dotation", roles: ["ADM","CD","RJ","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
+  { k: "stockepi", label: "Dotation", sec: "Dotation", roles: ["ADM","CD","RJ","GPF"], cap: "stock.mouvements", module: "stock", grp: "stock" },
   { k: "stocklocations", label: "Emplacements", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
   { k: "stocktransfers", label: "Transferts de stock", sec: "Transferts", roles: ["ADM","CD","GPF"], cap: "stock.transferts", module: "stock", grp: "stock" },
     { k: "stockexpenses", label: "Dépenses", sec: "Dépenses", roles: ["ADM","CD","GPF"], cap: "stock.depenses", module: "stock", grp: "stock" },
@@ -1757,7 +1757,7 @@ const TOUR = {
       stocksalesreturns: ["Les retours de vente : reprenez des articles vendus, le stock est réintégré.", "Sales returns: take back sold items; stock is added back."],
       stockadjust: ["L'ajustement de stock : corrigez les écarts (casse, perte, inventaire) avec un motif.", "Stock adjustment: correct differences (breakage, loss, stock count) with a reason."],
       stockmoves: ["Le journal de tous les mouvements de stock (entrées, sorties, transferts, ajustements) pour la traçabilité.", "The log of every stock movement (in, out, transfers, adjustments) for traceability."],
-      stockepi: ["La dotation EPI : les équipements de protection prévus par salarié ; « Livrer » les sort du stock.", "PPE allocation: protective equipment planned per employee; « Deliver » takes it out of stock."],
+      stockepi: ["La dotation : l'onglet EPI suit les équipements de protection prévus par salarié ; l'onglet Articles du stock remet n'importe quel article à un salarié, avec retour en stock pour les articles à restituer.", "Allocation: the PPE tab tracks protective equipment planned per employee; the Stock articles tab hands any article to an employee, with return to stock for items to be given back."],
       stocklocations: ["Les emplacements et magasins où le stock est conservé.", "Locations and warehouses where stock is kept."],
       stocktransfers: ["Les transferts de stock entre emplacements.", "Stock transfers between locations."],
       stockexpenses: ["Les dépenses de fonctionnement (transport, loyer…), rattachées à un compte de paiement.", "Running expenses (transport, rent…), linked to a payment account."],
@@ -14759,15 +14759,21 @@ async function stockLoadRefs(force){
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
 function stkUnitName(id){ const u=(window._STK.units||[]).find(x=>x.id===id); return u?(u.shortName||u.name):""; }
-/* ================= Stock : Dotation EPI ================= */
+/* ================= Stock : Dotation (EPI planifiés + articles du stock) ================= */
+function dotTabs(){
+  const t=window._dotTab||"epi";
+  const b=(k,l)=>`<button class="btn ${t===k?'p':'ghost'} sm" onclick="window._dotTab='${k}';stockEpiView()">${l}</button>`;
+  return `<h1>Dotation</h1><div style="display:flex;gap:6px;margin:4px 0 10px">${b("epi","EPI (plan par salarié)")}${b("articles","Articles du stock")}</div>`;
+}
 async function stockEpiView(){
+  if((window._dotTab||"epi")==="articles") return stockDotArticlesView();
   const [pfs, epiPfs, data] = await Promise.all([api("/portfolios").catch(()=>[]), api("/stock/epi/portfolios").catch(()=>[]), api("/stock/epi/progress").catch(()=>({perPortfolio:[],total:{},employees:[]}))]);
   const pfName=idv=>{const p=(pfs||[]).find(x=>x.id===idv);return p?p.name:(idv||"-");};
   const sel=window._epiPf||"";
   const emps=(data.employees||[]).filter(e=>!sel||e.portfolioId===sel);
   const bar=pct=>`<div style="background:#e5e7eb;border-radius:6px;height:8px;overflow:hidden;width:120px;display:inline-block;vertical-align:middle"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>=100?'#16a34a':pct>=50?'#f97316':'#dc2626'}"></div></div> ${pct}%`;
   const tot=data.total||{planned:0,issued:0,pct:0};
-  view.innerHTML=`<h1>Dotation EPI</h1>
+  view.innerHTML=`${dotTabs()}
    <div class="note" style="margin-bottom:8px">EPI planifiés par salarié (saisis à la création/modification). « Livrer » décrémente le stock du produit lié.</div>
    ${(epiPfs||[]).length?'':'<div class="panel" style="border-color:#fdba74;background:#fff7ed;color:#b45309;margin-bottom:8px">Aucun portefeuille n\'a la dotation EPI activée. Activez-la par portefeuille dans <b>Configuration des portefeuilles</b> (case « Dotation EPI activée »).</div>'}
    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
@@ -14811,6 +14817,91 @@ async function epiEdit(idv,qty,date,employeeId,name){
 async function epiDel(idv,employeeId,name){
   if(!await mmConfirm({message:"Supprimer cette remise ? Le stock sera restauré.",danger:true}))return;
   try{ await api("/stock/epi/issue/"+idv,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg)bg.remove(); await stockEpiView(); epiHistory(employeeId,name); }
+  catch(e){ alert(e.message); }
+}
+
+/* Dotation d'articles du stock : tout article, à tout salarié (n'affecte pas la conformité EPI). */
+async function stockDotArticlesView(){
+  await stockLoadRefs();
+  const [rows,emps]=await Promise.all([api("/stock/dotations").catch(()=>[]),api("/stock/dotations/employees").catch(()=>[])]);
+  window._DOTEMPS=emps;
+  const f=window._dotF||{q:"",cat:"",st:""};
+  const q=(f.q||"").toLowerCase();
+  const list=rows.filter(r=>(!q||((r.employeeName||"")+" "+(r.matricule||"")+" "+(r.productName||"")+" "+(r.ref||"")).toLowerCase().includes(q))&&(!f.cat||r.categoryId===f.cat)&&(!f.st||r.status===f.st));
+  const held=rows.filter(r=>r.status==="en_cours"), heldQty=held.reduce((s,r)=>s+(r.held||0),0);
+  const equipped=new Set(rows.map(r=>r.employeeId)).size;
+  const ST={remis:'<span class="tag gray">Remis</span>',en_cours:'<span class="tag" style="background:#f97316;color:#fff">À restituer</span>',restitue:'<span class="tag green">Restitué</span>'};
+  const kpi=(l,v,c)=>`<div class="card"><div class="kpi"${c?` style="color:${c}"`:''}>${v}</div><div class="lbl">${l}</div></div>`;
+  const nm=s=>esc(String(s||"").replace(/'/g,"&#39;"));
+  view.innerHTML=`${dotTabs()}
+   <div class="note" style="margin-bottom:8px">Remettez n'importe quel article du stock à un salarié (toutes catégories, tout le personnel). Les articles « à restituer » restent attribués jusqu'à leur retour, qui les remet en stock. Ces remises ne modifient pas la conformité EPI.</div>
+   <div class="cards">
+     ${kpi("Lignes de dotation",rows.length)}${kpi(`Articles à restituer encore détenus (${held.length} ligne(s))`,stkQty(heldQty),heldQty?"var(--amber)":"")}${kpi("Salariés dotés",equipped)}
+   </div>
+   <div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+     <input placeholder="Rechercher salarié, matricule, article, réf…" value="${esc(f.q||'')}" oninput="window._dotF=Object.assign(window._dotF||{},{q:this.value})" onkeydown="if(event.key==='Enter')stockDotArticlesView()" style="margin:0;width:280px">
+     <select style="margin:0;width:auto" onchange="window._dotF=Object.assign(window._dotF||{},{cat:this.value});stockDotArticlesView()"><option value="">Toutes catégories</option>${(window._STK.cats||[]).map(c=>`<option value="${c.id}" ${f.cat===c.id?'selected':''}>${esc(c.name)}</option>`).join("")}</select>
+     <select style="margin:0;width:auto" onchange="window._dotF=Object.assign(window._dotF||{},{st:this.value});stockDotArticlesView()"><option value="">Tous statuts</option><option value="en_cours" ${f.st==='en_cours'?'selected':''}>À restituer</option><option value="restitue" ${f.st==='restitue'?'selected':''}>Restitués</option><option value="remis" ${f.st==='remis'?'selected':''}>Remis définitivement</option></select>
+     <span style="flex:1"></span><button class="btn p sm" onclick="dotNewModal()">+ Nouvelle dotation</button></div>
+   <div style="overflow:auto"><table style="margin-top:8px;width:100%"><tr><th>Date</th><th>Réf.</th><th>Salarié</th><th>Article</th><th>Catégorie</th><th class="r">Qté</th><th class="r">Restitué</th><th>Statut</th><th></th></tr>
+   ${list.length?list.map(r=>`<tr><td>${esc((r.date||"").slice(0,10))}</td><td><code>${esc(r.ref||"")}</code></td>
+     <td>${esc(r.employeeName||"")}${r.matricule?` <span class="note">${esc(r.matricule)}</span>`:''}</td><td>${esc(r.productName||"")}</td><td>${esc(r.categoryName||"")}</td>
+     <td class="r">${stkQty(r.quantity)} ${esc(r.unitName||"")}</td><td class="r">${r.returnable?stkQty(r.returnedQty):'-'}</td><td>${ST[r.status]||""}</td>
+     <td style="white-space:nowrap">${r.status==="en_cours"?`<button class="btn ghost sm" onclick="dotReturn('${r.id}',${r.held},'${nm(r.productName)}')">Retour</button> `:''}<button class="btn ghost sm" onclick="dotFiche('${r.employeeId}')">Fiche</button> <button class="btn ghost sm" style="color:var(--red)" onclick="dotCancel('${r.id}')">Annuler</button></td></tr>`).join(""):'<tr><td colspan="9" class="note">Aucune dotation pour ce filtre.</td></tr>'}
+   </table></div></div>`;
+}
+function dotProdOptions(){
+  const cats=window._STK.cats||[], prods=(window._STK.prods||[]).filter(p=>p.active!==false);
+  const groups=[...cats.map(c=>({name:c.name,items:prods.filter(p=>p.categoryId===c.id)})),{name:"Sans catégorie",items:prods.filter(p=>!p.categoryId||!cats.some(c=>c.id===p.categoryId))}].filter(g=>g.items.length);
+  return `<option value="">- choisir un article -</option>`+groups.map(g=>`<optgroup label="${esc(g.name)}">${g.items.map(p=>`<option value="${p.id}" ${Number(p.qty||0)<=0?'disabled':''}>${esc(p.name)}${p.sku?' ['+esc(p.sku)+']':''} - dispo ${stkQty(p.qty)} ${esc(p.unitName||'')}</option>`).join("")}</optgroup>`).join("");
+}
+function dotLineHtml(){
+  return `<tr class="dotLine"><td><select class="dlP" style="margin:0;width:100%">${dotProdOptions()}</select></td>
+    <td><input class="dlQ" type="number" min="0" step="any" value="1" style="margin:0;width:80px;text-align:right"></td>
+    <td style="text-align:center"><input class="dlR" type="checkbox" title="L'article doit être rendu (ordinateur, téléphone, outillage…)"></td>
+    <td><button class="btn ghost sm" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+}
+function dotNewModal(){
+  const emps=window._DOTEMPS||[];
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="width:680px"><h3 style="margin:0 0 8px">Nouvelle dotation</h3>
+    <div class="grid2">
+      <div><label>Salarié *</label><input id="dEmpQ" placeholder="Filtrer par nom ou matricule…" oninput="dotFilterEmps(this.value)" style="margin-bottom:4px">
+        <select id="dEmp">${dotEmpOptions(emps)}</select></div>
+      <div><label>Date de remise</label><input id="dDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    </div>
+    <table style="width:100%;margin-top:8px"><tr><th>Article</th><th class="r">Qté</th><th>À restituer</th><th></th></tr><tbody id="dLines">${dotLineHtml()}</tbody></table>
+    <button class="btn ghost sm" style="margin-top:6px" onclick="document.getElementById('dLines').insertAdjacentHTML('beforeend',dotLineHtml())">+ Ajouter un article</button>
+    <div style="margin-top:8px"><label>Note</label><input id="dNote" placeholder="Motif, affectation, état de l'article…"></div>
+    <div class="err hidden" id="dErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn p" onclick="dotSave()">Enregistrer la dotation</button>
+      <button class="btn ghost" onclick="this.closest('.modal-bg').remove()">Annuler</button></div></div>`;
+  document.body.appendChild(bg);
+}
+function dotEmpOptions(emps){ return `<option value="">- choisir un salarié -</option>`+emps.map(e=>`<option value="${e.id}">${esc(e.name)}${e.matricule?' - '+esc(e.matricule):''}${e.portfolioName?' ('+esc(e.portfolioName)+')':''}</option>`).join(""); }
+function dotFilterEmps(v){ const q=(v||"").toLowerCase(); const sel=document.getElementById("dEmp"); if(!sel)return;
+  sel.innerHTML=dotEmpOptions((window._DOTEMPS||[]).filter(e=>!q||((e.name||"")+" "+(e.matricule||"")).toLowerCase().includes(q))); }
+async function dotSave(){
+  const err=document.getElementById("dErr"); const fail=m=>{err.textContent=m;err.classList.remove("hidden");};
+  const employeeId=document.getElementById("dEmp").value; if(!employeeId) return fail("Choisissez un salarié.");
+  const lines=[...document.querySelectorAll("#dLines tr.dotLine")].map(tr=>({productId:tr.querySelector(".dlP").value,quantity:Number(tr.querySelector(".dlQ").value),returnable:tr.querySelector(".dlR").checked})).filter(l=>l.productId);
+  if(!lines.length) return fail("Choisissez au moins un article.");
+  try{ const r=await api("/stock/dotations",{method:"POST",body:JSON.stringify({employeeId,date:document.getElementById("dDate").value,note:document.getElementById("dNote").value,lines})});
+    document.querySelector(".modal-bg").remove(); await stockDotArticlesView(); }
+  catch(e){ fail(e.message); }
+}
+async function dotReturn(idv,held,name){
+  const q=prompt(`Quantité rendue pour « ${name} » (encore détenu : ${held}) :`,held); if(q===null)return; const qty=Number(q); if(!(qty>0))return alert("Quantité invalide");
+  const d=prompt("Date du retour (AAAA-MM-JJ) :",new Date().toISOString().slice(0,10)); if(d===null)return;
+  try{ await api("/stock/dotations/"+idv+"/return",{method:"POST",body:JSON.stringify({quantity:qty,date:d})}); await stockDotArticlesView(); }
+  catch(e){ alert(e.message); }
+}
+async function dotCancel(idv){
+  if(!await mmConfirm({message:"Annuler cette dotation ? Les articles encore détenus sont remis en stock.",danger:true}))return;
+  try{ await api("/stock/dotations/"+idv,{method:"DELETE"}); await stockDotArticlesView(); }catch(e){ alert(e.message); }
+}
+async function dotFiche(employeeId){
+  try{ const r=await fetch("/api/stock/dotations/fiche/"+employeeId+".pdf",{headers:{Authorization:"Bearer "+TOKEN}}); if(!r.ok)throw new Error("Fiche indisponible"); const b=await r.blob(); const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="Fiche_dotation.pdf"; a.click(); }
   catch(e){ alert(e.message); }
 }
 
@@ -14969,7 +15060,7 @@ function stockProductLabel(id){ const p=_prod(id); if(!p) return; const code=p.b
 async function stockProductView(id){
   await stockLoadRefs(); const p=_prod(id); if(!p) return;
   const moves=await api("/stock/movements?productId="+id).catch(()=>[]);
-  const typeTag=(x)=>({achat:'Entrée',initial:'Initial',vente:'Sortie',ajustement:'Ajust.',retour:'Retour achat',retourv:'Retour vente',transfert:'Transfert'})[x]||x;
+  const typeTag=(x)=>({achat:'Entrée',initial:'Initial',vente:'Sortie',ajustement:'Ajust.',retour:'Retour achat',retourv:'Retour vente',transfert:'Transfert',dotation:'Dotation'})[x]||x;
   const row=(l,v)=>`<tr><td style="color:var(--muted)">${esc(l)}</td><td>${v==null?'':v}</td></tr>`;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockproducts')">← Produits</button>
     <h1 style="margin-top:10px">${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</h1>
@@ -15198,7 +15289,7 @@ async function stockMovesView(){
   const t=window._mvType||""; const pid=window._mvPid||"";
   const qs=[]; if(t) qs.push("type="+t); if(pid) qs.push("productId="+pid);
   const rows=await api("/stock/movements"+(qs.length?"?"+qs.join("&"):"")).catch(()=>[]);
-  const typeTag=(x)=>({achat:'<span class="tag green">Entrée</span>',initial:'<span class="tag gray">Initial</span>',vente:'<span class="tag" style="background:#b45309;color:#fff">Sortie</span>',ajustement:'<span class="tag" style="background:#7c3aed;color:#fff">Ajust.</span>',retour:'<span class="tag" style="background:#b45309;color:#fff">Retour</span>'})[x]||esc(x);
+  const typeTag=(x)=>({achat:'<span class="tag green">Entrée</span>',initial:'<span class="tag gray">Initial</span>',vente:'<span class="tag" style="background:#b45309;color:#fff">Sortie</span>',ajustement:'<span class="tag" style="background:#7c3aed;color:#fff">Ajust.</span>',retour:'<span class="tag" style="background:#b45309;color:#fff">Retour</span>',dotation:'<span class="tag" style="background:#0e7490;color:#fff">Dotation</span>'})[x]||esc(x);
   const seg=(v,l)=>`<button class="btn ${t===v?'p':'ghost'} sm" onclick="window._mvType='${v}';stockMovesView()">${l}</button>`;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
     <h1 style="margin-top:10px">Journal des mouvements</h1>

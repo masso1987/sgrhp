@@ -8,7 +8,7 @@ const { db, save, id, mine, stamp } = require("../store");
 const { allow } = require("../rbac");
 const { audit } = require("../audit");
 
-for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockLocations", "stockTransfers", "stockExpenseCats", "stockExpenses", "stockPaymentAccounts", "stockMovements", "stockNotifTemplates"]) if (!db[k]) db[k] = [];
+for (const k of ["stockProducts", "stockCategories", "stockUnits", "stockSuppliers", "stockContacts", "stockBrands", "stockWarranties", "stockPriceGroups", "stockVariations", "stockPOs", "stockPurchases", "stockReturns", "stockSOs", "stockSales", "stockQuotes", "stockSalesReturns", "stockLocations", "stockTransfers", "stockExpenseCats", "stockExpenses", "stockPaymentAccounts", "stockMovements", "stockNotifTemplates", "stockDotations"]) if (!db[k]) db[k] = [];
 
 const R2 = (n) => Math.round(Number(n) || 0);
 const Q = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
@@ -147,7 +147,7 @@ router.post("/products", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const p = stamp({
     id: id("prd"), sku: b.sku || "", barcode: b.barcode || "", name: b.name, categoryId: b.categoryId || "", unitId: b.unitId || "", supplierId: b.supplierId || "",
     brandId: b.brandId || "", warrantyId: b.warrantyId || "", priceGroupId: b.priceGroupId || "",
-    purchasePrice: R2(b.purchasePrice), salePrice: R2(b.salePrice), qty: initial, alertQty: b.alertQty != null ? Q(b.alertQty) : "",
+    purchasePrice: R2(b.purchasePrice), salePrice: R2(b.salePrice), qty: initial, alertQty: (b.alertQty != null && b.alertQty !== "") ? Q(b.alertQty) : "",
     active: b.active !== false, note: b.note || "", expDate: b.expDate || "", mfgDate: b.mfgDate || "",
     variationId: b.variationId || "", variantPrices: Array.isArray(b.variantPrices) ? b.variantPrices : [], createdAt: new Date().toISOString()
   }, req);
@@ -982,6 +982,147 @@ router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), 
 
   doc.moveDown(2);
   doc.fontSize(9).fillColor("#000").font("Helvetica").text("Je soussigné(e) reconnais avoir reçu les équipements de protection individuelle listés ci-dessus et m'engage à les porter et à les entretenir conformément aux consignes de sécurité.", M, doc.y, { width: R - M });
+  const sy = doc.y + 40;
+  doc.fontSize(10).font("Helvetica-Bold").fillColor("#000");
+  doc.text("Le salarié", M, sy); doc.text("Le responsable (dotation)", M + 300, sy);
+  doc.moveTo(M, sy + 46).lineTo(M + 200, sy + 46).strokeColor("#999").lineWidth(.8).stroke();
+  doc.moveTo(M + 300, sy + 46).lineTo(M + 300 + 200, sy + 46).stroke();
+  doc.fontSize(8).fillColor("#777").font("Helvetica").text("Nom, date et signature", M, sy + 50);
+  doc.text("Nom, date et signature", M + 300, sy + 50);
+  doc.fontSize(7.5).fillColor("#999").text(`Éditée le ${new Date().toLocaleString("fr-FR")} - ${(tenant && tenant.name) || "SGRHP"}`, M, 800, { align: "center", width: R - M });
+  doc.end();
+});
+
+/* ================= Dotation d'articles du stock (tous articles, tout le personnel) =================
+ * Distincte de la dotation EPI planifiée (db.epiIssues), qui alimente la conformité du personnel :
+ * ces remises ne la modifient pas. Un article « à restituer » (ordinateur, téléphone, outillage…)
+ * reste en possession du salarié jusqu'à son retour, qui le remet en stock. */
+const dots = (req) => mine(db.stockDotations || (db.stockDotations = []), req);
+const empFullName = (e) => e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : "";
+function dotOut(req, d) {
+  const emp = mine(db.employees, req).find(e => e.id === d.employeeId);
+  const prod = _prod(req, d.productId);
+  const cat = prod && mine(db.stockCategories, req).find(c => c.id === prod.categoryId);
+  const unit = prod && mine(db.stockUnits, req).find(u => u.id === prod.unitId);
+  const returned = Q(d.returnedQty || 0), held = d.returnable ? Q(Q(d.quantity) - returned) : 0;
+  return Object.assign({}, d, {
+    employeeName: empFullName(emp), matricule: emp ? emp.matricule || "" : "", portfolioName: pfNameOf(req, d.portfolioId),
+    productName: prod ? prod.name : (d.productName || ""), categoryId: prod ? prod.categoryId || "" : "", categoryName: cat ? cat.name : "",
+    unitName: unit ? (unit.shortName || unit.name) : "", returnedQty: returned, held,
+    status: !d.returnable ? "remis" : held > 0 ? "en_cours" : "restitue"
+  });
+}
+function nextDotRef(req) {
+  const n = dots(req).reduce((m, d) => Math.max(m, Number(String(d.ref || "").replace(/\D/g, "")) || 0), 0) + 1;
+  return "DOT-" + String(n).padStart(5, "0");
+}
+router.get("/dotations/employees", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  res.json(mine(db.employees, req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
+    .map(e => ({ id: e.id, name: empFullName(e), matricule: e.matricule || "", portfolioId: e.portfolioId || "", portfolioName: pfNameOf(req, e.portfolioId) }))
+    .sort((a, b) => a.name.localeCompare(b.name)));
+});
+router.get("/dotations", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  let list = dots(req).map(d => dotOut(req, d));
+  if (req.query.employeeId) list = list.filter(d => d.employeeId === req.query.employeeId);
+  if (req.query.categoryId) list = list.filter(d => d.categoryId === req.query.categoryId);
+  if (req.query.status) list = list.filter(d => d.status === req.query.status);
+  res.json(list.sort((a, b) => String(b.date + b.createdAt).localeCompare(String(a.date + a.createdAt))));
+});
+router.post("/dotations", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
+  const b = req.body || {};
+  const emp = mine(db.employees, req).find(e => e.id === b.employeeId);
+  if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
+  const date = String(b.date || _today()).slice(0, 10);
+  const lines = (Array.isArray(b.lines) ? b.lines : []).map(l => ({ prod: _prod(req, l.productId), productId: l.productId, qty: Q(l.quantity), returnable: !!l.returnable })).filter(l => l.productId || l.qty);
+  if (!lines.length) return res.status(400).json({ error: "Ajoutez au moins un article" });
+  const need = {};
+  for (const l of lines) {
+    if (!l.prod) return res.status(404).json({ error: "Article introuvable" });
+    if (!(l.qty > 0)) return res.status(400).json({ error: `Quantité invalide pour « ${l.prod.name} »` });
+    need[l.prod.id] = Q((need[l.prod.id] || 0) + l.qty);
+  }
+  for (const pid of Object.keys(need)) {
+    const p = _prod(req, pid);
+    if (need[pid] > Q(p.qty || 0)) return res.status(400).json({ error: `Stock insuffisant pour « ${p.name} » (disponible ${Q(p.qty || 0)}, demandé ${need[pid]})` });
+  }
+  const ref = nextDotRef(req), note = String(b.note || "").slice(0, 300), created = [];
+  for (const l of lines) {
+    l.prod.qty = Q((l.prod.qty || 0) - l.qty);
+    logMove(req, { date, type: "dotation", productId: l.prod.id, qty: -l.qty, unitCost: R2(l.prod.purchasePrice), ref, note: empFullName(emp) });
+    const rec = stamp({ id: id("dot"), ref, employeeId: emp.id, portfolioId: emp.portfolioId || "", productId: l.prod.id, productName: l.prod.name,
+      quantity: l.qty, returnable: l.returnable, returnedQty: 0, returns: [], date, note, by: req.user.id, createdAt: new Date().toISOString() }, req);
+    db.stockDotations.push(rec); created.push(rec);
+  }
+  save(); audit(req.user, "CREATED", "StockDotation", ref, { employee: emp.id, lines: created.length });
+  res.status(201).json({ ok: true, ref, dotations: created.map(d => dotOut(req, d)) });
+});
+router.post("/dotations/:id/return", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
+  const d = dots(req).find(x => x.id === req.params.id); if (!d) return res.status(404).json({ error: "Dotation introuvable" });
+  if (!d.returnable) return res.status(400).json({ error: "Cet article a été remis définitivement, il n'est pas à restituer" });
+  const held = Q(Q(d.quantity) - Q(d.returnedQty || 0)), qty = Q((req.body || {}).quantity);
+  if (!(qty > 0) || qty > held) return res.status(400).json({ error: `Quantité de retour invalide (encore détenu : ${held})` });
+  const date = String((req.body || {}).date || _today()).slice(0, 10);
+  const prod = _prod(req, d.productId);
+  if (prod) { prod.qty = Q((prod.qty || 0) + qty); logMove(req, { date, type: "dotation", productId: prod.id, qty, unitCost: R2(prod.purchasePrice), ref: "Retour " + d.ref, note: String((req.body || {}).note || "").slice(0, 300) }); }
+  d.returnedQty = Q(Q(d.returnedQty || 0) + qty);
+  (d.returns = d.returns || []).push({ date, quantity: qty, note: String((req.body || {}).note || "").slice(0, 300), by: req.user.id });
+  d.updatedAt = new Date().toISOString(); save();
+  audit(req.user, "UPDATED", "StockDotation", d.id, { returned: qty });
+  res.json(dotOut(req, d));
+});
+router.delete("/dotations/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
+  const d = dots(req).find(x => x.id === req.params.id); if (!d) return res.status(404).json({ error: "Dotation introuvable" });
+  const back = Q(Q(d.quantity) - Q(d.returnedQty || 0));
+  const prod = _prod(req, d.productId);
+  if (prod && back > 0) { prod.qty = Q((prod.qty || 0) + back); logMove(req, { date: _today(), type: "dotation", productId: prod.id, qty: back, unitCost: R2(prod.purchasePrice), ref: "Annulation " + d.ref, note: d.id }); }
+  db.stockDotations.splice(db.stockDotations.indexOf(d), 1); save();
+  audit(req.user, "DELETED", "StockDotation", d.id, { ref: d.ref, employee: d.employeeId });
+  res.json({ ok: true });
+});
+
+/* Fiche de dotation d'un salarié (articles du stock, imprimable avec zone de signature) */
+router.get("/dotations/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const PDFDocument = require("pdfkit");
+  const emp = mine(db.employees, req).find(e => e.id === req.params.employeeId);
+  if (!emp) return res.status(404).json({ error: "Salarié introuvable" });
+  const rows = dots(req).filter(d => d.employeeId === emp.id).map(d => dotOut(req, d)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const tenant = (db.tenants || []).find(t => t.id === (emp.tenantId || "t1"));
+  const brand = require("./settings").settings(req).branding || {};
+  const fr = d => d ? new Date(d).toLocaleDateString("fr-FR") : "";
+  const ST = { remis: "Remis", en_cours: "À restituer", restitue: "Restitué" };
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="Fiche_dotation_${emp.lastName || ""}.pdf"`);
+  const doc = new PDFDocument({ margin: 46, size: "A4" }); doc.pipe(res);
+  const M = 46, R = 549;
+  if (brand.logo && /^data:image\/(png|jpe?g)/i.test(brand.logo)) { try { doc.image(Buffer.from(brand.logo.split(",")[1], "base64"), M, 40, { fit: [120, 48] }); } catch (e) {} }
+  doc.fontSize(15).fillColor("#1e3a5f").font("Helvetica-Bold").text((tenant && tenant.name) || brand.appName || "SGRHP", M, 48, { align: "right" });
+  doc.fontSize(13).fillColor("#000").text("FICHE DE DOTATION", M, 96, { align: "center" });
+  doc.moveTo(M, 116).lineTo(R, 116).strokeColor("#e8833a").lineWidth(1.5).stroke();
+  doc.moveDown(1.2);
+  const KV = (k, v) => doc.fontSize(10).font("Helvetica-Bold").fillColor("#444").text(k + " : ", M, doc.y, { continued: true }).font("Helvetica").fillColor("#000").text(String(v || "-"));
+  KV("Salarié", empFullName(emp));
+  KV("Matricule", emp.matricule || "-");
+  KV("Client / portefeuille", pfNameOf(req, emp.portfolioId) || "-");
+  KV("Poste", emp.position || emp.qualification || "-");
+  doc.moveDown(.6);
+  const cols = [{ l: "Date", w: 62, a: "left" }, { l: "Réf.", w: 66, a: "left" }, { l: "Article", w: 170, a: "left" }, { l: "Qté", w: 40, a: "right" }, { l: "Restitué", w: 55, a: "right" }, { l: "Statut", w: 110, a: "left" }];
+  let x = M, y = doc.y;
+  doc.rect(M, y, R - M, 18).fill("#1e3a5f"); doc.fillColor("#fff").fontSize(9.5).font("Helvetica-Bold");
+  for (const c of cols) { doc.text(c.l, x + 4, y + 5, { width: c.w - 8, align: c.a }); x += c.w; }
+  y += 18; doc.font("Helvetica").fillColor("#000");
+  rows.forEach((r, i) => {
+    if (y > 700) { doc.addPage(); y = 46; }
+    if (i % 2) { doc.rect(M, y, R - M, 16).fill("#f4f6f9"); doc.fillColor("#000"); }
+    x = M; const cells = [fr(r.date), r.ref || "", r.productName, String(r.quantity), r.returnable ? String(r.returnedQty) : "-", ST[r.status] || ""];
+    cols.forEach((c, j) => { doc.fontSize(9).fillColor("#000").text(cells[j], x + 4, y + 4, { width: c.w - 8, align: c.a, lineBreak: false, ellipsis: true }); x += c.w; });
+    y += 16;
+  });
+  if (!rows.length) { doc.fontSize(9.5).text("Aucune dotation enregistrée.", M + 4, y + 4); y += 16; }
+  doc.y = y + 10;
+  const held = rows.filter(r => r.status === "en_cours");
+  if (held.length) doc.fontSize(9.5).font("Helvetica-Bold").fillColor("#1e3a5f").text(`Articles à restituer encore détenus : ${held.map(r => `${r.productName} (${r.held})`).join(", ")}`, M, doc.y, { width: R - M });
+  doc.moveDown(2);
+  doc.fontSize(9).fillColor("#000").font("Helvetica").text("Je soussigné(e) reconnais avoir reçu les articles listés ci-dessus. Je m'engage à restituer ceux marqués « À restituer » à la demande de l'employeur ou à la fin de mon contrat, en bon état d'usage.", M, doc.y, { width: R - M });
   const sy = doc.y + 40;
   doc.fontSize(10).font("Helvetica-Bold").fillColor("#000");
   doc.text("Le salarié", M, sy); doc.text("Le responsable (dotation)", M + 300, sy);
