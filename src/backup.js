@@ -70,14 +70,25 @@ function parseArchive(buf) {
   return JSON.parse(zlib.gunzipSync(gz).toString("utf8"));
 }
 
-function writeFiles(files) { for (const f of (files || [])) { try { const dest = path.join(UPLOADS, f.path); fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.writeFileSync(dest, Buffer.from(f.b64, "base64")); } catch (e) {} } }
+// A restored file path comes from the (possibly hostile) archive. Keep every write
+// strictly inside the uploads directory: resolve the destination and reject anything
+// that escapes it (e.g. "../../src/routes/evil.js"), so a crafted backup cannot
+// overwrite application code or plant files elsewhere on the server.
+const UPLOADS_ROOT = path.resolve(UPLOADS);
+function safeUploadPath(rel) {
+  if (typeof rel !== "string" || !rel || rel.includes("\0")) return null;
+  const dest = path.resolve(UPLOADS_ROOT, rel);
+  if (dest !== UPLOADS_ROOT && !dest.startsWith(UPLOADS_ROOT + path.sep)) return null;
+  return dest;
+}
+function writeFiles(files) { for (const f of (files || [])) { try { const dest = safeUploadPath(f && f.path); if (!dest) continue; fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.writeFileSync(dest, Buffer.from(f.b64, "base64")); } catch (e) {} } }
 
 /** Apply a parsed archive in place. Tenant scope replaces only that tenant; else full replace. */
 function applyArchive(db, payload, save) {
   const meta = payload.meta || {}; const tid = meta.tenantId;
   if (tid) {
     // remove this tenant's current files from disk first (replace-entirely)
-    for (const rel of tenantFileRels(db, tid)) { try { fs.unlinkSync(path.join(UPLOADS, rel)); } catch (e) {} }
+    for (const rel of tenantFileRels(db, tid)) { const p = safeUploadPath(rel); if (!p) continue; try { fs.unlinkSync(p); } catch (e) {} }
     for (const k of Object.keys(payload.db || {})) {
       if (!Array.isArray(db[k])) db[k] = [];
       for (let i = db[k].length - 1; i >= 0; i--) if (tid_(db[k][i]) === tid) db[k].splice(i, 1);

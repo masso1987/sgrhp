@@ -4,3 +4,10 @@ uploads/
 *.log
 .env
 package-lock.json
+
+# Android signing secrets — never commit (the *.example template stays tracked)
+mobile/android/key.properties
+mobile/android/key.properties.properties
+**/key.properties
+*.jks
+*.keystore
