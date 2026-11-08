@@ -453,7 +453,7 @@ const I18N = {
   "Gouvernance SMQ": "QMS governance",
   "Grand-livre & journaux": "General ledger & journals",
   "Groupes de prix": "Price groups",
-  "Import Sage / FEC": "Sage / FEC import",
+  "Import comptable / FEC": "Accounting / FEC import",
   "Importer des produits": "Import products",
   "Importer stock d'ouverture": "Import opening stock",
   "Imprimer les étiquettes": "Print labels",
@@ -1509,7 +1509,7 @@ const NAV = [
   { k: "acctjournals", label: "Codes journaux", sec: "Structure", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "acctrubmap", label: "Rubriques → Comptes (paie)", sec: "Structure", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "accttiers", label: "Comptes tiers", sec: "Structure", roles: ["ADM","CD","RJ"], module: "accounting", grp: "comptabilite" },
-  { k: "acctimport", label: "Import Sage / FEC", sec: "Données", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
+  { k: "acctimport", label: "Import comptable / FEC", sec: "Données", roles: ["ADM","CD"], module: "accounting", grp: "comptabilite" },
   { k: "stockhome", label: "Tableau de bord", sec: "Pilotage", roles: ["ADM","CD","RJ","GPF"], module: "stock", grp: "stock" },
   { k: "stockproducts", label: "Produits", sec: "Catalogue", roles: ["ADM","CD","RJ","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
   { k: "stockunits", label: "Unités", sec: "Catalogue", roles: ["ADM","CD","GPF"], cap: "stock.catalogue", module: "stock", grp: "stock" },
@@ -7330,8 +7330,8 @@ function payFicheOverridesHTML(eid){
   const e=((window._FIEMPS)||[]).find(x=>x.id===eid)||{};
   const v=x=>(x!=null&&x!==""?x:"");
   return `<div class="panel" style="margin-top:10px">
-    <b style="font-size:12px;color:var(--muted)">SURCHARGES D'ASSIETTE (CONFIG SAGE NON STANDARD)</b>
-    <div class="note" style="margin:4px 0 8px">Laissez vide pour l'assiette LÉGALE calculée automatiquement (recommandé). Renseignez une valeur uniquement pour reproduire exactement une paie Sage dont les bases ont été fixées manuellement pour ce salarié. S'applique à chaque bulletin recalculé.</div>
+    <b style="font-size:12px;color:var(--muted)">SURCHARGES D'ASSIETTE (CONFIGURATION NON STANDARD)</b>
+    <div class="note" style="margin:4px 0 8px">Laissez vide pour l'assiette LÉGALE calculée automatiquement (recommandé). Renseignez une valeur uniquement pour reproduire exactement une paie issue d'un autre logiciel dont les bases ont été fixées manuellement pour ce salarié. S'applique à chaque bulletin recalculé.</div>
     <div class="grid3">
       <div><label>Base CNPS (PVID / prest. fam.)</label><input id="ovCnps" type="number" step="any" value="${v(e.cnpsBaseOverride)}" placeholder="auto"></div>
       <div><label>Base imposable (IRPP)</label><input id="ovImpo" type="number" step="any" value="${v(e.taxableBaseOverride)}" placeholder="auto"></div>
@@ -8435,7 +8435,7 @@ function payRubriquesHTML(){
 }
 function payConstantesHTML(){
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-    <b style="font-size:12px;color:var(--muted)">CONSTANTES DE PAIE (${(PAY_CST||[]).length}) — référentiel Sage</b>
+    <b style="font-size:12px;color:var(--muted)">CONSTANTES DE PAIE (${(PAY_CST||[]).length}) — référentiel</b>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input id="cstSearch" placeholder="Rechercher code ou libellé…" style="max-width:240px;margin:0" oninput="cstRender(this.value)">
       <select id="cstType" style="margin:0" onchange="cstRender(document.getElementById('cstSearch').value)"><option value="">Tous les types</option>${[...new Set((PAY_CST||[]).map(c=>c.type))].sort().map(t=>`<option>${esc(t)}</option>`).join("")}</select>
@@ -8707,7 +8707,7 @@ async function cstDelete(id){
   if(!ok) return;
   try{ if(sys){ await api("/payroll/constantes/"+id,{method:"PUT",body:JSON.stringify({active:false})}); } else { await api("/payroll/constantes/"+id,{method:"DELETE"}); PAY_CST=PAY_CST.filter(x=>x.id!==id); } cstRender((document.getElementById("cstSearch")||{}).value||""); }catch(e){ alert(e.message); }
 }
-async function cstImportCatalogue(){ if(!await mmConfirm({title:"Importer le catalogue",message:"Importer le catalogue de constantes Sage ? Les constantes déjà présentes ne seront pas dupliquées.",confirmLabel:"Importer"})) return; try{ const r=await api("/payroll/constantes/import-catalogue",{method:"POST"}); payconfigView(); }catch(e){ alert(e.message); } }
+async function cstImportCatalogue(){ if(!await mmConfirm({title:"Importer le catalogue",message:"Importer le catalogue de constantes standard ? Les constantes déjà présentes ne seront pas dupliquées.",confirmLabel:"Importer"})) return; try{ const r=await api("/payroll/constantes/import-catalogue",{method:"POST"}); payconfigView(); }catch(e){ alert(e.message); } }
 function cstModal(c){
   const isEdit=!!c; c=c||{type:"Valeur"};
   const _use=(isEdit && typeof cstUsage==="function" && c.code)?cstUsage(c.code):[];
@@ -8734,7 +8734,7 @@ async function cstSave(id){
   catch(e){ csErr.textContent=e.message; csErr.classList.remove("hidden"); }
 }
 async function rubImportCatalogue() {
-  if (!await mmConfirm({title:"Importer le catalogue Sage",message:"Importer les 163 rubriques du catalogue Sage ? Les rubriques déjà présentes ne seront pas dupliquées.",confirmLabel:"Importer"})) return;
+  if (!await mmConfirm({title:"Importer le catalogue de rubriques",message:"Importer les 163 rubriques du catalogue standard ? Les rubriques déjà présentes ne seront pas dupliquées.",confirmLabel:"Importer"})) return;
   try { await api("/payroll/rubriques/import-catalogue", { method: "POST" }); payconfigView(); }
   catch (e) { alert(e.message); }
 }
@@ -11192,7 +11192,7 @@ async function acctHome() {
       ${tile("","Recherche d'écritures","Par compte, tiers, montant, libellé…","acctsearch")}
       ${tile("","Rapprochement bancaire","Importer un relevé (CSV) et pointer","acctbank")}
       ${tile("","États tiers","Balance, grand-livre, relevés imprimables","accttierstates")}
-      ${tile("","Import Sage / FEC","Reprendre plan, tiers et écritures","acctimport")}</div>`;
+      ${tile("","Import comptable / FEC","Reprendre plan, tiers et écritures","acctimport")}</div>`;
   const ok=await ensureChartJs();
   if(ok && window.Chart){
     const gc=(id)=>{ const el=document.getElementById(id); return el?el.getContext("2d"):null; };
@@ -11430,7 +11430,7 @@ async function acctBalanceView() {
       <button class="btn ghost sm" onclick="acctBalancePDF()">PDF</button>
       <button class="btn ghost sm" onclick="acctBalanceXLSX()">Excel</button>
       <span class="sp"></span>
-      <button class="btn ghost sm" onclick="balImportForm()">Importer N-1 (Sage)</button></div>
+      <button class="btn ghost sm" onclick="balImportForm()">Importer la balance N-1</button></div>
     <div class="d2-filters">
       <div class="fld"><label>Mois (vide = tout)</label><input type="month" value="${period}" onchange="window._acctPeriod=this.value;window._acctFrom='';window._acctTo='';acctBalanceView()"></div>
       <div class="fld"><label>Du</label><input type="date" value="${window._acctFrom||''}" onchange="window._acctFrom=this.value;window._acctPeriod='';acctBalanceView()"></div>
@@ -11446,8 +11446,8 @@ async function acctBalanceView() {
 function balImportForm(){
   const bg=document.createElement("div");bg.className="modal-bg";
   const defDate=(new Date().getFullYear()-1)+"-12-31";
-  bg.innerHTML=`<div class="modal" style="max-width:580px"><b>Importer la balance N-1 (reprise Sage)</b>
-    <div class="note" style="margin:6px 0">Importez la balance de clôture de l'exercice précédent exportée depuis Sage (mouvements cumulés par compte). Une écriture « Report à-nouveau » validée est créée à la date de clôture ; elle apparaît ensuite comme ouverture / « Mouvements au N-1 » dans la balance. Colonnes attendues : Compte, Intitulé, Débit, Crédit. <a href="#" onclick="balImportTpl();return false">Télécharger le modèle</a></div>
+  bg.innerHTML=`<div class="modal" style="max-width:580px"><b>Importer la balance N-1 (reprise)</b>
+    <div class="note" style="margin:6px 0">Importez la balance de clôture de l'exercice précédent exportée depuis votre ancien logiciel comptable (mouvements cumulés par compte). Une écriture « Report à-nouveau » validée est créée à la date de clôture ; elle apparaît ensuite comme ouverture / « Mouvements au N-1 » dans la balance. Colonnes attendues : Compte, Intitulé, Débit, Crédit. <a href="#" onclick="balImportTpl();return false">Télécharger le modèle</a></div>
     <label>Date de clôture N-1</label><input type="date" id="biDate" value="${defDate}">
     <label>Fichier .xlsx</label><input type="file" id="biFile" accept=".xlsx,.xls">
     <div class="err hidden" id="biErr" style="margin-top:8px"></div>
@@ -12517,15 +12517,15 @@ function acctImportView(){
   const t=window._imp.type;
   const seg=(v)=>`<button class="btn ${t===v?'p':'ghost'} sm" onclick="window._imp={type:'${v}'};acctImportView()">${IMP_TYPES[v].label}</button>`;
   view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
-    <h1 style="margin-top:10px">Import / Export Sage i7 (& FEC)</h1>
+    <h1 style="margin-top:10px">Import / Export des écritures (& FEC)</h1>
     <div class="panel" style="margin-bottom:10px">
-      <b style="font-size:12px;color:var(--muted)">EXPORT DES ÉCRITURES VERS SAGE i7</b>
-      <div class="note" style="margin:4px 0 8px">Génère un fichier d'import paramétrable Sage i7 (texte point-virgule : JOURNAL;DATE;PIÈCE;COMPTE;TIERS;LIBELLÉ;DÉBIT;CRÉDIT;ÉCHÉANCE). Importez-le ensuite dans Sage via « Import des écritures ».</div>
+      <b style="font-size:12px;color:var(--muted)">EXPORT DES ÉCRITURES (FORMAT D'IMPORT PARAMÉTRABLE)</b>
+      <div class="note" style="margin:4px 0 8px">Génère un fichier d'import paramétrable (texte point-virgule : JOURNAL;DATE;PIÈCE;COMPTE;TIERS;LIBELLÉ;DÉBIT;CRÉDIT;ÉCHÉANCE), lisible par les logiciels comptables du marché. Importez-le ensuite dans votre logiciel via sa fonction « Import des écritures ».</div>
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
         <div><label>Du</label><input type="date" id="sxFrom"></div>
         <div><label>Au</label><input type="date" id="sxTo"></div>
         <label class="chk" style="display:flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="sxAll" style="width:auto;margin:0"> Inclure les brouillons</label>
-        <button class="btn p sm" onclick="acctSageExport()">Exporter vers Sage i7</button>
+        <button class="btn p sm" onclick="acctSageExport()">Exporter les écritures</button>
       </div>
     </div>
     <div class="panel"><b style="font-size:12px;color:var(--muted)">IMPORT</b><div style="display:flex;gap:6px;margin:8px 0">${Object.keys(IMP_TYPES).map(seg).join("")}</div>
@@ -12538,7 +12538,7 @@ function acctSageExport(){
   const from=(document.getElementById("sxFrom")||{}).value||"", to=(document.getElementById("sxTo")||{}).value||"";
   const all=(document.getElementById("sxAll")||{}).checked?"1":"0";
   const qs=`?all=${all}${from?("&from="+from):""}${to?("&to="+to):""}`;
-  acctPDF("/accounting/sage-entries-export"+qs, `ecritures_sage_${from||"debut"}_${to||"fin"}.csv`);
+  acctPDF("/accounting/sage-entries-export"+qs, `ecritures_export_${from||"debut"}_${to||"fin"}.csv`);
 }
 function acctImpFileChosen(input){ const file=input.files&&input.files[0]; if(!file) return;
   const rd=new FileReader();

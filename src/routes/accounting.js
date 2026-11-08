@@ -262,7 +262,7 @@ router.post("/balance-import", allow("RC", "ADM"), _balMemUp.single("file"), (re
     if (diff > 0) lines.push({ account: "471000", label: "Écart de reprise (à régulariser)", debit: 0, credit: diff });
     else lines.push({ account: "471000", label: "Écart de reprise (à régulariser)", debit: -diff, credit: 0 });
   }
-  const entry = stamp({ id: id("aent"), period: cutoff.slice(0, 7), pieceNo: "REPORT/" + cutoff.slice(0, 4), journalCode: "REP", date: cutoff, label: "Report à-nouveau (reprise Sage) " + cutoff, lines, status: "validated", source: "sage-import", createdAt: new Date().toISOString() }, req);
+  const entry = stamp({ id: id("aent"), period: cutoff.slice(0, 7), pieceNo: "REPORT/" + cutoff.slice(0, 4), journalCode: "REP", date: cutoff, label: "Report à-nouveau (reprise) " + cutoff, lines, status: "validated", source: "sage-import", createdAt: new Date().toISOString() }, req);
   db.acctEntries.push(entry); save();
   audit(req.user, "IMPORTED", "AcctBalance", entry.id, { accounts: lines.length, addedAccts, imbalance: diff });
   res.json({ ok: true, accounts: lines.length, addedAccounts: addedAccts, imbalance: diff, entryId: entry.id, date: cutoff });
@@ -296,13 +296,13 @@ router.get("/sage-entries-export", allow("RC", "ADM", "CD", "RJ"), (req, res) =>
   }
   const body = "﻿" + rows.join("\r\n") + "\r\n"; // BOM + CRLF pour Sage/Excel
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="ecritures_sage_${from || "debut"}_${to || "fin"}.csv"`);
+  res.setHeader("Content-Disposition", `attachment; filename="ecritures_export_${from || "debut"}_${to || "fin"}.csv"`);
   res.send(body);
 });
 const _sageMemUp = require("multer")({ storage: require("multer").memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 router.post("/sage-entries-import", allow("RC", "ADM"), _sageMemUp.single("file"), (req, res) => {
   seedAccounting(req.user.tenantId || "t1");
-  if (!req.file) return res.status(400).json({ error: "Fichier Sage requis (.csv/.txt)." });
+  if (!req.file) return res.status(400).json({ error: "Fichier d'écritures requis (.csv/.txt)." });
   let text = req.file.buffer.toString("utf8"); if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (!lines.length) return res.status(400).json({ error: "Fichier vide." });
@@ -331,11 +331,11 @@ router.post("/sage-entries-import", allow("RC", "ADM"), _sageMemUp.single("file"
     const g = groups[k]; const period = (g.date || new Date().toISOString().slice(0, 10)).slice(0, 7);
     if (lock && period <= lock) { skipped.push({ piece: g.pieceNo, reason: "période clôturée" }); continue; }
     const td = g.lines.reduce((s, l) => s + l.debit, 0), tc = g.lines.reduce((s, l) => s + l.credit, 0);
-    const e = stamp({ id: id("aent"), journalCode: g.journalCode, period, pieceNo: g.pieceNo || _nextPiece(req, jrOf(req, g.journalCode), period), date: g.date, label: g.label || "Import Sage", lines: g.lines, status: R2(td - tc) === 0 ? "validated" : "draft", source: "sage-import", createdAt: new Date().toISOString() }, req);
+    const e = stamp({ id: id("aent"), journalCode: g.journalCode, period, pieceNo: g.pieceNo || _nextPiece(req, jrOf(req, g.journalCode), period), date: g.date, label: g.label || "Import des écritures", lines: g.lines, status: R2(td - tc) === 0 ? "validated" : "draft", source: "sage-import", createdAt: new Date().toISOString() }, req);
     db.acctEntries.push(e); created.push(e.id);
   }
   save();
-  audit(req.user, "IMPORTED", "AcctEntries", "sage", { entries: created.length, lines: parsed, addedAccounts: addedAccts, skipped: skipped.length });
+  audit(req.user, "IMPORTED", "AcctEntries", "import", { entries: created.length, lines: parsed, addedAccounts: addedAccts, skipped: skipped.length });
   res.json({ ok: true, entries: created.length, lines: parsed, addedAccounts: addedAccts, skipped });
 });
 

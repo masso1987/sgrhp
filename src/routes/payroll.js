@@ -816,7 +816,7 @@ router.put("/constantes/:id", allow("RP", "ADM"), (req, res) => {
   // Code modifiable uniquement pour une constante personnalisée (non baseline), ex. une duplication.
   if (b.code !== undefined && String(b.code).trim() && String(b.code).trim().toUpperCase() !== String(c.code).toUpperCase()) {
     const nc = String(b.code).trim().toUpperCase();
-    if (c.system) return res.status(409).json({ error: "Le code d'une constante du référentiel Sage ne peut pas être modifié. Dupliquez-la pour en créer une nouvelle." });
+    if (c.system) return res.status(409).json({ error: "Le code d'une constante du référentiel standard ne peut pas être modifié. Dupliquez-la pour en créer une nouvelle." });
     if (mine(db.payConstantes, req).some(x => x.id !== c.id && String(x.code).toUpperCase() === nc)) return res.status(409).json({ error: `La constante ${nc} existe déjà.` });
     c.code = nc;
   }
