@@ -247,7 +247,8 @@ function computePayslip(input, configOverride) {
   // remplacent l'assiette calculee. Laisser vide pour le comportement legal par defaut.
   const NETCOTI_EFF = (input.cnpsBaseOverride != null && input.cnpsBaseOverride !== "") ? Number(input.cnpsBaseOverride) : NETCOTI;
   const NETIMPO_EFF = (input.taxableBaseOverride != null && input.taxableBaseOverride !== "") ? Number(input.taxableBaseOverride) : NETIMPO;
-  const BASECF = Math.floor(NETIMPO_EFF / 1000) * 1000; // base CFC = salaire taxable arrondi au millier inférieur (convention Sage)
+  // base CFC = salaire taxable arrondi au millier inférieur (convention Sage) ; cfg.cfc.floorThousand=false : montant exact.
+  const BASECF = cfg.cfc.floorThousand === false ? NETIMPO_EFF : Math.floor(NETIMPO_EFF / 1000) * 1000;
   const cnpsBase = Math.min(NETCOTI_EFF, cfg.cnps.ceiling); // PVID & prestations familiales : plafonnees
   // Accident de travail (risques pro) : assiette SANS plafond par defaut (confirme par DIPE reel).
   // Un plafond AT distinct est configurable (cfg.cnps.accidentCeiling) ; vide/null = non plafonne.
@@ -262,15 +263,21 @@ function computePayslip(input, configOverride) {
   add({ ...K("5020"), label: "CNPS Accident de travail", kind: "COTIS", base: atBase, rate: 0, retenue: 0, employerRate: cfg.cnps.workAccidentEmployer, employer: rpP });
 
   /* 4) IMPÔTS */
-  const sni = Math.max(0, NETIMPO_EFF * cfg.irpp.fraisProRate
+  // Assiette IRPP : salaire taxable (légal) ; cfg.irpp.base="BRUT" pour un régime qui impose le brut total.
+  const IRPP_BASE = cfg.irpp.base === "BRUT" ? BRUT : NETIMPO_EFF;
+  const sni = Math.max(0, IRPP_BASE * cfg.irpp.fraisProRate
     - (cfg.irpp.deductPvid ? pvidE : 0)
     - (cfg.irpp.annualAbatement || 0) / 12);
   const irpp = r0(progressive(sni, cfg.irpp.brackets));
   const cac = r0(irpp * cfg.irpp.cacRate);
-  const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0(BRUT * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
+  // CFC patronal : base BRUT (légal) ; cfg.cfc.employerBase="TAXABLE" pour la base du CFC salarial.
+  const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0((cfg.cfc.employerBase === "TAXABLE" ? BASECF : BRUT) * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
   const ravBase = input.ravBase != null ? input.ravBase : BRUT;      // ^^CRTV keyed on BRUT
   const tdlBase = input.tdlBase != null ? input.tdlBase : baseSalary; // ^^TAXCOM keyed on SALBASE
-  const rav = bracketAmount(cfg.rav, ravBase), tdl = bracketAmount(cfg.tdl, tdlBase);
+  // Montants forfaitaires par salarié (input.ravAmount / tdlAmount) prioritaires sur les barèmes.
+  const _fx = (v) => v != null && v !== "" && !isNaN(Number(v));
+  const rav = _fx(input.ravAmount) ? r0(Number(input.ravAmount)) : bracketAmount(cfg.rav, ravBase);
+  const tdl = _fx(input.tdlAmount) ? r0(Number(input.tdlAmount)) : bracketAmount(cfg.tdl, tdlBase);
   add({ ...K("5025"), label: "IRPP", kind: "IMPOT", base: null, rate: 0, retenue: irpp }); // IRPP = bareme par tranche : base et taux non affiches (comme Sage)
   add({ ...K("5045"), label: "CAC (10% IRPP)", kind: "IMPOT", base: irpp, rate: cfg.irpp.cacRate, retenue: cac });
   add({ ...K("5050"), label: "Crédit Foncier (CFC)", kind: "IMPOT", base: BASECF, rate: cfg.cfc.employee, retenue: cfcE, employerRate: cfg.cfc.employer, employer: cfcP });

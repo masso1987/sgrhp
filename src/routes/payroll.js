@@ -444,6 +444,9 @@ function elementsToInput(emp, period, req, opts) {
     cnpsBaseOverride: (emp.cnpsBaseOverride != null && emp.cnpsBaseOverride !== "") ? Number(emp.cnpsBaseOverride) : null,
     taxableBaseOverride: (emp.taxableBaseOverride != null && emp.taxableBaseOverride !== "") ? Number(emp.taxableBaseOverride) : null,
     atBaseOverride: (emp.atBaseOverride != null && emp.atBaseOverride !== "") ? Number(emp.atBaseOverride) : null,
+    // RAV / TDL forfaitaires par salarié (client dont les montants ne suivent pas les barèmes) : vide = barème.
+    ravAmount: (emp.ravOverride != null && emp.ravOverride !== "") ? Number(emp.ravOverride) : null,
+    tdlAmount: (emp.tdlOverride != null && emp.tdlOverride !== "") ? Number(emp.tdlOverride) : null,
   };
 }
 function computeFor(emp, period, req, opts) {
