@@ -120,6 +120,17 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
       b.salary[k] = Number(v);
     }
   }
+  // Régime de paie : choisi à la création, sinon celui par défaut du portefeuille (client), sinon de la société.
+  {
+    const rh = require("./payroll").regimeHelpers;
+    if (b.payRegimeId && b.payRegimeId !== rh.PRINCIPAL) { if (!rh.regimeById(req, b.payRegimeId)) return res.status(400).json({ error: "Régime de paie inconnu" }); }
+    else if (b.payRegimeId === undefined || b.payRegimeId === "") {
+      const pf = mine(db.portfolios, req).find(p => p.id === b.portfolioId);
+      const dflt = (pf && pf.defaultPayRegimeId) || rh.baseConfigOf(req).defaultPayRegimeId || null;
+      b.payRegimeId = (dflt && dflt !== rh.PRINCIPAL && rh.regimeById(req, dflt)) ? dflt : null;
+    }
+    if (b.payRegimeId === rh.PRINCIPAL) b.payRegimeId = null;
+  }
   const emp = stamp({ id: id("emp"), status: "DRAFT", createdBy: req.user.id, createdAt: new Date().toISOString(), ...b }, req);
   db.employees.push(emp); save();
   audit(req.user, "CREATED", "Employee", emp.id, { name: `${b.firstName} ${b.lastName}` });
@@ -191,6 +202,8 @@ router.put("/:id", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
     return res.status(409).json({ error: "Ce téléphone est déjà utilisé par un autre employé" });
   if (req.body.matricule && mine(db.employees, req).some(e => e.id !== emp.id && (e.matricule || "") === String(req.body.matricule).trim()))
     return res.status(409).json({ error: "Ce matricule existe déjà" });
+  // Le régime de paie se change uniquement via /api/payroll/regimes/:id/assign (contrôle de baisse du net).
+  if (req.body && Object.prototype.hasOwnProperty.call(req.body, "payRegimeId")) delete req.body.payRegimeId;
   Object.assign(emp, req.body, { id: emp.id }); save();
   audit(req.user, "UPDATED", "Employee", emp.id, { changed: Object.keys(req.body) });
   res.json(emp);

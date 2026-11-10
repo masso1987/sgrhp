@@ -7861,7 +7861,7 @@ async function payOpenRubrique(code){
 // Rafraîchit après enregistrement d'une rubrique SANS quitter l'écran courant
 // (met à jour les caches et re-rend la liste des rubriques seulement si elle est affichée).
 async function rubAfterSave(){
-  try{ PAY_RUBS = await api("/payroll/rubriques"); }catch(e){}
+  try{ PAY_RUBS = await api("/payroll/rubriques"+(document.getElementById("rubList")?payRq():"")); }catch(e){}
   PE_RUBS=null;
   if(document.getElementById("rubList")) rubRender((document.getElementById("rubSearch")||{}).value||"");
 }
@@ -8249,18 +8249,32 @@ async function payJournal(id) {
   </table></div>`;
 }
 /* ================= Paramètres paie (config + rubriques) ============= */
+/* ---- Régimes de paie : plusieurs jeux de règles dans la même société ---- */
+function payRegOn(){ const r=window._payRegime; return !!(r && r!=="principal"); }
+function payRq(){ return payRegOn() ? "?regimeId="+encodeURIComponent(window._payRegime) : ""; }
+function payRegName(){ const R=(window._PAYREGS&&window._PAYREGS.regimes)||[]; const r=R.find(x=>x.id===window._payRegime); return r?r.name:"Régime principal"; }
+function paySetRegime(v){ window._payRegime=v||"principal"; if(window._payTab==="modeles"||window._payTab==="regimes") window._payTab="baremes"; payconfigView(); }
 async function payconfigView() {
-  const [cfg, rubs, models, csts, avn] = await Promise.all([api("/payroll/config"), api("/payroll/rubriques"), api("/payroll/models"), api("/payroll/constantes").catch(()=>[]), api("/payroll/avantages-nature").catch(()=>[])]);
+  const regs = await api("/payroll/regimes").catch(()=>null);
+  window._PAYREGS = regs;
+  if (!regs || !regs.regimes.some(r=>r.id===window._payRegime)) window._payRegime = "principal";
+  const [cfg, rubs, models, csts, avn] = await Promise.all([api("/payroll/config"+payRq()), api("/payroll/rubriques"+payRq()), api("/payroll/models"), api("/payroll/constantes"+payRq()).catch(()=>[]), api("/payroll/avantages-nature").catch(()=>[])]);
   window._PAYAVN = avn || [];
   PAY_MODELS = models; PAY_CST = csts || []; PAY_RUBS = rubs; window._PAYCFG = cfg;
   const tab = window._payTab || "baremes";
   view.innerHTML = `<h1>Paramètres paie</h1>
   <div class="note">Configurez les barèmes, rubriques, constantes et modèles de bulletin. Les changements s'appliquent au prochain calcul de paie.</div>
+  ${regs ? `<div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;margin-top:10px;${payRegOn()?"border-color:var(--amber,#f59e0b);background:#fffbeb":""}">
+    <b style="font-size:12px;color:var(--muted)">RÉGIME DE PAIE</b>
+    <select style="margin:0;max-width:280px" onchange="paySetRegime(this.value)">${regs.regimes.map(r=>`<option value="${r.id}" ${r.id===window._payRegime?"selected":""}>${esc(r.name)} — ${r.employees} salarié(s)</option>`).join("")}</select>
+    <span class="note-inline" style="flex:1;min-width:220px">${payRegOn()?"Vous modifiez les règles du régime « "+esc(payRegName())+" ». Seules les différences avec le régime principal sont enregistrées ; les barèmes légaux non modifiés suivent le principal.":"Règles du régime principal (salariés non rattachés à un autre régime)."}</span>
+    <button class="btn ghost sm" onclick="payShowTab('regimes')">Gérer les régimes</button></div>` : ""}
   <div style="display:flex;gap:2px;border-bottom:1px solid var(--line);margin:12px 0 14px;flex-wrap:wrap">
     <div class="paytab" data-tab="baremes" onclick="payShowTab('baremes')">Barèmes &amp; taux</div>
     <div class="paytab" data-tab="rubriques" onclick="payShowTab('rubriques')">Rubriques <span style="font-size:11px;opacity:.7">${rubs.length}</span></div>
     <div class="paytab" data-tab="constantes" onclick="payShowTab('constantes')">Constantes <span style="font-size:11px;opacity:.7">${(csts||[]).length}</span></div>
-    <div class="paytab" data-tab="modeles" onclick="payShowTab('modeles')">Modèles <span style="font-size:11px;opacity:.7">${models.length}</span></div>
+    ${payRegOn() ? "" : `<div class="paytab" data-tab="modeles" onclick="payShowTab('modeles')">Modèles <span style="font-size:11px;opacity:.7">${models.length}</span></div>`}
+    ${regs ? `<div class="paytab" data-tab="regimes" onclick="payShowTab('regimes')">Régimes <span style="font-size:11px;opacity:.7">${regs.regimes.length}</span></div>` : ""}
   </div>
   <div id="payTab"></div>
   <datalist id="cstCodes">${(csts||[]).map(c=>`<option value="${esc(c.code)}">${esc(c.label)}</option>`).join("")}</datalist>
@@ -8275,7 +8289,124 @@ function payShowTab(name){
   if(name==="rubriques"){ cont.innerHTML = payRubriquesHTML(); rubRender((document.getElementById("rubSearch")||{}).value||""); }
   else if(name==="constantes"){ cont.innerHTML = payConstantesHTML(); cstRender(""); }
   else if(name==="modeles"){ cont.innerHTML = payModelesHTML(PAY_MODELS); }
+  else if(name==="regimes"){ cont.innerHTML = payRegimesHTML(); }
   else { cont.innerHTML = payBaremesHTML(window._PAYCFG); avnRender(); payBaremeSim(); }
+}
+
+/* ================= Régimes de paie : écran de gestion ================= */
+function payRegimesHTML(){
+  const R=window._PAYREGS||{regimes:[],portfolios:[]};
+  const opts=(cur,withNone)=>(withNone?'<option value="">— Défaut de la société —</option>':"")+R.regimes.map(r=>`<option value="${r.id}" ${r.id===cur?"selected":""}>${esc(r.name)}</option>`).join("");
+  const ov=r=>r.principal?'<span class="note-inline">référence</span>':[r.overrides.config?r.overrides.config+" paramètre(s)":"",r.overrides.rubriques?r.overrides.rubriques+" rubrique(s)":"",r.overrides.constantes?r.overrides.constantes+" constante(s)":""].filter(Boolean).join(" · ")||'<span class="note-inline">identique au principal</span>';
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <b style="font-size:12px;color:var(--muted)">RÉGIMES DE PAIE (${R.regimes.length})</b>
+    <button class="btn p sm" onclick="regModal()">${ICO('plus')} Nouveau régime</button></div>
+    <div class="note" style="margin:8px 0">Un régime est un jeu de règles de calcul dans la même société. Exemple : les salariés historiques restent sur le <b>régime principal</b> (le Code du travail interdit de baisser leur salaire) et les nouveaux embauchés suivent un régime « Nouvelle convention ». Un régime ne garde que ses différences avec le principal. Chaque bulletin indique le régime utilisé.</div>
+    <table><tr><th>Régime</th><th>Convention</th><th>Différences</th><th style="text-align:center">Salariés</th><th style="width:40px"></th></tr>
+    ${R.regimes.map(r=>`<tr>
+      <td><b>${esc(r.name)}</b>${r.isDefault?' <span class="tag green" title="Appliqué par défaut aux nouveaux salariés">nouveaux salariés</span>':""}${r.description?'<div class="note-inline">'+esc(r.description)+'</div>':""}</td>
+      <td>${esc(r.conventionName||"—")}</td><td style="font-size:12px">${ov(r)}</td>
+      <td style="text-align:center"><span class="tag gray">${r.employees}</span></td>
+      <td style="text-align:center">${rowActions([
+        {icon:"edit",label:"Modifier les règles",onclick:`paySetRegime('${r.id}')`},
+        {icon:"users",label:"Rattacher des salariés",onclick:`regAssignModal('${r.id}')`},
+        {icon:"copy",label:"Dupliquer",onclick:`regModal(null,'${r.id}')`}
+      ].concat(r.principal?[]:[{icon:"edit",label:"Renommer / convention",onclick:`regModal('${r.id}')`},"-",{icon:"trash",label:"Supprimer",danger:true,onclick:`regDelete('${r.id}')`}]))}</td></tr>`).join("")}
+    </table></div>
+  <div class="panel" style="margin-top:12px"><b style="font-size:12px;color:var(--muted)">RÉGIME DES NOUVEAUX SALARIÉS</b>
+    <div class="note" style="margin:6px 0">Appliqué automatiquement à la création d'un salarié. Le réglage du portefeuille (client) l'emporte sur celui de la société.</div>
+    <div class="grid2" style="max-width:720px">
+      <div><label>Société (par défaut)</label><select onchange="regSetDefault(null,this.value)">${opts(R.defaultPayRegimeId,false)}</select></div>
+      ${(R.portfolios||[]).map(p=>`<div><label>Portefeuille « ${esc(p.name||"")} »</label><select onchange="regSetDefault('${p.id}',this.value)">${opts(p.defaultPayRegimeId,true)}</select></div>`).join("")}
+    </div></div>`;
+}
+async function regReload(){ window._PAYREGS=await api("/payroll/regimes").catch(()=>window._PAYREGS); window._payTab="regimes"; payconfigView(); }
+async function regModal(idv, copyFrom){
+  const R=(window._PAYREGS||{}).regimes||[]; const r=idv?(R.find(x=>x.id===idv)||{}):{};
+  const cnvs=await api("/config/conventions").catch(()=>[]);
+  const src=copyFrom?R.find(x=>x.id===copyFrom):null;
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:480px"><b>${idv?"Modifier le régime":src?"Dupliquer « "+esc(src.name)+" »":"Nouveau régime de paie"}</b>
+    <div class="grid2" style="margin-top:8px">
+      <div style="grid-column:1/3"><label>Nom</label><input id="rgName" value="${esc(r.name||(src?src.name+" (copie)":""))}" placeholder="ex. Convention 2026 — nouveaux salariés"></div>
+      <div style="grid-column:1/3"><label>Description</label><input id="rgDesc" value="${esc(r.description||"")}"></div>
+      ${idv?"":`<div style="grid-column:1/3"><label>Partir de</label><select id="rgFrom">${R.map(x=>`<option value="${x.id}" ${x.id===(copyFrom||"principal")?"selected":""}>${esc(x.name)}</option>`).join("")}</select></div>`}
+      <div style="grid-column:1/3"><label>Convention collective (information, et convention proposée aux nouveaux salariés)</label><select id="rgCnv"><option value="">—</option>${(cnvs||[]).map(c=>`<option value="${c.id}" ${c.id===r.conventionId?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+    </div>
+    <div class="note" style="margin-top:8px">Après création, choisissez ce régime en haut de la page pour adapter ses barèmes, rubriques et constantes, puis rattachez-y les salariés concernés.</div>
+    <div class="err hidden" id="rgErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button>
+      <button class="btn p sm" onclick="regSave('${idv||""}')">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+async function regSave(idv){
+  const body={ name:document.getElementById("rgName").value.trim(), description:document.getElementById("rgDesc").value.trim(), conventionId:document.getElementById("rgCnv").value||null };
+  const fr=document.getElementById("rgFrom"); if(fr) body.copyFrom=fr.value;
+  try{ if(idv) await api("/payroll/regimes/"+idv,{method:"PUT",body:JSON.stringify(body)}); else await api("/payroll/regimes",{method:"POST",body:JSON.stringify(body)});
+    document.querySelector(".modal-bg").remove(); regReload(); }
+  catch(e){ const el=document.getElementById("rgErr"); el.textContent=e.message; el.classList.remove("hidden"); }
+}
+async function regDelete(idv){
+  const r=((window._PAYREGS||{}).regimes||[]).find(x=>x.id===idv)||{};
+  if(!await mmConfirm({title:"Supprimer le régime",message:"Supprimer « "+(r.name||"")+" » ? Les bulletins clôturés gardent le nom du régime utilisé.",confirmLabel:"Supprimer",danger:true})) return;
+  try{ await api("/payroll/regimes/"+idv,{method:"DELETE"}); if(window._payRegime===idv) window._payRegime="principal"; regReload(); }catch(e){ alert(e.message); }
+}
+async function regSetDefault(pfId, rid){
+  try{ await api("/payroll/regimes-default",{method:"PUT",body:JSON.stringify(pfId?{portfolioId:pfId,regimeId:rid||null}:{regimeId:rid})}); window._PAYREGS=await api("/payroll/regimes").catch(()=>window._PAYREGS); }
+  catch(e){ alert(e.message); }
+}
+async function regAssignModal(rid){
+  const R=(window._PAYREGS||{}).regimes||[]; const target=R.find(x=>x.id===rid)||{name:""};
+  const emps=(await api("/employees").catch(()=>[])).filter(e=>e.status!=="ARCHIVED");
+  const nameOf=id=>{ const r=R.find(x=>x.id===(id||"principal")); return r?r.name:"Régime principal"; };
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:820px;width:min(820px,94vw)"><b>Rattacher des salariés au régime « ${esc(target.name)} »</b>
+    <div class="note" style="margin:6px 0">Cochez les salariés, puis vérifiez l'impact : le net est comparé (structure du dossier, hors éléments variables) entre le régime actuel et « ${esc(target.name)} ». Une baisse du net doit être confirmée explicitement.</div>
+    <input id="raQ" placeholder="Rechercher un salarié…" style="margin:4px 0 6px" oninput="regAssignFilter(this.value)">
+    <div style="max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table id="raTbl" style="width:100%;font-size:12.5px"><tr><th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('#raTbl input[data-e]').forEach(c=>{ if(c.closest('tr').style.display!=='none') c.checked=this.checked; })"></th><th>Salarié</th><th>Régime actuel</th><th class="r">Net actuel</th><th class="r">Net « ${esc(target.name)} »</th><th class="r">Écart</th></tr>
+      ${emps.map(e=>`<tr data-q="${esc(((e.lastName||"")+" "+(e.firstName||"")+" "+(e.matricule||"")).toLowerCase())}"><td><input type="checkbox" data-e="${e.id}" ${(e.payRegimeId||"principal")===rid?"disabled":""}></td>
+        <td>${esc((e.lastName||"")+" "+(e.firstName||""))}${e.matricule?'<div class="note-inline">'+esc(e.matricule)+'</div>':""}</td><td>${esc(nameOf(e.payRegimeId))}</td>
+        <td class="r" data-nb="${e.id}"></td><td class="r" data-na="${e.id}"></td><td class="r" data-nd="${e.id}"></td></tr>`).join("")}</table></div>
+    <div class="err hidden" id="raErr" style="margin-top:6px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Fermer</button>
+      <button class="btn ghost sm" onclick="regAssignImpact('${rid}')">Vérifier l'impact</button>
+      <button class="btn p sm" onclick="regAssignDo('${rid}',false)">Rattacher</button></div></div>`;
+  bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+function regAssignFilter(q){ q=(q||"").toLowerCase(); document.querySelectorAll("#raTbl tr[data-q]").forEach(tr=>tr.style.display=(!q||tr.dataset.q.includes(q))?"":"none"); }
+function regAssignSel(){ return [...document.querySelectorAll("#raTbl input[data-e]:checked")].map(c=>c.dataset.e); }
+function regAssignShow(rows){
+  const f=n=>n==null?"—":Math.round(n).toLocaleString("fr-FR");
+  (rows||[]).forEach(r=>{ const q=k=>document.querySelector("#raTbl [data-"+k+"='"+r.employeeId+"']");
+    if(q("nb")) q("nb").textContent=f(r.netBefore); if(q("na")) q("na").textContent=f(r.netAfter);
+    if(q("nd")){ q("nd").innerHTML=r.error?'<span class="note-inline" title="'+esc(r.error)+'">calcul impossible</span>':(r.netDiff<0?'<b style="color:var(--red)">'+f(r.netDiff)+'</b>':r.netDiff>0?'<span style="color:var(--green,#059669)">+'+f(r.netDiff)+'</span>':'0'); } });
+}
+async function regAssignImpact(rid){
+  const ids=regAssignSel(); const er=document.getElementById("raErr"); er.classList.add("hidden");
+  if(!ids.length){ er.textContent="Cochez au moins un salarié."; er.classList.remove("hidden"); return; }
+  try{ const j=await api("/payroll/regimes/"+rid+"/impact",{method:"POST",body:JSON.stringify({employeeIds:ids})}); regAssignShow(j.rows); }
+  catch(e){ er.textContent=e.message; er.classList.remove("hidden"); }
+}
+async function regAssignDo(rid, force){
+  const ids=regAssignSel(); const er=document.getElementById("raErr"); er.classList.add("hidden");
+  if(!ids.length){ er.textContent="Cochez au moins un salarié."; er.classList.remove("hidden"); return; }
+  try{
+    const j=await api("/payroll/regimes/"+rid+"/assign",{method:"POST",body:JSON.stringify({employeeIds:ids,force:!!force})});
+    regAssignShow(j.rows);
+    document.querySelectorAll(".modal-bg").forEach(m=>m.remove());
+    alert(j.assigned+" salarié(s) rattaché(s)."+(j.recomputed?" "+j.recomputed+" bulletin(s) de la paie en cours recalculé(s).":""));
+    regReload();
+  }catch(e){
+    if(e.requiresConfirmation){
+      regAssignShow(e.rows);
+      const names=(e.decreases||[]).map(d=>d.name+" ("+Math.round(d.netDiff).toLocaleString("fr-FR")+" FCFA)").join(", ");
+      if(await mmConfirm({title:"Baisse du net à payer",message:(e.message||"")+" Concerné(s) : "+names+". Ne confirmez qu'avec l'accord écrit du salarié. Le changement est tracé dans le journal d'audit.",confirmLabel:"Rattacher quand même",danger:true})) return regAssignDo(rid,true);
+    } else { er.textContent=e.message; er.classList.remove("hidden"); }
+  }
 }
 function avnRender(){
   const box=document.getElementById("avnTable"); if(!box) return;
@@ -8428,8 +8559,9 @@ function payRubriquesHTML(){
     <b style="font-size:12px;color:var(--muted)">RUBRIQUES DE PAIE (${PAY_RUBS.length})</b>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input id="rubSearch" placeholder="Rechercher code ou libellé…" style="max-width:260px;margin:0" oninput="rubRender(this.value)">
-      <button class="btn ghost sm" onclick="rubImportCatalogue()">${ICO('copy')} Importer catalogue</button>
-      <button class="btn p sm" onclick="rubModal()">${ICO('plus')} Créer une rubrique</button></div></div>
+      ${payRegOn() ? "" : `<button class="btn ghost sm" onclick="rubImportCatalogue()">${ICO('copy')} Importer catalogue</button>
+      <button class="btn p sm" onclick="rubModal()">${ICO('plus')} Créer une rubrique</button>`}</div></div>
+    ${payRegOn() ? `<div class="note" style="margin:8px 0;background:#fffbeb">Régime « ${esc(payRegName())} » : vous pouvez changer le calcul d'une rubrique (famille, formule, base, taux, CNPS, IRPP, prorata) pour ce régime uniquement. Le code et le libellé sont communs à toute la société ; créer ou supprimer une rubrique se fait dans le régime principal. ${PAY_RUBS.filter(r=>r.regimeOverride).length} rubrique(s) adaptée(s) dans ce régime.</div>` : ""}
     <div class="note" style="margin:8px 0">Votre baseline modifiable. Une rubrique déjà utilisée dans des bulletins calculés est verrouillée : la modifier affecte toute la paie et exige une confirmation.</div>
     <div id="rubList"></div></div>`;
 }
@@ -8439,8 +8571,9 @@ function payConstantesHTML(){
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input id="cstSearch" placeholder="Rechercher code ou libellé…" style="max-width:240px;margin:0" oninput="cstRender(this.value)">
       <select id="cstType" style="margin:0" onchange="cstRender(document.getElementById('cstSearch').value)"><option value="">Tous les types</option>${[...new Set((PAY_CST||[]).map(c=>c.type))].sort().map(t=>`<option>${esc(t)}</option>`).join("")}</select>
-      <button class="btn ghost sm" onclick="cstImportCatalogue()">${ICO('copy')} Importer</button>
-      <button class="btn p sm" onclick="cstModal()">${ICO('plus')} Nouvelle constante</button></div></div>
+      ${payRegOn() ? "" : `<button class="btn ghost sm" onclick="cstImportCatalogue()">${ICO('copy')} Importer</button>
+      <button class="btn p sm" onclick="cstModal()">${ICO('plus')} Nouvelle constante</button>`}</div></div>
+    ${payRegOn() ? `<div class="note" style="margin:8px 0;background:#fffbeb">Régime « ${esc(payRegName())} » : saisissez une valeur pour l'adapter à ce régime. Les autres constantes gardent la valeur du régime principal.</div>` : ""}
     <div class="note" style="margin:8px 0">Chaque constante porte un code, un type et une valeur, reprise dans les formules des rubriques (Nombre / Base / Taux). La colonne « Utilisée » indique combien de rubriques la référencent.</div>
     <div id="cstList"></div></div>`;
 }
@@ -8671,11 +8804,12 @@ function cstRender(q){
   const total=list.length; const shown=list.slice(0,200);
   document.getElementById("cstList").innerHTML=`<table><tr><th>Code</th><th>Libellé</th><th>Type</th><th class="r">Valeur</th><th style="text-align:center">Utilisée</th><th style="width:40px"></th></tr>`+
     shown.map(c=>{ const u=cstUsage(c.code).length;
-      const acts=[{icon:"edit",label:"Modifier",onclick:`cstEdit('${c.id}')`},{icon:"copy",label:"Dupliquer",onclick:`cstDuplicate('${c.id}')`}];
+      const acts=payRegOn()?[]:[{icon:"edit",label:"Modifier",onclick:`cstEdit('${c.id}')`},{icon:"copy",label:"Dupliquer",onclick:`cstDuplicate('${c.id}')`}];
       if(u) acts.push({icon:"link",label:`Voir les ${u} rubrique(s)`,onclick:`cstViewUsage('${esc(c.code)}')`});
-      acts.push("-"); acts.push({icon:"trash",label:c.system?"Désactiver":"Supprimer",danger:true,onclick:`cstDelete('${c.id}')`});
+      if(payRegOn()){ if(c.regimeOverride) acts.push({icon:"undo",label:"Revenir à la valeur du principal",onclick:`cstRegReset('${c.id}')`}); }
+      else { acts.push("-"); acts.push({icon:"trash",label:c.system?"Désactiver":"Supprimer",danger:true,onclick:`cstDelete('${c.id}')`}); }
       return `<tr>
-      <td><b>${esc(c.code)}</b></td><td>${esc(c.label)}</td>
+      <td><b>${esc(c.code)}</b>${c.regimeOverride?' <span class="tag blue" title="Valeur du principal : '+(c.valeurPrincipal!=null?c.valeurPrincipal:"—")+'">régime</span>':""}</td><td>${esc(c.label)}</td>
       <td><span class="tag gray">${esc(c.type||"")}</span></td>
       <td class="r"><input type="number" step="any" value="${c.valeur!=null?c.valeur:""}" placeholder="—" data-cst="${c.id}" style="width:120px;text-align:right;margin:0;padding:3px" onchange="cstSaveVal('${c.id}',this.value)"></td>
       <td style="text-align:center">${u?`<span class="tag blue" style="cursor:pointer" onclick="cstViewUsage('${esc(c.code)}')" title="Voir les rubriques">${u} rubr.</span>`:'<span class="note-inline">—</span>'}</td>
@@ -8683,8 +8817,11 @@ function cstRender(q){
     `</table>`+(total>shown.length?`<div class="note-inline" style="margin-top:6px">${shown.length} affichées sur ${total} — affinez la recherche.</div>`:`<div class="note-inline" style="margin-top:6px">${total} constante(s).</div>`);
 }
 function cstEdit(id){ const c=(PAY_CST||[]).find(x=>x.id===id); if(c) cstModal(c); }
+async function cstRegReset(id){
+  try{ await api("/payroll/constantes/"+id+payRq(),{method:"PUT",body:JSON.stringify({reset:true})}); PAY_CST=await api("/payroll/constantes"+payRq()); cstRender((document.getElementById("cstSearch")||{}).value||""); }catch(e){ alert(e.message); }
+}
 async function cstSaveVal(id,val){
-  try{ const c=await api("/payroll/constantes/"+id,{method:"PUT",body:JSON.stringify({valeur:val})}); const i=(PAY_CST||[]).findIndex(x=>x.id===id); if(i>=0) PAY_CST[i]=c; }
+  try{ const c=await api("/payroll/constantes/"+id+(document.getElementById("cstList")?payRq():""),{method:"PUT",body:JSON.stringify({valeur:val})}); const i=(PAY_CST||[]).findIndex(x=>x.id===id); if(i>=0) PAY_CST[i]=c; }
   catch(e){ alert(e.message); }
 }
 async function cstDuplicate(id){
@@ -8744,18 +8881,23 @@ function rubRender(q) {
   const groups = {}; const order = [];
   list.forEach(r => { const g = r.sectionLabel || "Rubriques"; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(r); });
   const rowsFor = arr => arr.map(r => `<tr ondblclick="rubEdit('${r.id}')" style="cursor:pointer" title="Double-cliquez pour ouvrir l'éditeur">
-      <td>${esc(r.code)}${r.inUse ? ' <span class="tag amber" title="Utilisée dans la paie - verrouillée">verrouillée</span>' : ""}</td>
+      <td>${esc(r.code)}${r.regimeOverride ? ' <span class="tag blue" title="Réglage propre à ce régime : ' + esc(r.regimeOverride.join(", ")) + '">régime</span>' : ""}${r.inUse && !payRegOn() ? ' <span class="tag amber" title="Utilisée dans la paie - verrouillée">verrouillée</span>' : ""}</td>
       <td><b>${esc(r.label)}</b>${r.system ? ' <span class="tag gray">baseline</span>' : ""}</td>
       <td>${esc(r.family)}</td><td style="font-size:12px">${esc(r.formula)}</td><td>${esc(r.base || "-")}</td>
       <td>${r.taux != null ? r.taux + "%" : "-"}</td>
       <td>${r.cnps ? "" : "-"}</td><td>${r.impo ? "" : "-"}</td>
       <td style="text-align:center">${r.sens && r.sens!=="GAIN" ? '<span class="note-inline">-</span>' : (r.prorata!==false ? '<span class="tag green" title="Proratisée selon les jours de présence">Prorata</span>' : '<span class="tag gray" title="Montant fixe, non proratisé">Fixe</span>')}</td>
-      <td style="text-align:center">${rowActions([{icon:"edit",label:"Modifier",onclick:`rubEdit('${r.id}')`},{icon:"copy",label:"Dupliquer",onclick:`rubDuplicate('${r.id}')`},"-",{icon:"trash",label:r.inUse?"Supprimer (verrouillée)":"Supprimer",danger:true,onclick:`rubDelete('${r.id}')`}])}</td></tr>`).join("");
+      <td style="text-align:center">${payRegOn() ? rowActions([{icon:"edit",label:"Modifier pour ce régime",onclick:`rubEdit('${r.id}')`}].concat(r.regimeOverride?[{icon:"undo",label:"Revenir au régime principal",onclick:`rubRegReset('${r.id}')`}]:[])) : rowActions([{icon:"edit",label:"Modifier",onclick:`rubEdit('${r.id}')`},{icon:"copy",label:"Dupliquer",onclick:`rubDuplicate('${r.id}')`},"-",{icon:"trash",label:r.inUse?"Supprimer (verrouillée)":"Supprimer",danger:true,onclick:`rubDelete('${r.id}')`}])}</td></tr>`).join("");
   rubList.innerHTML = order.map(g => `<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${esc(g)} <span class="tag gray">${groups[g].length}</span></div>
     <table><tr><th>Code</th><th>Libellé</th><th>Famille</th><th>Formule</th><th>Base</th><th>Taux</th><th>CNPS</th><th>IRPP</th><th>Prorata</th><th style="width:40px"></th></tr>${rowsFor(groups[g])}</table></div>`).join("")
     || '<small style="color:var(--muted)">Aucune rubrique.</small>';
 }
 function rubEdit(id){ const r=(PAY_RUBS||[]).find(x=>x.id===id); if(r) rubModal(r); }
+async function rubRegReset(id){
+  const r=(PAY_RUBS||[]).find(x=>x.id===id); if(!r||!payRegOn()) return;
+  if(!await mmConfirm({title:"Revenir au régime principal",message:"La rubrique « "+r.code+" "+r.label+" » reprendra dans ce régime le calcul du régime principal.",confirmLabel:"Revenir au principal"})) return;
+  try{ await api("/payroll/rubriques/"+id+payRq(),{method:"PUT",body:JSON.stringify({reset:true})}); document.querySelectorAll(".modal-bg").forEach(m=>m.remove()); await rubAfterSave(); }catch(e){ alert(e.message); }
+}
 async function rubDuplicate(id){
   const r=(PAY_RUBS||[]).find(x=>x.id===id); if(!r) return;
   let code=(r.code+"_COPIE").slice(0,24), i=2; while((PAY_RUBS||[]).some(x=>String(x.code).toUpperCase()===code.toUpperCase())){ code=(r.code+"_COPIE"+i).slice(0,24); i++; }
@@ -8771,7 +8913,18 @@ async function rubDelete(id){
 }
 function rmDayConst(v){ const s=String(v||"").toUpperCase(); return /JOU/.test(s) && !/HEU|HS/.test(s); }
 function rmSyncProrata(){ const cb=document.getElementById("rmProrata"); const nb=(document.getElementById("rmNombre")||{}).value; if(cb && cb.dataset.auto==="1") cb.checked=rmDayConst(nb); }
+// En mode régime : bandeau + champs communs (code, libellé, nature, comptabilité) verrouillés.
+function rubModalRegime(r){
+  if(!payRegOn() || !r) return;
+  const bgs=document.querySelectorAll(".modal-bg"); const bg=bgs[bgs.length-1]; if(!bg) return;
+  ["rmCode","rmLabel","rmNature","rmCompte"].forEach(k=>{ const el=bg.querySelector("#"+k); if(el){ el.disabled=true; el.title="Commun à tous les régimes — modifiable dans le régime principal"; } });
+  const m=bg.querySelector(".modal"); if(!m) return;
+  const d=document.createElement("div"); d.className="note"; d.style.cssText="margin-top:8px;background:#fffbeb";
+  d.innerHTML="Réglage pour le régime <b>« "+esc(payRegName())+" »</b> uniquement. "+(r.regimeOverride?"Adapté ici : "+esc(r.regimeOverride.join(", "))+". <a href=\"#\" onclick=\"event.preventDefault();rubRegReset('"+r.id+"')\">Revenir au principal</a>":"Identique au régime principal pour l'instant.");
+  const t=m.firstElementChild; if(t && t.nextSibling) m.insertBefore(d,t.nextSibling); else m.appendChild(d);
+}
 function rubModal(r) {
+  setTimeout(()=>rubModalRegime(r),0);
   const isEdit = !!r; r = r || { family: "BRUT", formula: "Nombre x Base", sens: "GAIN", cnps: true, impo: true };
   const opt = (v, cur) => `<option ${v === cur ? "selected" : ""}>${v}</option>`;
   const tabBtn = (k, lbl) => `<div class="rmTab" data-rt="${k}" onclick="rubTab('${k}')" style="padding:7px 14px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;color:var(--muted)">${lbl}</div>`;
@@ -8893,10 +9046,10 @@ async function rubSave(id, needForce) {
   const compte = (document.getElementById("rmCompte") || {}).value;
   try {
     let saved;
-    if (id) saved = await api("/payroll/rubriques/" + id, { method: "PUT", body: JSON.stringify(body) });
+    if (id) saved = await api("/payroll/rubriques/" + id + (document.getElementById("rubList") ? payRq() : ""), { method: "PUT", body: JSON.stringify(body) });
     else saved = await api("/payroll/rubriques", { method: "POST", body: JSON.stringify(body) });
     // Synchronise le compte comptable (dans les deux sens via /accounting/rubrique-map)
-    if (compte !== undefined && (saved && saved.id)) { try { await api("/payroll/rubriques/" + saved.id + "/compte", { method: "PUT", body: JSON.stringify({ account: (compte || "").trim() }) }); } catch (_) {} }
+    if (compte !== undefined && (saved && saved.id) && !(saved && saved.regimeId)) { try { await api("/payroll/rubriques/" + saved.id + "/compte", { method: "PUT", body: JSON.stringify({ account: (compte || "").trim() }) }); } catch (_) {} }
     document.querySelector(".modal-bg").remove();
     const rn = saved && saved.renumber;
     if (rn) alert("Code changé pour votre société uniquement. Mis à jour : " + rn.elements + " élément(s) de salaire, " + rn.variables + " élément(s) variable(s), " + rn.bordereaux + " bordereau(x), " + rn.bulletins + " bulletin(s) de période ouverte, " + rn.comptes + " correspondance(s) comptable(s). Les bulletins clôturés gardent l'ancien code.");
@@ -8981,7 +9134,7 @@ async function paySaveConfig() {
   body.tdl = barRead("tdl");
   const _pd = document.getElementById("paySlipDesign"); if (_pd) body.payslipDesign = _pd.value;
   try {
-    await api("/payroll/config", { method: "PUT", body: JSON.stringify(body) });
+    await api("/payroll/config" + payRq(), { method: "PUT", body: JSON.stringify(body) });
     cfgErr.classList.add("hidden"); cfgOk.textContent = "Enregistré ";
     setTimeout(() =>cfgOk.textContent = "", 2500);
   } catch (e) { cfgErr.textContent = e.message; cfgErr.classList.remove("hidden"); }

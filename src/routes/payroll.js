@@ -52,7 +52,7 @@ function payslipSig(s) {
 }
 
 /* Ensure collections exist (defensive for older stores). */
-for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans", "payElementSheets", "payAcomptes", "bordereauFields"])
+for (const k of ["payrollConfig", "payRubriques", "bulletinModels", "payRuns", "payslips", "payElements", "payCumuls", "payLoans", "payElementSheets", "payAcomptes", "bordereauFields", "payRegimes"])
   if (!db[k]) db[k] = [];
 
 const money = (n) => (Math.round(n || 0)).toLocaleString("fr-FR");
@@ -79,6 +79,46 @@ function applyCodeMap(lines, req) {
   for (const l of lines || []) { if (l.key) continue; const c = String(l.code); if (rev[c]) l.key = rev[c]; else { l.key = c; if (fwd[c]) l.code = fwd[c]; } }
   return lines;
 }
+
+/* ============================ RÉGIMES DE PAIE ============================ *
+ * Un régime = un jeu de règles de calcul nommé, dans la MÊME société et la MÊME base.
+ * Cas d'usage : le droit camerounais interdit de baisser le salaire d'un salarié ; les
+ * salariés historiques restent sur l'ancien mode de calcul pendant que les nouveaux
+ * embauchés suivent une nouvelle convention collective.
+ *  - Le régime « principal » est la configuration de la société elle-même (aucun changement
+ *    pour les salariés existants).
+ *  - Un régime ne stocke que ses DIFFÉRENCES avec le principal : paramètres (config),
+ *    réglages de rubriques (rubriques[clé interne]) et valeurs de constantes (constantes[CODE]).
+ *    Tout le reste (barèmes légaux IRPP/CNPS…) suit le principal.
+ *  - Chaque salarié porte payRegimeId (absent = principal). Chaque bulletin garde le régime
+ *    utilisé (result.meta.regimeId / regimeName).
+ * ------------------------------------------------------------------------- */
+const PRINCIPAL = "principal";
+const REG_RUB_FIELDS = ["family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active", "prorata"];
+function regimeById(req, rid) { if (!rid || rid === PRINCIPAL) return null; return mine(db.payRegimes, req).find(r => r.id === rid) || null; }
+function regimeOfEmp(emp, req) { return regimeById(req, emp && emp.payRegimeId); }
+// Requête « vue à travers » un régime : mêmes droits et même société, règles du régime.
+function baseReq(req) { return (req && Object.prototype.hasOwnProperty.call(req, "_regime")) ? Object.getPrototypeOf(req) : req; }
+function regReq(req, reg) { const b = baseReq(req); if (!reg) return b; const r = Object.create(b); r._regime = reg; return r; }
+const _isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+function mergeCfg(base, over) {
+  const out = Object.assign({}, base);
+  for (const [k, v] of Object.entries(over || {})) out[k] = (_isObj(v) && _isObj(base[k])) ? Object.assign({}, base[k], v) : v;
+  return out;
+}
+// Ne garde que ce qui diffère du principal (les clés techniques _xxx, id et tenantId sont ignorées).
+function cfgDiff(base, next) {
+  const d = {};
+  for (const [k, v] of Object.entries(next || {})) {
+    if (k === "id" || k === "tenantId" || k.startsWith("_") || k === "defaultPayRegimeId") continue;
+    if (JSON.stringify(v) !== JSON.stringify(base[k])) d[k] = JSON.parse(JSON.stringify(v));
+  }
+  return d;
+}
+function applyRubOverride(r, reg) { const o = reg && reg.rubriques && reg.rubriques[rubKey(r)]; return o ? Object.assign({}, r, o, { regimeOverride: Object.keys(o) }) : r; }
+// Rubriques de la société telles que les voit le régime de la requête.
+function rubsOf(req) { const list = mine(db.payRubriques, req); const reg = req && req._regime; return reg && reg.rubriques ? list.map(r => applyRubOverride(r, reg)) : list; }
+
 function canRunPayroll(req) { return hasPayPerm(req, "payroll.run"); }
 function hasPayPerm(req, perm) {
   if (req.user.role === "ADM" || req.user.role === "RP") return true;
@@ -91,6 +131,7 @@ function hasPayPerm(req, perm) {
 // (CNPS, IRPP, CAC, CFC, RAV, TDL) à partir des gains corrigés, comme le fait le moteur de calcul.
 // Ainsi un bulletin corrigé reste cohérent (pas de taxes figées sur une ancienne base).
 function recomputePayslip(s, req) {
+  if (req) req = regReq(req, regimeById(req, s.result && s.result.meta && s.result.meta.regimeId));
   const L = s.result.lines, t = s.result.totals;
   const cfg = req ? configOf(req) : require("../payroll/engine").DEFAULT_CONFIG;
   const r0 = (n) => Math.round(n || 0);
@@ -165,7 +206,13 @@ function periodDiff(from, to) { // whole months between "YYYY-MM" strings
   const [fy, fm] = from.split("-").map(Number), [ty, tm] = to.split("-").map(Number);
   return (ty - fy) * 12 + (tm - fm);
 }
+// Configuration vue par la requête : principal, ou principal + différences du régime.
 function configOf(req) {
+  const c = baseConfigOf(baseReq(req));
+  const reg = req && req._regime;
+  return reg ? mergeCfg(c, reg.config) : c;
+}
+function baseConfigOf(req) {
   let c = mine(db.payrollConfig, req)[0];
   if (!c) { c = stamp({ id: id("pcfg"), ...require("../payroll/engine").DEFAULT_CONFIG }, req); db.payrollConfig.push(c); save(); }
   // Migration unique : applique l'exonération IRPP transport par défaut aux configs anciennes (cap 0/undefined), sans écraser une valeur choisie ensuite.
@@ -301,7 +348,7 @@ function seniorityYearsFrac(emp, endDate) {
 // bridge: amounts entered in the HR dossier drive payroll automatically each month.
 function structureToInput(emp, req) {
   const elements = mine(db.salaryElements, req);
-  const rubOf = (code) => mine(db.payRubriques, req).find(r => r.code === code);
+  const _rubs = rubsOf(req); const rubOf = (code) => _rubs.find(r => r.code === code);
   // Default tag -> rubrique mapping (used when an element has no explicit rubriqueCode)
   const TAG_RUB = { salary_base: C(req, "1000"), allowance_transport: C(req, "3513"), allowance_housing: C(req, "3510"),
     allowance_dirt: C(req, "2129"), bonus_performance: C(req, "2127") };
@@ -331,7 +378,7 @@ function elementsToInput(emp, period, req, opts) {
   let absenceDays = 0;
   // 2) variable elements entered for this period (on top of the structure)
   const els = opts.structureOnly ? [] : mine(db.payElements, req).filter(e => e.employeeId === emp.id && e.period === period);
-  const _rubOf = (code) => mine(db.payRubriques, req).find(r => String(r.code) === String(code));
+  const _rubsR = rubsOf(req); const _rubOf = (code) => _rubsR.find(r => String(r.code) === String(code));
   // Drapeaux fiscaux d'un élément variable : explicite sur l'élément > rubrique du référentiel > défaut.
   const _flags = (e, defImpo, defCnps) => {
     const rub = _rubOf(e.code);
@@ -400,13 +447,17 @@ function elementsToInput(emp, period, req, opts) {
   };
 }
 function computeFor(emp, period, req, opts) {
-  seedAvantagesNature(req);
+  seedAvantagesNature(baseReq(req));
+  // Régime : celui du salarié, sauf simulation explicite (opts.regime, null = principal).
+  const reg = (opts && opts.regime !== undefined) ? opts.regime : regimeOfEmp(emp, req);
+  req = regReq(req, reg);
   const cfg = Object.assign({}, configOf(req)); // clone : on ne persiste pas la liste sur la config
   cfg.avantagesNatureList = mine(db.payAvantagesNature, req).filter(a => a.active !== false);
   cfg.codeMap = codeMapOf(req);
   const input = elementsToInput(emp, period, req, opts);
   const result = computePayslip(input, cfg);
   applyCodeMap(result.lines, req);
+  result.meta = Object.assign(result.meta || {}, { regimeId: reg ? reg.id : PRINCIPAL, regimeName: reg ? reg.name : "Régime principal" });
   return { input, result };
 }
 // Calcul à l'envers : trouve le montant de la rubrique d'ajustement donnant le net cible.
@@ -458,7 +509,7 @@ function sortRubriques(list) {
 }
 // Rubriques attribuées à un salarié : rubriques allouées à son portefeuille + structure + base.
 function employeeRubriques(emp, req) {
-  const rubs = mine(db.payRubriques, req);
+  const rubs = rubsOf(regReq(req, regimeOfEmp(emp, req)));
   const byCode = (c) => rubs.find(r => String(r.code) === String(c));
   const els = mine(db.salaryElements, req);
   const pf = mine(db.portfolios, req).find(p => p.id === emp.portfolioId);
@@ -477,9 +528,27 @@ function employeeRubriques(emp, req) {
 }
 
 /* ============================ CONFIG ============================ */
-router.get("/config", allow("RP", "ADM", "CD", "RJ"), (req, res) => res.json(configOf(req)));
+router.get("/config", allow("RP", "ADM", "CD", "RJ"), (req, res) => {
+  const rid = req.query.regimeId;
+  if (rid && rid !== PRINCIPAL) {
+    const reg = regimeById(req, rid); if (!reg) return res.status(404).json({ error: "Régime introuvable" });
+    return res.json(Object.assign(configOf(regReq(req, reg)), { _regimeId: reg.id, _regimeName: reg.name, _regimeOverrides: Object.keys(reg.config || {}) }));
+  }
+  res.json(configOf(req));
+});
 
 router.put("/config", allow("RP", "ADM"), (req, res) => {
+  const rid = req.query.regimeId || (req.body && req.body._regimeId);
+  if (rid && rid !== PRINCIPAL) {
+    // Paramètres d'un régime : on n'enregistre que les différences avec le principal.
+    const reg = regimeById(req, rid); if (!reg) return res.status(404).json({ error: "Régime introuvable" });
+    const before = JSON.parse(JSON.stringify(reg.config || {}));
+    const merged = mergeCfg(configOf(regReq(req, reg)), req.body || {});
+    reg.config = cfgDiff(baseConfigOf(req), merged); reg.updatedAt = new Date().toISOString();
+    save();
+    audit(req.user, "CONFIG_CHANGED", "PayRegime", reg.id, { name: reg.name, before, after: reg.config });
+    return res.json(Object.assign(configOf(regReq(req, reg)), { _regimeId: reg.id, _regimeName: reg.name, _regimeOverrides: Object.keys(reg.config) }));
+  }
   const c = configOf(req);
   const before = JSON.parse(JSON.stringify(c));
   Object.assign(c, req.body || {}, { id: c.id, tenantId: c.tenantId });
@@ -566,7 +635,7 @@ function rubriqueInUse(rub, req) {
 const RUB_FIELDS = ["label", "family", "formula", "base", "nombre", "taux", "tauxPat", "cnps", "impo", "sens", "active", "prorata", "legalNature"];
 
 router.get("/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =>
-  res.json(sortRubriques(mine(db.payRubriques, req).map(r => ({ ...r, label: r.label != null ? String(r.label).toUpperCase() : r.label, prorata: rubProrates(r), inUse: rubriqueInUse(r, req), legalNatureSuggested: require("../payroll/legalNature").suggestNature(r) })))));
+  res.json(sortRubriques(rubsOf(regReq(req, regimeById(req, req.query.regimeId))).map(r => ({ ...r, label: r.label != null ? String(r.label).toUpperCase() : r.label, prorata: rubProrates(r), inUse: rubriqueInUse(r, req), legalNatureSuggested: require("../payroll/legalNature").suggestNature(r) })))));
 // Rubriques attribuées à un salarié (pour le calcul à l'envers et les éléments variables), triées.
 router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, res) => {
   const emp = mine(db.employees, req).find(e => e.id === req.params.eid);
@@ -574,12 +643,17 @@ router.get("/employees/:eid/rubriques", allow("RP", "ADM", "CD", "RJ", "GPF", "U
   // Renvoie TOUTES les rubriques du référentiel (groupées par sens/famille), en marquant
   // d'un drapeau `mine` celles habituellement attribuées au salarié pour les afficher en premier.
   const mineCodes = new Set(employeeRubriques(emp, req).map(r => String(r.code)));
-  const all = sortRubriques(mine(db.payRubriques, req));
+  const all = sortRubriques(rubsOf(regReq(req, regimeOfEmp(emp, req))));
   res.json(all.map(r => ({ code: r.code, label: r.label, family: r.family, sens: r.sens, cnps: !!r.cnps, impo: !!r.impo, section: r.section, sectionLabel: r.sectionLabel, formula: r.formula || null, base: r.base != null ? r.base : null, nombre: r.nombre != null ? r.nombre : null, taux: r.taux != null ? r.taux : null, prorata: rubProrates(r), mine: mineCodes.has(String(r.code)) })));
 });
 
 /* Résout la formule d'une rubrique (Nombre/Base/Taux pouvant référencer des constantes) en un montant. */
-function constMapOf(req) { const m = {}; for (const c of mine(db.payConstantes, req)) m[String(c.code).toUpperCase()] = (c.valeur == null ? null : Number(c.valeur)); return m; }
+function constMapOf(req) {
+  const m = {}; for (const c of mine(db.payConstantes, req)) m[String(c.code).toUpperCase()] = (c.valeur == null ? null : Number(c.valeur));
+  const reg = req && req._regime;
+  if (reg && reg.constantes) for (const [k, v] of Object.entries(reg.constantes)) m[String(k).toUpperCase()] = (v == null ? null : Number(v));
+  return m;
+}
 // Constantes DYNAMIQUES dérivées du salarié (comme Sage : SALHOR = salaire horaire, SALJOURN =
 // salaire journalier, NBREJOUT/NJOURP = jours de présence). Elles n'ont pas de valeur fixe stockée ;
 // on les calcule ici à partir du salaire de base de l'employé pour que les rubriques (heures supp.
@@ -648,9 +722,11 @@ router.get("/rubriques/:id/eval", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (
   if (!rub) return res.status(404).json({ error: "Rubrique introuvable" });
   const ctx = {};
   const emp = req.query.employeeId ? mine(db.employees, req).find(e => e.id === req.query.employeeId) : null;
-  if (emp) ctx.constMap = dynamicConstMap(req, emp, { workedDays: req.query.workedDays });
+  const rq = emp ? regReq(req, regimeOfEmp(emp, req)) : req;
+  const rubR = applyRubOverride(rub, rq._regime);
+  if (emp) ctx.constMap = dynamicConstMap(rq, emp, { workedDays: req.query.workedDays });
   if (req.query.nombre != null && req.query.nombre !== "" && !isNaN(Number(req.query.nombre))) ctx.nombre = Number(req.query.nombre);
-  res.json(Object.assign({ code: rub.code, label: rub.label }, resolveRubrique(rub, req, ctx)));
+  res.json(Object.assign({ code: rub.code, label: rub.label }, resolveRubrique(rubR, rq, ctx)));
 });
 
 router.post("/rubriques", allow("RP", "ADM"), (req, res) => {
@@ -739,6 +815,8 @@ router.put("/rubriques/:id", allow("RP", "ADM"), (req, res) => {
   const r = mine(db.payRubriques, req).find(x => x.id === req.params.id);
   if (!r) return res.status(404).json({ error: "Rubrique introuvable" });
   const b = req.body || {};
+  const _rid = req.query.regimeId || b.regimeId;
+  if (_rid && _rid !== PRINCIPAL) return putRubriqueForRegime(req, res, r, _rid);
   const inUse = rubriqueInUse(r, req);
   if (inUse && !b.force)
     return res.status(409).json({ error: "Rubrique déjà utilisée dans des bulletins calculés",
@@ -795,6 +873,8 @@ router.get("/constantes", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   if (q) list = list.filter(c => (`${c.code} ${c.label}`).toLowerCase().includes(q));
   if (type) list = list.filter(c => String(c.type) === type);
   list = list.slice().sort((a, b) => String(a.code).localeCompare(String(b.code), "fr", { sensitivity: "base" }));
+  const reg = regimeById(req, req.query.regimeId);
+  if (reg && reg.constantes) list = list.map(c => { const k = String(c.code).toUpperCase(); return Object.prototype.hasOwnProperty.call(reg.constantes, k) ? Object.assign({}, c, { valeur: reg.constantes[k], valeurPrincipal: c.valeur, regimeOverride: true }) : c; });
   res.json(list);
 });
 router.post("/constantes", allow("RP", "ADM"), (req, res) => {
@@ -813,6 +893,19 @@ router.put("/constantes/:id", allow("RP", "ADM"), (req, res) => {
   const c = mine(db.payConstantes, req).find(x => x.id === req.params.id);
   if (!c) return res.status(404).json({ error: "Constante introuvable" });
   const b = req.body || {}; const before = { valeur: c.valeur, label: c.label };
+  const _rid = req.query.regimeId || b.regimeId;
+  if (_rid && _rid !== PRINCIPAL) {
+    // Dans un régime, seule la VALEUR d'une constante peut différer du principal.
+    const reg = regimeById(req, _rid); if (!reg) return res.status(404).json({ error: "Régime introuvable" });
+    const k = String(c.code).toUpperCase(); reg.constantes = reg.constantes || {};
+    const v = (b.valeur === "" || b.valeur == null) ? null : Number(b.valeur);
+    const prev = Object.prototype.hasOwnProperty.call(reg.constantes, k) ? reg.constantes[k] : undefined;
+    if (b.reset || v === (c.valeur == null ? null : Number(c.valeur))) delete reg.constantes[k]; else reg.constantes[k] = v;
+    save();
+    audit(req.user, "UPDATED", "PayRegime", reg.id, { constante: k, before: prev, after: reg.constantes[k] });
+    const ov = Object.prototype.hasOwnProperty.call(reg.constantes, k);
+    return res.json(Object.assign({}, c, ov ? { valeur: reg.constantes[k], valeurPrincipal: c.valeur, regimeOverride: true } : {}));
+  }
   // Code modifiable uniquement pour une constante personnalisée (non baseline), ex. une duplication.
   if (b.code !== undefined && String(b.code).trim() && String(b.code).trim().toUpperCase() !== String(c.code).toUpperCase()) {
     const nc = String(b.code).trim().toUpperCase();
@@ -849,6 +942,167 @@ router.post("/constantes/import-catalogue", allow("RP", "ADM"), (req, res) => {
   if (added) save();
   audit(req.user, "IMPORTED", "PayConstante", "catalogue", { added });
   res.json({ ok: true, added, total: mine(db.payConstantes, req).length });
+});
+
+
+/* ============================ RÉGIMES DE PAIE : API ============================ */
+function putRubriqueForRegime(req, res, r, rid) {
+  const reg = regimeById(req, rid); if (!reg) return res.status(404).json({ error: "Régime introuvable" });
+  const b = req.body || {}; const key = rubKey(r);
+  reg.rubriques = reg.rubriques || {};
+  const before = Object.assign({}, reg.rubriques[key] || {});
+  const o = b.reset ? {} : Object.assign({}, before);
+  const norm = (f, v) => (f === "taux" || f === "tauxPat") ? (v === "" || v == null ? null : Number(v))
+    : (f === "cnps" || f === "impo" || f === "active" || f === "prorata") ? !!v : v;
+  const baseVal = (f) => f === "prorata" ? rubProrates(r) : (f === "cnps" || f === "impo" || f === "active") ? !!r[f] : (r[f] === undefined ? null : r[f]);
+  if (!b.reset) for (const f of REG_RUB_FIELDS) if (b[f] !== undefined) {
+    const v = norm(f, b[f]);
+    if (JSON.stringify(v) === JSON.stringify(baseVal(f))) delete o[f]; else o[f] = v;
+  }
+  if (Object.keys(o).length) reg.rubriques[key] = o; else delete reg.rubriques[key];
+  reg.updatedAt = new Date().toISOString();
+  save();
+  const recompute = recomputeAffectedPayslips(req, r.code); if (recompute.recomputed) save();
+  audit(req.user, "UPDATED", "PayRegime", reg.id, { rubrique: r.code, before, after: reg.rubriques[key] || null, recomputed: recompute.recomputed });
+  res.json(Object.assign({}, applyRubOverride(r, reg), { prorata: rubProrates(applyRubOverride(r, reg)), regimeId: reg.id, recompute }));
+}
+const _empName = (e) => [e.lastName, e.firstName].filter(Boolean).join(" ");
+function regimeSummary(reg, req) {
+  const emps = mine(db.employees, req);
+  const isP = !reg; const rid = isP ? PRINCIPAL : reg.id;
+  const n = emps.filter(e => isP ? !regimeById(req, e.payRegimeId) : e.payRegimeId === reg.id).length;
+  const base = baseConfigOf(req);
+  const conv = (cid) => { const c = cid ? mine(db.conventions, req).find(x => x.id === cid) : null; return c ? c.name : null; };
+  return isP
+    ? { id: PRINCIPAL, name: "Régime principal", principal: true, description: "Configuration de paie de la société", employees: n, isDefault: !base.defaultPayRegimeId || base.defaultPayRegimeId === PRINCIPAL, overrides: { config: 0, rubriques: 0, constantes: 0 } }
+    : { id: reg.id, name: reg.name, principal: false, description: reg.description || "", conventionId: reg.conventionId || null, conventionName: conv(reg.conventionId),
+        employees: n, isDefault: base.defaultPayRegimeId === reg.id, createdAt: reg.createdAt, updatedAt: reg.updatedAt || null,
+        overrides: { config: Object.keys(reg.config || {}).length, rubriques: Object.keys(reg.rubriques || {}).length, constantes: Object.keys(reg.constantes || {}).length },
+        config: reg.config || {}, rubriques: reg.rubriques || {}, constantes: reg.constantes || {} };
+}
+router.get("/regimes", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const list = [regimeSummary(null, req), ...mine(db.payRegimes, req).slice().sort((a, b) => String(a.name).localeCompare(String(b.name), "fr")).map(r => regimeSummary(r, req))];
+  const pfs = mine(db.portfolios, req).map(p => ({ id: p.id, name: p.name, defaultPayRegimeId: p.defaultPayRegimeId || null }));
+  res.json({ regimes: list, portfolios: pfs, defaultPayRegimeId: baseConfigOf(req).defaultPayRegimeId || PRINCIPAL });
+});
+// Créer un régime : vide (= copie du principal) ou en dupliquant un régime existant.
+router.post("/regimes", allow("RP", "ADM"), (req, res) => {
+  const b = req.body || {}; const name = String(b.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Nom du régime obligatoire" });
+  if (name.toLowerCase() === "régime principal" || mine(db.payRegimes, req).some(r => String(r.name).toLowerCase() === name.toLowerCase()))
+    return res.status(409).json({ error: "Un régime porte déjà ce nom" });
+  let src = null;
+  if (b.copyFrom && b.copyFrom !== PRINCIPAL) { src = regimeById(req, b.copyFrom); if (!src) return res.status(404).json({ error: "Régime source introuvable" }); }
+  if (b.conventionId && !mine(db.conventions, req).some(c => c.id === b.conventionId)) return res.status(400).json({ error: "Convention collective inconnue" });
+  const copy = (x) => JSON.parse(JSON.stringify(x || {}));
+  const reg = stamp({ id: id("preg"), name, description: String(b.description || ""), conventionId: b.conventionId || (src && src.conventionId) || null,
+    config: copy(src && src.config), rubriques: copy(src && src.rubriques), constantes: copy(src && src.constantes),
+    copiedFrom: b.copyFrom || PRINCIPAL, createdBy: req.user.id, createdAt: new Date().toISOString() }, req);
+  db.payRegimes.push(reg); save();
+  audit(req.user, "CREATED", "PayRegime", reg.id, { name, copyFrom: reg.copiedFrom });
+  res.status(201).json(regimeSummary(reg, req));
+});
+router.put("/regimes/:id", allow("RP", "ADM"), (req, res) => {
+  const reg = regimeById(req, req.params.id); if (!reg) return res.status(404).json({ error: "Régime introuvable" });
+  const b = req.body || {};
+  if (b.name !== undefined) {
+    const name = String(b.name).trim(); if (!name) return res.status(400).json({ error: "Nom du régime obligatoire" });
+    if (mine(db.payRegimes, req).some(r => r.id !== reg.id && String(r.name).toLowerCase() === name.toLowerCase())) return res.status(409).json({ error: "Un régime porte déjà ce nom" });
+    reg.name = name;
+  }
+  if (b.description !== undefined) reg.description = String(b.description || "");
+  if (b.conventionId !== undefined) {
+    if (b.conventionId && !mine(db.conventions, req).some(c => c.id === b.conventionId)) return res.status(400).json({ error: "Convention collective inconnue" });
+    reg.conventionId = b.conventionId || null;
+  }
+  reg.updatedAt = new Date().toISOString(); save();
+  audit(req.user, "UPDATED", "PayRegime", reg.id, { name: reg.name });
+  res.json(regimeSummary(reg, req));
+});
+router.delete("/regimes/:id", allow("RP", "ADM"), (req, res) => {
+  const reg = regimeById(req, req.params.id); if (!reg) return res.status(404).json({ error: "Régime introuvable" });
+  const n = mine(db.employees, req).filter(e => e.payRegimeId === reg.id).length;
+  if (n) return res.status(409).json({ error: `${n} salarié(s) sont rattachés à ce régime. Rattachez-les à un autre régime avant de le supprimer.` });
+  const runById = {}; for (const r of mine(db.payRuns, req)) runById[r.id] = r;
+  const openUse = mine(db.payslips, req).some(s => s.result && s.result.meta && s.result.meta.regimeId === reg.id && runById[s.runId] && runById[s.runId].status !== "CLOSED");
+  if (openUse) return res.status(409).json({ error: "Des bulletins d'une paie non clôturée utilisent ce régime. Clôturez ou recalculez la paie avant de le supprimer." });
+  const base = baseConfigOf(req); if (base.defaultPayRegimeId === reg.id) base.defaultPayRegimeId = null;
+  for (const p of mine(db.portfolios, req)) if (p.defaultPayRegimeId === reg.id) p.defaultPayRegimeId = null;
+  db.payRegimes.splice(db.payRegimes.indexOf(reg), 1); save();
+  audit(req.user, "DELETED", "PayRegime", reg.id, { name: reg.name });
+  res.json({ ok: true });
+});
+// Régime appliqué par défaut aux NOUVEAUX salariés : pour la société, ou pour un portefeuille (client).
+router.put("/regimes-default", allow("RP", "ADM"), (req, res) => {
+  const b = req.body || {}; const rid = b.regimeId || PRINCIPAL;
+  if (rid !== PRINCIPAL && !regimeById(req, rid)) return res.status(404).json({ error: "Régime introuvable" });
+  if (b.portfolioId) {
+    const pf = mine(db.portfolios, req).find(p => p.id === b.portfolioId); if (!pf) return res.status(404).json({ error: "Portefeuille introuvable" });
+    const before = pf.defaultPayRegimeId || null; pf.defaultPayRegimeId = (b.regimeId === null || b.regimeId === "") ? null : rid; save();
+    audit(req.user, "CONFIG_CHANGED", "Portfolio", pf.id, { defaultPayRegimeBefore: before, defaultPayRegimeAfter: pf.defaultPayRegimeId });
+    return res.json({ ok: true, portfolioId: pf.id, defaultPayRegimeId: pf.defaultPayRegimeId });
+  }
+  const base = baseConfigOf(req); const before = base.defaultPayRegimeId || PRINCIPAL;
+  base.defaultPayRegimeId = rid === PRINCIPAL ? null : rid; save();
+  audit(req.user, "CONFIG_CHANGED", "PayrollConfig", base.id, { defaultPayRegimeBefore: before, defaultPayRegimeAfter: rid });
+  res.json({ ok: true, defaultPayRegimeId: rid });
+});
+// Compare le net actuel et le net sous le régime cible (structure du dossier, sans éléments variables).
+function regimeImpact(req, emps, target, period) {
+  return emps.map(emp => {
+    const cur = regimeOfEmp(emp, req);
+    let before = null, after = null, error = null;
+    try { before = computeFor(emp, period, req, { structureOnly: true, regime: cur }).result.totals; after = computeFor(emp, period, req, { structureOnly: true, regime: target }).result.totals; }
+    catch (e) { error = e.message; }
+    const nb = before ? Math.round(before.netAPayer || 0) : null, na = after ? Math.round(after.netAPayer || 0) : null;
+    const bb = before ? Math.round(before.brutTotal || 0) : null, ba = after ? Math.round(after.brutTotal || 0) : null;
+    return { employeeId: emp.id, name: _empName(emp), matricule: emp.matricule || "", fromId: cur ? cur.id : PRINCIPAL, fromName: cur ? cur.name : "Régime principal",
+      netBefore: nb, netAfter: na, netDiff: (nb != null && na != null) ? na - nb : null, brutBefore: bb, brutAfter: ba, brutDiff: (bb != null && ba != null) ? ba - bb : null, error };
+  });
+}
+function _currentPeriod(req) {
+  const open = mine(db.payRuns, req).filter(r => r.status !== "CLOSED").sort((a, b) => String(b.period).localeCompare(String(a.period)))[0];
+  return open ? open.period : new Date().toISOString().slice(0, 7);
+}
+function _targetRegime(req, rid) { if (!rid || rid === PRINCIPAL) return { ok: true, reg: null }; const reg = regimeById(req, rid); return reg ? { ok: true, reg } : { ok: false }; }
+router.post("/regimes/:id/impact", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
+  const t = _targetRegime(req, req.params.id); if (!t.ok) return res.status(404).json({ error: "Régime introuvable" });
+  const b = req.body || {}; const ids = new Set(Array.isArray(b.employeeIds) ? b.employeeIds : []);
+  const emps = mine(db.employees, req).filter(e => ids.has(e.id));
+  const period = b.period || _currentPeriod(req);
+  res.json({ period, regimeId: req.params.id, rows: regimeImpact(req, emps, t.reg, period) });
+});
+// Rattacher des salariés à un régime. Bloqué si le net d'un salarié BAISSE (interdit par le Code du
+// travail : pas de réduction de salaire sans accord), sauf confirmation explicite (force) tracée.
+router.post("/regimes/:id/assign", allow("RP", "ADM"), (req, res) => {
+  const t = _targetRegime(req, req.params.id); if (!t.ok) return res.status(404).json({ error: "Régime introuvable" });
+  const b = req.body || {}; const ids = new Set(Array.isArray(b.employeeIds) ? b.employeeIds : []);
+  if (!ids.size) return res.status(400).json({ error: "Aucun salarié sélectionné" });
+  const emps = mine(db.employees, req).filter(e => ids.has(e.id));
+  if (emps.length !== ids.size) return res.status(404).json({ error: "Salarié introuvable" });
+  const period = b.period || _currentPeriod(req);
+  const rows = regimeImpact(req, emps, t.reg, period);
+  const decreases = rows.filter(r => r.netDiff != null && r.netDiff < 0);
+  if (decreases.length && !b.force)
+    return res.status(409).json({ requiresConfirmation: true, period, rows, decreases,
+      error: `Le net à payer baisserait pour ${decreases.length} salarié(s). Le Code du travail interdit de réduire le salaire sans l'accord du salarié.` });
+  const rid = t.reg ? t.reg.id : PRINCIPAL;
+  let recomputed = 0;
+  const runById = {}; for (const r of mine(db.payRuns, req)) runById[r.id] = r;
+  for (const emp of emps) {
+    const from = emp.payRegimeId || PRINCIPAL;
+    emp.payRegimeId = t.reg ? t.reg.id : null;
+    if (from !== rid) audit(req.user, decreases.some(d => d.employeeId === emp.id) ? "FORCED_CHANGE" : "UPDATED", "Employee", emp.id,
+      { payRegimeFrom: from, payRegimeTo: rid, netDiff: (rows.find(r => r.employeeId === emp.id) || {}).netDiff });
+    // Bulletins des paies ouvertes (non corrigés à la main) recalculés avec le nouveau régime.
+    for (const sp of mine(db.payslips, req)) {
+      if (sp.employeeId !== emp.id) continue; const run = runById[sp.runId];
+      if (!run || run.status === "CLOSED" || sp.edited) continue;
+      try { const { input, result } = computeFor(emp, run.period, req); sp.input = input; sp.result = result; sp.recomputedAt = new Date().toISOString(); recomputed++; } catch (e) {}
+    }
+  }
+  save();
+  res.json({ ok: true, assigned: emps.length, regimeId: rid, recomputed, rows });
 });
 
 /* --- Compte comptable d'une rubrique (synchronisé avec la table Rubriques→Comptes de la compta) --- */
@@ -3499,5 +3753,6 @@ function _ficheSagePDF(req, res, opts){
 module.exports = router;
 
 module.exports.payslipSig = payslipSig;
+module.exports.regimeHelpers = { regimeById, PRINCIPAL, baseConfigOf };
 module.exports.salaryHelpers = { computeFor, configOf, codeMapOf, categorielBaseA, baseSalaryOf, seniorityYears, lineKey };
 module.exports.payslipBuffer = payslipBuffer;
