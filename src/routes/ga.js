@@ -125,7 +125,8 @@ function readable(field, raw) {
 function withDebut(model) {
   let pos = 1; const fields = (model.fields || []).map((f, i) => { const d = pos; pos += Number(f.taille) || 0; return Object.assign({ n: i + 1, debut: d }, f, { numeric: sourceIsNumeric(f) }); });
   const largeur = pos - 1;
-  return Object.assign({}, model, { fields, largeur });
+  // Ligne TOTAL affichée par défaut sur les modèles de type table (désactivable : showTotals=false).
+  return Object.assign({}, model, { fields, largeur, showTotals: model.type === "table" && model.showTotals !== false });
 }
 
 /* ---------------- Population & exécution ---------------- */
