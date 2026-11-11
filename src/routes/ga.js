@@ -60,6 +60,23 @@ const SOURCES = {
   net:            { label: "Net à payer", numeric: true, fn: c => c.T("netAPayer") },
   cnpsSalarie:    { label: "CNPS part salariale", numeric: true, fn: c => c.T("cnpsSalarie") },
   chargesPatronales: { label: "Charges patronales", numeric: true, fn: c => c.T("chargesPatronales") },
+  // Détail des retenues et charges (états Journal de paie, Charges patronales, DIPE CNPS, DIPE Trésor)
+  cac:            { label: "CAC (centimes additionnels)", numeric: true, fn: c => c.T("cac") },
+  cfcSalarie:     { label: "CFC part salariale", numeric: true, fn: c => c.T("cfcSalarie") },
+  rav:            { label: "Redevance audiovisuelle (RAV)", numeric: true, fn: c => c.T("rav") },
+  pvidSalarie:    { label: "PVID part salariale", numeric: true, fn: c => c.L("5000", "retenue") },
+  pvidPatronal:   { label: "PVID part patronale", numeric: true, fn: c => c.L("5000", "employer") },
+  accidentTravail:{ label: "Accident du travail (patronal)", numeric: true, fn: c => c.L("5020", "employer") },
+  allocFamiliales:{ label: "Allocations familiales (patronal)", numeric: true, fn: c => c.L("5010", "employer") },
+  fne:            { label: "FNE (patronal)", numeric: true, fn: c => c.T("fnePatronal") },
+  cfcPatronal:    { label: "CFC part patronale", numeric: true, fn: c => c.T("cfcPatronal") },
+  totalRetenuesSal: { label: "Total retenues salariales (fiscales + sociales)", numeric: true, fn: c => c.T("totalImpots") + c.T("cnpsSalarie") },
+  netSalaire:     { label: "Salaire net (avant cantine, acomptes, prêts)", numeric: true, fn: c => c.slip ? c.T("brutTotal") - c.T("totalImpots") - c.T("cnpsSalarie") : 0 },
+  autresRetenues: { label: "Autres retenues (cantine, acomptes, prêts…)", numeric: true, fn: c => c.T("autresRetenues") },
+  chargesSociales:{ label: "Total charges patronales sociales (CNPS)", numeric: true, fn: c => c.T("cnpsPatronal") },
+  chargesFiscales:{ label: "Total charges patronales fiscales (FNE + CFC)", numeric: true, fn: c => c.T("fnePatronal") + c.T("cfcPatronal") },
+  totalCnps:      { label: "Total à reverser à la CNPS (patronal + salarial)", numeric: true, fn: c => c.T("cnpsPatronal") + c.T("cnpsSalarie") },
+  totalTresor:    { label: "Total à reverser au Trésor (retenues fiscales + FNE + CFC patronal)", numeric: true, fn: c => c.T("totalImpots") + c.T("fnePatronal") + c.T("cfcPatronal") },
   // DIPE (magnétique)
   numeroDipe:     { label: "Numéro DIPE", fn: c => c.comp.dipe || (c.tenant && c.tenant.dipe) || "" },
   cle:            { label: "Clé DIPE", fn: c => "" },
@@ -106,7 +123,7 @@ function readable(field, raw) {
   return String(raw == null ? "" : raw);
 }
 function withDebut(model) {
-  let pos = 1; const fields = (model.fields || []).map((f, i) => { const d = pos; pos += Number(f.taille) || 0; return Object.assign({ n: i + 1, debut: d, numeric: sourceIsNumeric(f) }, f); });
+  let pos = 1; const fields = (model.fields || []).map((f, i) => { const d = pos; pos += Number(f.taille) || 0; return Object.assign({ n: i + 1, debut: d }, f, { numeric: sourceIsNumeric(f) }); });
   const largeur = pos - 1;
   return Object.assign({}, model, { fields, largeur });
 }
@@ -124,14 +141,17 @@ function buildCtxList(req, period, portfolioId) {
   return emps.map((emp, i) => {
     const slip = slips.filter(s => s.employeeId === emp.id).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0] || null;
     const pf = pfs.find(p => p.id === emp.portfolioId) || null;
-    return { emp, slip, cfg, period, tenant, comp, pf, seq: i + 1, T: (k) => slip ? (Number(slip.result.totals[k]) || 0) : 0 };
+    const L = (key, part) => slip ? (slip.result.lines || []).filter(l => String(l.key || l.code) === key).reduce((a, l) => a + (Number(l[part]) || 0), 0) : 0;
+    return { emp, slip, cfg, period, tenant, comp, pf, seq: i + 1, L, T: (k) => slip ? (Number(slip.result.totals[k]) || 0) : 0 };
   });
 }
 function runModel(model, req, period, portfolioId) {
   const m = withDebut(model);
-  const ctxs = buildCtxList(req, period, portfolioId);
+  let ctxs = buildCtxList(req, period, portfolioId);
+  if (m.onlyPaid) ctxs = ctxs.filter(c => c.slip);
   const rows = ctxs.map(ctx => m.fields.map(f => { const raw = sourceValue(f, ctx); return { raw, txt: readable(f, raw), fixed: fmtFixed(f, raw) }; }));
-  return { model: m, rows, count: rows.length };
+  const totals = m.fields.map((f, i) => (sourceIsNumeric(f) && !/^(numeroLigne|mois|anneePaie|nbJours)$/.test(f.source || "")) ? rows.reduce((a, r) => a + (Number(r[i].raw) || 0), 0) : null);
+  return { model: m, rows, count: rows.length, totals };
 }
 function latestPeriod(req) {
   const slips = mine(db.payslips, req).map(s => s.period).filter(Boolean).sort();
@@ -170,7 +190,7 @@ router.get("/:id", allow(...RO), (req, res) => {
 });
 const norm = (b) => ({
   code: b.code, intitule: b.intitule || "", titre: b.titre || b.intitule || "", type: b.type === "table" ? "table" : "fixed",
-  confidentialite: Number(b.confidentialite) || 0,
+  confidentialite: Number(b.confidentialite) || 0, onlyPaid: !!b.onlyPaid, showTotals: b.showTotals !== false && b.type === "table",
   fields: (Array.isArray(b.fields) ? b.fields : []).map(f => ({ label: f.label || "", source: f.source || "", taille: Number(f.taille) || 0, decimales: Number(f.decimales) || 0, numeric: f.numeric != null ? !!f.numeric : undefined, colonne: f.colonne !== false })),
 });
 router.post("/", allow(...RW), (req, res) => {
@@ -205,6 +225,7 @@ router.get("/:id/run", allow(...RO), (req, res) => {
     code: m.code, intitule: m.intitule, type: m.type || "fixed", period, count: r.count, largeur: r.model.largeur, computedCount: withSlip,
     columns: r.model.fields.filter(f => f.colonne !== false).map(f => ({ label: f.label, numeric: f.numeric })),
     rows: r.rows.map(row => r.model.fields.map((f, i) => f.colonne !== false ? row[i].txt : null).filter((_, i) => r.model.fields[i].colonne !== false)),
+    totals: r.model.showTotals ? r.model.fields.map((f, i) => f.colonne !== false ? (r.totals[i] == null ? "" : readable(f, r.totals[i])) : null).filter((_, i) => r.model.fields[i].colonne !== false) : null,
   });
 });
 router.get("/:id/export.txt", allow(...RO), (req, res) => {
@@ -227,6 +248,7 @@ router.get("/:id/export.xlsx", allow(...RO), (req, res) => {
   const head = cols.map(f => f.label);
   const aoa = [head];
   r.rows.forEach(row => aoa.push(r.model.fields.map((f, i) => f.colonne !== false ? (f.numeric ? (Number(row[i].raw) || 0) : row[i].raw) : null).filter((_, i) => r.model.fields[i].colonne !== false)));
+  if (r.model.showTotals) aoa.push(r.model.fields.map((f, i) => f.colonne !== false ? (r.totals[i] == null ? (i === 0 ? "TOTAL" : "") : r.totals[i]) : null).filter((_, i) => r.model.fields[i].colonne !== false));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), (m.code || "GA").slice(0, 28));
   res.setHeader("Content-Disposition", `attachment; filename="${m.code}_${period}.xlsx"`);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
