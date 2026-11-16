@@ -159,7 +159,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
     lineFields: Array.isArray(b.lineFields) ? b.lineFields : [],
     isEnabled: !!b.isEnabled, isRate: b.isRate != null ? Number(b.isRate) : 0.022, invoiceSeqPrefix: b.invoiceSeqPrefix || "029",
     journalId: b.journalId || "", defaultAccount: b.defaultAccount || "701100", conditionsPaiement: b.conditionsPaiement || "Immédiat", vendeur: b.vendeur || "", paymentTermDays: b.paymentTermDays != null ? Number(b.paymentTermDays) : 30,
-    prorate: b.prorate || "base", anciennete: b.anciennete !== false, tvaExonere: !!b.tvaExonere,
+    prorate: b.prorate || "base", anciennete: b.anciennete !== false, tvaExonere: !!b.tvaExonere, tvaWithheld: !!b.tvaWithheld,
     rates: Object.assign({}, DEFAULT_RATES, b.rates || {}),
     components: Array.isArray(b.components) ? b.components : [],
     columnMapping: b.columnMapping || {}, createdAt: new Date().toISOString() }, req);
@@ -170,7 +170,7 @@ router.post("/contracts", allow("ADM"), (req, res) => {
 router.put("/contracts/:id", allow("ADM"), (req, res) => {
   const c = contractOf(req, req.params.id); if (!c) return res.status(404).json({ error: "Introuvable" });
   const b = req.body || {};
-  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "invoiceSeqPrefix", "journalId", "defaultAccount", "conditionsPaiement", "vendeur", "lineFields", "paymentTermDays"])
+  for (const k of ["clientCode", "clientName", "billingType", "numberFormat", "invoiceStyle", "prorate", "anciennete", "tvaExonere", "clientBlock", "bankBlock", "components", "columnMapping", "isEnabled", "isRate", "tvaWithheld", "invoiceSeqPrefix", "journalId", "defaultAccount", "conditionsPaiement", "vendeur", "lineFields", "paymentTermDays"])
     if (b[k] !== undefined) c[k] = b[k];
   if (b.rates) c.rates = Object.assign({}, DEFAULT_RATES, c.rates || {}, b.rates);
   save(); audit(req.user, "UPDATED", "BillingContract", c.id, {}); res.json(c);
@@ -801,7 +801,9 @@ function invTotals(inv) {
   const HT = (inv.lines || []).filter(l => l.type === "product").reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.pu) || 0), 0);
   const tva = inv.tvaExonere ? 0 : HT * (inv.tvaRate != null ? inv.tvaRate : 0.1925);
   const is = inv.isRate ? HT * inv.isRate : 0;
-  return { HT: Math.round(HT), TVA: Math.round(tva), IS: Math.round(is), TTC: Math.round(HT + tva), totalDu: Math.round(HT + tva - is) };
+  // TVA retenue à la source par le client (grandes entreprises) : facturée mais non encaissée.
+  const tvaRet = inv.tvaWithheld ? tva : 0;
+  return { HT: Math.round(HT), TVA: Math.round(tva), IS: Math.round(is), TVA_RET: Math.round(tvaRet), TTC: Math.round(HT + tva), totalDu: Math.round(HT + tva - is - tvaRet) };
 }
 const withInvTotals = (inv) => Object.assign({}, inv, invTotals(inv));
 
@@ -842,6 +844,7 @@ const invOf = (req, iid) => mine(db.billingInvoices, req).find(x => x.id === iid
 /* ------- Numérotation configurable des factures (jetons dynamiques) ------- */
 const _MOISABR = ["JAN","FEV","MAR","AVR","MAI","JUN","JUL","AOU","SEP","OCT","NOV","DEC"];
 const INV_DEFAULT = { format: "{SEQ:3}/{CODE}/{MM}/{YYYY}", seqWidth: 3, resetScope: "monthly" };
+const PROFORMA_DEFAULT = "PRO/{SEQ:3}/{MM}/{YYYY}"; // série distincte des factures proforma
 function billCfg(req) {
   const tid = (req.user && req.user.tenantId) || "t1";
   let c = (db.billingConfig || []).find(x => (x.tenantId || "t1") === tid);
@@ -869,13 +872,14 @@ function expandInvoiceFormat(fmt, ctx, seqVal) {
     }
   });
 }
-function _nextInvoiceNumber(req, contract, period) {
+function _nextInvoiceNumber(req, contract, period, fmtOverride) {
   const cfg = billCfg(req);
+  const FMT = fmtOverride || cfg.format;
   const ctx = _invCtx(contract, period, cfg);
   // Portée de réinitialisation de la séquence : le motif « fixe » (hors SEQ) sert à isoler la série.
   let scopeFmt = cfg.format;
   if (cfg.resetScope === "yearly") { /* le mois ne fait pas partie de la série */ }
-  const tmpl = expandInvoiceFormat(cfg.format, ctx, null);           // ...\x00SEQ\x00...
+  const tmpl = expandInvoiceFormat(FMT, ctx, null);           // ...\x00SEQ\x00...
   const esc = tmpl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // motif de comparaison selon la portée : yearly -> ignore le mois ; global -> ignore mois+année
   let rxStr = esc.replace(/\x00SEQ\x00/, "0*(\\d+)");
@@ -885,12 +889,12 @@ function _nextInvoiceNumber(req, contract, period) {
   const scan = (v) => { const m = rx.exec(v || ""); if (m && m[1] != null) max = Math.max(max, parseInt(m[1], 10)); };
   for (const x of mine(db.billingInvoices, req)) scan(x.number);
   for (const x of mine(db.billingSheets, req)) scan(x.invoiceNumber);
-  return expandInvoiceFormat(cfg.format, ctx, max + 1);
+  return expandInvoiceFormat(FMT, ctx, max + 1);
 }
 /* Config API */
 router.get("/number-config", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   const c = billCfg(req); save();
-  res.json({ format: c.format, seqWidth: c.seqWidth, resetScope: c.resetScope,
+  res.json({ format: c.format, seqWidth: c.seqWidth, resetScope: c.resetScope, proformaFormat: c.proformaFormat || PROFORMA_DEFAULT,
     tokens: [
       { t: "{SEQ:3}", d: "Séquence (largeur configurable, ex. 3 → 001)" },
       { t: "{CODE}", d: "Code / n° du client (préfixe de séquence)" },
@@ -907,6 +911,7 @@ router.put("/number-config", allow("ADM", "CD"), (req, res) => {
   if (b.format !== undefined) c.format = String(b.format).slice(0, 80) || INV_DEFAULT.format;
   if (b.seqWidth !== undefined) c.seqWidth = Math.min(10, Math.max(1, Number(b.seqWidth) || 3));
   if (b.resetScope !== undefined && ["monthly", "yearly", "never"].includes(b.resetScope)) c.resetScope = b.resetScope;
+  if (b.proformaFormat !== undefined) c.proformaFormat = String(b.proformaFormat).slice(0, 80) || PROFORMA_DEFAULT;
   save(); audit(req.user, "UPDATED", "BillingConfig", c.id, { format: c.format });
   res.json({ format: c.format, seqWidth: c.seqWidth, resetScope: c.resetScope, sample: _nextInvoiceNumber(req, { invoiceSeqPrefix: "701", clientCode: "701" }, "2026-09") });
 });
@@ -964,13 +969,22 @@ router.post("/invoices", allow("ADM","CD","RJ","GPF"), (req, res) => {
   if (b.modelId) { const m = imOf(req, b.modelId); if (m) lines = (m.lines || []).map(l => Object.assign({}, l, { id: id("iln") })); }
   if (Array.isArray(b.lines)) lines = b.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
   const period = b.period || new Date().toISOString().slice(0, 7); const [yy, mm] = period.split("-");
-  const number = _nextInvoiceNumber(req, contract, period);
+  // Type de document : facture (par défaut) ou proforma (série de numéros distincte, jamais comptabilisée).
+  const docType = b.docType === "proforma" ? "proforma" : "facture";
+  let number;
+  if (b.number && String(b.number).trim()) {
+    // Numéro saisi (reprise de factures existantes) : réservé à l'administrateur et au CD, unique.
+    if (!["ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Seuls l'administrateur et le CD peuvent fixer le numéro." });
+    number = String(b.number).trim().slice(0, 60);
+    if (mine(db.billingInvoices, req).some(x => x.number === number)) return res.status(409).json({ error: "Ce numéro existe déjà : " + number });
+  } else number = docType === "proforma" ? _nextInvoiceNumber(req, contract, period, billCfg(req).proformaFormat || PROFORMA_DEFAULT) : _nextInvoiceNumber(req, contract, period);
   const _td = (b.termDays != null && b.termDays !== "") ? Number(b.termDays)
             : (contract.paymentTermDays != null && contract.paymentTermDays !== "") ? Number(contract.paymentTermDays) : "";
   const inv = stamp({ id: id("binv"), contractId: contract.id, client: contract.clientName, number, period, termDays: _td,
     date: b.date || new Date().toISOString().slice(0, 10), dueDate: b.dueDate || "", objet: b.objet || "", bonCommande: b.bonCommande || "",
     journalId: b.journalId || contract.journalId || "", account: b.account || contract.defaultAccount || "701100",
     tvaRate: contract.tvaExonere ? 0 : 0.1925, tvaExonere: !!contract.tvaExonere, isRate: contract.isEnabled ? Number(contract.isRate || 0) : 0,
+    tvaWithheld: !!contract.tvaWithheld, docType,
     annexeSheetId: b.annexeSheetId || null, stage: "devis", status: "draft", lines, createdByName: (req.user && (req.user.fullName || req.user.email)) || "", createdAt: new Date().toISOString() }, req);
   db.billingInvoices.push(inv); save(); audit(req.user, "CREATED", "BillingInvoice", inv.id, { number }); res.status(201).json(withInvTotals(inv));
 });
@@ -983,6 +997,13 @@ router.put("/invoices/:id", allow("ADM","CD","RJ","GPF"), (req, res) => {
   if (!inv.receiptConfirmed && req.body.dueDate === undefined) inv.dueDate = _computeDueDate(inv, contractOf(req, inv.contractId) || {});
   if (req.body.isRate !== undefined) inv.isRate = Number(req.body.isRate) || 0;
   if (req.body.tvaExonere !== undefined) inv.tvaExonere = !!req.body.tvaExonere;
+  if (req.body.tvaWithheld !== undefined) inv.tvaWithheld = !!req.body.tvaWithheld;
+  if (req.body.number !== undefined && String(req.body.number).trim() && String(req.body.number).trim() !== inv.number) {
+    if (!["ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Seuls l'administrateur et le CD peuvent changer le numéro." });
+    const nn = String(req.body.number).trim().slice(0, 60);
+    if (mine(db.billingInvoices, req).some(x => x.id !== inv.id && x.number === nn)) return res.status(409).json({ error: "Ce numéro existe déjà : " + nn });
+    inv.number = nn;
+  }
   if (Array.isArray(req.body.lines)) inv.lines = req.body.lines.map(l => Object.assign({ id: l.id || id("iln") }, l));
   save(); audit(req.user, "UPDATED", "BillingInvoice", inv.id, {}); res.json(withInvTotals(inv));
 });
@@ -1006,6 +1027,7 @@ const invSnap = (inv) => { const t = invTotals(inv); return { number: inv.number
 router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   const { qualityEvent } = require("../quality");
+  if (inv.docType === "proforma") return res.status(409).json({ error: "Une proforma ne se valide pas et n'entre pas en comptabilité : convertissez-la d'abord en facture." });
   if (inv.status === "validated") {
     // Réouverture d'une facture validée = correction contrôlée (motif requis) - on capture l'état avant.
     const motif = (req.body && req.body.motif || "").trim();
@@ -1037,6 +1059,7 @@ router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
 // Confirmation de réception de la facture par le client -> entrée en comptabilité.
 router.post("/invoices/:id/confirm-receipt", allow("ADM", "CD", "RJ"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
+  if (inv.docType === "proforma") return res.status(409).json({ error: "Une proforma n'entre pas en comptabilité." });
   if (inv.status !== "validated") return res.status(409).json({ error: "La facture doit d'abord être validée." });
   if (inv.accounting === "posted") return res.status(409).json({ error: "Facture déjà comptabilisée." });
   const b = req.body || {};
@@ -1067,14 +1090,34 @@ router.post("/invoices/:id/duplicate", allow("ADM","CD","RJ","GPF"), (req, res) 
   const src = invOf(req, req.params.id); if (!src) return res.status(404).json({ error: "Facture introuvable" });
   const contract = contractOf(req, src.contractId) || {};
   const period = new Date().toISOString().slice(0, 7); const [yy, mm] = period.split("-");
-  const number = _nextInvoiceNumber(req, contract, period);
+  const number = src.docType === "proforma" ? _nextInvoiceNumber(req, contract, period, billCfg(req).proformaFormat || PROFORMA_DEFAULT) : _nextInvoiceNumber(req, contract, period);
   const copy = stamp({ id: id("binv"), contractId: src.contractId, client: src.client, number, period, termDays: src.termDays,
     date: new Date().toISOString().slice(0, 10), dueDate: "", objet: src.objet || "", bonCommande: src.bonCommande || "",
     journalId: src.journalId || "", account: src.account || "701100", tvaRate: src.tvaRate, tvaExonere: !!src.tvaExonere, isRate: src.isRate || 0,
     annexeSheetId: null, stage: "devis", status: "draft", accounting: undefined, receiptConfirmed: false,
+    docType: src.docType || "facture", tvaWithheld: !!src.tvaWithheld,
     lines: (src.lines || []).map(l => Object.assign({}, l, { id: id("iln") })), createdByName: (req.user && (req.user.fullName || req.user.email)) || "", createdAt: new Date().toISOString() }, req);
   db.billingInvoices.push(copy); save(); audit(req.user, "CREATED", "BillingInvoice", copy.id, { duplicatedFrom: src.id, number });
   res.status(201).json(withInvTotals(copy));
+});
+
+/* ---- Proforma -> facture : nouvelle facture (numéro de la série des factures), la proforma garde le lien. ---- */
+router.post("/invoices/:id/convert", allow("ADM","CD","RJ","GPF"), (req, res) => {
+  const src = invOf(req, req.params.id); if (!src) return res.status(404).json({ error: "Facture introuvable" });
+  if (src.docType !== "proforma") return res.status(409).json({ error: "Seule une proforma peut être convertie en facture." });
+  if (src.convertedTo && invOf(req, src.convertedTo)) return res.status(409).json({ error: "Proforma déjà convertie.", invoiceId: src.convertedTo });
+  const contract = contractOf(req, src.contractId) || {};
+  const period = (req.body && req.body.period) || new Date().toISOString().slice(0, 7);
+  const number = _nextInvoiceNumber(req, contract, period);
+  const base = JSON.parse(JSON.stringify(src));
+  for (const k of ["_reopen", "acctEntryId", "accounting", "receiptConfirmed", "receiptConfirmedAt", "receiptConfirmedBy", "receiptMode", "receiptRef", "convertedTo"]) delete base[k];
+  const inv = stamp(Object.assign(base, { id: id("binv"), number, period, docType: "facture", stage: "facture", status: "draft",
+    date: new Date().toISOString().slice(0, 10), dueDate: "", fromProformaId: src.id, fromProformaNumber: src.number,
+    lines: (src.lines || []).map(l => Object.assign({}, l, { id: id("iln") })),
+    createdByName: (req.user && (req.user.fullName || req.user.email)) || "", createdAt: new Date().toISOString() }), req);
+  src.convertedTo = inv.id;
+  db.billingInvoices.push(inv); save(); audit(req.user, "CREATED", "BillingInvoice", inv.id, { fromProforma: src.number, number });
+  res.status(201).json(withInvTotals(inv));
 });
 
 /* ---- Comparer facture ↔ annexe ---- */
@@ -1111,12 +1154,14 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   _cl(cb.nTva ? "N° TVA : " + cb.nTva : (cb.rccm ? "RCCM : " + cb.rccm : ""));
   _cl(cb.niu ? "NIU : " + cb.niu : ""); _cl(cb.tel ? "Tél : " + cb.tel : "");
   // big title (right)
-  doc.fillColor(brand).font("Helvetica-Bold").fontSize(22).text("FACTURE", 330, _top, { width: 237, align: "right" });
+  const _isPro = inv.docType === "proforma";
+  doc.fillColor(brand).font("Helvetica-Bold").fontSize(_isPro ? 18 : 22).text(_isPro ? "FACTURE PROFORMA" : "FACTURE", 330, _top, { width: 237, align: "right" });
   doc.fillColor("#000").font("Helvetica-Bold").fontSize(12).text("N° " + (inv.number || ""), 330, _top + 30, { width: 237, align: "right" });
   // titre centré : {client court} {type} (ex. « CIMPOR MAD ») juste au-dessus de la date de facturation
   let y = Math.max(cy, _top + 74) + 6;
   const _vendeur = inv.vendeur || inv.createdByName || contract.vendeur || "-";
   const band = [["Date de facturation", inv.date || ""], ["Vendeur", _vendeur], ["Objet", inv.objet || "-"]];
+  if (inv.bonCommande) band.push(["Bon de commande", inv.bonCommande]);
   doc.roundedRect(x0, y, W, 30, 4).fillAndStroke("#f4f7f6", "#c9d6d0"); doc.fillColor("#000");
   let bxi = x0 + 6; const bwn = W / band.length;
   for (const [lab, val] of band) { doc.fillColor(brand).font("Helvetica-Bold").fontSize(8).text(lab, bxi, y + 5, { width: bwn - 12, lineBreak: false }); doc.fillColor("#000").font("Helvetica").fontSize(9).text(val, bxi, y + 16, { width: bwn - 12, lineBreak: false }); bxi += bwn; }
@@ -1153,15 +1198,17 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   };
   trow("Montant hors taxes", t.HT, false);
   trow(inv.tvaExonere ? "T.V.A. (exonérée)" : "T.V.A. " + TXP(inv.tvaRate != null ? inv.tvaRate : 0.1925), t.TVA, false);
+  if (t.TVA_RET) trow("TVA retenue à la source", -t.TVA_RET, false);
   if (t.IS) trow("IS (retenue)", -t.IS, false);
-  trow(t.IS ? "TOTAL À PAYER" : "Total", t.IS ? t.totalDu : t.TTC, true);
+  const _net = !!(t.IS || t.TVA_RET);
+  trow(_net ? "NET À PAYER" : "Total", _net ? t.totalDu : t.TTC, true);
   // ---- Pied : PAYABLE À (coordonnées bancaires PROPRES AU CLIENT) à gauche ; montant en lettres + LA DIRECTION à droite ----
   const _cap = (str) => { str = String(str || ""); return str ? str.charAt(0).toUpperCase() + str.slice(1) : str; };
-  const ttcMontant = t.IS ? t.totalDu : t.TTC;
+  const ttcMontant = (t.IS || t.TVA_RET) ? t.totalDu : t.TTC;
   const eur = Math.round(ttcMontant / 655.957); // parité fixe FCFA/EUR
   let fy = y + 20; const rX = x0 + W - 250, rW = 250;
   // Colonne droite : « Arrêtée la présente facture… » + lettres FCFA + euros + LA DIRECTION
-  doc.fillColor("#000").font("Helvetica-Oblique").fontSize(9).text("Arrêtée la présente facture à la somme TTC de :", rX, fy, { width: rW });
+  doc.fillColor("#000").font("Helvetica-Oblique").fontSize(9).text(_isPro ? "Arrêtée la présente facture proforma à la somme de :" : ((t.IS || t.TVA_RET) ? "Arrêtée la présente facture à la somme nette de :" : "Arrêtée la présente facture à la somme TTC de :"), rX, fy, { width: rW });
   let ry2 = doc.y + 3;
   doc.font("Helvetica-Bold").fontSize(9).text(_cap(enLettres(ttcMontant)) + " francs CFA", rX, ry2, { width: rW }); ry2 = doc.y + 5;
   doc.text(_cap(enLettres(eur)) + " euros", rX, ry2, { width: rW }); ry2 = doc.y + 30;

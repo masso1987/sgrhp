@@ -9558,6 +9558,8 @@ async function billNumLoad() {
         </select></div>
     </div>
     <div class="note" style="margin-top:8px">Aperçu (client 701, sept. 2026) : <code id="invPrev" style="font-size:15px">${esc(cfg.sample||"")}</code></div>
+    <div style="margin-top:10px"><label>Format du numéro des factures proforma (série distincte)</label>
+      <input id="invProFmt" value="${esc(cfg.proformaFormat||"")}" style="font-family:monospace"></div>
     <div style="margin-top:10px"><button class="btn p sm" onclick="billNumSave()">Enregistrer le format</button></div>`;
 }
 function billNumInsert(tok) {
@@ -9578,7 +9580,8 @@ function billNumPreview() {
 async function billNumSave() {
   const body = { format:(document.getElementById("invFmt")||{}).value,
     seqWidth:+(document.getElementById("invSeqW")||{}).value||3,
-    resetScope:(document.getElementById("invReset")||{}).value };
+    resetScope:(document.getElementById("invReset")||{}).value,
+    proformaFormat:(document.getElementById("invProFmt")||{}).value };
   try { const r = await api("/billing/number-config", { method:"PUT", body:JSON.stringify(body) });
     const pv=document.getElementById("invPrev"); if(pv&&r.sample) pv.textContent=r.sample;
     if (window.mmToast) mmToast("Format de numérotation enregistré"); }
@@ -9642,6 +9645,7 @@ async function billingContractModal(cid) {
         <div><label>Proratisation</label><select id="ccProrate"><option value="base" ${c.prorate === "base" ? "selected" : ""}>Base seule</option><option value="base+primes" ${c.prorate === "base+primes" ? "selected" : ""}>Base + primes</option></select></div>
         <div><label>Ancienneté auto</label><select id="ccAnc"><option value="1" ${c.anciennete !== false ? "selected" : ""}>Oui</option><option value="0" ${c.anciennete === false ? "selected" : ""}>Non</option></select></div>
         <div><label>TVA exonérée</label><select id="ccExo"><option value="0" ${!c.tvaExonere ? "selected" : ""}>Non</option><option value="1" ${c.tvaExonere ? "selected" : ""}>Oui</option></select></div>
+        <div><label title="Grandes entreprises : le client retient la TVA et la reverse lui-même. Net à payer = HT − IS.">TVA retenue à la source par le client</label><select id="ccTvaRet"><option value="0" ${!c.tvaWithheld ? "selected" : ""}>Non</option><option value="1" ${c.tvaWithheld ? "selected" : ""}>Oui</option></select></div>
         <div><label>Provision fin (0=off)</label><input id="rFin" type="number" value="${R.finContrat || 0}"></div>
         <div><label>IS (retenue) activé</label><select id="ccIs"><option value="0" ${!c.isEnabled?"selected":""}>Non</option><option value="1" ${c.isEnabled?"selected":""}>Oui</option></select></div>
         <div><label>Taux IS %</label><input id="ccIsRate" type="number" step="0.1" value="${((c.isRate!=null?c.isRate:0.022)*100)}"></div>
@@ -9695,7 +9699,7 @@ async function billingSaveContract(cid) {
   const activeCodes = [...document.querySelectorAll("[data-comp]")].filter(x =>x.checked).map(x =>x.dataset.comp);
   const components = comps.filter(c =>activeCodes.includes(c.code)).map(c =>Object.assign({}, c, { active: true }));
   const body = { clientName: g("ccName"), clientCode: g("ccCode"), billingType: g("ccType"), numberFormat: g("ccNum"),
-    prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1", invoiceStyle: g("ccStyle"),
+    prorate: g("ccProrate"), anciennete: g("ccAnc") === "1", tvaExonere: g("ccExo") === "1", tvaWithheld: g("ccTvaRet") === "1", invoiceStyle: g("ccStyle"),
     rates: { chargesPatronales: +g("rCharges") / 100, fraisGestion: +g("rFrais") / 100, tva: +g("rTva") / 100,
       congesDivisor: +g("rConges"), ir: +g("rIr") / 100, margeCRH: +g("rMarge") / 100, finContrat: +g("rFin") },
     components, clientBlock: { name2: g("cbName2"), adresse: g("cbAddr"), ville: g("cbCity"), pays: g("cbPays"), bp: g("cbBP"), rccm: g("cbRccm"), niu: g("cbNiu"), nTva: g("cbTva"), tel: g("cbTel"), email: g("cbEmail") }, bankBlock: { banque: g("cbBank"), codeBanque: g("cbBankCode"), codeGuichet: g("cbGuichet"), compte: g("cbCompte"), cle: g("cbCle"), swift: g("cbSwift"), titulaire: g("cbTitulaire") },
@@ -10186,6 +10190,8 @@ async function invoicesView() {
       <div><label>Client</label><select id="niClient" onchange="invLoadAnnexes()" style="margin:0;min-width:180px">${contracts.map(c => `<option value="${c.id}">${esc(c.clientName)}</option>`).join("")}</select></div>
       <div><label>Modèle</label><select id="niModel" style="margin:0;min-width:150px"><option value="">- vierge -</option>${models.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select></div>
       <div><label>Annexe à comparer</label><select id="niAnnexe" style="margin:0;min-width:170px"><option value="">-</option></select></div>
+      <div><label>Type</label><select id="niType" style="margin:0"><option value="facture">Facture</option><option value="proforma">Proforma</option></select></div>
+      ${["ADM","CD"].includes(ME.role) ? `<div><label title="Laisser vide pour la numérotation automatique. Sert à reprendre des factures existantes.">N° (optionnel)</label><input id="niNumber" placeholder="automatique" style="margin:0;width:170px"></div>` : ""}
       <div><label>Période</label><input id="niPeriod" type="month" value="${new Date().toISOString().slice(0, 7)}" style="margin:0"></div>
       <button class="btn p sm" onclick="invoiceCreate()">+ Créer</button></div>
     <div class="err hidden" id="niErr" style="margin-top:6px"></div></div>
@@ -10222,7 +10228,7 @@ function invoiceRows(list) {
     <div style="min-width:0;flex:1"><div style="font-weight:600">${esc(v.number || "-")}</div><div style="font-size:12px;color:var(--muted)">${esc(v.client)} - ${esc(v.date || "")}${v.annexeSheetId ? " - annexe" : ""}</div></div>
     <div style="text-align:right;min-width:90px"><div style="font-size:11px;color:var(--muted)">HT</div><div>${fCFA(v.HT)}</div></div>
     <div style="text-align:right;min-width:100px"><div style="font-size:11px;color:var(--muted)">${v.IS ? "À payer" : "TTC"}</div><div style="font-weight:600">${fCFA(v.IS ? v.totalDu : v.TTC)}</div></div>
-    <div style="min-width:74px;text-align:center">${v.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>'}</div>
+    <div style="min-width:74px;text-align:center">${v.docType === "proforma" ? '<span class="tag blue">Proforma</span>' : (v.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>')}</div>
     <button class="btn ghost sm" onclick="invoiceOpen('${v.id}')">Ouvrir</button>
     <button class="btn ghost sm" onclick="invoiceDuplicate('${v.id}')">Dupliquer</button>
     ${["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="invoiceDelete('${v.id}','${esc(v.number||"")}',${v.accounting==="posted"?"true":"false"})">Suppr.</button>` : ""}</div>`).join("");
@@ -10238,7 +10244,7 @@ async function invoiceDelete(id, number, posted){
 async function invoiceCreate() {
   const g = (x) => (document.getElementById(x) || {}).value;
   try {
-    const inv = await api("/billing/invoices", { method: "POST", body: JSON.stringify({ contractId: g("niClient"), modelId: g("niModel") || null, annexeSheetId: g("niAnnexe") || null, period: g("niPeriod") }) });
+    const inv = await api("/billing/invoices", { method: "POST", body: JSON.stringify({ contractId: g("niClient"), modelId: g("niModel") || null, annexeSheetId: g("niAnnexe") || null, period: g("niPeriod"), docType: g("niType") || "facture", number: (g("niNumber") || "").trim() || undefined }) });
     invoiceOpen(inv.id);
   } catch (e) { const el = document.getElementById("niErr"); el.textContent = e.message; el.classList.remove("hidden"); }
 }
@@ -10246,7 +10252,8 @@ function invCalc() {
   const L = INV_EDIT.lines || []; const HT = L.filter(l =>l.type === "product").reduce((a, l) =>a + (Number(l.qty) || 0) * (Number(l.pu) || 0), 0);
   const tva = INV_EDIT.tvaExonere ? 0 : HT * (INV_EDIT.tvaRate != null ? INV_EDIT.tvaRate : 0.1925);
   const is = INV_EDIT.isRate ? HT * INV_EDIT.isRate : 0;
-  return { HT: Math.round(HT), TVA: Math.round(tva), IS: Math.round(is), TTC: Math.round(HT + tva), totalDu: Math.round(HT + tva - is) };
+  const tvaRet = INV_EDIT.tvaWithheld ? tva : 0;
+  return { HT: Math.round(HT), TVA: Math.round(tva), IS: Math.round(is), TVA_RET: Math.round(tvaRet), TTC: Math.round(HT + tva), totalDu: Math.round(HT + tva - is - tvaRet) };
 }
 async function invoiceOpen(id) {
   INV_EDIT = await api("/billing/invoices/" + id);
@@ -10254,7 +10261,8 @@ async function invoiceOpen(id) {
   const opt = (v, cur) => `<option value="${v}" ${String(cur) === String(v) ? "selected" : ""}>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="invoicesView()">← Factures</button>
   <h1 style="margin-top:10px">Facture ${esc(INV_EDIT.number || "")} <span style="font-size:13px;color:var(--muted)">- ${esc(INV_EDIT.client || "")}</span>
-    ${INV_EDIT.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>'}
+    ${INV_EDIT.docType === "proforma" ? '<span class="tag blue">Proforma</span>' + (INV_EDIT.convertedTo ? ' <span class="tag gray">convertie en facture</span>' : '') : (INV_EDIT.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>')}
+    ${INV_EDIT.fromProformaNumber ? `<span class="tag gray">issue de la proforma ${esc(INV_EDIT.fromProformaNumber)}</span>` : ""}
     ${INV_EDIT.status === "validated" ? (INV_EDIT.accounting === "posted" ? '<span class="tag blue">Comptabilisée</span>' : '<span class="tag amber">En attente réception client</span>') : ""}
     <span style="float:right;display:flex;gap:6px">
       <button class="btn ghost sm" onclick="invoiceCompareRun()">Comparer à l'annexe</button>
@@ -10262,12 +10270,14 @@ async function invoiceOpen(id) {
       <button class="btn ghost sm" onclick="invoiceDuplicate('${id}')">Dupliquer</button>
       ${["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="invoiceDelete('${id}','${esc(INV_EDIT.number||"")}',${INV_EDIT.accounting==="posted"?"true":"false"})">Supprimer</button>` : ""}
       ${INV_EDIT.status !== "validated" ? `<button class="btn p sm" onclick="invoiceSave()">Enregistrer</button>` : ""}
-      ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
+      ${INV_EDIT.docType === "proforma" && !INV_EDIT.convertedTo ? `<button class="btn p sm" onclick="invoiceConvert()">Convertir en facture</button>` : ""}
+      ${INV_EDIT.docType === "proforma" ? "" : ["ADM","CD"].includes(ME.role) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
       ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" && ["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn p sm" onclick="invoiceConfirmReceipt()">Confirmer réception client</button>` : ""}</span></h1>
     ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" ? `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;color:#b45309;margin-bottom:8px">Facture validée mais <b>non comptabilisée</b>. Elle n'entrera en comptabilité qu'après confirmation que le client a reçu la copie (physique ou numérique). Échéance : <b>${esc(INV_EDIT.dueDate||"-")}</b>.</div>` : ""}
     ${INV_EDIT.receiptConfirmed ? `<div class="note" style="color:var(--muted);margin-bottom:8px">Réception confirmée (${esc(INV_EDIT.receiptMode||"")}) le ${esc((INV_EDIT.receiptConfirmedAt||"").slice(0,10))} par ${esc(INV_EDIT.receiptConfirmedBy||"")}.</div>` : ""}
   <div class="panel"><b style="font-size:12px;color:var(--muted)">EN-TÊTE</b>
     <div class="grid3" style="margin-top:6px">
+      ${["ADM","CD"].includes(ME.role) && INV_EDIT.status !== "validated" ? `<div><label>N° ${INV_EDIT.docType === "proforma" ? "de la proforma" : "de facture"}</label><input id="ivNumber" value="${esc(INV_EDIT.number || "")}"></div>` : ""}
       <div><label>Objet</label><input id="ivObjet" value="${esc(INV_EDIT.objet || "")}"></div>
       <div><label>Bon de commande</label><input id="ivPO" value="${esc(INV_EDIT.bonCommande || "")}"></div>
       <div><label>Date</label><input id="ivDate" type="date" value="${esc(INV_EDIT.date || "")}"></div>
@@ -10275,6 +10285,7 @@ async function invoiceOpen(id) {
       <div><label>Date d'échéance ${INV_EDIT.receiptConfirmed ? "(depuis réception)" : "(prévis. - court dès réception client)"}</label><input id="ivDue" type="date" value="${esc(INV_EDIT.dueDate || "")}" title="Calculée à partir de la date de réception/comptabilisation par le client + les jours d'échéance. L'alerte se déclenche à cette date."></div>
       <div><label>Journal</label><input id="ivJournal" value="${esc(INV_EDIT.journalId || "")}"></div>
       <div><label>Compte GL</label><input id="ivAcct" value="${esc(INV_EDIT.account || "701100")}"></div>
+      <div><label title="Le client retient la TVA à la source (net à payer = HT − IS)">TVA retenue à la source</label><select id="ivTvaRet" onchange="INV_EDIT.tvaWithheld=this.value==='1';invRenderTotals()"><option value="0" ${!INV_EDIT.tvaWithheld ? "selected" : ""}>Non</option><option value="1" ${INV_EDIT.tvaWithheld ? "selected" : ""}>Oui</option></select></div>
       <div><label>IS retenue %</label><input id="ivIS" type="number" step="0.1" value="${((INV_EDIT.isRate||0)*100)}" oninput="INV_EDIT.isRate=(Number(this.value)||0)/100;invRenderTotals()" title="0 = pas d'IS"></div>
       <div><label>Annexe liée (comparaison)</label><select id="ivAnnexe">${`<option value="">-</option>` + sheets.filter(s =>s.contractId === INV_EDIT.contractId).map(s => `${opt(s.id, INV_EDIT.annexeSheetId)}${esc(s.period)} - HT ${fCFA(s.HT)}</option>`).join("")}</select></div>
     </div></div>
@@ -10308,15 +10319,22 @@ function invRenderTotals() {
   document.getElementById("invTotals").innerHTML = `<div style="display:inline-block;text-align:right;min-width:260px">
     <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">Total HT</span><b>${fCFA(t.HT)}</b></div>
     <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">${INV_EDIT.tvaExonere ? "TVA (exonérée)" : "TVA 19,25 %"}</span><span>${fCFA(t.TVA)}</span></div>
+    ${t.TVA_RET ? `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">TVA retenue à la source</span><span>−${fCFA(t.TVA_RET)}</span></div>` : ""}
     ${t.IS ? `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">IS (retenue)</span><span>−${fCFA(t.IS)}</span></div>` : ""}
-    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:16px"><b>${t.IS ? "Total à payer" : "Total TTC"}</b><b>${fCFA(t.IS ? t.totalDu : t.TTC)}</b></div></div>`;
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:16px"><b>${(t.IS || t.TVA_RET) ? "Net à payer" : "Total TTC"}</b><b>${fCFA((t.IS || t.TVA_RET) ? t.totalDu : t.TTC)}</b></div></div>`;
 }
 async function invoiceSave() {
   const g = (x) => (document.getElementById(x) || {}).value;
   const _term = invTermValue();
   Object.assign(INV_EDIT, { objet: g("ivObjet"), bonCommande: g("ivPO"), date: g("ivDate"), dueDate: g("ivDue"), termDays: _term, journalId: g("ivJournal"), account: g("ivAcct"), annexeSheetId: g("ivAnnexe") || null, isRate: (Number(g("ivIS"))||0)/100 });
-  try { const v = await api("/billing/invoices/" + INV_EDIT.id, { method: "PUT", body: JSON.stringify({ objet: INV_EDIT.objet, bonCommande: INV_EDIT.bonCommande, date: INV_EDIT.date, dueDate: INV_EDIT.dueDate, termDays: INV_EDIT.termDays, journalId: INV_EDIT.journalId, account: INV_EDIT.account, annexeSheetId: INV_EDIT.annexeSheetId, isRate: INV_EDIT.isRate, lines: INV_EDIT.lines }) });
+  const _num = (document.getElementById("ivNumber") || {}).value;
+  try { const v = await api("/billing/invoices/" + INV_EDIT.id, { method: "PUT", body: JSON.stringify({ objet: INV_EDIT.objet, bonCommande: INV_EDIT.bonCommande, date: INV_EDIT.date, dueDate: INV_EDIT.dueDate, termDays: INV_EDIT.termDays, journalId: INV_EDIT.journalId, account: INV_EDIT.account, annexeSheetId: INV_EDIT.annexeSheetId, isRate: INV_EDIT.isRate, tvaWithheld: !!INV_EDIT.tvaWithheld, number: _num ? _num.trim() : undefined, lines: INV_EDIT.lines }) });
+    if (v && v.number) INV_EDIT.number = v.number;
     alert("Facture enregistrée."); } catch (e) { alert(e.message); }
+}
+async function invoiceConvert() {
+  if (!await mmConfirm({ title: "Convertir en facture", message: "Créer une facture (nouveau numéro de la série des factures) à partir de cette proforma ? La proforma est conservée et liée à la facture.", confirmLabel: "Convertir" })) return;
+  try { const inv = await api("/billing/invoices/" + INV_EDIT.id + "/convert", { method: "POST", body: "{}" }); invoiceOpen(inv.id); } catch (e) { alert(e.message); }
 }
 async function invoiceValidate() {
   let body = {};

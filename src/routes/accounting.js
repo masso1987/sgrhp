@@ -361,16 +361,18 @@ function invTotalsQ(inv) {
   const HT = (inv.lines || []).filter(l => l.type === "product").reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.pu) || 0), 0);
   const tva = inv.tvaExonere ? 0 : HT * (inv.tvaRate != null ? inv.tvaRate : 0.1925);
   const is = inv.isRate ? HT * inv.isRate : 0;
-  return { HT: R2(HT), TVA: R2(tva), IS: R2(is) };
+  return { HT: R2(HT), TVA: R2(tva), IS: R2(is), TVA_RET: inv.tvaWithheld ? R2(tva) : 0 };
 }
 function generateInvoiceEntry(req, invId) {
   const inv = mine(db.billingInvoices, req).find(x => x.id === invId); if (!inv) return null;
+  if (inv.docType === "proforma") return null; // une proforma n'est jamais comptabilisée
   if (inv.acctEntryId) { const ex = mine(db.acctEntries, req).find(x => x.id === inv.acctEntryId); if (ex) return ex; }
   const contract = mine(db.billingContracts, req).find(c => c.id === inv.contractId) || {};
   const t = invTotalsQ(inv); if (!t.HT && !t.TVA) return null;
   const prodAcc = contract.defaultAccount || "701100", cc = contract.clientCode || "";
-  const lines = [{ account: "411100", thirdParty: cc, label: "Facture " + inv.number, debit: R2(t.HT + t.TVA - t.IS), credit: 0 }];
+  const lines = [{ account: "411100", thirdParty: cc, label: "Facture " + inv.number, debit: R2(t.HT + t.TVA - t.IS - t.TVA_RET), credit: 0 }];
   if (t.IS) lines.push({ account: "447110", thirdParty: "", label: "IS retenue", debit: t.IS, credit: 0 });
+  if (t.TVA_RET) lines.push({ account: "445800", thirdParty: "", label: "TVA retenue à la source par le client", debit: t.TVA_RET, credit: 0 });
   lines.push({ account: prodAcc, thirdParty: "", label: "Prestation " + inv.number, debit: 0, credit: t.HT });
   if (t.TVA) lines.push({ account: "443100", thirdParty: "", label: "TVA collectée", debit: 0, credit: t.TVA });
   const e = postEntry(req, { journalCode: "VTE", date: inv.date || new Date().toISOString().slice(0, 10), period: inv.period, label: "Facture " + inv.number + " - " + (inv.client || ""), lines, source: "facturation", sourceRef: inv.id });

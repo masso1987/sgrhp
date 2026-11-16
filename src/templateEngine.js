@@ -55,6 +55,10 @@ function autoContext(employeeId) {
   const pf = db.portfolios.find(p => p.id === e.portfolioId);
   const c = e.contract || {};
   const today = new Date().toLocaleDateString("fr-FR");
+  // Raison sociale et BP de l'EMPLOYEUR = la société (tenant) du salarié, plus jamais une valeur figée.
+  const _ten = (db.tenants || []).find(t => t.id === _tid) || {};
+  const _coName = _ten.name ? String(_ten.name).toUpperCase() : "CIBLE RH EMPLOI S.A.";
+  const _coBp = _ten.bp ? ("BP " + _ten.bp + " " + (_ten.hqCity || "")).trim() : (_ten.name ? "" : "BP 3462 Douala");
   const base = {
     employee_fullName: [e.firstName, e.lastName].filter(Boolean).join(" "),
     employee_firstName: e.firstName, employee_lastName: e.lastName,
@@ -70,7 +74,7 @@ function autoContext(employeeId) {
     portfolio_name: pf?.name,
     client_company: pf?.clientCompany || pf?.name,        // portefeuille = entreprise utilisatrice (auto)
     signature_city: "Douala", signature_date: today, today,
-    company_name: "CIBLE RH EMPLOI S.A.", company_bp: "BP 3462 Douala",
+    company_name: _coName, company_bp: _coBp,
     work_hours: "40 heures / semaine",
   };
   // Open-ended (CDI) contracts have no end date / mission duration -> "indéterminée"
