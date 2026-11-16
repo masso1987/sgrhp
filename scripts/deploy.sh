@@ -3,7 +3,14 @@
 #   1. back up the database   2. update the code   3. rebuild + restart   4. wait for /health
 # Usage on the server:  bash scripts/deploy.sh          (add --force to rebuild with no new code)
 set -e
-cd "$(dirname "$0")/.."
+# App folder: the repo that contains this script, else the current folder (the launcher runs a
+# copy from /tmp after "cd /opt/sgrhp"), else /opt/sgrhp.
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+[ -e "$DIR/.git" ] || DIR="$PWD"
+[ -e "$DIR/.git" ] || DIR=/opt/sgrhp
+cd "$DIR" || { echo "ERROR: app folder not found"; exit 10; }
+[ -e .git ] || { echo "ERROR: $DIR is not the app's git folder"; exit 10; }
+echo "App folder: $DIR"
 BRANCH=main
 
 # Same compose setup as the running app: with Caddy (prod override) or behind nginx (base file only)
