@@ -17,6 +17,7 @@ const WF_KEY = (type) => ({
   CONTRACT_END: "contract_end",
   LEAVE: "leave",
   DECISION: "decision",
+  SOLDE_TOUT_COMPTE: "solde_tout_compte",
 }[type] || "template_doc");
 
 const WF_DEFAULT = {
@@ -27,6 +28,7 @@ const WF_DEFAULT = {
   contract_end: ["RJ"],
   leave: ["CD"],
   decision: ["CD", "RJ"],
+  solde_tout_compte: ["CD", "RJ"],
 };
 
 /**

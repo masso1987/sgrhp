@@ -224,10 +224,22 @@ router.put("/sheets/:id", allow("ADM", "CD", "RJ", "GPF"), (req, res) => {
   for (const k of ["objet", "bonCommande", "conditionsPaiement", "vendeur", "dateEcheance"]) if (req.body[k] !== undefined) s[k] = req.body[k];
   save(); audit(req.user, "UPDATED", "BillingSheet", s.id, { lines: s.lines.length }); res.json(withCompute(s, req));
 });
-router.post("/sheets/:id/validate", allow("ADM", "CD"), (req, res) => {
+router.post("/sheets/:id/validate", allow("ADM", "CD", "RJ", "GPF", "RC"), (req, res) => {
   const s = mine(db.billingSheets, req).find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: "Fiche introuvable" });
-  s.status = s.status === "validated" ? "draft" : "validated"; save();
+  const C = require("../circuits");
+  if (s.status === "validated") {
+    if (!["ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Seuls l'administrateur et le CD peuvent dévalider une annexe." });
+    C.resetApprovals(s); s.status = "draft"; save();
+    audit(req.user, "VALIDATED", "BillingSheet", s.id, { status: s.status }); return res.json({ ok: true, status: s.status });
+  }
+  // Circuit « Facturation - Annexe mensuelle » de la société ; sans circuit : ADM / CD comme avant.
+  if (!C.circuitRoles(req, "billing_sheet").length && !["ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Validation réservée à l'administrateur et au CD." });
+  const ap = C.approveStep(req, s, "billing_sheet", "Annexe de facturation " + (s.period || ""));
+  if (ap.error) return res.status(ap.status).json({ error: ap.error });
+  if (!ap.done) { save(); audit(req.user, "APPROVED", "BillingSheet", s.id, { step: req.user.role, next: ap.next });
+    return res.json({ ok: true, status: s.status, pending: true, nextRole: ap.next, message: "Approbation enregistrée. Étape suivante : " + C.roleLabel(ap.next) + "." }); }
+  s.status = "validated"; save();
   audit(req.user, "VALIDATED", "BillingSheet", s.id, { status: s.status }); res.json({ ok: true, status: s.status });
 });
 router.delete("/sheets/:id", allow("ADM"), (req, res) => {
@@ -1024,20 +1036,29 @@ function _computeDueDate(inv, contract) {
   return d.toISOString().slice(0, 10);
 }
 const invSnap = (inv) => { const t = invTotals(inv); return { number: inv.number, HT: t.HT, TVA: t.TVA, TTC: t.TTC, totalDu: t.totalDu }; };
-router.post("/invoices/:id/validate", allow("ADM", "CD"), (req, res) => {
+router.post("/invoices/:id/validate", allow("ADM", "CD", "RJ", "GPF", "RC"), (req, res) => {
   const inv = invOf(req, req.params.id); if (!inv) return res.status(404).json({ error: "Facture introuvable" });
   const { qualityEvent } = require("../quality");
   if (inv.docType === "proforma") return res.status(409).json({ error: "Une proforma ne se valide pas et n'entre pas en comptabilité : convertissez-la d'abord en facture." });
   if (inv.status === "validated") {
     // Réouverture d'une facture validée = correction contrôlée (motif requis) - on capture l'état avant.
+    if (!["ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Seuls l'administrateur et le CD peuvent rouvrir une facture validée." });
     const motif = (req.body && req.body.motif || "").trim();
     if (!motif) return res.status(400).json({ error: "Motif de correction obligatoire pour rouvrir une facture validée." });
+    require("../circuits").resetApprovals(inv);
     inv.status = "draft";
     inv._reopen = { at: new Date().toISOString(), by: req.user.fullName, motif, before: invSnap(inv) };
     save(); audit(req.user, "REOPENED", "BillingInvoice", inv.id, { motif });
     qualityEvent(req, { objectType: "Facture", objectId: inv.id, ref: inv.number, action: "reouverture_apres_validation", motif, before: inv._reopen.before, after: inv._reopen.before, changed: false });
     return res.json(withInvTotals(inv));
   }
+  // Circuit « Facturation - Facture » de la société ; sans circuit : ADM / CD comme avant.
+  const C = require("../circuits");
+  if (!C.circuitRoles(req, "invoice").length && !["ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Validation réservée à l'administrateur et au CD." });
+  const ap = C.approveStep(req, inv, "invoice", "Facture " + (inv.number || ""));
+  if (ap.error) return res.status(ap.status).json({ error: ap.error });
+  if (!ap.done) { save(); audit(req.user, "APPROVED", "BillingInvoice", inv.id, { step: req.user.role, next: ap.next });
+    return res.json(Object.assign(withInvTotals(inv), { pending: true, nextRole: ap.next, message: "Approbation enregistrée. Étape suivante : " + C.roleLabel(ap.next) + "." })); }
   // Passage à validé : si la facture avait été rouverte, on détecte le changement de valeurs.
   inv.status = "validated";
   if (inv._reopen) {

@@ -43,6 +43,7 @@ const scoped = (req) => {
 };
 
 router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
+  try { wf.reconcileTenant(req.user.tenantId || "t1"); } catch (e) {}
   let list = scoped(req);
   const q = String(req.query.q || "").toLowerCase().trim();
   if (q) list = list.filter(e => `${e.firstName || ""} ${e.lastName || ""} ${e.matricule || ""} ${e.cniNumber || ""} ${(e.contract && e.contract.category) || ""}`.toLowerCase().includes(q));
@@ -51,7 +52,7 @@ router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   list = list.slice().sort((a, b) => `${a.lastName || ""} ${a.firstName || ""}`.localeCompare(`${b.lastName || ""} ${b.firstName || ""}`, "fr", { sensitivity: "base" }));
   if (req.query.dormant === "1") list = list.filter(e => isDormant(e));
   else if (req.query.dormant === "0") list = list.filter(e => !isDormant(e));
-  const mapped = list.map(e => ({ ...e, dormant: isDormant(e), checklist: checklist(e) }));
+  const mapped = list.map(e => ({ ...e, dormant: isDormant(e), checklist: checklist(e), pendingStage: wf.pendingStageOf(e.id) }));
   const { paginate } = require("../paginate");
   const paged = paginate(mapped, req.query);
   res.json(paged || mapped);
@@ -60,7 +61,8 @@ router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
 router.get("/:id", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const emp = scoped(req).find(e => e.id === req.params.id);
   if (!emp) return res.status(404).json({ error: "Not found" });
-  res.json({ ...emp, dormant: isDormant(emp), checklist: checklist(emp), files: db.files.filter(f => f.employeeId === emp.id) });
+  try { wf.reconcileTenant(req.user.tenantId || "t1"); } catch (e) {}
+  res.json({ ...emp, dormant: isDormant(emp), checklist: checklist(emp), pendingStage: wf.pendingStageOf(emp.id), files: db.files.filter(f => f.employeeId === emp.id) });
 });
 
 router.post("/", allow("GPF", "ADM"), (req, res) => {
@@ -137,7 +139,8 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
   // Auto-entrée dans le circuit de validation CD -> RJ dès la création (documents ajoutables ensuite).
   let workflow = null;
   try { workflow = wf.submitEmployeeFile(emp.id, req.user, { skipGate: true }); } catch (e) { /* non bloquant */ }
-  res.status(201).json({ ...emp, checklist: checklist(emp), workflow: workflow ? { status: workflow.status, stage: "CD" } : null });
+  const _st = workflow ? ((workflow.steps || []).find(s => !s.decidedAt) || {}).stage || null : null;
+  res.status(201).json({ ...emp, checklist: checklist(emp), workflow: workflow ? { status: workflow.status, stage: _st } : null });
 });
 
 /* Mettre fin au contrat : pose une date de fin sur le contrat courant (motif optionnel). */

@@ -35,6 +35,7 @@ router.post("/", allow("ADM"), upload.single("file"), (req, res, next) => {
       error: "No {{placeholders}} found. Insert tags like {{employee_fullName}} in the Word document." });
     const t = { id: id("tpl"), name: req.body.name || req.file.originalname.replace(/\.docx$/i, ""),
       docType: req.body.docType || "CONTRACT", storedAs: req.file.filename,
+      dateFormat: req.body.dateFormat === "en" ? "en" : "fr",
       originalName: req.file.originalname, tags,
       uploadedBy: req.user.id, uploadedAt: new Date().toISOString() };
     t.tenantId = req.user.tenantId || "t1"; db.templates.push(t); save();
@@ -50,6 +51,7 @@ router.put("/:id", allow("ADM"), (req, res) => {
   const b = req.body || {};
   if (b.name !== undefined && String(b.name).trim()) t.name = String(b.name).trim();
   if (b.docType !== undefined && String(b.docType).trim()) t.docType = String(b.docType).trim();
+  if (b.dateFormat !== undefined) t.dateFormat = b.dateFormat === "en" ? "en" : "fr";
   save(); audit(req.user, "UPDATED", "Template", t.id, { name: t.name, docType: t.docType });
   res.json(t);
 });

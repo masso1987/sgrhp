@@ -168,11 +168,21 @@ router.put("/entries/:id", allow("RC", "ADM", "CD"), (req, res) => {
     .map(l => ({ id: l.id || id("aln"), account: String(l.account), thirdParty: l.thirdParty || "", label: l.label || "", dueDate: l.dueDate || "", debit: R2(l.debit), credit: R2(l.credit), analytic: l.analytic || "" }));
   save(); res.json(withTotals(e));
 });
-router.post("/entries/:id/validate", allow("RC", "ADM", "CD"), (req, res) => {
+router.post("/entries/:id/validate", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   const e = mine(db.acctEntries, req).find(x => x.id === req.params.id); if (!e) return res.status(404).json({ error: "Écriture introuvable" });
   if (e.status === "locked") return res.status(409).json({ error: "Écriture verrouillée" });
   const t = entryTotals(e);
   if (e.status !== "validated" && !t.balanced) return res.status(400).json({ error: `Écriture non équilibrée : Débit ${t.debit} ≠ Crédit ${t.credit}` });
+  const C = require("../circuits");
+  if (e.status === "validated") { if (!["RC", "ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Dévalidation réservée au comptable, au CD et à l'administrateur." }); C.resetApprovals(e); }
+  else {
+    // Circuit « Comptabilité - Écriture / pièce » ; sans circuit : comptable, CD, administrateur comme avant.
+    if (!C.circuitRoles(req, "accounting_entry").length && !["RC", "ADM", "CD"].includes(req.user.role)) return res.status(403).json({ error: "Validation réservée au comptable, au CD et à l'administrateur." });
+    const ap = C.approveStep(req, e, "accounting_entry", "Écriture " + (e.piece || e.label || ""));
+    if (ap.error) return res.status(ap.status).json({ error: ap.error });
+    if (!ap.done) { save(); audit(req.user, "APPROVED", "AcctEntry", e.id, { step: req.user.role, next: ap.next });
+      return res.json(Object.assign(withTotals(e), { pending: true, nextRole: ap.next, message: "Approbation enregistrée. Étape suivante : " + C.roleLabel(ap.next) + "." })); }
+  }
   e.status = e.status === "validated" ? "draft" : "validated"; save();
   audit(req.user, "VALIDATED", "AcctEntry", e.id, { status: e.status }); res.json(withTotals(e));
 });

@@ -2314,12 +2314,20 @@ router.post("/reverse/:eid", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, 
 
 /** Close the period: lock payslips and roll year-to-date cumuls. */
 router.post("/runs/:id/close", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (req, res) => {
-    if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
+  const _C = require("../circuits"); const _cr = _C.circuitRoles(req, "payroll_run");
+  // Sans circuit « Paie - Clôture » : droit « payroll.run » comme avant ; avec circuit : les rôles du circuit, dans l'ordre.
+  if (!_cr.length && !canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisee - demandez le droit a votre administrateur" });
 
   const run = mine(db.payRuns, req).find(r => r.id === req.params.id);
   if (!run) return res.status(404).json({ error: "Paie introuvable" });
   if (run.status === "CLOSED") return res.status(409).json({ error: "Déjà clôturée" });
   if (run.status !== "CALCULATED") return res.status(409).json({ error: "Calculez la paie avant de clôturer" });
+  if (_cr.length) {
+    const ap = _C.approveStep(req, run, "payroll_run", "Clôture de la paie " + run.period);
+    if (ap.error) return res.status(ap.status).json({ error: ap.error });
+    if (!ap.done) { save(); audit(req.user, "APPROVED", "PayRun", run.id, { step: req.user.role, next: ap.next });
+      return res.json({ ok: true, pending: true, nextRole: ap.next, status: run.status, message: "Approbation de la clôture enregistrée. Étape suivante : " + _C.roleLabel(ap.next) + "." }); }
+  }
 
   const year = run.period.slice(0, 4);
   for (const s of mine(db.payslips, req).filter(x => x.runId === run.id)) {

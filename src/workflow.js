@@ -30,15 +30,13 @@ const mkStep = (role, at) => ({ id: id("stp"), stage: role, assignedAt: at || ne
   warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
 /* Démarre (ou finalise si aucun niveau de validation) le circuit d'un document. */
 function startWorkflow(doc, user) {
-  const roles = wfRoles(doc.type, doc.tenantId);
+  const roles = wfRoles(doc.wfType || doc.type, doc.tenantId);
   doc.flowRoles = roles; doc.flowPos = 0;
   doc.submittedAt = new Date().toISOString();
-  if (!roles.length) {                       // aucun niveau -> génération immédiate
+  if (!roles.length) {                       // circuit désactivé ou sans niveau -> génération immédiate, SANS notification
     doc.status = "GENERATED"; doc.generatedAt = new Date().toISOString();
     doc.generatedFile = generateOfficial(doc); setEmpStatus(doc, "VALIDATED");
     audit(user, "GENERATED", "Document", doc.id, { noWorkflow: true });
-    notify.event("validated", { userId: doc.createdById }, { title: doc.title, ref: doc.id });
-    try { notify.toRole("UI", "Nouveau document disponible", doc.title, doc.id, doc.tenantId || "t1"); } catch (e) {}
     return;
   }
   doc.status = "SUBMITTED";
@@ -120,7 +118,7 @@ function approve(documentId, user) {
   step.decision = "APPROVED"; step.validatorId = user.id;
   step.elapsedH = elapsedBusinessHours(step.assignedAt);
 
-  const roles = (Array.isArray(doc.flowRoles) && doc.flowRoles.length) ? doc.flowRoles : wfRoles(doc.type, doc.tenantId);
+  const roles = (Array.isArray(doc.flowRoles) && doc.flowRoles.length) ? doc.flowRoles : wfRoles(doc.wfType || doc.type, doc.tenantId);
   doc.flowPos = (doc.flowPos || 0) + 1;
   if (doc.flowPos < roles.length) {
     const nextRole = roles[doc.flowPos];
@@ -133,7 +131,7 @@ function approve(documentId, user) {
     doc.generatedFile = generateOfficial(doc);
     setEmpStatus(doc, "VALIDATED");
     notify.event("validated", { userId: doc.createdById }, { title: doc.title, ref: doc.id });
-    try { notify.toRole("UI", "New document available for printing", doc.title, doc.id, doc.tenantId || "t1"); } catch (e) {}
+    try { notify.toRole("UI", "Document prêt à imprimer", `Le document « ${doc.title} » a été validé. Il est disponible dans Documents générés.`, doc.id, doc.tenantId || "t1"); } catch (e) {}
     audit(user, "GENERATED", "Document", doc.id);
   }
   save();
@@ -274,12 +272,63 @@ function generateOfficial(doc) {
   return fname;
 }
 
+/**
+ * Aligne un document EN COURS de validation sur le circuit ACTUEL de sa société :
+ *  - circuit désactivé (ou plus aucun niveau restant) -> document finalisé (généré), sans notification ;
+ *  - niveaux modifiés -> l'étape en attente passe au bon rôle (le nouveau valideur est notifié).
+ * Appelé à l'enregistrement des circuits, à la lecture des listes et par le scan périodique.
+ */
+function reconcileDoc(doc) {
+  if (doc.status !== "SUBMITTED") return false;
+  const step = openStep(doc); if (!step) return false;
+  const roles = wfRoles(doc.wfType || doc.type, doc.tenantId);
+  const pos = doc.flowPos || 0;
+  const same = Array.isArray(doc.flowRoles) && doc.flowRoles.join(">") === roles.join(">");
+  if (same && roles[pos] === step.stage) return false;
+  const now = new Date().toISOString();
+  if (!roles.length || pos >= roles.length) {
+    step.decidedAt = now; step.decision = "AUTO"; step.rejectReason = null;
+    step.note = roles.length ? "Circuit raccourci : plus aucun niveau restant" : "Circuit de validation désactivé";
+    doc.flowRoles = roles; doc.status = "GENERATED"; doc.generatedAt = now;
+    try { doc.generatedFile = generateOfficial(doc); } catch (e) { doc.generatedFile = null; }
+    setEmpStatus(doc, "VALIDATED");
+    audit({ id: "system", fullName: "Circuit de validation", tenantId: doc.tenantId }, "GENERATED", "Document", doc.id, { auto: true, reason: step.note });
+    return true;
+  }
+  doc.flowRoles = roles;
+  if (step.stage !== roles[pos]) {
+    const from = step.stage;
+    step.stage = roles[pos]; step.assignedAt = now; step.warnedAt = null; step.breachedAt = null;
+    audit({ id: "system", fullName: "Circuit de validation", tenantId: doc.tenantId }, "REASSIGNED", "Document", doc.id, { from, to: roles[pos] });
+    notify.event("submitted", { role: roles[pos], tenantId: doc.tenantId }, { title: doc.title, initiator: initiatorName(doc.createdById), stage: roles[pos], sla: SLA, ref: doc.id });
+  }
+  return true;
+}
+/** Réconcilie tous les documents en cours d'une société (ou de toutes si tenantId absent). */
+function reconcileTenant(tenantId) {
+  let n = 0;
+  for (const doc of db.documents) {
+    if (doc.status !== "SUBMITTED") continue;
+    if (tenantId && (doc.tenantId || "t1") !== tenantId) continue;
+    if (reconcileDoc(doc)) n++;
+  }
+  if (n) save();
+  return n;
+}
+/** Étape en attente d'un dossier employé (null si aucun circuit en cours). */
+function pendingStageOf(employeeId) {
+  const d = db.documents.find(x => x.type === "EMPLOYEE_FILE" && x.refId === employeeId && x.status === "SUBMITTED");
+  const s = d && openStep(d);
+  return s ? s.stage : null;
+}
+
 /** SLA scan (§5.4) - run every minute; also invoked lazily on queue reads. */
 function slaScan() {
   let changed = false;
   for (const doc of db.documents) {
+    if (reconcileDoc(doc)) changed = true;     // circuit désactivé / modifié depuis la soumission
     const step = openStep(doc);
-    if (!step) continue;
+    if (!step || doc.status !== "SUBMITTED") continue;
     const h = elapsedBusinessHours(step.assignedAt);
     if (h >= WARN && !step.warnedAt) {
       step.warnedAt = new Date().toISOString(); changed = true;
@@ -302,4 +351,4 @@ const withTimer = d => {
     slaState: !step ? null : step.breachedAt ? "BREACH" : step.warnedAt ? "WARNING" : "OK" };
 };
 
-module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, startWorkflow, wfRoles, WF_KEY, WF_DEFAULT, SLA, WARN, companyInfo };
+module.exports = { submitEmployeeFile, createFromTemplate, resubmitTemplateDoc, approve, reject, slaScan, withTimer, startWorkflow, wfRoles, WF_KEY, WF_DEFAULT, SLA, WARN, companyInfo, reconcileDoc, reconcileTenant, pendingStageOf };

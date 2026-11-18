@@ -30,12 +30,30 @@ function slugTag(s) {
 }
 
 /** Output formatting: ISO dates -> DD/MM/YYYY, plain numbers -> thousands spacing. */
-function fmtValue(v) {
+// Modèle en anglais (dateFormat "en") : dates « April 9, 2003 » et milliers « 85,236 ».
+const _MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function fmtValue(v, lang) {
   const s = String(v).trim();
   const d = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (lang === "en") {
+    const fr = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);           // date déjà au format JJ/MM/AAAA (ex. date du jour)
+    const y = d ? d[1] : fr && fr[3], m = d ? d[2] : fr && fr[2], j = d ? d[3] : fr && fr[1];
+    if (y && Number(m) >= 1 && Number(m) <= 12) return `${_MONTHS_EN[Number(m) - 1]} ${Number(j)}, ${y}`;
+    if (/^\d{4,9}$/.test(s)) return Number(s).toLocaleString("en-US");
+    return s;
+  }
   if (d) return `${d[3]}/${d[2]}/${d[1]}`;
   if (/^\d{4,9}$/.test(s)) return Number(s).toLocaleString("fr-FR").replace(/\u202f|,/g, " ");
   return s;
+}
+// « III-B » / « 3B » / « 10F » -> « Category 3, Level B » (rédaction des contrats en anglais).
+function categoryEn(cat) {
+  const s = String(cat || "").trim().toUpperCase(); if (!s) return "";
+  const ROM = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12, XIII: 13 };
+  const m = s.match(/^([IVX]+|\d{1,2})\s*[-\s]?\s*([A-F])$/);
+  if (!m) return "Category " + s;
+  const n = ROM[m[1]] || Number(m[1]);
+  return `Category ${n || m[1]}, Level ${m[2]}`;
 }
 try { fs.mkdirSync(TPL_DIR, { recursive: true }); } catch (e) {}
 
@@ -68,6 +86,7 @@ function autoContext(employeeId) {
     employee_cnpsNumber: e.cnpsNumber, employee_hireDate: e.hireDate,
     employee_matricule: e.matricule, work_city: (c.workCity || e.workCity || "Douala"),
     contract_type: c.type, contract_category: c.category, contract_step: c.step,
+    contract_category_en: categoryEn(c.category),
     contract_startDate: c.startDate || e.hireDate,
     contract_position: c.position || e.position,          // Emploi/poste (auto)
     contract_paymentMethod: c.paymentMethod,
@@ -139,7 +158,7 @@ function catalogVariables(tid) {
       ["employee_matricule", "Matricule"], ["employee_hireDate", "Date d'embauche"],
     ]},
     { group: "Contrat", vars: [
-      ["contract_type", "Type de contrat"], ["contract_category", "Catégorie"], ["contract_step", "Échelon"],
+      ["contract_type", "Type de contrat"], ["contract_category", "Catégorie"], ["contract_category_en", "Catégorie en anglais (« Category 3, Level B »)"], ["contract_step", "Échelon"],
       ["contract_startDate", "Date de début"], ["contract_endDate", "Date de fin (CDI = indéterminée)"],
       ["contract_position", "Emploi / poste"], ["contract_paymentMethod", "Mode de paiement"],
       ["mission_duration", "Durée de mission"], ["work_city", "Ville de travail"], ["work_hours", "Horaire de travail"],
@@ -169,7 +188,7 @@ function resolve(templateId, employeeId, provided = {}) {
   for (const tag of tpl.tags) {
     const v = provided[tag] ?? auto[tag];
     if (v === undefined || v === null || v === "") missing.push(tag);
-    else resolved[tag] = fmtValue(v);
+    else resolved[tag] = fmtValue(v, tpl.dateFormat);
   }
   return { resolved, missing, template: tpl };
 }
@@ -184,7 +203,7 @@ function render(templateId, data, outName) {
     nullGetter: () => "________",
   });
   const formatted = {};
-  for (const [k, v] of Object.entries(data)) formatted[k] = fmtValue(v);
+  for (const [k, v] of Object.entries(data)) formatted[k] = fmtValue(v, tpl.dateFormat);
   doc.render(formatted);
   const outDir = path.join(__dirname, "..", "uploads", "generated");
   fs.mkdirSync(outDir, { recursive: true });

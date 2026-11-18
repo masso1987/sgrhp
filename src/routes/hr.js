@@ -56,14 +56,12 @@ router.post("/:id/amendments", allow("GPF", "ADM"), (req, res) => {
     data: { changes, avenantType, effectiveDate: effectiveDate || null, reason: reason || "" }, version,
     title: `${avenantType} n°${version} - ${emp.firstName} ${emp.lastName}`,
     createdById: req.user.id, createdAt: new Date().toISOString(),
-    status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null,
-    submittedAt: new Date().toISOString() };
-  doc.steps.push({ id: id("stp"), stage: "CD", assignedAt: doc.submittedAt,
-    warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
-  db.documents.push(doc); save();
+    status: "DRAFT", cycle: 1, steps: [], generatedFile: null };
+  db.documents.push(doc);
   audit(req.user, "CREATED", "Amendment", doc.id, { version, changes });
-  notify.event("submitted", { role: "CD", tenantId: req.user.tenantId }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
-  res.status(201).json(doc);
+  // Circuit « Avenants au contrat » de la société (Administration › Circuits de validation)
+  wf.startWorkflow(doc, req.user); save();
+  res.status(201).json(wf.withTimer(doc));
 });
 
 router.get("/:id/amendments", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
@@ -109,12 +107,11 @@ router.post("/:id/decisions", allow("GPF", "ADM"), decUpload.single("file"), (re
       data: { changes, avenantType: "Avenant salarial", effectiveDate: dec.date, reason: `${type} - ${detail || ""}` },
       version, title: `Avenant salarial n°${version} (${type}) - ${emp.firstName} ${emp.lastName}`,
       createdById: req.user.id, createdAt: new Date().toISOString(),
-      status: "SUBMITTED", cycle: 1, steps: [], generatedFile: null, submittedAt: new Date().toISOString() };
-    doc.steps.push({ id: id("stp"), stage: "CD", assignedAt: doc.submittedAt,
-      warnedAt: null, breachedAt: null, decidedAt: null, decision: null, validatorId: null, rejectReason: null });
+      status: "DRAFT", cycle: 1, steps: [], generatedFile: null, wfType: "DECISION" };
     db.documents.push(doc);
     dec.amendmentId = doc.id;
-    notify.event("submitted", { role: "CD", tenantId: req.user.tenantId }, { title: doc.title, initiator: req.user.fullName || "un gestionnaire", sla: 48, ref: doc.id });
+    // Circuit « Décisions & sanctions » de la société
+    wf.startWorkflow(doc, req.user);
     audit(req.user, "CREATED", "Amendment", doc.id, { auto: true, fromDecision: type, changes });
   }
 
@@ -314,6 +311,8 @@ router.post("/:id/contract-letter", allow("GPF", "ADM", "CD", "RJ"), (req, res) 
   const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
   const doc = {
     id: id("doc"), tenantId: req.user.tenantId || "t1", type: "CONTRACT_END", refId: emp.id,
+    // Avec un solde de tout compte : circuit « Solde de tout compte » ; sinon « Lettre de fin de contrat »
+    wfType: (Array.isArray(b.soldeLines) && b.soldeLines.length) ? "SOLDE_TOUT_COMPTE" : undefined,
     title: `Lettre fin de contrat - ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
     createdById: req.user.id, createdAt: new Date().toISOString(), status: "DRAFT", cycle: 1, steps: [], generatedFile: null,
     data: {

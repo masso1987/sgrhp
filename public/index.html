@@ -1306,6 +1306,8 @@ const _apiCore = async (path, opts = {}) => {
   if (r.status === 429) throw new Error("Trop de requêtes - patientez quelques secondes");
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new Error(j.error || `Erreur ${r.status}`); Object.assign(e, j); throw e; }
+  // Circuit de validation à plusieurs niveaux : l'approbation est enregistrée, l'action attend le niveau suivant.
+  if (j && j.pending === true && j.message) { try { setTimeout(() => alert(j.message), 0); } catch (_) {} }
   // Invalidate stock reference cache after any mutating /stock call so lists stay fresh.
   try { const m=(opts.method||"GET").toUpperCase(); if(m!=="GET" && /^\/stock\b/.test(path) && typeof stockRefsReset==="function") stockRefsReset(); } catch(_){}
   return j;
@@ -2076,7 +2078,7 @@ function empRender() {
       return `<tr${e.dormant?' style="opacity:.72"':''}><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b>${e.dormant?' <span class="tag gray" title="Contrat terminé — employé en sommeil, fiche verrouillée">🔒 Sommeil</span>':''}</td><td>${esc(e.matricule || "-")}</td>
       <td>${esc(pfName(e.portfolioId))}</td>
       <td>${esc((e.contract && e.contract.type) || "-")}</td><td>${esc((e.contract && e.contract.category) || "-")}</td>
-      <td>${e.hireDate || "-"}</td><td>${ST_TAG(e.status || "DRAFT")}</td>
+      <td>${e.hireDate || "-"}</td><td>${ST_TAG(e.status || "DRAFT", e.pendingStage)}</td>
       <td><span class="tag ${done === tot ? "green" : "amber"}">${done}/${tot}</span></td>
       <td><button class="btn ghost sm" onclick="empDetail('${e.id}')">Ouvrir</button></td></tr>`; }).join("")}
     </table>${pagerHTML("emp", list.length)}</div>` : `<div class="panel">Aucun employé ne correspond aux filtres.</div>`;
@@ -2728,8 +2730,12 @@ async function markRead(){ await api("/notifications/read-all",{method:"POST"});
 const SLA_TAG = d =>d.slaState === "BREACH" ? `<span class="tag red">${d.elapsedH}h - OVERDUE</span>`
   : d.slaState === "WARNING" ? `<span class="tag amber">${d.elapsedH}h / 48h - 36h alert</span>`
   : d.slaState === "OK" ? `<span class="tag green">${d.elapsedH}h / 48h</span>` : "";
-const ST_TAG = s => ({DRAFT:'<span class="tag gray">Draft</span>',SUBMITTED:'<span class="tag amber">Awaiting CD</span>',
-  CD_APPROVED:'<span class="tag amber">Awaiting RJ</span>',GENERATED:'<span class="tag green">Generated </span>'}[s] || s);
+// Étape réelle du circuit (jamais supposée) : rôle de l'étape en attente du document.
+const WF_STAGE_LABEL = { CD:"Chef de département", RJ:"Responsable juridique", RQ:"Responsable qualité", ADM:"Administrateur", GPF:"Gestionnaire", RP:"Gestion paie", RC:"Comptable" };
+const stageOf = d => d ? (d.currentStage || d.pendingStage || ((d.steps||[]).find(x => !x.decidedAt) || {}).stage || null) : null;
+const ST_TAG = (s, stage) => ({DRAFT:'<span class="tag gray">Brouillon</span>',
+  SUBMITTED: stage ? `<span class="tag amber" title="${esc(WF_STAGE_LABEL[stage]||stage)}">En attente ${esc(stage)}</span>` : '<span class="tag amber">En validation</span>',
+  CD_APPROVED:'<span class="tag amber">En validation</span>', VALIDATED:'<span class="tag green">Validé</span>', GENERATED:'<span class="tag green">Validé</span>'}[s] || s);
 
 async function queueView() {
   const q = await api("/documents/queue");
@@ -2927,7 +2933,7 @@ async function empDetail(id) {
   let wfHtml = "";
   if (doc) {
     wfHtml = `<div class="panel"><b style="font-size:12px;color:var(--muted)">CIRCUIT DE VALIDATION - cycle ${doc.cycle}</b>
-    <div style="margin-top:6px">${ST_TAG(doc.status)} ${SLA_TAG(doc)}</div>
+    <div style="margin-top:6px">${ST_TAG(doc.status, stageOf(doc))} ${SLA_TAG(doc)}</div>
     <table style="margin-top:8px"><tr><th>Étape</th><th>Assigné</th><th>Décision</th><th>Motif</th></tr>
     ${doc.steps.map(s => `<tr><td>${s.stage}</td><td>${s.assignedAt.replace("T"," ").slice(0,16)}</td>
       <td>${s.decision ? (s.decision === "APPROVED" ? '<span class="tag green">Validé</span>' : '<span class="tag red">Rejeté</span>') + ` <small>${s.elapsedH ?? "?"}h</small>` : '<span class="tag amber">En attente</span>'}</td>
@@ -2937,7 +2943,7 @@ async function empDetail(id) {
     `<div class="note" style="background:var(--red-bg);border-color:#fca5a5"><b>Rejected by ${lastReject.stage}:</b> ${esc(lastReject.rejectReason)} - correct and resubmit (new cycle).</div>` : "";
 
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
-    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status) : ST_TAG(e.status || "DRAFT")}${e.dormant?' <span class="tag gray" title="Contrat terminé — fiche verrouillée. Ouvrez un nouveau contrat pour réactiver.">🔒 Sommeil</span>':''}
+    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status, stageOf(doc)) : ST_TAG(e.status || "DRAFT", e.pendingStage)}${e.dormant?' <span class="tag gray" title="Contrat terminé — fiche verrouillée. Ouvrez un nouveau contrat pour réactiver.">🔒 Sommeil</span>':''}
   <span style="float:right;display:inline-flex;gap:6px">
     ${e.dormant ? '<span class="note" style="align-self:center">Fiche verrouillée (sommeil)</span>' : ((ME.role === "ADM" || ME.role === "GPF" || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">Modifier</button>` : "")}
     ${(ME.role === "ADM" || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">Supprimer</button>` : ""}
@@ -2951,7 +2957,7 @@ async function empDetail(id) {
       : (doc && doc.status === "GENERATED"
           ? `<span style="display:inline-block;margin-bottom:12px;padding:5px 14px;border-radius:8px;background:#dcfce7;color:#16a34a;font-weight:700">Validé</span>`
           : (doc && doc.status === "SUBMITTED"
-              ? `<span style="display:inline-block;margin-bottom:12px;padding:5px 14px;border-radius:8px;background:#fef3c7;color:#b45309;font-weight:700">En cours de validation (${doc.currentStage || "CD"})</span>`
+              ? `<span style="display:inline-block;margin-bottom:12px;padding:5px 14px;border-radius:8px;background:#fef3c7;color:#b45309;font-weight:700">En cours de validation${stageOf(doc) ? " : en attente " + esc(WF_STAGE_LABEL[stageOf(doc)] || stageOf(doc)) : ""}</span>`
               : ""))}
     ${wfHtml}
     <div class="panel"><b style="font-size:12px;color:var(--muted)">PERSONAL & CONTRACT</b>
@@ -3050,9 +3056,15 @@ async function empAppAccountDeactivate(eid){
   if(!await mmConfirm({title:"Désactiver le compte mobile",message:"L'employé ne pourra plus se connecter à l'application. Vous pourrez le réactiver plus tard.",confirmLabel:"Désactiver",danger:true})) return;
   try{ await api("/employees/"+eid+"/app-account",{method:"DELETE"}); empAppAccountLoad(eid); }catch(err){ alert(err.message); }
 }
+/* Message de soumission selon le circuit RÉEL de la société (jamais un rôle supposé). */
+function wfSubmitMessage(d, what) {
+  if (!d || d.status === "GENERATED" || d.status === "VALIDATED") return `${what} validé immédiatement (aucun circuit de validation actif pour ce type de document).`;
+  const st = stageOf(d); const roles = Array.isArray(d.flowRoles) ? d.flowRoles : [];
+  return `${what} soumis - en attente de validation par : ${esc(WF_STAGE_LABEL[st] || st || "le valideur")}${roles.length > 1 ? " (circuit : " + roles.join(" → ") + ")" : ""}. Délai : 48 heures ouvrées.`;
+}
 async function empSubmit(id) {
-  try { await api(`/employees/${id}/submit`, { method: "POST" });
-    alert(t("Soumis - transmis au chef de département. Chronomètre de 48h démarré.")); empDetail(id); }
+  try { const d = await api(`/employees/${id}/submit`, { method: "POST" });
+    alert(wfSubmitMessage(d, "Dossier")); empDetail(id); }
   catch (e) { alert(e.message); }
 }
 refreshBell();
@@ -3217,9 +3229,10 @@ async function genSubmit(employeeId, templateId, docId) {
   const values = {};
   view.querySelectorAll("input[data-tag]").forEach(i =>values[i.dataset.tag] = i.value.trim());
   try {
-    if (docId) await api(`/documents/${docId}/resubmit`, { method: "POST", body: JSON.stringify({ values }) });
-    else await api("/documents/from-template", { method: "POST", body: JSON.stringify({ templateId, employeeId, values }) });
-    alert(t("Document créé et soumis - chronomètre de validation CD de 48h démarré."));
+    let d;
+    if (docId) d = await api(`/documents/${docId}/resubmit`, { method: "POST", body: JSON.stringify({ values }) });
+    else d = await api("/documents/from-template", { method: "POST", body: JSON.stringify({ templateId, employeeId, values }) });
+    alert(wfSubmitMessage(d, "Document"));
     empDetail(employeeId);
   } catch (e) { gErr.textContent = e.message; gErr.classList.remove("hidden"); }
 }
@@ -3237,7 +3250,7 @@ empDetail = async function(id) {
       ${docs.map(d => {
         const rej = d.steps?.slice().reverse().find(s =>s.decision === "REJECTED");
         return `<tr><td><b>${esc(d.title)}</b>${d.status === "DRAFT" && rej ? `<br><small style="color:var(--red)">${rej.stage}: ${esc(rej.rejectReason)}</small>` : ""}</td>
-        <td>${d.cycle}</td><td>${ST_TAG(d.status)} ${SLA_TAG(d)}</td>
+        <td>${d.cycle}</td><td>${ST_TAG(d.status, stageOf(d))} ${SLA_TAG(d)}</td>
         <td>${d.status === "DRAFT" && canEdit ? `<button class="btn ghost sm" onclick='genForm("${id}","${d.id}","${d.templateId}",${JSON.stringify(d.data)})'>Correct & resubmit</button>` : ""}
         ${d.status === "GENERATED" ? `<button class="btn p sm" onclick="openGen('${d.id}',0)">Word</button>
           <button class="btn ghost sm" onclick="openGen('${d.id}',1)">Imprimer</button>` : ""}</td></tr>`; }).join("")}</table>`
@@ -3352,7 +3365,7 @@ async function hrSection(id) {
     ${am.length ? `<table><tr><th>Version</th><th>Changes</th><th>Effective</th><th>Statut</th></tr>
       ${am.map(a => `<tr><td>${a.data.avenantType || "Avenant"} n°${a.version}</td>
         <td style="font-size:12px">${Object.entries(a.data.changes).map(([k,v]) => `${k} → <b>${v ?? "-"}</b>`).join(", ")}</td>
-        <td>${a.data.effectiveDate || "-"}</td><td>${ST_TAG(a.status === "GENERATED" ? "GENERATED" : a.status)}</td></tr>`).join("")}</table>`
+        <td>${a.data.effectiveDate || "-"}</td><td>${ST_TAG(a.status === "GENERATED" ? "GENERATED" : a.status, stageOf(a))}</td></tr>`).join("")}</table>`
     : '<small style="color:var(--muted)">No amendments.</small>'}</div>
 
   <div class="panel"><b style="font-size:12px;color:var(--muted)">DECISIONS & SANCTIONS</b>
@@ -3385,7 +3398,7 @@ async function hrSection(id) {
       <button class="btn p sm" onclick="lvCreate('${id}')">+ Soumettre la demande</button></div>` : ""}
     ${lv.requests.length ? `<table><tr><th>Type</th><th>Période</th><th>Jours</th><th>Statut</th><th></th></tr>
       ${lv.requests.map(r => `<tr><td>${r.data.leaveType}${r.data.permissionLabel?` <span class="note">(${esc(r.data.permissionLabel)})</span>`:""}</td><td>${r.data.startDate || "-"} → ${r.data.endDate || "-"}</td>
-        <td>${r.data.days || "-"}</td><td>${ST_TAG(r.status === "GENERATED" ? "GENERATED" : r.status)}
+        <td>${r.data.days || "-"}</td><td>${ST_TAG(r.status === "GENERATED" ? "GENERATED" : r.status, stageOf(r))}
         ${r.status === "GENERATED" ? '<span class="tag green">Validé </span>' : ""}</td>
         <td>${(r.data.startDate&&r.data.endDate)?`<button class="btn ghost sm" onclick="payDownload('/hr/${id}/leave/${r.id}/attestation.pdf','Attestation_conge.pdf')">Attestation PDF</button>`:""}</td></tr>`).join("")}</table>`
     : '<small style="color:var(--muted)">No requests.</small>'}</div></div>`;
@@ -3393,9 +3406,9 @@ async function hrSection(id) {
 }
 async function amCreate(id) {
   try {
-    await api(`/hr/${id}/amendments`, { method: "POST", body: JSON.stringify({
+    const d = await api(`/hr/${id}/amendments`, { method: "POST", body: JSON.stringify({
       avenantType: amType.value, changes: { [amField.value]: amValue.value }, effectiveDate: amDate.value, reason: amReason.value }) });
-    alert(t("Avenant soumis - chronomètre de 48h démarré. Il sera appliqué au contrat après validation du RJ."));
+    alert(wfSubmitMessage(d, "Avenant") + (d && d.status === "GENERATED" ? " Il est appliqué au contrat." : " Il sera appliqué au contrat après la dernière validation."));
     empDetail(id);
   } catch (e) { alert(e.message); }
 }
@@ -10271,7 +10284,7 @@ async function invoiceOpen(id) {
       ${["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="invoiceDelete('${id}','${esc(INV_EDIT.number||"")}',${INV_EDIT.accounting==="posted"?"true":"false"})">Supprimer</button>` : ""}
       ${INV_EDIT.status !== "validated" ? `<button class="btn p sm" onclick="invoiceSave()">Enregistrer</button>` : ""}
       ${INV_EDIT.docType === "proforma" && !INV_EDIT.convertedTo ? `<button class="btn p sm" onclick="invoiceConvert()">Convertir en facture</button>` : ""}
-      ${INV_EDIT.docType === "proforma" ? "" : ["ADM","CD"].includes(ME.role) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
+      ${INV_EDIT.docType === "proforma" ? "" : ["ADM","CD","RJ","GPF","RC"].includes(ME.role) && (INV_EDIT.status !== "validated" || ["ADM","CD"].includes(ME.role)) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : ((INV_EDIT.approvals||[]).length ? "Approuver (étape suivante)" : "Valider")}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
       ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" && ["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn p sm" onclick="invoiceConfirmReceipt()">Confirmer réception client</button>` : ""}</span></h1>
     ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" ? `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;color:#b45309;margin-bottom:8px">Facture validée mais <b>non comptabilisée</b>. Elle n'entrera en comptabilité qu'après confirmation que le client a reçu la copie (physique ou numérique). Échéance : <b>${esc(INV_EDIT.dueDate||"-")}</b>.</div>` : ""}
     ${INV_EDIT.receiptConfirmed ? `<div class="note" style="color:var(--muted);margin-bottom:8px">Réception confirmée (${esc(INV_EDIT.receiptMode||"")}) le ${esc((INV_EDIT.receiptConfirmedAt||"").slice(0,10))} par ${esc(INV_EDIT.receiptConfirmedBy||"")}.</div>` : ""}

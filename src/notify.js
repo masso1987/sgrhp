@@ -22,7 +22,7 @@ function toUser(userId, subject, body, ref = null) {
   const tid = (u && u.tenantId) || "t1";
   const e = emailCfg(tid);
   if (e.enabled && e.notifyOnWorkflow && u && u.email)
-    mailer.trySend(u.email, `SGRHP - ${subject}`, `${body}\n\n-\nSGRHP`, tid);
+    mailer.trySend(u.email, subject, `Bonjour,\n\n${body}\n\n${mailer.PORTAL_URL()}`, tid);
 }
 /** Notifies the active users holding `role` in one tenant only. */
 function toRole(role, subject, body, ref = null, tenantId = "t1") {
@@ -55,6 +55,13 @@ function event(eventKey, target, vars = {}, opts = {}) {
   const targetUser = target.userId ? db.users.find(u => u.id === target.userId) : null;
   const tid = target.tenantId || (targetUser && targetUser.tenantId) || "t1";
   const e = emailCfg(tid);
+  // Libellés lisibles pour les messages : rôle de l'étape / du valideur en toutes lettres, heures arrondies.
+  const { roleLabel } = require("./circuits");
+  vars = Object.assign({}, vars);
+  if (vars.stage && !vars.stageLabel) vars.stageLabel = roleLabel(vars.stage);
+  if (!vars.stage && target.role && !vars.stageLabel) vars.stageLabel = roleLabel(target.role);
+  if (vars.validator && !vars.validatorLabel) vars.validatorLabel = roleLabel(vars.validator);
+  if (vars.elapsed != null && !isNaN(Number(vars.elapsed))) vars.elapsed = Math.round(Number(vars.elapsed));
   const rendered = mailer.render(eventKey, "fr", vars, tid) || { subject: eventKey, body: "" };
 
   // in-app to the intended recipients

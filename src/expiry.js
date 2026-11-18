@@ -47,13 +47,13 @@ function scanAndRemind(tenantId) {
     const when = new Date(it.expiryDate).toLocaleDateString("fr-FR");
     const state = it.daysLeft < 0 ? `a expiré depuis ${Math.abs(it.daysLeft)} jour(s)` : `expire dans ${it.daysLeft} jour(s)`;
     // Message personnalisable (Administration › Modèles de notifications › Alerte d'expiration).
-    let tpl = null; try { tpl = require("./routes/settings").settings(e).emailTemplates.expiry; } catch (x) {}
-    const fill = (str) => String(str || "").replace(/{{\s*(\w+)\s*}}/g, (m, k) => ({ employee: it.employeeName, document: it.label, date: when, daysLeft: String(it.daysLeft), state, portfolio: it.portfolioName || "" }[k] ?? ""));
+    let tpl = null; try { tpl = mailer.templateFor("expiry", e); } catch (x) {}
+    const fill = (str) => String(str || "").replace(/{{\s*(\w+)\s*}}/g, (m, k) => ({ employee: it.employeeName, document: it.label, date: when, daysLeft: String(it.daysLeft), state, portfolio: it.portfolioName || "", link: mailer.PORTAL_URL() }[k] ?? ""));
     const subject = tpl && tpl.subjectFr ? fill(tpl.subjectFr) : `Expiration : ${it.label} - ${it.employeeName}`;
     const body = tpl && tpl.bodyFr ? fill(tpl.bodyFr) : `Le document « ${it.label} » de ${it.employeeName} ${state}.\nMerci de préparer le renouvellement.`;
     for (const g of gpfsOf(e)) {
       db.notifications.push({ id: id("ntf"), userId: g.id, subject, body, ref: it.employeeId, at: new Date().toISOString(), readAt: null });
-      if (g.email) { try { mailer.trySend(g.email, `SGRHP - ${subject}`, body, e); } catch (x) {} }
+      if (g.email) { try { mailer.trySend(g.email, subject, body, e); } catch (x) {} }
     }
     if (it.email) { try { mailer.trySend(it.email, subject, body, e); } catch (x) {} }
     setLast(it, new Date().toISOString()); sent++;

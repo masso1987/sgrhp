@@ -46,24 +46,27 @@ const DEFAULTS = {
     quality_action: { label: "Qualité - Actions & améliorations", enabled: false, steps: ["RQ"] },
   },
   emailRecipients: { globalCC: "", byEvent: { submitted: "", validated: "", rejected: "", slaWarning: "", slaBreach: "", expiry: "" } },
+  // Messages des notifications (application + e-mail). {{link}} = lien vers le portail ; la signature
+  // (société + MBOKA Mon RH) est ajoutée automatiquement à chaque e-mail.
   emailTemplates: {
-    submitted: { subjectFr: "Nouveau document à valider : {{title}}", subjectEn: "New document to validate: {{title}}",
-      bodyFr: "Bonjour,\n\nLe document « {{title}} » a été soumis par {{initiator}} et attend votre validation (délai : {{sla}}h).\n\n- SGRHP", 
-      bodyEn: "Hello,\n\nThe document \"{{title}}\" was submitted by {{initiator}} and awaits your validation (deadline: {{sla}}h).\n\n- SGRHP" },
-    validated: { subjectFr: "Document validé : {{title}}", subjectEn: "Document validated: {{title}}",
-      bodyFr: "Le document « {{title}} » a été validé.\n\n- SGRHP", bodyEn: "The document \"{{title}}\" has been validated.\n\n- SGRHP" },
-    rejected: { subjectFr: "Document rejeté : {{title}}", subjectEn: "Document rejected: {{title}}",
-      bodyFr: "Le document « {{title}} » a été rejeté par {{validator}}.\nMotif : {{reason}}\n\nMerci de corriger et resoumettre.\n\n- SGRHP",
-      bodyEn: "The document \"{{title}}\" was rejected by {{validator}}.\nReason: {{reason}}\n\nPlease correct and resubmit.\n\n- SGRHP" },
-    slaWarning: { subjectFr: "Alerte délai (36h) : {{title}}", subjectEn: "SLA warning (36h): {{title}}",
-      bodyFr: "Le document « {{title}} » approche du délai de validation de 48h ({{elapsed}}h écoulées).\n\n- SGRHP",
-      bodyEn: "The document \"{{title}}\" is approaching the 48h validation deadline ({{elapsed}}h elapsed).\n\n- SGRHP" },
-    slaBreach: { subjectFr: "Dépassement de délai : {{title}}", subjectEn: "SLA breach: {{title}}",
-      bodyFr: "Le délai de 48h est dépassé pour « {{title}} » ({{elapsed}}h).\n\n- SGRHP",
-      bodyEn: "The 48h deadline is exceeded for \"{{title}}\" ({{elapsed}}h).\n\n- SGRHP" },
-    expiry: { subjectFr: "Alerte d'expiration : {{document}} - {{employee}}", subjectEn: "Expiry alert: {{document}} - {{employee}}",
-      bodyFr: "Bonjour,\n\nLe document « {{document}} » de {{employee}} ({{portfolio}}) {{state}} (échéance : {{date}}).\nMerci de préparer le renouvellement.\n\n- SGRHP",
-      bodyEn: "Hello,\n\nThe document \"{{document}}\" of {{employee}} ({{portfolio}}) {{state}} (due: {{date}}).\nPlease prepare the renewal.\n\n- SGRHP" },
+    submitted: { subjectFr: "[À valider] {{title}}", subjectEn: "[To approve] {{title}}",
+      bodyFr: "Bonjour,\n\n{{initiator}} vous a transmis un document à valider :\n« {{title}} »\n\nÉtape : {{stageLabel}}\nDélai de traitement : {{sla}} heures ouvrées\n\nOuvrez la File de validation pour le consulter, puis validez-le ou rejetez-le en indiquant le motif.\n\n{{link}}",
+      bodyEn: "Hello,\n\n{{initiator}} has sent you a document to approve:\n\"{{title}}\"\n\nStep: {{stageLabel}}\nTurnaround: {{sla}} business hours\n\nOpen the validation queue to review it, then approve it or reject it with a reason.\n\n{{link}}" },
+    validated: { subjectFr: "[Validé] {{title}}", subjectEn: "[Approved] {{title}}",
+      bodyFr: "Bonjour,\n\nLe document « {{title}} » a terminé son circuit de validation.\nIl est disponible dans Documents générés, prêt à être téléchargé ou imprimé.\n\n{{link}}",
+      bodyEn: "Hello,\n\nThe document \"{{title}}\" has completed its approval circuit.\nIt is available in Generated documents, ready to download or print.\n\n{{link}}" },
+    rejected: { subjectFr: "[À corriger] {{title}}", subjectEn: "[Needs changes] {{title}}",
+      bodyFr: "Bonjour,\n\nLe document « {{title}} » a été rejeté par : {{validatorLabel}}.\n\nMotif : {{reason}}\n\nCorrigez le dossier puis soumettez-le à nouveau ; un nouveau cycle de validation démarrera.\n\n{{link}}",
+      bodyEn: "Hello,\n\nThe document \"{{title}}\" was rejected by: {{validatorLabel}}.\n\nReason: {{reason}}\n\nPlease correct it and submit it again; a new approval cycle will start.\n\n{{link}}" },
+    slaWarning: { subjectFr: "[Rappel] {{title}} attend votre décision", subjectEn: "[Reminder] {{title}} is waiting for your decision",
+      bodyFr: "Bonjour,\n\nLe document « {{title}} » attend une décision à l'étape {{stageLabel}} depuis {{elapsed}} heures ouvrées.\nLe délai de 48 heures sera bientôt atteint.\n\nMerci de le traiter dans la File de validation.\n\n{{link}}",
+      bodyEn: "Hello,\n\nThe document \"{{title}}\" has been waiting at the {{stageLabel}} step for {{elapsed}} business hours.\nThe 48-hour deadline is close.\n\nPlease handle it in the validation queue.\n\n{{link}}" },
+    slaBreach: { subjectFr: "[En retard] {{title}} : délai de 48 h dépassé", subjectEn: "[Overdue] {{title}}: 48-hour deadline passed",
+      bodyFr: "Bonjour,\n\nLe délai de validation de 48 heures est dépassé pour « {{title}} » : {{elapsed}} heures ouvrées à l'étape {{stageLabel}}.\n\nMerci de le traiter en priorité.\n\n{{link}}",
+      bodyEn: "Hello,\n\nThe 48-hour approval deadline has passed for \"{{title}}\": {{elapsed}} business hours at the {{stageLabel}} step.\n\nPlease handle it as a priority.\n\n{{link}}" },
+    expiry: { subjectFr: "[Échéance] {{document}} - {{employee}}", subjectEn: "[Expiry] {{document}} - {{employee}}",
+      bodyFr: "Bonjour,\n\nLe document « {{document}} » de {{employee}} ({{portfolio}}) {{state}} (échéance : {{date}}).\n\nPensez à préparer son renouvellement et à déposer la nouvelle pièce dans le dossier du salarié.\n\n{{link}}",
+      bodyEn: "Hello,\n\nThe document \"{{document}}\" of {{employee}} ({{portfolio}}) {{state}} (due: {{date}}).\n\nPlease prepare its renewal and upload the new document to the employee's file.\n\n{{link}}" },
   },
   branding: {
     theme: "emerald",
@@ -132,7 +135,10 @@ router.get("/", allow("ADM"), (req, res) => {
   if (em.postmark && em.postmark.serverToken) em.postmark.serverToken = MASK;
   if (em.mailgun && em.mailgun.smtpPassword) em.mailgun.smtpPassword = MASK;
   res.json({ security: s.security, email: em,
-    emailTemplates: s.emailTemplates, emailRecipients: s.emailRecipients,
+    // Modèles tels qu'ils seront envoyés (anciens modèles par défaut « - SGRHP » remplacés par les nouveaux).
+    emailTemplates: Object.fromEntries(Object.keys(Object.assign({}, DEFAULTS.emailTemplates, s.emailTemplates || {}))
+      .map(k => [k, require("../mailer").templateFor(k, req) || (s.emailTemplates || {})[k]])),
+    emailRecipients: s.emailRecipients,
     workflows: s.workflows, branding: s.branding });
 });
 
@@ -251,7 +257,10 @@ router.put("/workflows", allow("ADM"), (req, res) => {
   }
   save();
   audit(req.user, "CONFIG_CHANGED", "Settings", "workflows", {});
-  res.json(s.workflows);
+  // Les documents EN COURS suivent immédiatement le nouveau paramétrage (désactivation, niveaux modifiés).
+  let reconciled = 0;
+  try { reconciled = require("../workflow").reconcileTenant(req.user.tenantId || "t1"); } catch (e) {}
+  res.json(Object.assign({}, s.workflows, { _reconciled: reconciled }));
 });
 router.put("/branding", allow("ADM"), (req, res) => {
   const s = settings(req);
