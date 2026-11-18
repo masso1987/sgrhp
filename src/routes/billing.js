@@ -1183,10 +1183,16 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   const _vendeur = inv.vendeur || inv.createdByName || contract.vendeur || "-";
   const band = [["Date de facturation", inv.date || ""], ["Vendeur", _vendeur], ["Objet", inv.objet || "-"]];
   if (inv.bonCommande) band.push(["Bon de commande", inv.bonCommande]);
-  doc.roundedRect(x0, y, W, 30, 4).fillAndStroke("#f4f7f6", "#c9d6d0"); doc.fillColor("#000");
-  let bxi = x0 + 6; const bwn = W / band.length;
-  for (const [lab, val] of band) { doc.fillColor(brand).font("Helvetica-Bold").fontSize(8).text(lab, bxi, y + 5, { width: bwn - 12, lineBreak: false }); doc.fillColor("#000").font("Helvetica").fontSize(9).text(val, bxi, y + 16, { width: bwn - 12, lineBreak: false }); bxi += bwn; }
-  y += 40;
+  // l'Objet a une colonne double et peut passer à la ligne : le bandeau s'agrandit pour tout afficher
+  const _share = band.map(([lab]) => lab === "Objet" ? 2 : 1), _tot = _share.reduce((a, b) => a + b, 0);
+  const _bw = _share.map(s => W * s / _tot);
+  doc.font("Helvetica").fontSize(9);
+  const _vh = Math.max(11, ...band.map(([, val], i) => doc.heightOfString(String(val || ""), { width: _bw[i] - 12 })));
+  const bandH = Math.max(30, 16 + _vh + 5);
+  doc.roundedRect(x0, y, W, bandH, 4).fillAndStroke("#f4f7f6", "#c9d6d0"); doc.fillColor("#000");
+  let bxi = x0 + 6;
+  band.forEach(([lab, val], i) => { doc.fillColor(brand).font("Helvetica-Bold").fontSize(8).text(lab, bxi, y + 5, { width: _bw[i] - 12, lineBreak: false }); doc.fillColor("#000").font("Helvetica").fontSize(9).text(String(val || ""), bxi, y + 16, { width: _bw[i] - 12 }); bxi += _bw[i]; });
+  y += bandH + 10;
   // table
   const cols = [["DESCRIPTION", 220, "left"], ["QUANTITÉ", 88, "right"], ["PRIX UNITAIRE", 96, "right"], ["TAXES", 46, "right"], ["MONTANT", 89, "right"]];
   const cx = []; let xx = x0; cols.forEach(c => { cx.push(xx); xx += c[1]; });
