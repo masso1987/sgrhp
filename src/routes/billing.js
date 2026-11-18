@@ -610,7 +610,7 @@ router.get("/sheets/:id/invoice/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (re
   y += 6; doc.lineWidth(0.6).strokeColor("#000").moveTo(x0, y).lineTo(x0 + W, y).stroke(); y += 5;
   const tot = (lbl, v, b) => { T(x0 + 300, y, lbl, 120, "right", b); T(x0 + 420, y, _NF(v) + " FCFA", W - 420, "right", b); y += 15; };
   tot("Total HT", t.HT, true); tot(c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA);
-  if (t.IS) tot("IS (retenue)", -t.IS);
+  if (t.IS) tot("IS (retenue)", t.IS);
   tot(t.IS ? "TOTAL À PAYER" : "TOTAL TTC", t.IS ? t.totalDu : t.TTC, true);
   y += 8; doc.font("Helvetica-Oblique").fontSize(9).text("Arrêtée la présente facture à la somme de : " + enLettres(t.TTC) + " francs CFA.", x0, y, { width: W });
   y = doc.y + 14; const bk = c.bankBlock || {}; if (bk.banque) { doc.font("Helvetica-Bold").fontSize(9).text("Coordonnées bancaires", x0, y); doc.font("Helvetica").fontSize(9).text(`${bk.banque}   ${bk.compte || ""}`, x0, y + 12); }
@@ -624,7 +624,7 @@ router.get("/sheets/:id/invoice/excel", allow("ADM", "CD", "RJ", "GPF", "UI"), (
   if (style === "proforma") { aoa.push(["Description", "Montant HT"]); for (const [lbl, amt] of _proformaLines(s, D.computed, c)) aoa.push([lbl, amt]); }
   else { aoa.push(["#", "Désignation", "Qté", "Montant HT"]); let n = 0; for (const l of D.computed.lines) aoa.push([++n, `${l.name}${l.poste ? " - " + l.poste : ""}`, 1, l.HT]); }
   aoa.push([]); aoa.push(["", "", "Total HT", t.HT]); aoa.push(["", "", c.tvaExonere ? "TVA (exonérée)" : "TVA", t.TVA]);
-  if (t.IS) aoa.push(["", "", "IS (retenue)", -t.IS]);
+  if (t.IS) aoa.push(["", "", "IS (retenue)", t.IS]);
   aoa.push(["", "", t.IS ? "TOTAL À PAYER" : "TOTAL TTC", t.IS ? t.totalDu : t.TTC]);
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Facture");
   audit(req.user, "EXPORTED", "BillingSheet", s.id, { doc: "facture", format: "xlsx", style });
@@ -1225,8 +1225,8 @@ router.get("/invoices/:id/pdf", allow("ADM","CD","RJ","GPF","UI"), (req, res) =>
   };
   trow("Montant hors taxes", t.HT, false);
   trow(inv.tvaExonere ? "T.V.A. (exonérée)" : "T.V.A. " + TXP(inv.tvaRate != null ? inv.tvaRate : 0.1925), t.TVA, false);
-  if (t.TVA_RET) trow("TVA retenue à la source", -t.TVA_RET, false);
-  if (t.IS) trow("IS (retenue)", -t.IS, false);
+  if (t.TVA_RET) trow("TVA retenue à la source", t.TVA_RET, false);
+  if (t.IS) trow("IS (retenue)", t.IS, false);
   const _net = !!(t.IS || t.TVA_RET);
   trow(_net ? "NET À PAYER" : "Total", _net ? t.totalDu : t.TTC, true);
   // ---- Pied : PAYABLE À (coordonnées bancaires PROPRES AU CLIENT) à gauche ; montant en lettres + LA DIRECTION à droite ----

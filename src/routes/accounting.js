@@ -1286,7 +1286,7 @@ router.get("/legal/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
 
 /* ==================== EXPORTS PDF (états façon Sage) ==================== */
 const PDFDocument = require("pdfkit");
-const _pnf = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const _pnf = (n) => String(Math.abs(Math.round(Number(n) || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 // Solde façon Sage pour les PDF : valeur absolue + nature (D débiteur / C créditeur), jamais de signe négatif.
 const _sld = (n) => { n = Math.round(Number(n) || 0); return n ? _pnf(Math.abs(n)) + (n > 0 ? " D" : " C") : "0"; };
 function _companyName(req) { const t = (db.tenants || []).find(x => x.id === (req.user.tenantId || "t1")); return (t && t.name) || "Société"; }
@@ -1570,8 +1570,8 @@ router.get("/tiers-releve/pdf", allow("RC", "ADM", "CD", "RJ"), (req, res) => {
   list.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   if (asOf) list = list.filter(r => String(r.date || "") <= asOf);
   const rows = []; let solde = 0, td = 0, tc = 0;
-  for (const r of list) { solde += r.debit - r.credit; td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.journal || "", r.piece || "", r.account || "", r.label || "", r.dueDate || "", r.lettre || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : "", _pnf(solde)] }); }
-  rows.push({ cells: ["", "", "", "", asOf ? ("SOLDE AU " + asOf) : "TOTAUX", "", "", _pnf(td), _pnf(tc), _pnf(td - tc)], bold: true, fill: "#dfe6ec" });
+  for (const r of list) { solde += r.debit - r.credit; td += r.debit; tc += r.credit; rows.push({ cells: [r.date || "", r.journal || "", r.piece || "", r.account || "", r.label || "", r.dueDate || "", r.lettre || "", r.debit ? _pnf(r.debit) : "", r.credit ? _pnf(r.credit) : "", _sld(solde)] }); }
+  rows.push({ cells: ["", "", "", "", asOf ? ("SOLDE AU " + asOf) : "TOTAUX", "", "", _pnf(td), _pnf(tc), _sld(td - tc)], bold: true, fill: "#dfe6ec" });
   const t = mine(db.acctThirdParties, req).find(x => x.code === tp) || {};
   _acctReportOut(req, res, { landscape: true, filename: "Releve_" + tp, title: "Relevé de compte tiers", subtitle: tp + (t.name ? " - " + t.name : "") + (asOf ? " (justificatif arrêté au " + asOf + ")" : ""), to: asOf || "",
     columns: [{ h: "Date", w: 60 }, { h: "Jr", w: 34 }, { h: "Pièce", w: 64 }, { h: "Compte", w: 60 }, { h: "Libellé", w: 190 }, { h: "Échéance", w: 66 }, { h: "Let", w: 34 }, { h: "Débit", w: 88, a: "r" }, { h: "Crédit", w: 88, a: "r" }, { h: "Solde", w: 96, a: "r" }], rows });

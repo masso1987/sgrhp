@@ -10333,8 +10333,8 @@ function invRenderTotals() {
   document.getElementById("invTotals").innerHTML = `<div style="display:inline-block;text-align:right;min-width:260px">
     <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">Total HT</span><b>${fCFA(t.HT)}</b></div>
     <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">${INV_EDIT.tvaExonere ? "TVA (exonérée)" : "TVA 19,25 %"}</span><span>${fCFA(t.TVA)}</span></div>
-    ${t.TVA_RET ? `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">TVA retenue à la source</span><span>−${fCFA(t.TVA_RET)}</span></div>` : ""}
-    ${t.IS ? `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">IS (retenue)</span><span>−${fCFA(t.IS)}</span></div>` : ""}
+    ${t.TVA_RET ? `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">TVA retenue à la source</span><span>${fCFA(t.TVA_RET)}</span></div>` : ""}
+    ${t.IS ? `<div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--muted)">IS (retenue)</span><span>${fCFA(t.IS)}</span></div>` : ""}
     <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);font-size:16px"><b>${(t.IS || t.TVA_RET) ? "Net à payer" : "Total TTC"}</b><b>${fCFA((t.IS || t.TVA_RET) ? t.totalDu : t.TTC)}</b></div></div>`;
 }
 async function invoiceSave() {
@@ -11232,7 +11232,7 @@ async function btpAccountStatement(aid) {
   const s = await btpApi(`/accounts/${aid}/statement`);
   btpModal(`Relevé - ${s.account.name}`, `<div class="btp-muted" style="margin-bottom:6px">Solde d'ouverture : ${btpM(s.opening)}</div>
     ${s.rows.length ? `<table class="btp-table"><tr><th>Date</th><th>Pièce</th><th>Libellé</th><th style="text-align:right">Montant</th><th style="text-align:right">Solde</th></tr>
-    ${s.rows.map(r => `<tr><td>${btpFr(r.date)}</td><td>${esc(r.ref)}</td><td>${esc(r.label)}</td><td style="text-align:right;color:${r.amount < 0 ? "#dc2626" : "#16a34a"}">${r.amount > 0 ? "+" : ""}${fCFA(r.amount)}</td><td style="text-align:right">${fCFA(r.balance)}</td></tr>`).join("")}</table>` : mmEmpty("Aucune opération")}
+    ${s.rows.map(r => `<tr><td>${btpFr(r.date)}</td><td>${esc(r.ref)}</td><td>${esc(r.label)}</td><td style="text-align:right;color:${r.amount < 0 ? "#dc2626" : "#16a34a"}">${fCFA(Math.abs(r.amount))}</td><td style="text-align:right">${fCFA(r.balance)}</td></tr>`).join("")}</table>` : mmEmpty("Aucune opération")}
     <div style="text-align:right;margin-top:8px;font-size:15px">Solde : <b>${btpM(s.balance)}</b></div>`, true);
 }
 
@@ -11340,7 +11340,7 @@ async function acctHome() {
   if(!d){ view.innerHTML='<h1>Comptabilité</h1><div class="panel">Impossible de charger le tableau de bord.</div>'; return; }
   const k=d.kpi, t=d.todo;
   const tvaLabel = k.tva>=0 ? "TVA à payer" : "Crédit de TVA";
-  const kpiCard=(l,v,dest)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:150px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px">${fCFA(v)}</div></div>`;
+  const kpiCard=(l,v,dest)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="flex:1;min-width:150px;cursor:${dest?'pointer':'default'};background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:12px 15px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:22px;font-weight:600;margin-top:3px">${fCFA(Math.abs(v||0))}</div></div>`;
   const todoItem=(n,label,dest,warn)=>`<div ${dest?`onclick="go('${dest}')"`:''} style="cursor:${dest?'pointer':'default'};display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>${label}</span><b style="color:${n>0?(warn?'var(--red)':'var(--nav-active-color)'):'var(--muted)'}">${n}</b></div>`;
   const tile = (ic, tt, ss, kk) => `<div class="panel" style="cursor:pointer" onclick="go('${kk}')"><b>${ic} ${tt}</b><div class="note" style="margin-top:4px">${ss}</div></div>`;
   const tierRows=(list)=>list.length? list.map(r=>`<tr><td><code>${esc(r.code)}</code></td><td>${esc(r.name||'')}</td><td class="r">${fSolde(r.solde)}</td><td><button class="btn ghost sm" onclick="acctTiersLedger('${esc(r.code)}')">Relevé</button></td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucun.</td></tr>';
@@ -11693,7 +11693,7 @@ function _balBuildModel(openRows, perRows, lbl){
 function _balAccum(){ return {openD:0,openC:0,movD:0,movC:0,soldeD:0,soldeC:0}; }
 function _balAdd(t,a){ t.openD+=a.openD; t.openC+=a.openC; t.movD+=a.movD; t.movC+=a.movC; t.soldeD+=a.soldeD; t.soldeC+=a.soldeC; }
 function _balSoldeSplit(t){ const net=(t.openD+t.movD)-(t.openC+t.movC); return {d:net>0?net:0,c:net<0?-net:0}; }
-const _SN=n=>{ n=Math.round(Number(n)||0); return n?n.toLocaleString("fr-FR"):""; };
+const _SN=n=>{ n=Math.round(Number(n)||0); return n?Math.abs(n).toLocaleString("fr-FR"):""; };
 /* Solde façon Sage : montant absolu + nature (D débiteur / C créditeur), jamais de signe négatif. */
 const fSolde=n=>{ n=Math.round(Number(n)||0); return n?fCFA(Math.abs(n))+(n>0?' D':' C'):'0'; };
 // Solde côté TIERS : pas de « D » (débiteur = cas normal d'un client). On ne marque que le créditeur « C ».
@@ -11899,7 +11899,7 @@ async function acctLegalView(){
     api("/accounting/vat"+(per?"?period="+per:"")).catch(()=>({})),
     api("/accounting/income-statement"+(per?"?period="+per:"")).catch(()=>({produits:[],charges:[]})),
     api("/accounting/balance-sheet"+(per?"?period="+per:"")).catch(()=>({actif:{},passif:{}}))]);
-  const f=n=>fCFA(n||0);
+  const f=n=>fCFA(Math.abs(n||0));
   window._legalX={per,vat,is,bs};
   const fa=n=>fCFA(Math.abs(n||0));                                  // Sage: pas de signe négatif, la nature est libellée
   const resPos=(is.resultat||0)>=0, tvaCredit=(vat.credit||0)>0;
@@ -12003,7 +12003,7 @@ async function acctCloseExercise(id,year){
     <div class="panel" style="margin:6px 0"><b style="font-size:12px;color:var(--muted)">RÉSULTAT &amp; À-NOUVEAUX ${year+1}</b>
       <table style="margin-top:6px"><tr><td>Total produits (classe 7)</td><td class="r">${fCFA(c.produits)}</td></tr>
         <tr><td>Total charges (classe 6)</td><td class="r">${fCFA(c.charges)}</td></tr>
-        <tr style="font-weight:700;border-top:1px solid var(--border)"><td>Résultat ${c.resultat>=0?'(bénéfice)':'(perte)'}</td><td class="r" style="color:${c.resultat>=0?'var(--nav-active-color)':'var(--red)'}">${fCFA(c.resultat)}</td></tr>
+        <tr style="font-weight:700;border-top:1px solid var(--border)"><td>Résultat ${c.resultat>=0?'(bénéfice)':'(perte)'}</td><td class="r" style="color:${c.resultat>=0?'var(--nav-active-color)':'var(--red)'}">${fCFA(Math.abs(c.resultat))}</td></tr>
         <tr><td>À-nouveaux (comptes 1 à 5)</td><td class="r">${c.anLines.length} compte(s) - report ${fCFA(c.anTotalDebit)}</td></tr></table></div>
     <div class="err hidden" id="cloErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
@@ -12015,7 +12015,7 @@ async function acctCloseExercise(id,year){
 }
 async function acctCloseConfirm(id,year){
   if(!await mmConfirm({message:"Clôturer DÉFINITIVEMENT l'exercice "+year+" ? Cette action est irréversible : les écritures seront verrouillées.",danger:true})) return;
-  try{ const r=await api("/accounting/exercises/"+id+"/close",{method:"POST"}); const bgm=document.querySelector(".modal-bg"); if(bgm)bgm.remove(); alert("Exercice "+year+" clôturé.\nRésultat : "+fCFA(r.resultat)+" FCFA.\nÀ-nouveaux "+(year+1)+" générés."); acctClotureView(); }
+  try{ const r=await api("/accounting/exercises/"+id+"/close",{method:"POST"}); const bgm=document.querySelector(".modal-bg"); if(bgm)bgm.remove(); alert("Exercice "+year+" clôturé.\nRésultat : "+fCFA(Math.abs(r.resultat))+" FCFA ("+((r.resultat||0)>=0?"bénéfice":"perte")+").\nÀ-nouveaux "+(year+1)+" générés."); acctClotureView(); }
   catch(e){ const el=document.getElementById("cloErr"); if(el){ el.textContent=e.message; el.classList.remove("hidden"); } else alert(e.message); }
 }
 function acctCloseModeChange(){ const m=(document.getElementById("clMode")||{}).value; const jw=document.getElementById("clJrWrap"); const pw=document.getElementById("clPerWrap"); if(jw)jw.style.display=(m==="partielle")?"":"none"; if(pw)pw.style.display=(m==="totale")?"none":""; }
@@ -12048,17 +12048,17 @@ function acctFec(){ const y=(document.getElementById("fecY")||{}).value||new Dat
 async function acctAnalyticView(){
   const yy=(window._acctYear)||new Date().getFullYear();
   const [ab,ba]=await Promise.all([api("/accounting/analytic-balance").catch(()=>({rows:[]})),api("/accounting/budget-actual?year="+yy).catch(()=>({rows:[]}))]);
-  const f=n=>fCFA(n||0);
+  const f=n=>fCFA(Math.abs(n||0));
   view.innerHTML=`<button class="btn ghost sm" onclick="go('acct')">← Comptabilité</button>
     <h1 style="margin-top:10px">Analytique &amp; budget</h1>
     <div class="panel"><b>Balance analytique (par section)</b>
       <table style="margin-top:6px"><tr><th>Section</th><th class="r">Débit</th><th class="r">Crédit</th><th class="r">Solde</th></tr>
-      ${ab.rows.length? ab.rows.map(r=>`<tr><td>${esc(r.code)}</td><td class="r">${f(r.debit)}</td><td class="r">${f(r.credit)}</td><td class="r">${f(r.solde)}</td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucune ventilation analytique (renseignez le champ « Analytique » à la saisie).</td></tr>'}</table></div>
+      ${ab.rows.length? ab.rows.map(r=>`<tr><td>${esc(r.code)}</td><td class="r">${f(r.debit)}</td><td class="r">${f(r.credit)}</td><td class="r">${fSolde(r.solde)}</td></tr>`).join("") : '<tr><td colspan="4" style="color:var(--muted)">Aucune ventilation analytique (renseignez le champ « Analytique » à la saisie).</td></tr>'}</table></div>
     <div class="panel"><b>Budget vs réalisé ${yy}</b>
       <span style="float:right;display:flex;gap:6px"><input type="number" id="baY" value="${yy}" style="max-width:90px;margin:0"><button class="btn ghost sm" onclick="window._acctYear=Number(document.getElementById('baY').value);acctAnalyticView()">Voir</button>
         <button class="btn ghost sm" onclick="acctBudgetModal()">+ Budget</button><button class="btn ghost sm" onclick="acctBudgetImportPick()">Importer (Excel)</button><input type="file" id="budFile" accept=".xlsx,.xls" style="display:none" onchange="acctBudgetImportParse(event)"></span>
       <table style="margin-top:8px"><tr><th>Compte</th><th>Intitulé</th><th class="r">Budget</th><th class="r">Réalisé</th><th class="r">Écart</th></tr>
-      ${ba.rows.length? ba.rows.map(r=>`<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td class="r">${f(r.budget)}</td><td class="r">${f(r.actual)}</td><td class="r" style="color:${r.ecart>0?'var(--red)':'var(--nav-active-color)'}">${(r.ecart>0?'+':'')}${f(r.ecart)}</td></tr>`).join("") : '<tr><td colspan="5" style="color:var(--muted)">Aucun budget / réalisé.</td></tr>'}</table></div>`;
+      ${ba.rows.length? ba.rows.map(r=>`<tr><td><code>${esc(r.account)}</code></td><td>${esc(r.label)}</td><td class="r">${f(r.budget)}</td><td class="r">${f(r.actual)}</td><td class="r" style="color:${r.ecart>0?'var(--red)':'var(--nav-active-color)'}">${f(r.ecart)}</td></tr>`).join("") : '<tr><td colspan="5" style="color:var(--muted)">Aucun budget / réalisé.</td></tr>'}</table></div>`;
 }
 async function acctBudgetModal(){
   await acctLoadRefs();
@@ -12209,7 +12209,7 @@ async function acctTiersLedger(tp){
         <td class="r">${fCFA(r.debit)}</td><td class="r">${fCFA(r.credit)}</td><td class="r">${fSoldeTiers(r.solde)}</td></tr>`).join("")
         : '<tr><td colspan="10" style="color:var(--muted)">Aucun mouvement.</td></tr>'}
       <tr style="font-weight:600;border-top:2px solid #999"><td colspan="7">TOTAUX</td><td class="r">${fCFA(d.totalDebit||0)}</td><td class="r">${fCFA(d.totalCredit||0)}</td>
-        <td class="r">${fCFA(d.solde||0)}</td></tr>
+        <td class="r">${fSoldeTiers(d.solde||0)}</td></tr>
     </table></div>`;
 }
 
