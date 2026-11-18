@@ -2512,6 +2512,23 @@ function rubCatalogLabel(tid) {
   for (const rb of (db.payRubriques || [])) if ((rb.tenantId || "t1") === (tid || "t1")) m[String(rb.code)] = rb.label;
   return (code, fallback) => m[String(code)] || fallback || "";
 }
+// Police du bulletin classique, comme Sage Paie : Arial (ou Liberation Sans, mêmes chasses, sur le serveur Linux),
+// compressée horizontalement (≈ 85 % normal, ≈ 81 % gras). Repli sur Helvetica si aucune police n'est trouvée.
+const PAYSLIP_FONT_CANDIDATES = [
+  [process.env.PAYSLIP_FONT_REGULAR, process.env.PAYSLIP_FONT_BOLD],
+  ["/usr/share/fonts/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/liberation/LiberationSans-Bold.ttf"],
+  ["/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"],
+  ["/usr/share/fonts/TTF/LiberationSans-Regular.ttf", "/usr/share/fonts/TTF/LiberationSans-Bold.ttf"],
+  ["C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"],
+];
+let _payslipFontFiles;
+function payslipFonts(doc) {
+  if (doc._psFonts) return doc._psFonts;
+  if (_payslipFontFiles === undefined) { const fs = require("fs"); _payslipFontFiles = PAYSLIP_FONT_CANDIDATES.find(([a, b]) => a && b && fs.existsSync(a) && fs.existsSync(b)) || null; }
+  let f = { reg: "Helvetica", bold: "Helvetica-Bold" };
+  if (_payslipFontFiles) { try { doc.registerFont("PS-R", _payslipFontFiles[0]); doc.registerFont("PS-B", _payslipFontFiles[1]); f = { reg: "PS-R", bold: "PS-B" }; } catch (e) {} }
+  return (doc._psFonts = f);
+}
 // Taille de police de la raison sociale sur le bulletin : la plus grande (max → min, pas de 0,5) qui tient sur une
 // ligne ; si même la plus petite ne tient pas, le nom passe sur plusieurs lignes. Renvoie la taille et la hauteur occupée.
 function fitCompanyName(doc, text, max, min, width) {
@@ -2539,8 +2556,17 @@ function drawPayslip(doc, s, emp, tenant) {
   // ===== Bulletin « classique » : mise en page calquée sur le bulletin Sage Paie =====
   // (coordonnées en points, page A4 595 x 842 ; seule la présentation change, aucun calcul)
   doc.lineWidth(0.6).strokeColor("#000").fillColor("#000");
-  const T = (x, y, txt, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica");
-    doc.fontSize(o.s || 7.5).fillColor("#000").text(txt == null ? "" : String(txt), x, y, { width: o.w, align: o.a, lineBreak: false, underline: !!o.u }); doc.font("Helvetica"); };
+  const PF = payslipFonts(doc);
+  // comme Sage : Arial 8 pt, compression horizontale 84,8 % (normal) / 81,3 % (gras)
+  // pdfkit mesure le texte sans la compression : on calcule la largeur compressée et on place le texte nous-mêmes
+  // (alignement centre/droite, réduction de taille si le texte dépasse sa case), sans retour à la ligne.
+  const T = (x, y, txt, o) => { o = o || {}; const str = txt == null ? "" : String(txt); if (!str) return;
+    const hs = o.hs || (o.b ? 81.3 : 84.8); let sz = o.s || 8; doc.font(o.b ? PF.bold : PF.reg).fontSize(sz);
+    let raw = doc.widthOfString(str);
+    if (o.w) while (raw * hs / 100 > o.w && sz > 5) { sz -= 0.25; doc.fontSize(sz); raw = doc.widthOfString(str); }
+    const tw = raw * hs / 100; let xx = x;
+    if (o.w && o.a === "center") xx = x + (o.w - tw) / 2; else if (o.w && o.a === "right") xx = x + o.w - tw;
+    doc.fillColor("#000").text(str, xx, y, { width: raw + 2, lineBreak: false, underline: !!o.u, horizontalScaling: hs }); doc.font("Helvetica"); };
   const BX = (x, y, w, h) => doc.rect(x, y, w, h).stroke();
   const HL = (x1, x2, y) => doc.moveTo(x1, y).lineTo(x2, y).stroke();
   const VL = (x, y1, y2) => doc.moveTo(x, y1).lineTo(x, y2).stroke();
@@ -2550,7 +2576,16 @@ function drawPayslip(doc, s, emp, tenant) {
   const CO = require("./settings").settings(s).branding.company || {};
   const _pf = (db.portfolios || []).find(p => p.id === emp.portfolioId);
   const _conv = _pf ? (db.conventions || []).find(c => c.id === _pf.conventionId) : null;
-  const convName = C.convention || emp.convention || (_conv && _conv.name) || "";
+  const _convC = C.conventionId ? (db.conventions || []).find(c => c.id === C.conventionId) : null;
+  const convName = C.conventionName || (_convC && _convC.name) || C.convention || emp.convention || (_conv && _conv.name) || "";
+  // mode de paiement en clair, comme Sage (« Virement »)
+  const PAY = { VIREMENT: "Virement", TRANSFER: "Virement", ESPECES: "Espèces", CASH: "Espèces", CHEQUE: "Chèque", CHECK: "Chèque", "ORANGE MONEY": "Orange Money", MOMO: "MTN MoMo", MOBILE_MONEY: "Mobile Money" };
+  const payMode = PAY[String(C.paymentMethod || "VIREMENT").toUpperCase()] || C.paymentMethod;
+  // banque et compte comme Sage : nom de la banque, puis guichet  compte  clé (RIB de la fiche salarié)
+  const _bk = emp.bank || {};
+  const bankName = emp.bankName || _bk.name || C.bankName || "";
+  const _acct = emp.bankAccount || _bk.account || "";
+  const bankAcct = _acct ? [emp.bankBranch || _bk.branch, _acct, emp.bankKey || _bk.key].filter(Boolean).join("   ") : (C.bankIban || "");
 
   /* ---- répartition des lignes (identique à l'ancien modèle) ---- */
   const SLBL = { "5000":"PENSION VIEILLESSE","5010":"ALLOCATIONS FAMILIALES","5020":"ACCIDENT DE TRAVAIL","5025":"IRPP1","5045":"CAC/IRPP 1","5050":"CREDIT FONCIER","5060":"CREDIT FONCIER PATR.","5070":"FNE","5080":"REDEVANCE CRTV","5090":"TAXE COMMUNALE" };
@@ -2600,29 +2635,30 @@ function drawPayslip(doc, s, emp, tenant) {
   function drawHead() {
     // cadre société : raison sociale en haut, N° contribuable / employeur en bas
     BX(25, 38, 270, 78);
-    const coN = fitCompanyName(doc, CO.name || tenant.name || "SOCIÉTÉ", 9.5, 8, 260);
-    doc.font("Helvetica-Bold").fontSize(coN.size).fillColor("#000").text(coN.text, 30, 45, { width: 260 }); doc.font("Helvetica");
+    const coName = String(CO.name || tenant.name || "SOCIÉTÉ"); let coS = 10;
+    doc.font(PF.bold); while (coS > 7 && doc.fontSize(coS).widthOfString(coName) * 0.832 > 260) coS -= 0.5;
+    T(30, 45, coName, { b: 1, s: coS, hs: 83.2, w: 260 });
     T(30, 105, "N° Contribuable", { b: 1 }); T(91, 106, CO.niu || tenant.niu || "", { w: 66 });
     T(159, 105, "N° Employeur", { b: 1 }); T(214, 106, CO.employerNo || tenant.cnpsEmployer || "", { w: 78 });
     // titre et période
-    T(303, 42, "BULLETIN  DE  PAIE", { b: 1, s: 22, w: 262, a: "center" });
+    T(303, 40, "BULLETIN  DE  PAIE", { b: 1, s: 24, hs: 82.4, w: 262, a: "center" });
     T(339, 80, "Période du", { b: 1 }); T(387, 80, dS, { b: 1 }); T(432, 80, "au", { b: 1 }); T(446, 80, dE, { b: 1 });
-    T(339, 93, "Paiement le", { b: 1 }); T(387, 93, dE); T(432, 93, "par", { b: 1 }); T(446, 93, C.paymentMethod || "Virement");
-    T(303, 108, "Banque", { b: 1 }); T(341, 110, String(emp.bankName || C.bankName || "").slice(0, 14), { w: 60 });
-    T(404, 108, "N° Compte", { b: 1 }); T(447, 110, emp.bankAccount || C.bankIban || "", { w: 117 });
+    T(339, 93, "Paiement le", { b: 1 }); T(387, 93, dE); T(432, 93, "par", { b: 1 }); T(446, 93, payMode);
+    T(303, 108, "Banque", { b: 1 }); T(341, 110, bankName, { w: 62 });
+    T(404, 108, "N° Compte", { b: 1 }); T(447, 110, bankAcct, { w: 117 });
     // cadre salarié
     BX(301, 124, 262, 124);
-    T(320, 132, "Matricule", { b: 1, s: 9.5 }); T(366, 132, s.matricule || "", { s: 9.5 });
-    T(320, 154, emp.civility || "", { s: 9.5 }); T(341, 154, `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), { s: 9.5, w: 215 });
+    T(320, 132, "Matricule", { b: 1, s: 10, hs: 83.2 }); T(363, 132, s.matricule || "", { s: 10, hs: 82 });
+    T(320, 154, emp.civility || "", { s: 10, hs: 82 }); T(341, 154, `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), { s: 10, hs: 82, w: 215 });
     // renseignements salarié (deux groupes, trois colonnes comme Sage)
     T(25, 135, "Conv. coll.", { b: 1 }); T(70, 135, convName, { w: 225 });
     T(25, 153, "N° CNPS", { b: 1 }); T(70, 153, cnpsFull(emp), { w: 105 });
     T(25, 165, "Date Embauche", { b: 1 }); T(87, 166, fdate(emp.hireDate));
     T(25, 179, "Ancienneté", { b: 1 }); T(70, 179, yrs, { w: 105 });
     T(183, 176, "N° DIPE", { b: 1 }); T(224, 176, emp.dipe || CO.dipe || tenant.dipe || "", { w: 72 });
-    T(25, 203, "Emploi", { b: 1 }); T(70, 203, C.position || emp.position || "", { w: 108 });
-    T(25, 216, "Qualification", { b: 1 }); T(87, 216, emp.qualification || "", { w: 92 });
-    T(25, 229, "Département", { b: 1 }); T(87, 229, emp.department || "", { w: 92 });
+    T(25, 203, "Emploi", { b: 1 }); T(70, 203, emp.position || C.position || emp.jobTitle || "", { w: 108 });
+    T(25, 216, "Qualification", { b: 1 }); T(70, 216, emp.qualification || "", { w: 108 });
+    T(25, 229, "Département", { b: 1 }); T(70, 229, emp.department || "", { w: 108 });
     T(25, 242, "Catégorie", { b: 1 }); T(70, 242, C.category || "", { w: 108 });
     T(181, 203, "Sit Fam", { b: 1 }); T(224, 205, MS[emp.maritalStatus] || emp.maritalStatus || "", { w: 72 });
     T(181, 216, "Nbre Enfants", { b: 1 }); T(233, 218, emp.children != null ? emp.children : "", { w: 60 });
@@ -2639,11 +2675,11 @@ function drawPayslip(doc, s, emp, tenant) {
     T(X.base, TY + 9, "Base", { b: 1, w: X.txs - X.base, a: "center" });
     T(X.txs, TY + 3, "Part salariale", { b: 1, w: X.txp - X.txs, a: "center" });
     T(X.txp, TY + 3, "Part patronale", { b: 1, w: X.end - X.txp, a: "center" });
-    T(X.txs, TY + 16, "Taux", { b: 1, w: X.gain - X.txs, a: "center" });
-    T(X.gain, TY + 16, "Gain", { b: 1, w: X.rets - X.gain, a: "center" });
-    T(X.rets, TY + 16, "Retenue", { b: 1, w: X.txp - X.rets, a: "center" });
-    T(X.txp, TY + 16, "Taux", { b: 1, w: X.retp - X.txp, a: "center" });
-    T(X.retp, TY + 16, "Retenue", { b: 1, w: X.end - X.retp, a: "center" });
+    T(X.txs, TY + 14.5, "Taux", { b: 1, w: X.gain - X.txs, a: "center" });
+    T(X.gain, TY + 14.5, "Gain", { b: 1, w: X.rets - X.gain, a: "center" });
+    T(X.rets, TY + 14.5, "Retenue", { b: 1, w: X.txp - X.rets, a: "center" });
+    T(X.txp, TY + 14.5, "Taux", { b: 1, w: X.retp - X.txp, a: "center" });
+    T(X.retp, TY + 14.5, "Retenue", { b: 1, w: X.end - X.retp, a: "center" });
   }
 
   function drawBottom(withValues) {
@@ -2652,8 +2688,8 @@ function drawPayslip(doc, s, emp, tenant) {
     GREY(25, by, 461, 21); BX(25, by, 461, 47);
     cx.slice(1, -1).forEach(x => VL(x, by, by + 47));
     const heads = [["Cumuls"], ["Salaire brut"], ["Charges", "salariales"], ["Charges", "patronales"], ["Avantages en", "nature"], ["Salaire taxable"], ["Jours travaillées"], ["Heures", "supplémentaires"], [""]];
-    heads.forEach((h, i) => { const w = cx[i + 1] - cx[i]; if (h.length === 1) T(cx[i], by + 7, h[0], { b: 1, s: 6.3, w, a: "center" });
-      else { T(cx[i], by + 2.5, h[0], { b: 1, s: 6.3, w, a: "center" }); T(cx[i], by + 11, h[1], { b: 1, s: 6.3, w, a: "center" }); } });
+    heads.forEach((h, i) => { const w = cx[i + 1] - cx[i]; if (h.length === 1) T(cx[i], by + 7, h[0], { b: 1, w, a: "center" });
+      else { T(cx[i], by + 2, h[0], { b: 1, w, a: "center" }); T(cx[i], by + 11, h[1], { b: 1, w, a: "center" }); } });
     T(25, by + 26, "Période", { b: 1, w: 29, a: "center" }); T(25, by + 37, "Année", { b: 1, w: 29, a: "center" });
     if (withValues) {
       const fmt = (v, i) => i === 5 ? DAYS(v) : i === 6 ? DAYS(v) : F(v);
@@ -2661,9 +2697,9 @@ function drawPayslip(doc, s, emp, tenant) {
       yearFigs.forEach((v, i) => T(cx[i + 1], by + 37, fmt(v, i), { w: cx[i + 2] - cx[i + 1] - 3, a: "right" }));
     }
     // NET A PAYER
-    GREY(493, by, 71, 21); T(493, by + 7, "NET A PAYER", { b: 1, s: 9.5, w: 71, a: "center" });
+    GREY(493, by, 71, 21); T(493, by + 6, "NET A PAYER", { b: 1, s: 10, hs: 83.2, w: 71, a: "center" });
     doc.save(); doc.lineWidth(1.6).rect(494, by + 22, 69, 24).stroke(); doc.restore();
-    if (withValues) T(493, by + 30, F(t.netAPayer), { b: 1, s: 10, w: 71, a: "center" });
+    if (withValues) T(493, by + 29, F(t.netAPayer), { b: 1, s: 10, hs: 83.2, w: 71, a: "center" });
     // Compteurs congés
     const ly = 747;
     BX(25, ly, 151, 39); HL(25, 176, ly + 18); [83, 111, 143].forEach(x => VL(x, ly, ly + 39));
@@ -2675,8 +2711,8 @@ function drawPayslip(doc, s, emp, tenant) {
     BX(180, 732, 82, 15); BX(262, 732, 81, 15);
     T(180, 736, "Période Précédente", { b: 1, w: 82, a: "center" }); T(262, 736, "Période En cours", { b: 1, w: 81, a: "center" });
     BX(179, ly, 164, 38); HL(179, 343, ly + 18); [213, 261, 294].forEach(x => VL(x, ly, ly + 38));
-    T(179, ly + 6, "Acquis", { b: 1, s: 7, w: 34, a: "center" }); T(213, ly + 6, "C. Brut congés", { b: 1, s: 6.2, w: 48, a: "center" });
-    T(261, ly + 6, "Acquis", { b: 1, s: 7, w: 33, a: "center" }); T(294, ly + 6, "C. Brut congés", { b: 1, s: 6.2, w: 49, a: "center" });
+    T(179, ly + 6, "Acquis", { b: 1, w: 34, a: "center" }); T(213, ly + 6, "C. Brut congés", { b: 1, w: 48, a: "center" });
+    T(261, ly + 6, "Acquis", { b: 1, w: 33, a: "center" }); T(294, ly + 6, "C. Brut congés", { b: 1, w: 49, a: "center" });
     T(179, ly + 25, "0", { w: 31, a: "right" }); T(213, ly + 25, F(prevYearBrut), { w: 45, a: "right" });
     T(261, ly + 25, DAYS(_lv.accrued || 0), { w: 30, a: "right" }); T(294, ly + 25, F(yearFigs[0]), { w: 46, a: "right" });
     // Dates de congés
@@ -2694,8 +2730,7 @@ function drawPayslip(doc, s, emp, tenant) {
       T(qx - 4, qy + qsz + 1, "Scannez pour vérifier", { s: 4.5, w: 42, a: "center" });
     } catch (e) {}
     // pied de page
-    T(25, 807, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 492 });
-    T(525, 807, "TAKE CARE", { b: 1 });
+    T(25, 807, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 7, hs: 82, w: 495 });
   }
 
   /* ---- dessin, avec suite sur une nouvelle page si les lignes ne tiennent pas (comme Sage) ---- */

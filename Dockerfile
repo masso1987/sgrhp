@@ -1,6 +1,7 @@
 FROM node:20-alpine
 WORKDIR /app
-RUN apk add --no-cache tini
+# font-liberation : Liberation Sans (mêmes chasses qu'Arial) pour le bulletin classique façon Sage
+RUN apk add --no-cache tini font-liberation
 
 COPY package*.json ./
 RUN npm ci --omit=dev || npm install --omit=dev
