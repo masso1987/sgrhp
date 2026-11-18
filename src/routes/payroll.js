@@ -2536,172 +2536,187 @@ function drawPayslip(doc, s, emp, tenant) {
   const [yy, mm] = s.period.split("-"); const last = new Date(Number(yy), Number(mm), 0).getDate();
   const dS = `01/${mm}/${yy.slice(2)}`, dE = `${String(last).padStart(2,"0")}/${mm}/${yy.slice(2)}`;
 
+  // ===== Bulletin « classique » : mise en page calquée sur le bulletin Sage Paie =====
+  // (coordonnées en points, page A4 595 x 842 ; seule la présentation change, aucun calcul)
   doc.lineWidth(0.6).strokeColor("#000").fillColor("#000");
-  const T = (x, y, txt, o) => { o = o || {}; if (o.b) doc.font("Helvetica-Bold"); else doc.font("Helvetica");
-    doc.fontSize(o.s || 8).text(txt == null ? "" : String(txt), x, y, { width: o.w, align: o.a, lineBreak: false }); doc.font("Helvetica"); };
+  const T = (x, y, txt, o) => { o = o || {}; doc.font(o.b ? "Helvetica-Bold" : "Helvetica");
+    doc.fontSize(o.s || 7.5).fillColor("#000").text(txt == null ? "" : String(txt), x, y, { width: o.w, align: o.a, lineBreak: false, underline: !!o.u }); doc.font("Helvetica"); };
   const BX = (x, y, w, h) => doc.rect(x, y, w, h).stroke();
   const HL = (x1, x2, y) => doc.moveTo(x1, y).lineTo(x2, y).stroke();
   const VL = (x, y1, y2) => doc.moveTo(x, y1).lineTo(x, y2).stroke();
-
-  /* ===== HEADER ===== */
-  BX(18, 18, 300, 110);
+  const GREY = (x, y, w, h) => { doc.save(); doc.rect(x, y, w, h).fillAndStroke("#c0c0c0", "#000"); doc.restore(); doc.fillColor("#000"); };
+  const PCT = (v) => (Number(v || 0) * 100).toFixed(2).replace(".", ",");
+  const DAYS = (v) => { const n = Math.round(Number(v || 0) * 10) / 10; return String(n).replace(".", ","); };
   const CO = require("./settings").settings(s).branding.company || {};
-  // raison sociale : réduite jusqu'à 9 pt pour tenir sur une ligne, sinon sur deux lignes ; l'adresse se place dessous
-  const _coN = fitCompanyName(doc, CO.name || tenant.name || "SOCIÉTÉ", 10, 9, 288);
-  doc.font("Helvetica-Bold").fontSize(_coN.size).fillColor("#000").text(_coN.text, 26, 24, { width: 288 }); doc.font("Helvetica");
-  const _adY = 24 + _coN.h + 3;
-  if (CO.address) T(26, _adY, CO.address, { s: 8, w: 288 });
-  if (CO.city) T(26, _adY + 11, CO.city, { s: 8, w: 288 });
-  T(310, 20, "BULLETIN  DE  PAIE", { b: 1, s: 21, w: 270, a: "center" });
-  T(360, 58, "Période du", { b: 1 }); T(415, 58, dS, { b: 1 }); T(470, 58, "au", { b: 1 }); T(490, 58, dE, { b: 1 });
-  T(360, 70, "Paiement le", { b: 1 }); T(415, 70, dE); T(470, 70, "par", { b: 1 }); T(490, 70, C.paymentMethod || "Virement");
-  T(318, 86, "Banque", { b: 1 }); T(358, 86, String(emp.bankName || C.bankName || "").slice(0, 20), { s: 7 }); T(445, 87, "N° Compte", { b: 1, s: 7 }); T(490, 87, emp.bankAccount || C.bankIban || "", { s: 7 });
-  // labels inside company box
-  T(26, 88, "N° Contribuable", { b: 1 }); T(102, 88, CO.niu || tenant.niu || "", { w: 76 });
-  T(180, 88, "N° Employeur", { b: 1 }); T(238, 88, CO.employerNo || tenant.cnpsEmployer || "", { w: 76 });
-  // employee box (right)
-  BX(310, 98, 267, 60);
-  T(318, 104, "Matricule", { b: 1 }); T(375, 104, s.matricule || "");
-  T(320, 128, `${emp.civility || ""}  ${(emp.firstName||"")} ${(emp.lastName||"")}`.trim(), { b: 1, s: 10, w: 250 });
-  // resolve convention name from the employee's portfolio
   const _pf = (db.portfolios || []).find(p => p.id === emp.portfolioId);
   const _conv = _pf ? (db.conventions || []).find(c => c.id === _pf.conventionId) : null;
   const convName = C.convention || emp.convention || (_conv && _conv.name) || "";
-  // left info block
-  let iy = 168; const li = (l, v, l2, v2) => {
-    T(26, iy, l, { b: 1 }); T(120, iy, v); if (l2) { T(300, iy, l2, { b: 1 }); T(380, iy, v2); } iy += 12; };
-  li("Conv. coll.", convName || "", "Emploi", C.position || emp.position || "");
-  li("N° CNPS", cnpsFull(emp), "Sit Fam", MS[emp.maritalStatus] || emp.maritalStatus || "");
-  li("Date Embauche", fdate(emp.hireDate), "Nbre Enfants", emp.children != null ? emp.children : "");
-  li("Ancienneté", yrs, "Qualification", emp.qualification || "");
-  li("N° DIPE", emp.dipe || CO.dipe || tenant.dipe || "", "Département", emp.department || "");
-  li("Catégorie", C.category || "", "Jour/Mois", "30,00");
 
-  /* ===== MAIN TABLE ===== */
-  const X = { n: 18, des: 52, nb: 232, base: 288, txs: 348, gain: 392, rets: 452, txp: 508, retp: 540, end: 577 };
-  let TY = 250;                    // table top
-  const hEnd = 636;                // table bottom (fixed height)
-  // header (2 rows)
-  BX(X.n, TY, X.end - X.n, 22);
-  VL(X.des, TY, hEnd); VL(X.nb, TY, hEnd); VL(X.base, TY, hEnd);
-  VL(X.txs, TY, hEnd); VL(X.gain, TY, hEnd); VL(X.rets, TY, hEnd); VL(X.txp, TY, hEnd); VL(X.retp, TY, hEnd);
-  VL(X.n, TY, hEnd); VL(X.end, TY, hEnd); // left & right table borders (full height)
-  HL(X.n, X.end, hEnd);                   // bottom border of the table
-  HL(X.txs, X.end, TY + 11);       // split under the two group headers
-  T(X.n, TY + 6, "N°", { b: 1, s: 7, w: X.des - X.n, a: "center" });
-  T(X.des, TY + 6, "Désignation", { b: 1, s: 7, w: X.nb - X.des, a: "center" });
-  T(X.nb, TY + 6, "Nombre", { b: 1, s: 7, w: X.base - X.nb, a: "center" });
-  T(X.base, TY + 6, "Base", { b: 1, s: 7, w: X.txs - X.base, a: "center" });
-  T(X.txs, TY + 1, "Part salariale", { b: 1, s: 7, w: X.txp - X.txs, a: "center" });
-  T(X.txp, TY + 1, "Part patronale", { b: 1, s: 7, w: X.end - X.txp, a: "center" });
-  T(X.txs, TY + 13, "Taux", { b: 1, s: 6.5, w: X.gain - X.txs, a: "center" });
-  T(X.gain, TY + 13, "Gain", { b: 1, s: 6.5, w: X.rets - X.gain, a: "center" });
-  T(X.rets, TY + 13, "Retenue", { b: 1, s: 6.5, w: X.txp - X.rets, a: "center" });
-  T(X.txp, TY + 13, "Taux", { b: 1, s: 6.5, w: X.retp - X.txp, a: "center" });
-  T(X.retp, TY + 13, "Retenue", { b: 1, s: 6.5, w: X.end - X.retp, a: "center" });
+  /* ---- répartition des lignes (identique à l'ancien modèle) ---- */
   const SLBL = { "5000":"PENSION VIEILLESSE","5010":"ALLOCATIONS FAMILIALES","5020":"ACCIDENT DE TRAVAIL","5025":"IRPP1","5045":"CAC/IRPP 1","5050":"CREDIT FONCIER","5060":"CREDIT FONCIER PATR.","5070":"FNE","5080":"REDEVANCE CRTV","5090":"TAXE COMMUNALE" };
   const _clbl = rubCatalogLabel(s.tenantId);
   const dlbl = (l) => (_clbl(l.code) || SLBL[lineKey(l)] || l.label || "").toUpperCase();
-  let y = TY + 24;
-  const cell = (x, xe, v, al) => { if (v || v === 0) T(x + 1, y, v, { s: 7.5, w: xe - x - 2, a: al || "right" }); };
   const _isTransportC = (l) => l._transportTaxable !== undefined || lineKey(l) === "3513";
-  const _allGainsC = r.lines.filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
-  // Placement d'une ligne (Rémunération vs Éléments non soumis) : suit la FAMILLE de la rubrique.
-  //   NON_SOUMISE -> éléments non soumis ; BRUT/COTISATION -> rémunération ; sinon repli sur les
-  //   drapeaux fiscaux (non imposable ET non cotisable, hors transport).
   const _famByCodeC = {}; for (const rr of (db.payRubriques || [])) if ((rr.tenantId || "t1") === (s.tenantId || "t1")) _famByCodeC[String(rr.code)] = rr.family;
   const _isNonSoumisC = (l) => { const f = _famByCodeC[String(l.code)]; if (f === "NON_SOUMISE") return true; if (f === "BRUT" || f === "COTISATION") return false; return !(l.impo || l.cnps) && !_isTransportC(l); };
-  const gains = _allGainsC.filter(l => !_isNonSoumisC(l));
-  const _nonSoumisC = _allGainsC.filter(l => _isNonSoumisC(l));
-  const _retenuesC = r.lines.filter(l => l.kind === "RETENUE" && l.retenue);
+  const _split = (res) => { const all = (res.lines || []).filter(l => (l.kind === "GAIN" || l.kind === "AVANTAGE") && l.gain);
+    return { gains: all.filter(l => !_isNonSoumisC(l)), nonSoumis: all.filter(l => _isNonSoumisC(l)), retenues: (res.lines || []).filter(l => l.kind === "RETENUE" && l.retenue) }; };
+  const { gains, nonSoumis: _nonSoumisC, retenues: _retenuesC } = _split(r);
   const _brutSoumisC = gains.reduce((a, l) => a + (l.gain || 0), 0);
-  for (const l of gains) {
-    if (!l.gain) continue;
-    T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" });
-    T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.nb - X.des - 4 });
-    if (l.nombre) cell(X.nb, X.base, Number(l.nombre).toFixed(3).replace(/\B(?=(\d{3})+(?!\d))(?=\d*\.)/g, " ").replace(".", ","));
-    if (l.base) cell(X.base, X.txs, F2(l.base));
-    if (l.rate && Number(l.rate) !== 1) cell(X.txs, X.gain, (Number(l.rate) * 100).toFixed(2));
-    cell(X.gain, X.rets, F(l.gain));
-    y += 12;
-  }
-  HL(X.gain, X.rets, y + 1);
-  y += 3; T(X.des, y, "Total Brut", { b: 1, s: 8, w: X.nb - X.des, a: "center" }); cell(X.gain, X.rets, F(_brutSoumisC)); doc.font("Helvetica-Bold"); y += 14; doc.font("Helvetica");
-  const cot = r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT");
-  for (const l of cot) {
-    T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" });
-    T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.nb - X.des - 4 });
-    if (l.base) cell(X.base, X.txs, F2(l.base));
-    if (l.rate) cell(X.txs, X.gain, (l.rate * 100).toFixed(2));
-    if (l.retenue) cell(X.rets, X.txp, F(l.retenue));
-    if (l.employerRate) cell(X.txp, X.retp, (l.employerRate * 100).toFixed(2));
-    cell(X.retp, X.end, F(l.employer || 0));
-    y += 12;
-  }
-  HL(X.rets, X.txp, y + 1); HL(X.retp, X.end, y + 1);
-  y += 3; T(X.des, y, "Total Cotisations", { b: 1, s: 8, w: X.nb - X.des, a: "center" });
-  cell(X.rets, X.txp, F((t.cnpsSalarie||0) + (t.totalImpots||0))); cell(X.retp, X.end, F((t.cnpsPatronal||0) + (t.cfcPatronal||0)));
-  y += 14;
-  // Éléments non soumis (indemnités non imposables ajoutées au net ; acomptes/prêts retenus).
-  if ((_nonSoumisC.length || _retenuesC.length) && y < 606) {
-    T(X.n + 1, y, "", { s: 7.5 }); T(X.des + 2, y, "ÉLÉMENTS NON SOUMIS", { b: 1, s: 7.5, w: X.gain - X.des - 4 }); y += 12;
-    for (const l of _nonSoumisC) { if (y > 620) break;
-      T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" }); T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.rets - X.des - 4 });
-      cell(X.gain, X.rets, F(l.gain)); y += 12; }
-    for (const l of _retenuesC) { if (y > 620) break;
-      T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" }); T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.rets - X.des - 4 });
-      cell(X.rets, X.txp, F(l.retenue)); y += 12; }
-    const nsNetC = _nonSoumisC.reduce((a,l)=>a+(l.gain||0),0) - _retenuesC.reduce((a,l)=>a+(l.retenue||0),0);
-    T(X.des, y, "Total éléments non soumis", { b: 1, s: 8, w: X.nb - X.des, a: "center" });
-    if (nsNetC < 0) cell(X.rets, X.txp, F(nsNetC)); else cell(X.gain, X.rets, F(nsNetC));
+  // chiffres de la bande « Cumuls » pour un bulletin : brut, charges sal., charges pat., avantages, taxable, jours, heures sup.
+  const _figs = (sl) => { const rs = sl.result || {}, tt = rs.totals || {}; const sp = _split(rs);
+    return [sp.gains.reduce((a, l) => a + (l.gain || 0), 0), (tt.cnpsSalarie || 0) + (tt.totalImpots || 0), (tt.cnpsPatronal || 0) + (tt.cfcPatronal || 0),
+      tt.avantagesNature || 0, tt.netImposable || 0, (rs.meta && rs.meta.workedDays != null) ? Number(rs.meta.workedDays) : 30,
+      (rs.lines || []).filter(l => l.hours).reduce((a, l) => a + Number(l.hours || 0), 0)]; };
+  const _sumFigs = (list) => list.reduce((acc, sl) => { const f = _figs(sl); return acc.map((v, i) => v + f[i]); }, [0, 0, 0, 0, 0, 0, 0]);
+  const _mine = (db.payslips || []).filter(x => (x.tenantId || "t1") === (s.tenantId || "t1") && x.employeeId === s.employeeId && x.result && x.period);
+  const periodFigs = _figs(s);
+  const yearFigs = _sumFigs(_mine.filter(x => x.period.slice(0, 4) === yy && x.period <= s.period && x.id !== s.id).concat([s]));
+  const prevYearBrut = _sumFigs(_mine.filter(x => x.period.slice(0, 4) === String(Number(yy) - 1)))[0];
+  let _lv = {}; try { _lv = require("./hr").leaveBalance(emp) || {}; } catch (e) { _lv = {}; }
+
+  /* ---- lignes du tableau, dans l'ordre Sage ---- */
+  const rows = [];
+  for (const l of gains) rows.push({ code: l.code, label: dlbl(l),
+    nb: l.nombre ? Number(l.nombre).toFixed(3).replace(".", ",") : "", base: l.base ? F2(l.base) : "",
+    txs: (l.rate && Number(l.rate) !== 1) ? PCT(l.rate) : "", gain: F(l.gain) });
+  rows.push({ total: "Total Brut", gain: F(_brutSoumisC), rules: [["gain", "rets"]] });
+  for (const l of r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT")) rows.push({ code: l.code, label: dlbl(l),
+    base: l.base ? F2(l.base) : "", txs: l.base ? PCT(l.rate) : "", rets: F(l.retenue || 0),
+    txp: l.base ? PCT(l.employerRate) : "", retp: F(l.employer || 0) });
+  rows.push({ total: "Total Cotisations", rets: F((t.cnpsSalarie || 0) + (t.totalImpots || 0)), retp: F((t.cnpsPatronal || 0) + (t.cfcPatronal || 0)), rules: [["gain", "txp"], ["retp", "end"]] });
+  if (_nonSoumisC.length || _retenuesC.length) {
+    rows.push({ code: "", label: "ÉLÉMENTS NON SOUMIS" });
+    for (const l of _nonSoumisC) rows.push({ code: l.code, label: dlbl(l), gain: F(l.gain) });
+    for (const l of _retenuesC) rows.push({ code: l.code, label: dlbl(l), rets: F(l.retenue) });
+    const nsNet = _nonSoumisC.reduce((a, l) => a + (l.gain || 0), 0) - _retenuesC.reduce((a, l) => a + (l.retenue || 0), 0);
+    rows.push(nsNet < 0 ? { total: "Total éléments non soumis", rets: F(nsNet), rules: [["rets", "txp"]] } : { total: "Total éléments non soumis", gain: F(nsNet), rules: [["gain", "rets"]] });
   }
 
-  /* ===== SUMMARY BAND ===== */
-  let by = 644; const bh = 34;
-  const bc = [["Cumuls",18,44],["Salaire brut",62,58],["Charges\nsalariales",120,52],["Charges\npatronales",172,52],["Avantages en\nnature",224,52],["Salaire taxable",276,58],["Jours\ntravaillées",334,44],["Heures\nsupplémentaires",378,58],["",436,0]];
-  BX(18, by, 418, bh);
-  const cxs = [18,62,120,172,224,276,334,378]; const cxe = [62,120,172,224,276,334,378,436];
-  cxs.slice(1).forEach(x => VL(x, by, by + bh));
-  VL(436, by, by + bh);
-  HL(18, 436, by + 12); HL(18, 436, by + 23);
-  const hd = [["Cumuls",18,44],["Salaire brut",62,58],["Charges salariales",120,52],["Charges patronales",172,52],["Avantages nature",224,52],["Salaire taxable",276,58],["Jours travaillées",334,44],["Heures supp.",378,58]];
-  hd.forEach(([lb,x,w]) => T(x, by + 2, lb, { b: 1, s: 5.5, w, a: x===18?"left":"right" }));
-  const band = (name, ry, vals) => { T(20, ry, name, { b: 1, s: 7 });
-    const xs=[62,120,172,224,276,334,378], ws=[58,52,52,52,58,44,58];
-    vals.forEach((v,i) => T(xs[i], ry, v, { s: 7, w: ws[i], a: "right" })); };
-  band("Période", by + 13, [F(_brutSoumisC), F((t.cnpsSalarie||0)+(t.totalImpots||0)), F((t.cnpsPatronal||0)+(t.cfcPatronal||0)), F(t.avantagesNature||0), F(t.netImposable), (r.meta&&r.meta.workedDays)||30, 0]);
-  if (cum) band("Année", by + 24, [F(cum.brut), "", "", "", "", "", ""]);
-  // NET A PAYER box
-  BX(500, by, 77, bh);
-  T(500, by + 3, "NET A PAYER", { b: 1, s: 8, w: 77, a: "center" });
-  T(500, by + 18, F(t.netAPayer), { b: 1, s: 12, w: 77, a: "center" });
+  /* ---- colonnes du tableau ---- */
+  const X = { n: 25, des: 54, nb: 239, base: 279, txs: 333, gain: 368, rets: 421, txp: 475, retp: 510, end: 564 };
+  const TY = 253, HH = 24, BODY_TOP = TY + HH, TB = 662, ROW = 15, TOT = 22;
 
-  /* ===== CONGÉS + SIGNATURE ===== */
-  let cy = by + bh + 8;
-  BX(18, cy, 250, 34);
-  T(24, cy + 3, "Compteurs", { b: 1, s: 6.5 }); T(90, cy + 3, "Pris", { b: 1, s: 6.5 }); T(130, cy + 3, "Restant", { b: 1, s: 6.5 }); T(180, cy + 3, "Acquis C. Brut congés", { b: 1, s: 6 });
-  T(24, cy + 20, "Congés", { s: 7 }); T(90, cy + 20, "0", { s: 7 }); T(130, cy + 20, "0", { s: 7 });
-  T(180, cy + 20, F((r.meta && r.meta.leaveProvisionMonthly) || 0), { s: 7 });
-  BX(470, cy, 107, 44);
-  T(474, cy + 2, "Signature", { b: 1, s: 7 });
-  T(280, cy + 3, "Congés acquis : " + ((r.meta && r.meta.leaveAccrued) || 2.5) + " j/mois", { s: 7 });
+  function drawHead() {
+    // cadre société : raison sociale en haut, N° contribuable / employeur en bas
+    BX(25, 38, 270, 78);
+    const coN = fitCompanyName(doc, CO.name || tenant.name || "SOCIÉTÉ", 9.5, 8, 260);
+    doc.font("Helvetica-Bold").fontSize(coN.size).fillColor("#000").text(coN.text, 30, 45, { width: 260 }); doc.font("Helvetica");
+    T(30, 105, "N° Contribuable", { b: 1 }); T(91, 106, CO.niu || tenant.niu || "", { w: 66 });
+    T(159, 105, "N° Employeur", { b: 1 }); T(214, 106, CO.employerNo || tenant.cnpsEmployer || "", { w: 78 });
+    // titre et période
+    T(303, 42, "BULLETIN  DE  PAIE", { b: 1, s: 22, w: 262, a: "center" });
+    T(339, 80, "Période du", { b: 1 }); T(387, 80, dS, { b: 1 }); T(432, 80, "au", { b: 1 }); T(446, 80, dE, { b: 1 });
+    T(339, 93, "Paiement le", { b: 1 }); T(387, 93, dE); T(432, 93, "par", { b: 1 }); T(446, 93, C.paymentMethod || "Virement");
+    T(303, 108, "Banque", { b: 1 }); T(341, 110, String(emp.bankName || C.bankName || "").slice(0, 14), { w: 60 });
+    T(404, 108, "N° Compte", { b: 1 }); T(447, 110, emp.bankAccount || C.bankIban || "", { w: 117 });
+    // cadre salarié
+    BX(301, 124, 262, 124);
+    T(320, 132, "Matricule", { b: 1, s: 9.5 }); T(366, 132, s.matricule || "", { s: 9.5 });
+    T(320, 154, emp.civility || "", { s: 9.5 }); T(341, 154, `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), { s: 9.5, w: 215 });
+    // renseignements salarié (deux groupes, trois colonnes comme Sage)
+    T(25, 135, "Conv. coll.", { b: 1 }); T(70, 135, convName, { w: 225 });
+    T(25, 153, "N° CNPS", { b: 1 }); T(70, 153, cnpsFull(emp), { w: 105 });
+    T(25, 165, "Date Embauche", { b: 1 }); T(87, 166, fdate(emp.hireDate));
+    T(25, 179, "Ancienneté", { b: 1 }); T(70, 179, yrs, { w: 105 });
+    T(183, 176, "N° DIPE", { b: 1 }); T(224, 176, emp.dipe || CO.dipe || tenant.dipe || "", { w: 72 });
+    T(25, 203, "Emploi", { b: 1 }); T(70, 203, C.position || emp.position || "", { w: 108 });
+    T(25, 216, "Qualification", { b: 1 }); T(87, 216, emp.qualification || "", { w: 92 });
+    T(25, 229, "Département", { b: 1 }); T(87, 229, emp.department || "", { w: 92 });
+    T(25, 242, "Catégorie", { b: 1 }); T(70, 242, C.category || "", { w: 108 });
+    T(181, 203, "Sit Fam", { b: 1 }); T(224, 205, MS[emp.maritalStatus] || emp.maritalStatus || "", { w: 72 });
+    T(181, 216, "Nbre Enfants", { b: 1 }); T(233, 218, emp.children != null ? emp.children : "", { w: 60 });
+    T(181, 242, "Jour/Mois", { b: 1 }); T(232, 242, "30,00");
+    // en-tête du tableau (fond gris, groupes Part salariale / Part patronale)
+    GREY(X.n, TY, X.end - X.n, HH);
+    [X.des, X.nb, X.base, X.txs, X.txp].forEach(x => VL(x, TY, TB));
+    [X.gain, X.rets, X.retp].forEach(x => VL(x, TY + 14, TB));
+    HL(X.txs, X.end, TY + 14);
+    BX(X.n, TY, X.end - X.n, TB - TY); HL(X.n, X.end, BODY_TOP);
+    T(X.n, TY + 9, "N°", { b: 1, w: X.des - X.n, a: "center" });
+    T(X.des, TY + 9, "Désignation", { b: 1, w: X.nb - X.des, a: "center" });
+    T(X.nb, TY + 9, "Nombre", { b: 1, w: X.base - X.nb, a: "center" });
+    T(X.base, TY + 9, "Base", { b: 1, w: X.txs - X.base, a: "center" });
+    T(X.txs, TY + 3, "Part salariale", { b: 1, w: X.txp - X.txs, a: "center" });
+    T(X.txp, TY + 3, "Part patronale", { b: 1, w: X.end - X.txp, a: "center" });
+    T(X.txs, TY + 16, "Taux", { b: 1, w: X.gain - X.txs, a: "center" });
+    T(X.gain, TY + 16, "Gain", { b: 1, w: X.rets - X.gain, a: "center" });
+    T(X.rets, TY + 16, "Retenue", { b: 1, w: X.txp - X.rets, a: "center" });
+    T(X.txp, TY + 16, "Taux", { b: 1, w: X.retp - X.txp, a: "center" });
+    T(X.retp, TY + 16, "Retenue", { b: 1, w: X.end - X.retp, a: "center" });
+  }
 
-  // Authenticity QR - scans to the public /verify page; vector-drawn so it is synchronous
-  try {
-    const QR = require("qrcode");
-    const base = process.env.PUBLIC_URL || "";
-    const url = `${base}/verify/${s.id}?h=${payslipSig(s)}`;
-    const m = QR.create(url, { errorCorrectionLevel: "M" }).modules;
-    const nn = m.size, bits = m.data, qsz = 42, qx = 414, qy = cy - 2, csz = qsz / nn;
-    doc.fillColor("#000");
-    for (let rr = 0; rr < nn; rr++) for (let cc = 0; cc < nn; cc++) if (bits[rr * nn + cc]) doc.rect(qx + cc * csz, qy + rr * csz, csz + 0.4, csz + 0.4).fill();
-    doc.fillColor("#000");
-    T(qx - 6, qy + qsz + 1, "Scannez pour vérifier l'authenticité", { s: 4.5, w: 66 });
-  } catch (e) {}
+  function drawBottom(withValues) {
+    // bande Cumuls (en-tête gris, lignes Période / Année)
+    const cx = [25, 54, 108, 162, 216, 270, 324, 378, 432, 486], by = 680;
+    GREY(25, by, 461, 21); BX(25, by, 461, 47);
+    cx.slice(1, -1).forEach(x => VL(x, by, by + 47));
+    const heads = [["Cumuls"], ["Salaire brut"], ["Charges", "salariales"], ["Charges", "patronales"], ["Avantages en", "nature"], ["Salaire taxable"], ["Jours travaillées"], ["Heures", "supplémentaires"], [""]];
+    heads.forEach((h, i) => { const w = cx[i + 1] - cx[i]; if (h.length === 1) T(cx[i], by + 7, h[0], { b: 1, s: 6.3, w, a: "center" });
+      else { T(cx[i], by + 2.5, h[0], { b: 1, s: 6.3, w, a: "center" }); T(cx[i], by + 11, h[1], { b: 1, s: 6.3, w, a: "center" }); } });
+    T(25, by + 26, "Période", { b: 1, w: 29, a: "center" }); T(25, by + 37, "Année", { b: 1, w: 29, a: "center" });
+    if (withValues) {
+      const fmt = (v, i) => i === 5 ? DAYS(v) : i === 6 ? DAYS(v) : F(v);
+      periodFigs.forEach((v, i) => T(cx[i + 1], by + 26, fmt(v, i), { w: cx[i + 2] - cx[i + 1] - 3, a: "right" }));
+      yearFigs.forEach((v, i) => T(cx[i + 1], by + 37, fmt(v, i), { w: cx[i + 2] - cx[i + 1] - 3, a: "right" }));
+    }
+    // NET A PAYER
+    GREY(493, by, 71, 21); T(493, by + 7, "NET A PAYER", { b: 1, s: 9.5, w: 71, a: "center" });
+    doc.save(); doc.lineWidth(1.6).rect(494, by + 22, 69, 24).stroke(); doc.restore();
+    if (withValues) T(493, by + 30, F(t.netAPayer), { b: 1, s: 10, w: 71, a: "center" });
+    // Compteurs congés
+    const ly = 747;
+    BX(25, ly, 151, 39); HL(25, 176, ly + 18); [83, 111, 143].forEach(x => VL(x, ly, ly + 39));
+    T(25, ly + 6, "Compteurs", { b: 1, w: 58, a: "center" }); T(83, ly + 6, "Pris", { b: 1, w: 28, a: "center" });
+    T(111, ly + 6, "Restant", { b: 1, w: 32, a: "center" }); T(145, ly + 6, "*", { s: 6 });
+    T(30, ly + 25, "Congés", { b: 1 });
+    T(83, ly + 25, DAYS(_lv.taken || 0), { w: 25, a: "right" }); T(111, ly + 25, DAYS(_lv.remaining || 0), { w: 29, a: "right" });
+    // Période précédente / Période en cours
+    BX(180, 732, 82, 15); BX(262, 732, 81, 15);
+    T(180, 736, "Période Précédente", { b: 1, w: 82, a: "center" }); T(262, 736, "Période En cours", { b: 1, w: 81, a: "center" });
+    BX(179, ly, 164, 38); HL(179, 343, ly + 18); [213, 261, 294].forEach(x => VL(x, ly, ly + 38));
+    T(179, ly + 6, "Acquis", { b: 1, s: 7, w: 34, a: "center" }); T(213, ly + 6, "C. Brut congés", { b: 1, s: 6.2, w: 48, a: "center" });
+    T(261, ly + 6, "Acquis", { b: 1, s: 7, w: 33, a: "center" }); T(294, ly + 6, "C. Brut congés", { b: 1, s: 6.2, w: 49, a: "center" });
+    T(179, ly + 25, "0", { w: 31, a: "right" }); T(213, ly + 25, F(prevYearBrut), { w: 45, a: "right" });
+    T(261, ly + 25, DAYS(_lv.accrued || 0), { w: 30, a: "right" }); T(294, ly + 25, F(yearFigs[0]), { w: 46, a: "right" });
+    // Dates de congés
+    T(356, 734, "Dates de congés", { b: 1 });
+    [747, 759, 771].forEach(yv => { T(356, yv, "Du", { b: 1 }); T(410, yv, "Au", { b: 1 }); });
+    // Signature
+    BX(467, 733, 98, 49); T(469, 735, "Signature", { b: 1, u: 1, w: 38 });
+    // QR d'authenticité (petit, à côté des dates de congés)
+    try {
+      const QR = require("qrcode"); const base = process.env.PUBLIC_URL || "";
+      const m = QR.create(`${base}/verify/${s.id}?h=${payslipSig(s)}`, { errorCorrectionLevel: "M" }).modules;
+      const nn = m.size, bits = m.data, qsz = 34, qx = 428, qy = 746, csz = qsz / nn;
+      doc.fillColor("#000");
+      for (let rr = 0; rr < nn; rr++) for (let cc = 0; cc < nn; cc++) if (bits[rr * nn + cc]) doc.rect(qx + cc * csz, qy + rr * csz, csz + 0.4, csz + 0.4).fill();
+      T(qx - 4, qy + qsz + 1, "Scannez pour vérifier", { s: 4.5, w: 42, a: "center" });
+    } catch (e) {}
+    // pied de page
+    T(25, 807, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 492 });
+    T(525, 807, "TAKE CARE", { b: 1 });
+  }
 
-  /* ===== FOOTER ===== */
-  T(18, 812, "Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée. Tout paiement indu doit être immédiatement signalé et retourné en caisse.", { s: 6, w: 500 });
-  T(520, 812, "TAKE CARE", { b: 1, s: 7 });
+  /* ---- dessin, avec suite sur une nouvelle page si les lignes ne tiennent pas (comme Sage) ---- */
+  drawHead();
+  let y = BODY_TOP + 4;
+  const cellv = (k1, k2, v) => { if (v !== undefined && v !== "") T(X[k1] + 1, y, v, { w: X[k2] - X[k1] - 3, a: "right" }); };
+  for (const row of rows) {
+    const h = row.total ? TOT : ROW;
+    if (y + h > TB - 4) { drawBottom(false); doc.addPage(); doc.lineWidth(0.6).strokeColor("#000").fillColor("#000"); drawHead(); y = BODY_TOP + 4; }
+    if (row.total) {
+      (row.rules || []).forEach(([a, b]) => HL(X[a], X[b], y + 3));
+      y += 8; T(X.des, y, row.total, { w: X.nb - X.des, a: "center" });
+    } else {
+      T(X.n, y, row.code, { w: X.des - X.n - 3, a: "right" });
+      T(X.des + 3, y, row.label, { w: X.nb - X.des - 5 });
+      cellv("nb", "base", row.nb); cellv("base", "txs", row.base); cellv("txs", "gain", row.txs);
+    }
+    cellv("gain", "rets", row.gain); cellv("rets", "txp", row.rets); cellv("txp", "retp", row.txp); cellv("retp", "end", row.retp);
+    y += row.total ? TOT - 8 : ROW;
+  }
+  drawBottom(true);
 }
 function drawPayslipModern(doc, s, emp, tenant) {
   const _clbl = rubCatalogLabel(s.tenantId);
