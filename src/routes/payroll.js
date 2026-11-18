@@ -2516,7 +2516,7 @@ function drawPayslip(doc, s, emp, tenant) {
   const _cfg = (db.payrollConfig || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1")) || {};
   if ((_cfg.payslipDesign || "classic") === "modern") return drawPayslipModern(doc, s, emp, tenant);
   const t = s.result.totals, r = s.result;
-  const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const F = (n) => String(Math.abs(Math.round(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, " "); // bulletin : jamais de signe, la colonne Gains/Retenues donne le sens
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
   const N3 = (n) => Number(n).toFixed(3).replace(/\B(?=(\d{3})+(?!\d))\./, "$&").replace(/(\d)(?=(\d{3})+,)/g, "$1").replace(".", ",");
   const C = emp.contract || {};
@@ -2639,10 +2639,10 @@ function drawPayslip(doc, s, emp, tenant) {
       cell(X.gain, X.rets, F(l.gain)); y += 12; }
     for (const l of _retenuesC) { if (y > 620) break;
       T(X.n + 1, y, l.code, { s: 7.5, w: X.des - X.n - 2, a: "center" }); T(X.des + 2, y, dlbl(l), { s: 7.5, w: X.rets - X.des - 4 });
-      cell(X.rets, X.txp, "-" + F(l.retenue)); y += 12; }
+      cell(X.rets, X.txp, F(l.retenue)); y += 12; }
     const nsNetC = _nonSoumisC.reduce((a,l)=>a+(l.gain||0),0) - _retenuesC.reduce((a,l)=>a+(l.retenue||0),0);
     T(X.des, y, "Total éléments non soumis", { b: 1, s: 8, w: X.nb - X.des, a: "center" });
-    cell(X.gain, X.rets, (nsNetC<0?"-":"") + F(Math.abs(nsNetC)));
+    if (nsNetC < 0) cell(X.rets, X.txp, F(nsNetC)); else cell(X.gain, X.rets, F(nsNetC));
   }
 
   /* ===== SUMMARY BAND ===== */
@@ -2695,7 +2695,7 @@ function drawPayslip(doc, s, emp, tenant) {
 function drawPayslipModern(doc, s, emp, tenant) {
   const _clbl = rubCatalogLabel(s.tenantId);
   const t = s.result.totals, r = s.result;
-  const F = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const F = (n) => String(Math.abs(Math.round(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, " "); // bulletin : jamais de signe, la colonne Gains/Retenues donne le sens
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
   const NB = (n) => { if (n == null || n === "") return ""; const v = Number(n); if (isNaN(v)) return String(n); return (Math.round(v * 1000) / 1000).toString().replace(".", ","); };
   const C = emp.contract || {};
@@ -2837,12 +2837,12 @@ function drawPayslipModern(doc, s, emp, tenant) {
     const nscols = [{x:L,w:28,a:"left"},{x:L+28,w:W-28-110,a:"left"},{x:L+W-110,w:110,a:"right"}];
     const nsRows = [
       ..._nonSoumis.map(l => [l.code||"", _clbl(l.code, l.label), F(l.gain)]),
-      ..._retenues.map(l => [l.code||"", _clbl(l.code, l.label), "-" + F(l.retenue)]),
+      ..._retenues.map(l => [l.code||"", _clbl(l.code, l.label), F(l.retenue)]),
     ];
     const nsNet = _nonSoumis.reduce((a,l)=>a+(l.gain||0),0) - _retenues.reduce((a,l)=>a+(l.retenue||0),0);
     drawTable("Éléments non soumis (ajoutés / retenus sur le net)", nscols,
       ["N°","Désignation","Montant"], nsRows,
-      ["","TOTAL ÉLÉMENTS NON SOUMIS", (nsNet<0?"-":"") + F(Math.abs(nsNet))]);
+      ["","TOTAL ÉLÉMENTS NON SOUMIS", F(nsNet)]);
   }
 
   if (y > 648) { doc.addPage(); y = 28; }
