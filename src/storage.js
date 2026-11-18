@@ -1,5 +1,5 @@
 /**
- * Unified file-storage layer over Local disk, SFTP, Amazon S3 and Azure Blob.
+ * Unified file-storage layer over Local disk, SFTP, Amazon S3, Azure Blob, Google Drive and Dropbox.
  * Cloud/SFTP SDKs are lazy-required so the app boots even if a dependency isn't installed;
  * a missing dependency only surfaces when that backend is actually used.
  * Backend config comes from db.storageBackends; secrets are decrypted on read.
@@ -86,12 +86,16 @@ function azureAdapter(cfg) {
   };
 }
 
-const ADAPTERS = { local: localAdapter, sftp: sftpAdapter, s3: s3Adapter, azure: azureAdapter };
+/* ---------------- Google Drive / Dropbox (OAuth) : voir src/cloudStorage.js ---------------- */
+const cloud = require("./cloudStorage");
+const ADAPTERS = { local: localAdapter, sftp: sftpAdapter, s3: s3Adapter, azure: azureAdapter, gdrive: cloud.gdriveAdapter, dropbox: cloud.dropboxAdapter };
 
+/** Champs secrets d'une configuration de destination (chiffrés au repos, masqués dans l'API). */
+const SECRET_FIELDS = ["password", "secretAccessKey", "accountKey", "connectionString", "privateKey", "clientSecret", "appSecret", "refreshToken"];
 /** Decrypt the secret fields of a stored backend config into a usable plain config. */
 function decryptConfig(type, config) {
   const c = Object.assign({}, config || {});
-  for (const f of ["password", "secretAccessKey", "accountKey", "connectionString", "privateKey"]) if (c[f]) c[f] = decryptSecret(c[f]);
+  for (const f of SECRET_FIELDS) if (c[f]) c[f] = decryptSecret(c[f]);
   return c;
 }
 
@@ -101,4 +105,4 @@ function adapterFor(backend) {
   return ADAPTERS[backend.type](decryptConfig(backend.type, backend.config));
 }
 
-module.exports = { adapterFor, decryptConfig, TYPES: Object.keys(ADAPTERS) };
+module.exports = { adapterFor, decryptConfig, SECRET_FIELDS, TYPES: Object.keys(ADAPTERS) };

@@ -16,7 +16,7 @@ const backup = require("../backup");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } });
 const MASK = "••••••";
-const SECRET_FIELDS = ["password", "secretAccessKey", "accountKey", "connectionString", "privateKey"];
+const SECRET_FIELDS = storage.SECRET_FIELDS;
 const ADMIN = allow("ADM", "SADM");
 const PLATFORM = "_platform";
 
@@ -29,7 +29,7 @@ function scopeTid(req) {
 const isPlat = (tid) => tid === PLATFORM;
 const inScope = (arr, tid) => (arr || []).filter(x => (x.tenantId || "t1") === tid);
 
-function maskBackend(b) { const c = Object.assign({}, b.config || {}); for (const f of SECRET_FIELDS) if (c[f]) c[f] = MASK; return Object.assign({}, b, { config: c }); }
+function maskBackend(b) { const c = Object.assign({}, b.config || {}); const connected = !!c.refreshToken; for (const f of SECRET_FIELDS) if (c[f]) c[f] = MASK; return Object.assign({}, b, { config: c, connected, account: c.account || "" }); }
 function mergeSecrets(existing, incoming) {
   const out = Object.assign({}, incoming || {});
   for (const f of SECRET_FIELDS) {
@@ -251,7 +251,60 @@ router.put("/sync/config", ADMIN, (req, res) => { const c = syncCfg(scopeTid(req
 router.get("/sync/status", ADMIN, (req, res) => { res.json(syncStatus(scopeTid(req))); });
 router.post("/sync/run", ADMIN, async (req, res) => { try { res.json(await runSync(scopeTid(req), { backendId: (req.body || {}).backendId, user: req.user })); } catch (e) { res.status(e.status || 500).json({ error: e.message, code: e.code || null }); } });
 
+/* ---------------- Connexion Google Drive / Dropbox (OAuth 2.0) ----------------
+ * 1) l'admin enregistre la destination (Client ID / secret Google, ou App key / secret Dropbox) ;
+ * 2) « Connecter » : GET /storage-backends/:id/oauth/start renvoie l'URL d'autorisation du fournisseur ;
+ * 3) le fournisseur renvoie le navigateur sur /api/backup/oauth/callback (route PUBLIQUE, montée dans
+ *    server.js avant l'authentification) : le code est échangé contre un jeton hors ligne, stocké chiffré.
+ * L'état (state) est aléatoire, à usage unique, lié à la destination et valable 15 minutes. */
+const cloud = require("../cloudStorage");
+const crypto = require("crypto");
+const OAUTH_STATES = new Map();
+function oauthRedirectUri(req) { return (process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "") + "/api/backup/oauth/callback"; }
+router.get("/oauth/redirect-uri", ADMIN, (req, res) => res.json({ redirectUri: oauthRedirectUri(req) }));
+router.get("/storage-backends/:id/oauth/start", ADMIN, (req, res) => {
+  const tid = scopeTid(req); const rec = backendById(tid, req.params.id); if (!rec) return res.status(404).json({ error: "Destination introuvable" });
+  if (!cloud.OAUTH_TYPES.includes(rec.type)) return res.status(400).json({ error: "Cette destination ne se connecte pas par OAuth." });
+  try {
+    const now = Date.now(); for (const [k, v] of OAUTH_STATES) if (v.exp < now) OAUTH_STATES.delete(k);
+    const state = crypto.randomBytes(24).toString("base64url"); const redirectUri = oauthRedirectUri(req);
+    const url = cloud.authUrl(rec.type, storage.decryptConfig(rec.type, rec.config), redirectUri, state);
+    OAUTH_STATES.set(state, { tid, backendId: rec.id, redirectUri, userId: req.user.id, role: req.user.role, exp: now + 15 * 60e3 });
+    res.json({ url, redirectUri });
+  } catch (e) { res.status(e.status || 400).json({ error: e.message }); }
+});
+router.post("/storage-backends/:id/disconnect", ADMIN, (req, res) => {
+  const rec = backendById(scopeTid(req), req.params.id); if (!rec) return res.status(404).json({ error: "Introuvable" });
+  rec.config = Object.assign({}, rec.config, { refreshToken: "", account: "" }); save();
+  audit(req.user, "UPDATED", "StorageBackend", rec.id, { oauth: "disconnected" }); res.json(maskBackend(rec));
+});
+function oauthPage(ok, title, msg) {
+  const e = (s) => String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(title)}</title>
+<style>body{font-family:system-ui,Segoe UI,Arial,sans-serif;background:#f4f7f6;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}
+.c{background:#fff;border:1px solid #d6e2dc;border-radius:12px;padding:28px 32px;max-width:440px;text-align:center}h1{font-size:19px;margin:0 0 10px;color:${ok ? "#065f46" : "#b91c1c"}}p{color:#444;line-height:1.5}a{color:#065f46}</style></head>
+<body><div class="c"><h1>${e(title)}</h1><p>${e(msg)}</p><p><a href="/">Retour à MBOKA Mon RH</a></p></div>
+<script>try{if(window.opener){window.opener.postMessage({type:"mboka-oauth",ok:${ok ? "true" : "false"}},location.origin);setTimeout(function(){window.close()},1500);}}catch(e){}</script></body></html>`;
+}
+async function oauthCallback(req, res) {
+  const { state, code, error } = req.query || {};
+  const st = state && OAUTH_STATES.get(String(state)); if (st) OAUTH_STATES.delete(String(state));
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  if (!st || st.exp < Date.now()) return res.status(400).send(oauthPage(false, "Lien expiré", "Cette demande de connexion n'est plus valable. Recommencez depuis Sauvegarde et stockage > Destinations."));
+  const rec = backendById(st.tid, st.backendId);
+  if (!rec) return res.status(404).send(oauthPage(false, "Destination introuvable", "La destination a été supprimée entre-temps."));
+  const label = rec.type === "gdrive" ? "Google Drive" : "Dropbox";
+  if (error || !code) return res.status(400).send(oauthPage(false, "Connexion annulée", `${label} n'a pas autorisé l'accès (${error || "aucun code"}).`));
+  try {
+    const r = await cloud.exchangeCode(rec.type, storage.decryptConfig(rec.type, rec.config), String(code), st.redirectUri);
+    rec.config = Object.assign({}, rec.config, { refreshToken: encryptSecret(r.refreshToken), account: r.account || "", connectedAt: new Date().toISOString() });
+    save(); audit({ id: st.userId, role: st.role }, "UPDATED", "StorageBackend", rec.id, { oauth: "connected", type: rec.type, account: r.account || "" });
+    res.send(oauthPage(true, `${label} connecté`, `${r.account ? "Compte " + r.account + ". " : ""}Les sauvegardes et fichiers peuvent maintenant être envoyés vers « ${rec.name} ». Vous pouvez fermer cette fenêtre.`));
+  } catch (e) { res.status(400).send(oauthPage(false, "Échec de la connexion", e.message)); }
+}
+
 module.exports = router;
+module.exports.oauthCallback = oauthCallback;
 module.exports.runBackup = runBackup;
 module.exports.runDueSchedules = runDueSchedules;
 module.exports.runSync = runSync;

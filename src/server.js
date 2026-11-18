@@ -174,6 +174,9 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api", apiLimiter);
+// Retour OAuth de Google Drive / Dropbox (le navigateur revient du fournisseur sans jeton MBOKA : route publique,
+// protégée par un « state » aléatoire à usage unique créé par un admin connecté).
+app.get("/api/backup/oauth/callback", (req, res) => require("./routes/backup").oauthCallback(req, res));
 // Mobile employee API (self-contained employee JWT auth) — mounted before the staff authenticate.
 app.use("/api/v1", require("./routes/mobile"));
 app.use("/api", authenticate);

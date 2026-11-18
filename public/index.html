@@ -8632,7 +8632,17 @@ function bkScope(){ return (ME.role==="SADM") ? (window._bkScope||"_platform") :
 function bkApi(path, opts){ if(ME.role==="SADM"){ const sep=path.includes("?")?"&":"?"; path=path+sep+"tenantId="+encodeURIComponent(bkScope()); } return api(path, opts); }
 const _mo=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
 const _mb=(n)=>((n||0)/1048576).toFixed(2)+" Mo";
-const STG_TYPES={local:"Disque local (serveur)",sftp:"SFTP (votre serveur)",s3:"Amazon S3 (ou compatible)",azure:"Azure Blob Storage"};
+const STG_TYPES={local:"Disque local (serveur)",sftp:"SFTP (votre serveur)",s3:"Amazon S3 (ou compatible)",azure:"Azure Blob Storage",gdrive:"Google Drive",dropbox:"Dropbox"};
+const STG_OAUTH=["gdrive","dropbox"];
+/* Connexion OAuth (Google Drive / Dropbox) : fenêtre du fournisseur, puis rafraîchissement quand elle se ferme */
+async function bkOAuthConnect(bid){ const w=window.open("about:blank","mbokaOAuth","width=560,height=720"); try{ const r=await bkApi("/backup/storage-backends/"+bid+"/oauth/start"); if(w){ w.location=r.url; const t=setInterval(()=>{ if(w.closed){ clearInterval(t); backuphomeView(); } },1000); } else location.href=r.url; }catch(e){ if(w) w.close(); alert("Connexion impossible : "+e.message); } }
+window.addEventListener("message",e=>{ if(e.origin===location.origin&&e.data&&e.data.type==="mboka-oauth"&&typeof backuphomeView==="function") backuphomeView(); });
+async function bkOAuthDisconnect(bid){ if(!await mmConfirm({title:"Déconnecter le compte",message:"L'app n'enverra plus de fichiers vers ce compte tant qu'il n'est pas reconnecté. Les fichiers déjà envoyés restent sur le compte.",confirmLabel:"Déconnecter",danger:true})) return; try{ await bkApi("/backup/storage-backends/"+bid+"/disconnect",{method:"POST"}); backuphomeView(); }catch(e){ alert(e.message); } }
+async function bkOAuthHelp(type){ const el=document.getElementById("stgOauthHelp"); if(!el) return; let uri="…"; try{ uri=(await bkApi("/backup/oauth/redirect-uri")).redirectUri; }catch(e){}
+  el.innerHTML=(type==="gdrive"
+    ?"Créez un identifiant <b>OAuth (application Web)</b> dans Google Cloud Console (API Google Drive activée), puis collez ici son Client ID et son secret. "
+    :"Créez une application dans la <b>Dropbox App Console</b> (accès « App folder » ou « Full Dropbox », permissions files.content.write / files.content.read), puis collez ici sa clé et son secret. ")
+    +"URI de redirection à déclarer : <code style=\"user-select:all\">"+esc(uri)+"</code><br>Après l'enregistrement, cliquez sur <b>Connecter</b> dans la liste des destinations."; }
 async function backuphomeView(){
   if(ME.role==="SADM" && !BK_SCOPES.loaded){ try{ BK_SCOPES=await api("/backup/scopes"); BK_SCOPES.loaded=true; }catch{ BK_SCOPES={tenants:[]}; } if(!window._bkScope) window._bkScope="_platform"; }
   [BK_BACKENDS,BK_SCHED,BK_LIST,BK_SYNC]=await Promise.all([bkApi("/backup/storage-backends").catch(()=>[]),bkApi("/backup/schedules").catch(()=>[]),bkApi("/backup/backups").catch(()=>[]),bkApi("/backup/sync/status").catch(()=>({}))]);
@@ -8675,12 +8685,14 @@ function bkSauvHTML(){
     <table style="margin-top:8px"><tr><th>Date</th><th>Type</th><th>Destination</th><th>Chiffrement</th><th class="r">Taille</th><th>Statut</th><th style="width:40px"></th></tr>${rows}</table></div>`;
 }
 function bkDestHTML(){
-  const rows=BK_BACKENDS.map(b=>{ const acts=[{icon:"refresh",label:"Tester la connexion",onclick:`bkStgTest('${b.id}')`},{icon:"edit",label:"Modifier",onclick:`bkStgModal('${b.id}')`},"-",{icon:"trash",label:"Supprimer",danger:true,onclick:`bkStgDelete('${b.id}')`}];
-    return `<tr><td><b>${esc(b.name)}</b></td><td>${esc(STG_TYPES[b.type]||b.type)}</td><td>${b.active?'<span class="tag green">Active</span>':'<span class="note-inline">—</span>'}</td><td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")||'<tr><td colspan="4" class="note-inline">Aucune destination. Le disque local du serveur est utilisé par défaut.</td></tr>';
+  const rows=BK_BACKENDS.map(b=>{ const oa=STG_OAUTH.includes(b.type);
+    const acts=[...(oa?[{icon:"link",label:b.connected?"Reconnecter le compte":"Connecter le compte",onclick:`bkOAuthConnect('${b.id}')`}].concat(b.connected?[{icon:"logout",label:"Déconnecter",onclick:`bkOAuthDisconnect('${b.id}')`}]:[]):[]),{icon:"refresh",label:"Tester la connexion",onclick:`bkStgTest('${b.id}')`},{icon:"edit",label:"Modifier",onclick:`bkStgModal('${b.id}')`},"-",{icon:"trash",label:"Supprimer",danger:true,onclick:`bkStgDelete('${b.id}')`}];
+    const conn=!oa?"":(b.connected?` <span class="tag green">Connecté${b.account?" · "+esc(b.account):""}</span>`:` <span class="tag amber">Non connecté</span> <button class="btn p sm" onclick="bkOAuthConnect('${b.id}')">Connecter</button>`);
+    return `<tr><td><b>${esc(b.name)}</b></td><td>${esc(STG_TYPES[b.type]||b.type)}${conn}</td><td>${b.active?'<span class="tag green">Active</span>':'<span class="note-inline">—</span>'}</td><td style="text-align:center">${rowActions(acts)}</td></tr>`; }).join("")||'<tr><td colspan="4" class="note-inline">Aucune destination. Le disque local du serveur est utilisé par défaut.</td></tr>';
   return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <b style="font-size:12px;color:var(--muted)">DESTINATIONS DE STOCKAGE (${BK_BACKENDS.length})</b>
     <button class="btn p sm" onclick="bkStgModal()">${ICO('plus')} Ajouter une destination</button></div>
-    <div class="note" style="margin:8px 0">Où stocker les fichiers et les sauvegardes. Choisissez « Active » pour la destination par défaut. Idéal : une copie hors-site (S3/Azure) + une locale (règle 3-2-1).</div>
+    <div class="note" style="margin:8px 0">Où stocker les fichiers et les sauvegardes. Choisissez « Active » pour la destination par défaut. Idéal : une copie hors-site (Google Drive, Dropbox, S3 ou Azure) + une locale (règle 3-2-1).</div>
     <table><tr><th>Nom</th><th>Type</th><th>État</th><th style="width:40px"></th></tr>${rows}</table></div>`;
 }
 function bkPlanHTML(){
@@ -8700,7 +8712,7 @@ function bkSyncHTML(){
   const s=BK_SYNC||{}; const pct=s.total?Math.round((s.synced||0)/s.total*100):0;
   const card=(lab,val,col)=>`<div style="flex:1;min-width:120px;background:var(--surface-1,#f6f8fb);border-radius:8px;padding:10px 12px"><div style="font-size:11px;color:var(--muted)">${lab}</div><div style="font-size:20px;font-weight:600;${col?`color:${col}`:''}">${val}</div></div>`;
   return `<div class="panel"><b style="font-size:12px;color:var(--muted)">SYNCHRONISATION DES FICHIERS</b>
-    <div class="note" style="margin:8px 0">Recopie les fichiers téléversés vers une destination (votre serveur SFTP, S3 ou Azure). Utile si un client ne veut pas héberger ses fichiers dans le cloud : tout reste miroité sur son propre serveur.</div>
+    <div class="note" style="margin:8px 0">Recopie les fichiers téléversés vers une destination (votre serveur SFTP, Google Drive, Dropbox, S3 ou Azure). Utile si un client ne veut pas héberger ses fichiers dans le cloud : tout reste miroité sur son propre serveur.</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0">
       ${card("Fichiers",s.total||0)}${card("Synchronisés",s.synced||0,"var(--green)")}${card("En attente",s.pending||0, (s.pending? "var(--amber)":""))}${card("Échecs",s.failed||0,(s.failed?"var(--red)":""))}
     </div>
@@ -8744,6 +8756,8 @@ function bkStgModal(bid){
     local:()=>fld("f_basePath","Chemin sur le serveur",c.basePath,""),
     sftp:()=>fld("f_host","Hôte",c.host,"")+fld("f_port","Port (22)",c.port||22,"")+fld("f_user","Utilisateur",c.user,"")+fld("f_password","Mot de passe",c.password,"password")+`<div style="grid-column:1/3"><label>Clé privée (optionnel, à la place du mot de passe)</label><textarea id="f_privateKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----">${esc(c.privateKey&&c.privateKey!=="••••••"?"":"")}</textarea></div>`+fld("f_basePath","Dossier distant (/backups)",c.basePath,""),
     s3:()=>fld("f_region","Région (us-east-1)",c.region,"")+fld("f_bucket","Bucket",c.bucket,"")+fld("f_accessKeyId","Access Key ID",c.accessKeyId,"")+fld("f_secretAccessKey","Secret Access Key",c.secretAccessKey,"password")+fld("f_endpoint","Endpoint (optionnel, MinIO/R2)",c.endpoint,"")+fld("f_prefix","Préfixe (optionnel)",c.prefix,""),
+    gdrive:()=>fld("f_clientId","Client ID (OAuth Google)",c.clientId,"")+fld("f_clientSecret","Client secret",c.clientSecret,"password")+fld("f_folderName","Dossier dans Google Drive","MBOKA Mon RH"===c.folderName||!c.folderName?(c.folderName||"MBOKA Mon RH"):c.folderName,"")+`<div style="grid-column:1/3" class="note" id="stgOauthHelp"></div>`,
+    dropbox:()=>fld("f_appKey","App key (Dropbox)",c.appKey,"")+fld("f_appSecret","App secret",c.appSecret,"password")+fld("f_folder","Dossier dans Dropbox (vide = dossier de l'app)",c.folder!=null?c.folder:"/MBOKA Mon RH","")+`<div style="grid-column:1/3" class="note" id="stgOauthHelp"></div>`,
     azure:()=>fld("f_accountName","Compte de stockage",c.accountName,"")+fld("f_accountKey","Clé du compte",c.accountKey,"password")+`<div style="grid-column:1/3"><label>Chaîne de connexion (optionnel, remplace compte+clé)</label><input id="f_connectionString" type="password" placeholder="${isEdit?'•••••• (inchangé)':'DefaultEndpointsProtocol=...'}"></div>`+fld("f_container","Container",c.container,"")+fld("f_prefix","Préfixe (optionnel)",c.prefix,""),
   };
   const bg=document.createElement("div"); bg.className="modal-bg";
@@ -8763,10 +8777,10 @@ function bkStgModal(bid){
   window._STG_FORMS=forms; bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); }); document.body.appendChild(bg);
   bkStgFormRender(t);
 }
-function bkStgFormRender(t){ const el=document.getElementById("stgForm"); if(el&&window._STG_FORMS[t]) el.innerHTML=window._STG_FORMS[t](); }
+function bkStgFormRender(t){ const el=document.getElementById("stgForm"); if(el&&window._STG_FORMS[t]) el.innerHTML=window._STG_FORMS[t](); if(STG_OAUTH.includes(t)) bkOAuthHelp(t); }
 function bkStgCollect(){ const type=document.getElementById("f_type").value; const g=id=>{ const e=document.getElementById(id); return e?e.value:undefined; };
-  const map={local:["basePath"],sftp:["host","port","user","password","privateKey","basePath"],s3:["region","bucket","accessKeyId","secretAccessKey","endpoint","prefix"],azure:["accountName","accountKey","connectionString","container","prefix"]};
-  const config={}; (map[type]||[]).forEach(k=>{ const v=g("f_"+k); if(v!==undefined&&v!=="") config[k]=v; });
+  const map={local:["basePath"],sftp:["host","port","user","password","privateKey","basePath"],s3:["region","bucket","accessKeyId","secretAccessKey","endpoint","prefix"],azure:["accountName","accountKey","connectionString","container","prefix"],gdrive:["clientId","clientSecret","folderName"],dropbox:["appKey","appSecret","folder"]};
+  const config={}; (map[type]||[]).forEach(k=>{ const v=g("f_"+k); if(v!==undefined&&(v!==""||(type==="dropbox"&&k==="folder"))) config[k]=v; });
   return { name:g("f_name")||STG_TYPES[type], type, active:document.getElementById("f_active").checked, config };
 }
 async function bkStgSave(bid){ const body=bkStgCollect(); try{ if(bid) await bkApi("/backup/storage-backends/"+bid,{method:"PUT",body:JSON.stringify(body)}); else await bkApi("/backup/storage-backends",{method:"POST",body:JSON.stringify(body)}); document.querySelector(".modal-bg").remove(); backuphomeView(); }catch(e){ const el=document.getElementById("stgErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
