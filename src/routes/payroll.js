@@ -321,11 +321,29 @@ function categorielBaseA(emp, req) {
   return row ? Number(row.baseSalary) : 0;
 }
 // Ancienneté en mois au titre d'une période de paie : le mois payé compte (comme Sage). Ex. embauche 09/2006, paie 07/2026 -> 239 mois = 19 ans 11 mois.
+// Option « seniorityRefDay » (paramètres paie ou régime) : l'ancienneté est comptée en MOIS RÉVOLUS jusqu'au
+// jour J du mois SUIVANT la paie (ex. 4 = veille d'un paiement le 5), comme un DATEDIF Excel. Vide / 0 :
+// règle « le mois payé compte » ci-dessus. Le réglage est lu dans la société ET le régime de paie du salarié.
+function seniorityRefDay(emp) {
+  try {
+    const fr = { user: { tenantId: emp.tenantId || "t1", role: "ADM" } };
+    const c = configOf(regReq(fr, regimeOfEmp(emp, fr)));
+    const d = Number(c.seniorityRefDay);
+    return d >= 1 && d <= 28 ? d : 0;
+  } catch (e) { return 0; }
+}
 function seniorityMonths(emp, period) {
   const hire = emp.hireDate || (emp.contract && emp.contract.startDate);
   if (!hire) return 0;
   const h = new Date(hire);
   const [y, mo] = String(period || new Date().toISOString().slice(0, 7)).split("-").map(Number);
+  const refDay = seniorityRefDay(emp);
+  if (refDay && !isNaN(h)) {
+    const ref = new Date(Date.UTC(y, mo, refDay));            // jour J du mois suivant la paie (mo = mois suivant, base 0)
+    let m = (ref.getUTCFullYear() - h.getUTCFullYear()) * 12 + (ref.getUTCMonth() - h.getUTCMonth());
+    if (ref.getUTCDate() < h.getUTCDate()) m--;                // mois entamé non révolu
+    return Math.max(0, m);
+  }
   const m = (y - h.getFullYear()) * 12 + ((mo - 1) - h.getMonth()) + 1;
   return Math.max(0, m);
 }
@@ -3765,5 +3783,5 @@ module.exports = router;
 
 module.exports.payslipSig = payslipSig;
 module.exports.regimeHelpers = { regimeById, PRINCIPAL, baseConfigOf };
-module.exports.salaryHelpers = { computeFor, configOf, codeMapOf, categorielBaseA, baseSalaryOf, seniorityYears, lineKey };
+module.exports.salaryHelpers = { computeFor, configOf, codeMapOf, categorielBaseA, baseSalaryOf, seniorityYears, seniorityMonths, lineKey };
 module.exports.payslipBuffer = payslipBuffer;

@@ -8518,6 +8518,7 @@ function payBaremesHTML(cfg){
       <div><label>Prime de caisse - secondaire</label>${num("legal.caisseSecondaire", (cfg.legal&&cfg.legal.caisseSecondaire)!=null?cfg.legal.caisseSecondaire:26000)}</div>
       <div><label>Indemnité logement (fraction du salaire cat., Art.81)</label>${num("legal.logementPct", (cfg.legal&&cfg.legal.logementPct)!=null?cfg.legal.logementPct:0.40)}</div>
       <div><label>Exonération IRPP transport (F/mois)</label>${num("transportExemptionCap", cfg.transportExemptionCap!=null?cfg.transportExemptionCap:14500)}</div>
+      <div><label title="0 = le mois de paie compte toujours (règle par défaut). Ex. 4 : mois révolus jusqu'au 4 du mois suivant la paie (paiement le 5), comme un DATEDIF Excel.">Ancienneté : mois révolus au jour… du mois suivant (0 = mois de paie compté)</label>${num("seniorityRefDay", Number(cfg.seniorityRefDay)||0)}</div>
     </div>
     <div class="note" style="margin-top:6px">Prime de transport : hors assiette CNPS en totalité ; imposable à l'IRPP uniquement au-delà du plafond d'exonération ci-dessus.</div>
     <div class="note" style="margin-top:6px">Le 13ᵉ mois est calculé sur le salaire catégoriel échelonné majoré de la prime d'ancienneté (Art.91).</div></div>
