@@ -2512,6 +2512,14 @@ function rubCatalogLabel(tid) {
   for (const rb of (db.payRubriques || [])) if ((rb.tenantId || "t1") === (tid || "t1")) m[String(rb.code)] = rb.label;
   return (code, fallback) => m[String(code)] || fallback || "";
 }
+// Taille de police de la raison sociale sur le bulletin : la plus grande (max → min, pas de 0,5) qui tient sur une
+// ligne ; si même la plus petite ne tient pas, le nom passe sur plusieurs lignes. Renvoie la taille et la hauteur occupée.
+function fitCompanyName(doc, text, max, min, width) {
+  text = String(text || ""); doc.font("Helvetica-Bold"); let size = min;
+  for (let sz = max; sz >= min; sz -= 0.5) { doc.fontSize(sz); if (doc.widthOfString(text) <= width) { size = sz; break; } }
+  doc.fontSize(size); const h = doc.heightOfString(text, { width }); doc.font("Helvetica");
+  return { text, size, h };
+}
 function drawPayslip(doc, s, emp, tenant) {
   const _cfg = (db.payrollConfig || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1")) || {};
   if ((_cfg.payslipDesign || "classic") === "modern") return drawPayslipModern(doc, s, emp, tenant);
@@ -2538,16 +2546,19 @@ function drawPayslip(doc, s, emp, tenant) {
   /* ===== HEADER ===== */
   BX(18, 18, 300, 110);
   const CO = require("./settings").settings(s).branding.company || {};
-  T(26, 24, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 10, w: 288 });
-  if (CO.address) T(26, 39, CO.address, { s: 8, w: 288 });
-  if (CO.city) T(26, 50, CO.city, { s: 8, w: 288 });
+  // raison sociale : réduite jusqu'à 9 pt pour tenir sur une ligne, sinon sur deux lignes ; l'adresse se place dessous
+  const _coN = fitCompanyName(doc, CO.name || tenant.name || "SOCIÉTÉ", 10, 9, 288);
+  doc.font("Helvetica-Bold").fontSize(_coN.size).fillColor("#000").text(_coN.text, 26, 24, { width: 288 }); doc.font("Helvetica");
+  const _adY = 24 + _coN.h + 3;
+  if (CO.address) T(26, _adY, CO.address, { s: 8, w: 288 });
+  if (CO.city) T(26, _adY + 11, CO.city, { s: 8, w: 288 });
   T(310, 20, "BULLETIN  DE  PAIE", { b: 1, s: 21, w: 270, a: "center" });
   T(360, 58, "Période du", { b: 1 }); T(415, 58, dS, { b: 1 }); T(470, 58, "au", { b: 1 }); T(490, 58, dE, { b: 1 });
   T(360, 70, "Paiement le", { b: 1 }); T(415, 70, dE); T(470, 70, "par", { b: 1 }); T(490, 70, C.paymentMethod || "Virement");
   T(318, 86, "Banque", { b: 1 }); T(358, 86, String(emp.bankName || C.bankName || "").slice(0, 20), { s: 7 }); T(445, 87, "N° Compte", { b: 1, s: 7 }); T(490, 87, emp.bankAccount || C.bankIban || "", { s: 7 });
   // labels inside company box
-  T(26, 88, "N° Contribuable", { b: 1 }); T(110, 88, CO.niu || tenant.niu || "");
-  T(190, 88, "N° Employeur", { b: 1 }); T(255, 88, CO.employerNo || tenant.cnpsEmployer || "");
+  T(26, 88, "N° Contribuable", { b: 1 }); T(102, 88, CO.niu || tenant.niu || "", { w: 76 });
+  T(180, 88, "N° Employeur", { b: 1 }); T(238, 88, CO.employerNo || tenant.cnpsEmployer || "", { w: 76 });
   // employee box (right)
   BX(310, 98, 267, 60);
   T(318, 104, "Matricule", { b: 1 }); T(375, 104, s.matricule || "");
@@ -2720,15 +2731,18 @@ function drawPayslipModern(doc, s, emp, tenant) {
 
   let y = 28;
   /* HEADER */
-  card(L, y, W, 52, CARD);
-  txt(L + 12, y + 9, CO.name || tenant.name || "SOCIÉTÉ", { b: 1, s: 12, c: TXT, w: 250 });
-  txt(L + 12, y + 26, [CO.address, CO.city].filter(Boolean).join(" - "), { s: 6.5, c: MUT, w: 250 });
-  txt(L + 12, y + 37, `N° Contribuable ${CO.niu || tenant.niu || "-"}   -   N° Employeur ${CO.employerNo || tenant.cnpsEmployer || "-"}`, { s: 6.5, c: MUT, w: 260 });
+  // raison sociale : réduite jusqu'à 9 pt pour tenir sur une ligne, sinon sur deux lignes ; la carte s'agrandit d'autant
+  const _coN = fitCompanyName(doc, CO.name || tenant.name || "SOCIÉTÉ", 12, 9, 275);
+  const _adY = 9 + _coN.h + 3, cardH = Math.max(52, _adY + 11 + 13);
+  card(L, y, W, cardH, CARD);
+  doc.font("Helvetica-Bold").fontSize(_coN.size).fillColor(TXT).text(_coN.text, L + 12, y + 9, { width: 275 });
+  txt(L + 12, y + _adY, [CO.address, CO.city].filter(Boolean).join(" - "), { s: 6.5, c: MUT, w: 250 });
+  txt(L + 12, y + _adY + 11, `N° Contribuable ${CO.niu || tenant.niu || "-"}   -   N° Employeur ${CO.employerNo || tenant.cnpsEmployer || "-"}`, { s: 6.5, c: MUT, w: 260 });
   txt(RgT - 240, y + 7, "BULLETIN DE PAIE", { b: 1, s: 12, c: TXT, w: 228, a: "right" });
   txt(RgT - 240, y + 24, `Période du ${dS} au ${dE}`, { s: 7, c: MUT, w: 228, a: "right" });
   txt(RgT - 240, y + 34, `Payé le ${dE} par ${C.paymentMethod || "Virement"}`, { s: 7, c: MUT, w: 228, a: "right" });
   txt(RgT - 240, y + 44, `Banque ${String(emp.bankName || C.bankName || "-").slice(0,18)}  Cpte ${emp.bankAccount || C.bankIban || "-"}`, { s: 6.5, c: MUT, w: 228, a: "right" });
-  y += 60;
+  y += cardH + 8;
 
   /* EMPLOYÉ card - full detail grid */
   const empH = 92;
