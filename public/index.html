@@ -8675,7 +8675,7 @@ async function backuphomeView(){
   [BK_BACKENDS,BK_SCHED,BK_LIST,BK_SYNC]=await Promise.all([bkApi("/backup/storage-backends").catch(()=>[]),bkApi("/backup/schedules").catch(()=>[]),bkApi("/backup/backups").catch(()=>[]),bkApi("/backup/sync/status").catch(()=>({}))]);
   const tab=window._bkTab||"sauv";
   view.innerHTML=`<h1>Sauvegarde &amp; stockage</h1>
-  <div class="note">Sauvegardez la base et les fichiers (chiffrés), restaurez, et choisissez où stocker : disque local, votre serveur SFTP, Amazon S3 ou Azure. Les secrets sont chiffrés au repos.</div>
+  <div class="note">Sauvegardez la base et les fichiers (chiffrés), restaurez, et choisissez où stocker : disque local, votre serveur SFTP, Google Drive, Dropbox, Amazon S3 ou Azure. Les secrets sont chiffrés au repos.</div>
   ${ME.role==="SADM"?`<div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#eef4ff;border-color:#c7dbff">
     <b style="font-size:12px;color:#185fa5">PÉRIMÈTRE (super-admin)</b>
     <select id="bkScopeSel" style="margin:0;min-width:240px" onchange="window._bkScope=this.value;backuphomeView()">
