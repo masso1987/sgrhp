@@ -75,7 +75,7 @@ function autoContext(employeeId) {
   const today = new Date().toLocaleDateString("fr-FR");
   // Raison sociale et BP de l'EMPLOYEUR = la société (tenant) du salarié, plus jamais une valeur figée.
   const _ten = (db.tenants || []).find(t => t.id === _tid) || {};
-  const _coName = _ten.name ? String(_ten.name).toUpperCase() : "CIBLE RH EMPLOI S.A.";
+  const _coName = String(require("./routes/settings").companyName(_tid)).toUpperCase();
   const _coBp = _ten.bp ? ("BP " + _ten.bp + " " + (_ten.hqCity || "")).trim() : (_ten.name ? "" : "BP 3462 Douala");
   const base = {
     employee_fullName: [e.firstName, e.lastName].filter(Boolean).join(" "),

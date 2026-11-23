@@ -110,7 +110,7 @@ router.get("/export", allow("CD", "RJ", "ADM"), (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="employes_${Date.now()}.pdf"`);
     const doc = new PDFDocument({ margin: 30, size: "A4", layout: "landscape" });
     doc.pipe(res);
-    doc.fontSize(14).fillColor("#1e3a5f").font("Helvetica-Bold").text("CIBLE RH EMPLOI S.A.", { align: "center" });
+    doc.fontSize(14).fillColor("#1e3a5f").font("Helvetica-Bold").text(require("./settings").companyName(req).toUpperCase(), { align: "center" });
     doc.fontSize(11).text(`Liste du personnel - ${rows.length} employés`, { align: "center" });
     doc.fontSize(7.5).fillColor("#777").font("Helvetica")
       .text(`Édité le ${new Date().toLocaleString("fr-FR")} par ${req.user.fullName || req.user.id}`, { align: "center" });

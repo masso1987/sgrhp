@@ -287,7 +287,7 @@ function resolveUser(req) {
 async function totpSetup(req, res) {
   const user = resolveUser(req);
   if (!user) return res.status(401).json({ error: "Authentification requise (jeton ou email + mot de passe)" });
-  const secret = speakeasy.generateSecret({ name: `SGRHP (${user.email})`, issuer: "Cible RH Emploi" });
+  const secret = speakeasy.generateSecret({ name: `SGRHP (${user.email})`, issuer: "MBOKA Mon RH" });
   user.pendingTotp = secret.base32; save();
   const qr = await QRCode.toDataURL(secret.otpauth_url);
   res.json({ qr, manualKey: secret.base32 });

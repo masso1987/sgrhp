@@ -192,7 +192,7 @@ function companyInfo(scope) {
     return { name: c.name || t.name || "", bp: c.address || "", dg: c.dg || "le Directeur Général", dga: c.dga || "",
       city: c.city || "", niu: c.niu || t.niu || "" };
   }
-  return { name: c.name || b.appName || "CIBLE RH EMPLOI S.A.", bp: c.address || "BP 3462 Douala",
+  return { name: c.name || s.companyName(tid), bp: c.address || "BP 3462 Douala",
     dg: c.dg || "le Directeur Général", dga: c.dga || "",
     city: c.city || "Douala", niu: c.niu || "" };
 }
@@ -265,7 +265,7 @@ function generateOfficial(doc) {
   const fname = `${doc.id}.html`;
   const emp = doc.type === "EMPLOYEE_FILE" ? db.employees.find(e => e.id === doc.refId) : null;
   fs.writeFileSync(path.join(dir, fname), `<html><body style="font-family:serif">
-    <h2>CIBLE RH EMPLOI S.A. - OFFICIAL DOCUMENT</h2><h3>${doc.title}</h3>
+    <h2>${String(companyInfo(doc).name || "").toUpperCase()} - OFFICIAL DOCUMENT</h2><h3>${doc.title}</h3>
     ${emp ? `<p>Employee: ${emp.firstName} ${emp.lastName}<br>CNI: ${emp.cniNumber}<br>CNPS: ${emp.cnpsNumber || ""}<br>Hired: ${emp.hireDate}</p>` : ""}
     <p>Generated: ${new Date().toISOString()}</p>
     <p><i>M3 will generate this from your uploaded Word template.</i></p></body></html>`);

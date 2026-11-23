@@ -43,7 +43,7 @@ router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   // Bloc titre : décalé à droite de la photo pour éviter le chevauchement.
   const tx = photoDrawn ? PX + PW + 14 : PX;
   const tw = 549 - tx;
-  doc.fontSize(16).fillColor("#1e3a5f").font("Helvetica-Bold").text("CIBLE RH EMPLOI S.A.", tx, PY + 6, { width: tw, align: "center" });
+  doc.fontSize(16).fillColor("#1e3a5f").font("Helvetica-Bold").text(require("./settings").companyName(req).toUpperCase(), tx, PY + 6, { width: tw, align: "center" });
   doc.fontSize(13).text(`DOSSIER EMPLOYÉ - ${emp.firstName} ${emp.lastName}`, tx, doc.y, { width: tw, align: "center" });
   doc.fontSize(8).fillColor("#777").font("Helvetica")
     .text(`Généré le ${new Date().toLocaleString("fr-FR")} par ${req.user.fullName || req.user.id} - Confidentiel`, tx, doc.y, { width: tw, align: "center" });

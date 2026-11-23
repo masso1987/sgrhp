@@ -311,4 +311,11 @@ router.put("/branding", allow("ADM"), (req, res) => {
   res.json(s.branding);
 });
 
-module.exports = { router, settings, tenantOf, DEFAULTS };
+/** Raison sociale du tenant pour les documents générés (PDF, Excel, lettres) : nom de société des Paramètres,
+ * sinon nom du tenant, sinon nom de l'application. Jamais une valeur figée d'une autre société. */
+function companyName(scope) {
+  const tid = tenantOf(scope); let b = {}; try { b = settings(tid).branding || {}; } catch (e) {}
+  const t = (db.tenants || []).find(x => x.id === tid) || {};
+  return String((b.company && b.company.name) || t.name || b.appName || "MBOKA Mon RH").trim();
+}
+module.exports = { router, settings, tenantOf, companyName, DEFAULTS };

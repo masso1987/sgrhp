@@ -368,7 +368,7 @@ router.post("/sheets/:id/import-excel", allow("ADM", "CD", "RJ", "GPF"), (req, r
 
 /* ==================== ANNEXE & FACTURE (PDF / Excel) ==================== */
 const _NF = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-function _company(scope) { const b = require("./settings").settings(scope).branding || {}; return Object.assign({ name: b.appName || "CIBLE RH EMPLOI" }, b.company || {}); }
+function _company(scope) { const b = require("./settings").settings(scope).branding || {}; const c = Object.assign({}, b.company || {}); if (!c.name) c.name = require("./settings").companyName(scope); return c; }
 function _lh(scope) { const b = require("./settings").settings(scope).branding || {}; const lh = b.letterhead || {}; return Object.assign({ mode: "fields", headerHeight: 80, footerHeight: 50, showPage: true, legal: "", qtyDec: "", priceDec: "" }, lh, { company: Object.assign({}, b.company || {}, lh.company || {}), bank: Object.assign({}, lh.bank || {}) }); }
 function _dataBuf(d) { try { const i = String(d).indexOf(","); return Buffer.from(String(d).slice(i + 1), "base64"); } catch (e) { return null; } }
 function _fixEnc(x) { const s = x == null ? "" : String(x); if (/[ÃÂ][\x80-\xBF\u0080-\u00BF]/.test(s)) { try { const r = Buffer.from(s, "latin1").toString("utf8"); if (!/\uFFFD/.test(r)) return r; } catch (e) {} } return s; }
@@ -417,7 +417,7 @@ function _drawHeader(doc, co, client, title) {
     doc.fillColor("#000");
     // company block - right aligned
     const cw = 250, cx = pw - 24 - cw; let ry = 20;
-    doc.font("Helvetica-Bold").fontSize(11).text(_fixEnc(c.name || co.name || "CIBLE RH EMPLOI"), cx, ry, { width: cw, align: "right" }); ry += 15;
+    doc.font("Helvetica-Bold").fontSize(11).text(_fixEnc(c.name || co.name || require("./settings").companyName(doc._tid)), cx, ry, { width: cw, align: "right" }); ry += 15;
     doc.font("Helvetica").fontSize(8);
     if (c.address) { doc.text(_fixEnc(c.address), cx, ry, { width: cw, align: "right" }); ry += 11; }
     if (c.city) { doc.text(_fixEnc(c.city), cx, ry, { width: cw, align: "right" }); ry += 11; }
@@ -469,7 +469,7 @@ router.get("/sheets/:id/annexe/pdf", allow("ADM", "CD", "RJ", "GPF", "UI"), (req
   const co = _company(req); const logo = (require("./settings").settings(req).branding.logo) || "";
   let hy = 22;
   if (logo) { const lb = _dataBuf(logo); if (lb) { try { doc.image(lb, x0, 18, { height: 30 }); } catch (e) {} } }
-  doc.font(F.bold).fontSize(9).fillColor("#111").text(_fixEnc(co.name || "CIBLE RH EMPLOI"), right - 300, 20, { width: 300, align: "right" });
+  doc.font(F.bold).fontSize(9).fillColor("#111").text(_fixEnc(co.name || require("./settings").companyName(doc._tid)), right - 300, 20, { width: 300, align: "right" });
   doc.font(F.reg).fontSize(8).fillColor("#555");
   if (co.city) doc.text(_fixEnc(co.city), right - 300, 33, { width: 300, align: "right" });
   if (co.niu) doc.text("NIU : " + co.niu, right - 300, 44, { width: 300, align: "right" });
