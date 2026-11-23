@@ -134,7 +134,8 @@ function recomputePayslip(s, req) {
   if (req) req = regReq(req, regimeById(req, s.result && s.result.meta && s.result.meta.regimeId));
   const L = s.result.lines, t = s.result.totals;
   const cfg = req ? configOf(req) : require("../payroll/engine").DEFAULT_CONFIG;
-  const r0 = (n) => Math.round(n || 0);
+  // « Calcul au centime » (cfg.keepCentimes) : comme le moteur, aucun arrondi intermédiaire.
+  const r0 = cfg.keepCentimes ? ((n) => Math.round((n || 0) * 1e6) / 1e6) : ((n) => Math.round(n || 0));
   const gains = L.filter(l => l.kind === "GAIN");
   const avs = L.filter(l => l.kind === "AVANTAGE");
   const transportTaxable = L.reduce((a, l) => a + (Number(l._transportTaxable) || 0), 0);
@@ -422,6 +423,7 @@ function elementsToInput(emp, period, req, opts) {
       case "HS30": overtime.tier2 += Number(e.hours || 0); break;
       case "HS40": overtime.tier3 += Number(e.hours || 0); break;
       case "HS100": overtime.hundred += Number(e.hours || 0); break;
+      case "HS50": overtime.night += Number(e.hours || 0); break; // heures supp. +50 % (même taux que la nuit)
       case "NUIT": overtime.night += Number(e.hours || 0); break;
       case "ABSENCE": absenceDays += Number(e.days || 0); break;
       case "AVANTAGE": { const f = _flags(e, true, false); const _hasAmt = e.amount != null && e.amount !== ""; avantages.push({ avId: e.avId || null, code: e.code || C(req, "4000"), label: e.label || "Avantage en nature", amount: _hasAmt ? Number(e.amount) : null, type: e.avType || e.code || null, units: e.units != null ? Number(e.units) : null, cnps: f.cnps, impo: f.impo }); break; }
@@ -445,6 +447,13 @@ function elementsToInput(emp, period, req, opts) {
   const stdDays = cfg.standardMonthlyDays || 30;
   const workedDays = joursEl != null ? Math.max(0, Number(joursEl.days))
     : Math.max(0, stdDays - absenceDays);
+  // Paie à l'heure (cfg.payUnit = "hours") : heures travaillées du mois (élément HEURES), sinon l'horaire
+  // mensuel moins les absences converties en heures (jours × horaire ÷ jours du mois).
+  const HOURS = cfg.payUnit === "hours";
+  const stdHours = Number(cfg.standardMonthlyHours) || 173.33;
+  const heuresEl = els.find(e => e.type === "HEURES");
+  const workedHours = !HOURS ? null : (heuresEl != null ? Math.max(0, Number(heuresEl.hours))
+    : Math.max(0, stdHours - absenceDays * stdHours / stdDays));
   // Injection ponctuelle (calcul à l'envers) : une rubrique d'ajustement en gain imposable/cotisable.
   if (opts.extraGain && Number(opts.extraGain.amount)) {
     const g = opts.extraGain;
@@ -455,9 +464,11 @@ function elementsToInput(emp, period, req, opts) {
     baseSalary: struct.baseSalary,
     ancienneteBase: _anBase > 0 ? _anBase : struct.baseSalary, // prime d'ancienneté sur le salaire minimum de la catégorie (échelon A)
     workedDays, standardDays: cfg.standardMonthlyDays || 30,
+    payUnit: HOURS ? "hours" : "days", workedHours, standardHours: HOURS ? stdHours : undefined,
     seniorityYears: seniorityYears(emp, period),
     overtime, gains, nonTaxable, avantages, transport: struct.transport, otherDeductions,
-    tdlBase: struct.baseSalary,
+    // TDL : salaire de base mensuel ; à l'heure, le moteur prend le salaire de base du mois (heures payées).
+    tdlBase: HOURS ? undefined : struct.baseSalary,
     // Surcharges d'assiette par salarie (config Sage non standard) : vide = assiette legale calculee.
     cnpsBaseOverride: (emp.cnpsBaseOverride != null && emp.cnpsBaseOverride !== "") ? Number(emp.cnpsBaseOverride) : null,
     taxableBaseOverride: (emp.taxableBaseOverride != null && emp.taxableBaseOverride !== "") ? Number(emp.taxableBaseOverride) : null,
@@ -2541,6 +2552,7 @@ function drawPayslip(doc, s, emp, tenant) {
   const _cfg = (db.payrollConfig || []).find(c => (c.tenantId || "t1") === (s.tenantId || "t1")) || {};
   if ((_cfg.payslipDesign || "classic") === "modern") return drawPayslipModern(doc, s, emp, tenant);
   const t = s.result.totals, r = s.result;
+  const META = r.meta || {}, HRS = META.payUnit === "hours"; // paie à l'heure : heures au lieu des jours
   const F = (n) => String(Math.abs(Math.round(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, " "); // bulletin : jamais de signe, la colonne Gains/Retenues donne le sens
   const F2 = (n) => { const v = Math.round((n || 0) * 100) / 100; const [i, d] = v.toFixed(2).split("."); return i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + "," + d; };
   const N3 = (n) => Number(n).toFixed(3).replace(/\B(?=(\d{3})+(?!\d))\./, "$&").replace(/(\d)(?=(\d{3})+,)/g, "$1").replace(".", ",");
@@ -2601,7 +2613,7 @@ function drawPayslip(doc, s, emp, tenant) {
   // chiffres de la bande « Cumuls » pour un bulletin : brut, charges sal., charges pat., avantages, taxable, jours, heures sup.
   const _figs = (sl) => { const rs = sl.result || {}, tt = rs.totals || {}; const sp = _split(rs);
     return [sp.gains.reduce((a, l) => a + (l.gain || 0), 0), (tt.cnpsSalarie || 0) + (tt.totalImpots || 0), (tt.cnpsPatronal || 0) + (tt.cfcPatronal || 0),
-      tt.avantagesNature || 0, tt.netImposable || 0, (rs.meta && rs.meta.workedDays != null) ? Number(rs.meta.workedDays) : 30,
+      tt.avantagesNature || 0, tt.netImposable || 0, (rs.meta && rs.meta.payUnit === "hours") ? Number(rs.meta.workedHours || 0) : ((rs.meta && rs.meta.workedDays != null) ? Number(rs.meta.workedDays) : 30),
       (rs.lines || []).filter(l => l.hours).reduce((a, l) => a + Number(l.hours || 0), 0)]; };
   const _sumFigs = (list) => list.reduce((acc, sl) => { const f = _figs(sl); return acc.map((v, i) => v + f[i]); }, [0, 0, 0, 0, 0, 0, 0]);
   const _mine = (db.payslips || []).filter(x => (x.tenantId || "t1") === (s.tenantId || "t1") && x.employeeId === s.employeeId && x.result && x.period);
@@ -2613,7 +2625,7 @@ function drawPayslip(doc, s, emp, tenant) {
   /* ---- lignes du tableau, dans l'ordre Sage ---- */
   const rows = [];
   for (const l of gains) rows.push({ code: l.code, label: dlbl(l),
-    nb: l.nombre ? Number(l.nombre).toFixed(3).replace(".", ",") : "", base: l.base ? F2(l.base) : "",
+    nb: l.nombre ? Number(l.nombre).toFixed(l.unit === "h" ? 2 : 3).replace(".", ",") : "", base: l.base ? F2(l.base) : "",
     txs: (l.rate && Number(l.rate) !== 1) ? PCT(l.rate) : "", gain: F(l.gain) });
   rows.push({ total: "Total Brut", gain: F(_brutSoumisC), rules: [["gain", "rets"]] });
   for (const l of r.lines.filter(l => l.kind === "COTIS" || l.kind === "IMPOT")) rows.push({ code: l.code, label: dlbl(l),
@@ -2662,7 +2674,7 @@ function drawPayslip(doc, s, emp, tenant) {
     T(25, 242, "Catégorie", { b: 1 }); T(70, 242, C.category || "", { w: 108 });
     T(181, 203, "Sit Fam", { b: 1 }); T(224, 205, MS[emp.maritalStatus] || emp.maritalStatus || "", { w: 72 });
     T(181, 216, "Nbre Enfants", { b: 1 }); T(233, 218, emp.children != null ? emp.children : "", { w: 60 });
-    T(181, 242, "Jour/Mois", { b: 1 }); T(232, 242, "30,00");
+    if (HRS) { T(181, 242, "Heures/Mois", { b: 1 }); T(232, 242, F2(META.standardHours || 0)); } else { T(181, 242, "Jour/Mois", { b: 1 }); T(232, 242, "30,00"); }
     // en-tête du tableau (fond gris, groupes Part salariale / Part patronale)
     GREY(X.n, TY, X.end - X.n, HH);
     [X.des, X.nb, X.base, X.txs, X.txp].forEach(x => VL(x, TY, TB));
@@ -2687,7 +2699,7 @@ function drawPayslip(doc, s, emp, tenant) {
     const cx = [25, 54, 108, 162, 216, 270, 324, 378, 432, 486], by = 680;
     GREY(25, by, 461, 21); BX(25, by, 461, 47);
     cx.slice(1, -1).forEach(x => VL(x, by, by + 47));
-    const heads = [["Cumuls"], ["Salaire brut"], ["Charges", "salariales"], ["Charges", "patronales"], ["Avantages en", "nature"], ["Salaire taxable"], ["Jours travaillées"], ["Heures", "supplémentaires"], [""]];
+    const heads = [["Cumuls"], ["Salaire brut"], ["Charges", "salariales"], ["Charges", "patronales"], ["Avantages en", "nature"], ["Salaire taxable"], [HRS ? "Heures travaillées" : "Jours travaillées"], ["Heures", "supplémentaires"], [""]];
     heads.forEach((h, i) => { const w = cx[i + 1] - cx[i]; if (h.length === 1) T(cx[i], by + 7, h[0], { b: 1, w, a: "center" });
       else { T(cx[i], by + 2, h[0], { b: 1, w, a: "center" }); T(cx[i], by + 11, h[1], { b: 1, w, a: "center" }); } });
     T(25, by + 26, "Période", { b: 1, w: 29, a: "center" }); T(25, by + 37, "Année", { b: 1, w: 29, a: "center" });
@@ -2805,7 +2817,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
     ["Conv. coll.", convName || ""], ["Emploi", C.position || emp.position || ""], ["Catégorie", C.category || ""],
     ["N° CNPS", cnpsFull(emp)], ["Sit. Fam.", MS[emp.maritalStatus] || emp.maritalStatus || ""], ["Nbre Enfants", emp.children != null ? String(emp.children) : ""],
     ["Date Embauche", fdate(emp.hireDate)], ["Ancienneté", yrs], ["Qualification", emp.qualification || ""],
-    ["N° DIPE", emp.dipe || CO.dipe || tenant.dipe || ""], ["Département", emp.department || ""], ["Jour / Mois", F2(workedDays)],
+    ["N° DIPE", emp.dipe || CO.dipe || tenant.dipe || ""], ["Département", emp.department || ""], (r.meta && r.meta.payUnit === "hours") ? ["Heures / Mois", F2(r.meta.standardHours || 0)] : ["Jour / Mois", F2(workedDays)],
   ];
   const cx = [colL, colM, colR]; let gy = y + 32;
   // Valeur ajustée pour tenir sur UNE seule ligne (rétrécit la police au besoin, ex. nom complet de convention).
@@ -2916,7 +2928,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   const sumRows = [
     ["Salaire brut", F(_brutSoumis)], ["Charges salariales", F((t.cnpsSalarie||0)+(t.totalImpots||0))],
     ["Charges patronales", F((t.cnpsPatronal||0)+(t.cfcPatronal||0))], ["Avantages en nature", F(t.avantagesNature||0)],
-    ["Salaire taxable", F(t.netImposable||0)], ["Jours travaillés", F2(workedDays)],
+    ["Salaire taxable", F(t.netImposable||0)], (r.meta && r.meta.payUnit === "hours") ? ["Heures travaillées", F2(r.meta.workedHours || 0)] : ["Jours travaillés", F2(workedDays)],
     ["Heures supplémentaires", NB(heuresSupp)||"0"], ["Cumul brut annuel", F(cum ? cum.brut : _brutSoumis)],
   ];
   const rowsPerCol = Math.ceil(sumRows.length / 2), sumH = 22 + rowsPerCol * 13 + 8;

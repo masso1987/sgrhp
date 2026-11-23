@@ -157,22 +157,35 @@ function seniorityRate(years, cfg) {
  */
 function computePayslip(input, configOverride) {
   const cfg = deepMerge(DEFAULT_CONFIG, configOverride);
+  // « Calcul au centime » (cfg.keepCentimes) : les montants gardent leurs décimales comme un état de paie
+  // Excel ; seuls l'affichage (bulletin, états) arrondit au franc. Sinon : arrondi au franc à chaque ligne.
+  const r0 = cfg.keepCentimes ? ((n) => Math.round((n || 0) * 1e6) / 1e6) : ((n) => Math.round(n || 0));
   const {
     baseSalary = 0, workedDays = cfg.standardMonthlyDays, standardDays = cfg.standardMonthlyDays,
     seniorityYears = 0, overtime = {}, gains = [], nonTaxable = [], transport = null, otherDeductions = [],
   } = input || {};
-  const hourlyRate = input.hourlyRate || (baseSalary / cfg.standardMonthlyHours);
+  // Unité de paie : « days » (défaut, base = jours travaillés × taux journalier) ou « hours »
+  // (base = heures travaillées × taux horaire, comme les états de paie à l'heure). En heures, le
+  // salaire de base reste le salaire MENSUEL plein (stdHours heures) ; le gain = salaire × heures / stdHours.
+  const HOURS = (input.payUnit || cfg.payUnit) === "hours";
+  const stdHours = Number(input.standardHours || cfg.standardMonthlyHours) || 173.33;
+  const workedHours = HOURS ? (input.workedHours != null && input.workedHours !== "" ? Math.max(0, Number(input.workedHours)) : stdHours) : null;
+  const hourlyRate = input.hourlyRate || (baseSalary / (HOURS ? stdHours : cfg.standardMonthlyHours));
+  // Taux horaire des heures supplémentaires : fixe si configuré (ex. INOS 355,57), sinon le taux horaire du salarié.
+  const otHourlyRate = Number(input.overtimeHourlyRate || cfg.overtimeHourlyRate) || hourlyRate;
   const lines = [];
   // Codes produits par le moteur : clé interne fixe (`key`) + code affiché propre à la société (cfg.codeMap).
   const K = (internal) => ({ key: internal, code: (cfg.codeMap && cfg.codeMap[internal]) || internal });
   const add = (o) => { lines.push(o); return o; };
 
   /* 1) GAINS */
-  const proratedBase = r0(baseSalary * (workedDays / standardDays));
+  const proratedBase = HOURS ? r0(baseSalary * (workedHours / stdHours)) : r0(baseSalary * (workedDays / standardDays));
   const dailyRate = standardDays ? baseSalary / standardDays : baseSalary;
-  const PRORATA = (standardDays && workedDays < standardDays) ? workedDays / standardDays : 1;
+  const PRORATA = HOURS ? (stdHours && workedHours < stdHours ? workedHours / stdHours : 1)
+    : ((standardDays && workedDays < standardDays) ? workedDays / standardDays : 1);
   const r3 = (x) => Math.round(x * 1000) / 1000;
-  add({ ...K("1000"), label: "Salaire de base", kind: "GAIN", nombre: workedDays, base: Math.round(dailyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
+  if (HOURS) add({ ...K("1000"), label: "Salaire de base", kind: "GAIN", nombre: workedHours, unit: "h", base: Math.round(hourlyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
+  else add({ ...K("1000"), label: "Salaire de base", kind: "GAIN", nombre: workedDays, base: Math.round(dailyRate * 100) / 100, rate: 1, gain: proratedBase, cnps: true, impo: true });
   const senR = seniorityRate(seniorityYears, cfg);
   // Prime d'ancienneté = taux × salaire minimum de la catégorie (1er échelon / échelon A), et non le salaire de l'échelon courant (Arrêté n°019 MTPS 1993).
   const _anBase = (input.ancienneteBase != null && Number(input.ancienneteBase) > 0) ? Number(input.ancienneteBase) : baseSalary;
@@ -180,7 +193,7 @@ function computePayslip(input, configOverride) {
   const ot = overtime || {};
   // Codes Sage (vérifiés sur bulletins réels) : +20%=1083, +30%=1088, +40%=1092, +50%=1096, +100%=2000.
   // Le libellé et le taux affiché suivent le taux réel configuré (ex. SIC CACAO : +25% -> "125%").
-  const otL = (h, rate, code) => { if (h) { const mult = 1 + rate; add({ ...K(code), label: "Heures supp. " + Math.round(mult * 100) + "%", kind: "GAIN", nombre: h, base: Math.round(hourlyRate * 100) / 100, rate: mult, taux: Math.round(mult * 100), gain: r0(h * hourlyRate * mult), hours: h, cnps: true, impo: true }); } };
+  const otL = (h, rate, code) => { if (h) { const mult = 1 + rate; add({ ...K(code), label: "Heures supp. " + Math.round(mult * 100) + "%", kind: "GAIN", nombre: h, unit: "h", base: Math.round(otHourlyRate * 100) / 100, rate: mult, taux: Math.round(mult * 100), gain: r0(h * otHourlyRate * mult), hours: h, cnps: true, impo: true }); } };
   const _otc = cfg.overtime || {};
   otL(ot.tier1, _otc.tier1Rate != null ? _otc.tier1Rate : 0.20, "1083");
   otL(ot.tier2, _otc.tier2Rate != null ? _otc.tier2Rate : 0.30, "1088");
@@ -273,7 +286,8 @@ function computePayslip(input, configOverride) {
   // CFC patronal : base BRUT (légal) ; cfg.cfc.employerBase="TAXABLE" pour la base du CFC salarial.
   const cfcE = r0(BASECF * cfg.cfc.employee), cfcP = r0((cfg.cfc.employerBase === "TAXABLE" ? BASECF : BRUT) * cfg.cfc.employer), fneP = r0(BRUT * cfg.fne.employer);
   const ravBase = input.ravBase != null ? input.ravBase : BRUT;      // ^^CRTV keyed on BRUT
-  const tdlBase = input.tdlBase != null ? input.tdlBase : baseSalary; // ^^TAXCOM keyed on SALBASE
+  // ^^TAXCOM keyed on SALBASE ; en heures, le salaire de base du mois (heures réellement payées), comme l'état de paie
+  const tdlBase = input.tdlBase != null ? input.tdlBase : (HOURS ? proratedBase : baseSalary);
   // Montants forfaitaires par salarié (input.ravAmount / tdlAmount) prioritaires sur les barèmes.
   const _fx = (v) => v != null && v !== "" && !isNaN(Number(v));
   const rav = _fx(input.ravAmount) ? r0(Number(input.ravAmount)) : bracketAmount(cfg.rav, ravBase);
@@ -303,6 +317,8 @@ function computePayslip(input, configOverride) {
       chargesPatronales: chargesPat, coutTotalEmployeur: BRUT + chargesPat,
     },
     meta: { seniorityRate: senR, proratedBase, baseSalary, tdlBase, hourlyRate: r0(hourlyRate), cnpsBase, sni: r0(sni), workedDays, standardDays,
+      payUnit: HOURS ? "hours" : "days", workedHours, standardHours: HOURS ? stdHours : null,
+      overtimeHours: Object.values(ot).reduce((s, h) => s + (Number(h) || 0), 0),
       leaveAccrued: cfg.leave.daysPerMonth,
       leaveDailyRate: r0(baseSalary / (cfg.standardMonthlyDays || 30)),
       leaveProvisionMonthly: r0((baseSalary / (cfg.standardMonthlyDays || 30)) * cfg.leave.daysPerMonth) },

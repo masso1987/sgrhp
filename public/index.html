@@ -6775,7 +6775,7 @@ async function bordFieldsView(){
         <div><label>Libellé (colonne)</label><input id="bfLabel" placeholder="ex. Prime de salissure" style="margin:0;min-width:180px"></div>
         <div><label>Type</label><select id="bfKind" onchange="bordFieldKindChange()" style="margin:0"><option value="AMOUNT">Montant (prime)</option><option value="HOURS">Heures</option></select></div>
         <div id="bfMapAmount"><label>Rubrique de paie</label><select id="bfRub" style="margin:0;min-width:220px">${(rubs||[]).filter(r=>r.active!==false&&(r.sens||'GAIN')==='GAIN').map(r=>`<option value="${r.code}">${esc(r.code)} · ${esc(r.label)}</option>`).join("")}</select></div>
-        <div id="bfMapHours" style="display:none"><label>Type d'heures</label><select id="bfOt" style="margin:0"><option value="HS20">HS 120%</option><option value="HS30">HS 130%</option><option value="HS40">HS 140%</option><option value="HS100">HS 200%</option><option value="NUIT">Nuit</option></select></div>
+        <div id="bfMapHours" style="display:none"><label>Type d'heures</label><select id="bfOt" style="margin:0"><option value="HS20">HS 120%</option><option value="HS30">HS 130%</option><option value="HS40">HS 140%</option><option value="HS50">HS 150%</option><option value="HS100">HS 200%</option><option value="NUIT">Nuit</option></select></div>
         <div><label>Client</label><select id="bfPf" style="margin:0;min-width:160px"><option value="">Tous les clients</option>${(PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
         <button class="btn p sm" onclick="bordFieldCreate()">+ Ajouter</button></div>
       <div class="err hidden" id="bfErr" style="margin-top:6px"></div>
@@ -6785,7 +6785,7 @@ async function bordFieldsView(){
       ${fields.length?fields.map(f=>`<tr>
         <td><b>${esc(f.label)}</b></td>
         <td>${f.kind==='HOURS'?'Heures':'Montant'}</td>
-        <td>${f.kind==='HOURS'?({HS20:'HS 120%',HS30:'HS 130%',HS40:'HS 140%',HS100:'HS 200%',NUIT:'Nuit'}[f.overtimeType]||f.overtimeType):(esc(f.rubriqueCode)+' · '+esc(f.rubriqueLabel||''))}</td>
+        <td>${f.kind==='HOURS'?({HS20:'HS 120%',HS30:'HS 130%',HS40:'HS 140%',HS50:'HS 150%',HS100:'HS 200%',NUIT:'Nuit'}[f.overtimeType]||f.overtimeType):(esc(f.rubriqueCode)+' · '+esc(f.rubriqueLabel||''))}</td>
         <td>${esc(pfName(f.portfolioId))}</td>
         <td><button class="btn ghost sm" style="color:var(--red)" onclick="bordFieldDelete('${f.id}')">Supprimer</button></td></tr>`).join(""):'<tr><td colspan="5" class="note-inline">Aucune colonne personnalisée. Les colonnes standard (présence, HS, primes) restent toujours disponibles.</td></tr>'}
       </table></div>
@@ -7817,17 +7817,24 @@ function bulletinRenderTab() {
     loanRender(empId);
   } else {
     const joursVal = (els.find(e =>e.type === "JOURS") || {}).days;
-    box.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">JOURS TRAVAILLÉS DU MOIS</b>
+    const _mt = (slip && slip.result && slip.result.meta) || {}; const _hrs = _mt.payUnit === "hours"; const _stdH = _mt.standardHours || 173.33;
+    const heuresVal = (els.find(e =>e.type === "HEURES") || {}).hours;
+    box.innerHTML = (_hrs ? `<div class="panel"><b style="font-size:12px;color:var(--muted)">HEURES TRAVAILLÉES DU MOIS</b>
+      <div style="display:flex;gap:8px;align-items:end;margin:8px 0 12px;padding:8px;border:1px solid var(--line);border-radius:6px">
+        <div><label>Nombre d'heures (défaut ${_stdH})</label><input id="beHeures" type="number" min="0" max="400" step="0.25" value="${heuresVal != null ? heuresVal : (_mt.workedHours != null ? _mt.workedHours : _stdH)}" style="max-width:120px" ${open ? "" : "disabled"}></div>
+        ${open ? `<button class="btn p sm" onclick="bulletinSetHeures('${run.period}','${empId}')">Enregistrer les heures</button>` : ""}
+        <small style="color:var(--muted)">Salaire de base = heures × taux horaire (salaire mensuel ÷ ${_stdH} h). Les heures supplémentaires se saisissent ci-dessous, en heures.</small>
+      </div></div>` : `<div class="panel"><b style="font-size:12px;color:var(--muted)">JOURS TRAVAILLÉS DU MOIS</b>
       <div style="display:flex;gap:8px;align-items:end;margin:8px 0 12px;padding:8px;border:1px solid var(--line);border-radius:6px">
         <div><label>Nombre de jours (défaut 30)</label><input id="beJours" type="number" min="0" max="31" step="0.5" value="${joursVal != null ? joursVal : 30}" style="max-width:120px" ${open ? "" : "disabled"}></div>
         ${open ? `<button class="btn p sm" onclick="bulletinSetJours('${run.period}','${empId}')">Enregistrer les jours</button>` : ""}
         <small style="color:var(--muted)">Salaire de base = jours × taux journalier (Base ÷ 30). Renseignez ici les jours réellement travaillés.</small>
-      </div></div>
+      </div></div>`) + `
       <div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES DU MOIS (primes, heures supp., absences, acomptes)</b>
       ${open ? `<form onsubmit="return bulletinAddEl(event,'${run.period}','${empId}')" style="display:flex;gap:6px;flex-wrap:wrap;align-items:end;margin-top:8px">
         <div><label>Type</label><select id="beType" onchange="beToggle()">
           <option value="PRIME">Prime</option><option value="INDEMNITE">Indemnité (non imposable)</option>
-          <option value="HS20">Heures supp. +20%</option><option value="HS30">Heures supp. +30%</option><option value="HS40">Heures supp. +40%</option>
+          <option value="HS20">Heures supp. +20%</option><option value="HS30">Heures supp. +30%</option><option value="HS40">Heures supp. +40%</option><option value="HS50">Heures supp. +50%</option>
           <option value="NUIT">Heures de nuit +50%</option><option value="HS100">Heures supp. +100%</option><option value="ABSENCE">Absence (jours)</option>
           <option value="ACOMPTE">Acompte</option><option value="PRET">Remboursement prêt</option><option value="RETENUE">Retenue diverse</option><option value="TREIZE">13e mois</option><option value="RAPPEL">Rappel de salaire</option></select></div>
         <div><label>Rubrique (référentiel)</label><select id="beRub" onchange="rubPick('be')" style="min-width:220px"><option value="">— choisir —</option></select><input type="hidden" id="beCode"></div>
@@ -7908,11 +7915,11 @@ function rubPick(prefix){
   const _wd=(document.getElementById("beJours")||{}).value; const _wdq=_wd?("&workedDays="+encodeURIComponent(_wd)):"";
   api("/payroll/rubriques/"+encodeURIComponent(o.value)+"/eval"+(_emp?("?"+_emp+_wdq):"")).then(ev=>{
     const val=document.getElementById(prefix+"Val");
-    if(ev && ev.montant>0 && val && (["HS20","HS30","HS40","HS100","NUIT","ABSENCE"].indexOf((typeSel||{}).value)<0)){ val.value=ev.montant; }
+    if(ev && ev.montant>0 && val && (["HS20","HS30","HS40","HS50","HS100","NUIT","ABSENCE"].indexOf((typeSel||{}).value)<0)){ val.value=ev.montant; }
   }).catch(()=>{});
 }
 function beToggle() { const t = beType.value, l = document.getElementById("beValLbl");
-  l.textContent = ["HS20","HS30","HS40","HS100","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)";
+  l.textContent = ["HS20","HS30","HS40","HS50","HS100","NUIT"].includes(t) ? "Heures" : t === "ABSENCE" ? "Jours" : "Montant (XAF)";
   const fl = document.getElementById("beFlags"); if(fl) fl.style.display = ["PRIME","INDEMNITE","RAPPEL","TREIZE"].includes(t) ? "" : "none"; }
 async function bulletinAddEl(ev, period, empId) {
   ev.preventDefault(); const t = beType.value;
@@ -7925,10 +7932,21 @@ async function bulletinAddEl(ev, period, empId) {
     if (impo) body.impo = impo.checked; if (cnps) body.cnps = cnps.checked;
   }
   const v = Number(beVal.value || 0);
-  if (["HS20","HS30","HS40","HS100","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
+  if (["HS20","HS30","HS40","HS50","HS100","NUIT"].includes(t)) body.hours = v; else if (t === "ABSENCE") body.days = v; else body.amount = v;
   try { await api("/payroll/elements", { method: "POST", body: JSON.stringify(body) });
     bulletinView(BULLETIN_CTX.runId, empId);
   } catch (e) { beErr.textContent = e.message; beErr.classList.remove("hidden"); }
+}
+async function bulletinSetHeures(period, empId) {
+  const hours = Number(document.getElementById("beHeures").value);
+  if (!(hours >= 0)) return alert("Nombre d'heures invalide.");
+  try {
+    for (const e of (BULLETIN_CTX.els || []).filter(e =>e.type === "HEURES")) await api("/payroll/elements/" + e.id, { method: "DELETE" });
+    const r = await api("/payroll/elements", { method: "POST", body: JSON.stringify({ employeeId: empId, period, type: "HEURES", label: "Heures travaillées", hours }) });
+    const rc = r && r.recompute;
+    if (rc && rc.skippedEdited) alert("Heures travaillées enregistrées : " + hours + " h. Bulletin corrigé manuellement : non recalculé automatiquement (recalculez-le à la main si besoin).");
+    bulletinView(BULLETIN_CTX.runId, empId);
+  } catch (e) { alert(e.message); }
 }
 async function bulletinSetJours(period, empId) {
   const days = Number(document.getElementById("beJours").value);
@@ -7944,7 +7962,7 @@ async function bulletinSetJours(period, empId) {
 }
 function bulletinRenderEls(all) {
   const box = document.getElementById("beList"); if (!box) return;
-  const els = (all || []).filter(e =>e.type !== "JOURS");
+  const els = (all || []).filter(e =>e.type !== "JOURS" && e.type !== "HEURES");
   box.innerHTML = els.length ? `<table><tr><th>Type</th><th>Libellé</th><th>Valeur</th><th></th></tr>
     ${els.map(e => `<tr><td>${esc(e.type)}</td><td>${esc(e.label)}</td>
       <td>${e.amount != null ? fCFA(e.amount) + " XAF" : e.hours != null ? e.hours + " h" : (e.days || 0) + " j"}</td>
@@ -8511,6 +8529,15 @@ function payBaremesHTML(cfg){
         </select></div>
       <span class="note">Le design choisi s'applique à tous les bulletins générés (PDF individuel et lot).</span>
     </div></div>
+  <div class="panel"><b style="font-size:12px;color:var(--muted)">UNITÉ DE PAIE (JOURS OU HEURES)</b>
+    <div class="grid3" style="margin-top:8px">
+      <div><label>Le salaire de base se compte en</label><select id="payUnit" style="max-width:220px"><option value="days" ${(cfg.payUnit||"days")!=="hours"?"selected":""}>Jours (jours × taux journalier)</option><option value="hours" ${cfg.payUnit==="hours"?"selected":""}>Heures (heures × taux horaire)</option></select></div>
+      <div><label>Jours par mois (paie en jours)</label>${num("standardMonthlyDays", cfg.standardMonthlyDays!=null?cfg.standardMonthlyDays:30)}</div>
+      <div><label>Heures par mois (paie en heures)</label>${num("standardMonthlyHours", cfg.standardMonthlyHours!=null?cfg.standardMonthlyHours:173.33)}</div>
+      <div><label title="0 = taux horaire du salarié (salaire de base ÷ heures par mois). Sinon un taux fixe pour toutes les heures supplémentaires.">Taux horaire des heures supp. (0 = taux du salarié)</label>${num("overtimeHourlyRate", cfg.overtimeHourlyRate!=null?cfg.overtimeHourlyRate:0)}</div>
+      <div><label>Arrondis</label><label class="chk" style="height:32px"><input type="checkbox" id="keepCentimes" ${cfg.keepCentimes?"checked":""}><span>Calcul au centime (arrondi seulement à l'affichage)</span></label></div>
+    </div>
+    <div class="note" style="margin-top:6px">En heures, le salaire de base de la fiche reste le salaire MENSUEL plein ; chaque mois, saisissez les heures travaillées et les heures supplémentaires du salarié. Le bulletin affiche alors « heures × taux horaire ». « Calcul au centime » reproduit un état de paie Excel qui garde les décimales.</div></div>
   <div class="panel"><b style="font-size:12px;color:var(--muted)">VALEURS CONVENTIONNELLES (CCN Commerce)</b>
     <div class="grid3" style="margin-top:8px">
       <div><label>Transport / jour effectif (Art.74)</label>${num("legal.transportPerDay", (cfg.legal&&cfg.legal.transportPerDay)!=null?cfg.legal.transportPerDay:1300)}</div>
@@ -9161,6 +9188,8 @@ async function paySaveConfig() {
   body.rav = barRead("rav");
   body.tdl = barRead("tdl");
   const _pd = document.getElementById("paySlipDesign"); if (_pd) body.payslipDesign = _pd.value;
+  const _pu = document.getElementById("payUnit"); if (_pu) body.payUnit = _pu.value;
+  const _kc = document.getElementById("keepCentimes"); if (_kc) body.keepCentimes = _kc.checked;
   try {
     await api("/payroll/config" + payRq(), { method: "PUT", body: JSON.stringify(body) });
     cfgErr.classList.add("hidden"); cfgOk.textContent = "Enregistré ";
