@@ -7670,7 +7670,7 @@ function tsImportOpen(runId,period){
   const pf=window._PAYPF||"";
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:520px"><b>Importer un pointage - ${esc(period)}</b>
-    <div class="note" style="margin:4px 0 8px">Colonnes reconnues : Matricule, Jours travaillés, Absence (jours), HS 20%, HS 30%, HS 40%, Heures nuit. Le pointage remplace l'assiduité et les heures supp. de la période.</div>
+    <div class="note" style="margin:4px 0 8px">Colonnes reconnues : Matricule, Jours travaillés (ou Heures travaillées en paie à l'heure), Absence (jours), HS 20%, HS 30%, HS 40%, HS 50%, Heures nuit. Le modèle suit l'unité de paie (Paramètres paie). Le pointage remplace l'assiduité et les heures supp. de la période.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn ghost sm" onclick="payDownload('/payroll/runs/${runId}/timesheet-template${pf?('?portfolioId='+pf):''}','pointage_${period}.xlsx')">Télécharger le modèle</button>
     </div>
