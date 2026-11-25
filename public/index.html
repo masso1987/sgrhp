@@ -15831,7 +15831,7 @@ function plRender(){ window._plAddFn=null;
     <div id="plSearchRes"></div>
     <table><tr><th>Produit</th><th class="r">Quantité</th><th class="r">Coût unitaire</th>${disc?'<th class="r">Remise %</th>':''}<th class="r">Total ligne</th><th></th></tr>
     ${window._PL.length?window._PL.map((l,i)=>`<tr>
-      <td>${esc(plName(l.productId))}</td>
+      <td>${esc(plName(l.productId))}${(()=>{const p=(window._STK.allProds||window._STK.prods||[]).find(x=>x.id===l.productId);return p&&p.sku?`<div class="note-inline">SKU ${esc(p.sku)}</div>`:"";})()}</td>
       <td><input type="number" value="${l.qty}" oninput="plSet(${i},'qty',this.value)" style="margin:0;max-width:90px;text-align:right"></td>
       <td><input type="number" value="${l.unitCost}" oninput="plSet(${i},'unitCost',this.value)" style="margin:0;max-width:110px;text-align:right"></td>
       ${disc?`<td><input type="number" value="${l.discountPct}" oninput="plSet(${i},'discountPct',this.value)" style="margin:0;max-width:70px;text-align:right"></td>`:''}
@@ -15936,7 +15936,7 @@ async function stockPOView(){
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
           <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOViewDoc('${po.id}')">Voir</button>
           <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOPrint('${po.id}')">Impression</button>
-          ${po.received<=0?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOForm('${po.id}')">Modifier</button>`:''}
+          <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOForm('${po.id}')">Modifier</button>
           <button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPOShipping('${po.id}')">Modifier l'expédition</button>
           ${po.status!=='completed'?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPurchaseForm('${po.id}')">Conclure l'achat</button>`:''}
           ${po.received<=0?`<button class="btn ghost sm" style="padding:2px 7px;font-size:12px;margin:1px" onclick="stockPODelete('${po.id}')">Effacer</button>`:''}
@@ -15948,6 +15948,7 @@ async function stockPOForm(id){
   let po=null; if(id) po=await api("/stock/po/"+id).catch(()=>null);
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpo')">← Bons de commande</button>
     <h1 style="margin-top:10px">${id?'Modifier le bon de commande':'Ajouter un bon de commande'}</h1>
+    ${po&&(po.lines||[]).some(l=>Number(l.receivedQty||0)>0)?'<div class="note" style="margin-bottom:8px">Ce bon de commande est déjà (partiellement) reçu : vous pouvez le modifier, mais la quantité d\'une ligne ne peut pas descendre sous la quantité déjà reçue.</div>':''}
     <div class="panel">${plHeaderHtml('po')}
     <div class="grid3" style="margin-top:6px"><div><label>Statut de commande</label><select id="poStatus">${poStOpts(po?po.orderStatus:'commande')}</select></div>
       <div><label>Joindre un document (≤ 5 Mo)</label><input type="file" id="poFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_poAttach')">${po&&po.attachment?` ${attachLink(po.attachment)}`:''}</div></div>
@@ -15982,7 +15983,7 @@ async function stockPurchasesView(){
     <h1 style="margin-top:10px">Achats (réceptions)</h1>
     <div class="panel"><button class="btn p sm" style="float:right" onclick="stockPurchaseForm()">+ Nouvel achat</button><b>${list.length} achat(s)</b>
       <table style="margin-top:8px"><tr><th>Numéro de référence</th><th>Date</th><th>Fournisseur</th><th class="r">Quantité</th><th>Statut</th><th>Paiement</th><th class="r">Total</th><th class="r">Payé</th><th class="r">Dû</th><th>Ajouté par</th><th></th></tr>
-      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code> ${attachLink(p.attachment)}${p.poRef?` <span class="note">(BC ${esc(p.poRef)})</span>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td><td class="r">${stkQty(p.totalQty)}</td>
+      ${list.length?list.map(p=>`<tr><td><code>${esc(p.ref)}</code> ${attachLink(p.attachment)}${p.poRef?`<div class="note-inline" style="white-space:nowrap">BC ${esc(p.poRef)}</div>`:''}</td><td>${esc(p.date||'')}</td><td>${esc(stSupName(p.supplierId))}</td><td class="r">${stkQty(p.totalQty)}</td>
         <td>${stStatusTag(p.purchaseStatus)}</td><td>${stStatusTag(p.paymentStatus)}</td><td class="r">${fCFA(p.total)}</td><td class="r">${fCFA(p.amountPaid)}</td><td class="r">${fCFA(p.total-p.amountPaid)}</td>
         <td>${esc(p.addedBy||'')}</td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">

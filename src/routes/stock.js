@@ -119,6 +119,12 @@ router.get("/suppliers", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
  * entière (stock, prix, mouvements propres), rattaché au produit parent (parentId + variantValue). Le parent
  * sert de modèle et n est pas proposé dans les bons de commande, achats, ventes ou transferts. Idempotent. */
 function _varValues(v) { return v ? (Array.isArray(v.values) ? v.values : String(v.values || "").split(",")).map(x => String(x).trim()).filter(Boolean) : []; }
+/* SKU automatique quand il est laissé vide : ART-00001, ART-00002... (par organisation). */
+function nextSku(req) {
+  let max = 0; for (const p of mine(db.stockProducts, req)) { const m = /^ART-(\d+)$/.exec(p.sku || ""); if (m) max = Math.max(max, Number(m[1])); }
+  return "ART-" + String(max + 1).padStart(5, "0");
+}
+function ensureSku(req, p) { if (!p.sku) { p.sku = nextSku(req); return true; } return false; }
 function syncVariants(req, parent) {
   if (!parent || parent.parentId) return false;
   let changed = false; const set = (o, k, v) => { if (o[k] !== v) { o[k] = v; changed = true; } };
@@ -131,7 +137,8 @@ function syncVariants(req, parent) {
     const pp = pr.purchasePrice ? R2(pr.purchasePrice) : R2(parent.purchasePrice), sp = pr.salePrice ? R2(pr.salePrice) : R2(parent.salePrice);
     let k = kids.find(x => x.variantValue === val);
     if (!k) {
-      k = stamp({ id: id("prd"), sku: parent.sku ? (parent.sku + "-" + val.replace(/s+/g, "").toUpperCase()) : "", barcode: "", name: parent.name + " - " + val,
+      ensureSku(req, parent);
+      k = stamp({ id: id("prd"), sku: parent.sku + "-" + val.replace(/\s+/g, "").toUpperCase(), barcode: "", name: parent.name + " - " + val,
         categoryId: parent.categoryId || "", unitId: parent.unitId || "", supplierId: parent.supplierId || "", brandId: parent.brandId || "",
         warrantyId: parent.warrantyId || "", priceGroupId: parent.priceGroupId || "", purchasePrice: pp, salePrice: sp, qty: 0,
         alertQty: parent.alertQty != null ? parent.alertQty : "", active: parent.active !== false, note: "", expDate: "", mfgDate: "",
@@ -162,7 +169,9 @@ function prodOut(p, req) {
 }
 router.get("/products", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
-  { let ch = false; for (const p of mine(db.stockProducts, req).filter(x => !x.parentId && (x.variationId || x.isVariantParent))) ch = syncVariants(req, p) || ch; if (ch) save(); }
+  { let ch = false; for (const p of mine(db.stockProducts, req).filter(x => !x.parentId && (x.variationId || x.isVariantParent))) ch = syncVariants(req, p) || ch;
+    for (const p of mine(db.stockProducts, req)) ch = ensureSku(req, p) || ch;   // anciens articles sans SKU
+    if (ch) save(); }
   let list = mine(db.stockProducts, req);
   const q = (req.query.q || "").toLowerCase();
   if (q) list = list.filter(p => ((p.name || "") + " " + (p.sku || "")).toLowerCase().includes(q));
@@ -185,7 +194,7 @@ router.post("/products", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
     active: b.active !== false, note: b.note || "", expDate: b.expDate || "", mfgDate: b.mfgDate || "",
     variationId: b.variationId || "", variantPrices: Array.isArray(b.variantPrices) ? b.variantPrices : [], createdAt: new Date().toISOString()
   }, req);
-  db.stockProducts.push(p); syncVariants(req, p);
+  ensureSku(req, p); db.stockProducts.push(p); syncVariants(req, p);
   if (initial) db.stockMovements.push(stamp({ id: id("mov"), date: new Date().toISOString().slice(0, 10), type: "initial", productId: p.id, qty: initial, unitCost: p.purchasePrice, ref: "Stock initial", note: "", createdBy: req.user.id, createdAt: new Date().toISOString() }, req));
   save(); audit(req.user, "CREATED", "StockProduct", p.id, { name: p.name }); res.status(201).json(prodOut(p, req));
 });
@@ -415,12 +424,19 @@ router.post("/po", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
 });
 router.put("/po/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   const po = mine(db.stockPOs, req).find(x => x.id === req.params.id); if (!po) return res.status(404).json({ error: "BC introuvable" });
-  if ((po.lines || []).some(l => Q(l.receivedQty || 0) > 0)) return res.status(409).json({ error: "BC déjà partiellement reçu - non modifiable" });
   const b = req.body || {};
+  // BC déjà (partiellement) reçu : modifiable, mais une ligne reçue ne peut ni disparaître ni descendre sous la quantité reçue.
+  const _recv = {}; for (const l of (po.lines || [])) if (Q(l.receivedQty || 0) > 0) _recv[l.productId] = Q((_recv[l.productId] || 0) + Q(l.receivedQty));
+  if (Array.isArray(b.lines) && Object.keys(_recv).length) {
+    for (const pid of Object.keys(_recv)) {
+      const nl = b.lines.filter(x => x.productId === pid).reduce((t, x) => t + Q(x.qty), 0);
+      if (nl < _recv[pid]) return res.status(400).json({ error: `« ${pName(req, pid)} » : déjà ${_recv[pid]} reçu(s), la quantité commandée ne peut pas être inférieure.` });
+    }
+  }
   for (const f of ["supplierId", "date", "location", "paymentTerms", "deliveryDelay", "deliverTo", "note"]) if (b[f] !== undefined) po[f] = b[f];
   if (b.orderStatus !== undefined && PO_ORDER_STATUS.includes(b.orderStatus)) po.orderStatus = b.orderStatus;
   if (b.attachment !== undefined) { const att = attachOf(b.attachment); if (att === "TOO_BIG") return res.status(400).json({ error: "Document trop volumineux (max 5 Mo)" }); po.attachment = att || null; }
-  if (Array.isArray(b.lines)) { const { lines, subtotal } = calcLines(b.lines); po.lines = lines; po.subtotal = subtotal; const t = docTotals(subtotal, b.taxPct != null ? b.taxPct : po.taxPct, b.shippingFee != null ? b.shippingFee : po.shippingFee); po.tax = t.tax; po.total = t.total; }
+  if (Array.isArray(b.lines)) { const { lines, subtotal } = calcLines(b.lines); for (const l of lines) if (_recv[l.productId]) { l.receivedQty = _recv[l.productId]; delete _recv[l.productId]; } po.lines = lines; po.subtotal = subtotal; const t = docTotals(subtotal, b.taxPct != null ? b.taxPct : po.taxPct, b.shippingFee != null ? b.shippingFee : po.shippingFee); po.tax = t.tax; po.total = t.total; }
   if (b.taxPct !== undefined) po.taxPct = Number(b.taxPct) || 0;
   if (b.shippingFee !== undefined) po.shippingFee = R2(b.shippingFee);
   save(); audit(req.user, "UPDATED", "StockPO", po.id, { ref: po.ref }); res.json(poOut(po));
