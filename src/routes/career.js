@@ -68,7 +68,7 @@ router.get("/matching", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
       const avg = okr.length ? okr.reduce((s, o) => s + o.keyResults.reduce((a, k) => a + (k.progress || 0), 0) / Math.max(1, o.keyResults.length), 0) / okr.length : 0;
       score += Math.round(avg * 0.11);                                        // up to 11
       if (score >= 40) out.push({ keyPosition: sp.keyPosition, employeeId: e.id,
-        employee: `${e.firstName} ${e.lastName}`, score: Math.min(99, score) });
+        employee: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`, score: Math.min(99, score) });
     }
   }
   res.json(out.sort((a, b) => b.score - a.score).slice(0, 20));

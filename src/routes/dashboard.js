@@ -59,10 +59,10 @@ router.get("/", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
   };
   const cniExpiring = emps
     .filter(e => e.cniExpiry && inDays(e.cniExpiry) <= 60)
-    .map(e => ({ name: `${e.firstName} ${e.lastName}`, date: e.cniExpiry, days: inDays(e.cniExpiry) }));
+    .map(e => ({ name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`, date: e.cniExpiry, days: inDays(e.cniExpiry) }));
   const cddEnding = emps
     .filter(e => e.contract?.type === "CDD" && e.contract?.endDate && inDays(e.contract.endDate) <= 30)
-    .map(e => ({ name: `${e.firstName} ${e.lastName}`, date: e.contract.endDate, days: inDays(e.contract.endDate) }));
+    .map(e => ({ name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`, date: e.contract.endDate, days: inDays(e.contract.endDate) }));
 
   res.json({
     headcount: mine(db.employees, req).length,

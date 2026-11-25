@@ -46,7 +46,7 @@ router.get("/", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   try { wf.reconcileTenant(req.user.tenantId || "t1"); } catch (e) {}
   let list = scoped(req);
   const q = String(req.query.q || "").toLowerCase().trim();
-  if (q) list = list.filter(e => `${e.firstName || ""} ${e.lastName || ""} ${e.matricule || ""} ${e.cniNumber || ""} ${(e.contract && e.contract.category) || ""}`.toLowerCase().includes(q));
+  if (q) list = list.filter(e => `${String(e.lastName||"").toUpperCase()} ${e.firstName||""} ${e.matricule || ""} ${e.cniNumber || ""} ${(e.contract && e.contract.category) || ""}`.toLowerCase().includes(q));
   if (req.query.portfolioId) list = list.filter(e => e.portfolioId === req.query.portfolioId);
   if (req.query.status) list = list.filter(e => (e.status || "DRAFT") === req.query.status);
   list = list.slice().sort((a, b) => `${a.lastName || ""} ${a.firstName || ""}`.localeCompare(`${b.lastName || ""} ${b.firstName || ""}`, "fr", { sensitivity: "base" }));
@@ -135,7 +135,7 @@ router.post("/", allow("GPF", "ADM"), (req, res) => {
   }
   const emp = stamp({ id: id("emp"), status: "DRAFT", createdBy: req.user.id, createdAt: new Date().toISOString(), ...b }, req);
   db.employees.push(emp); save();
-  audit(req.user, "CREATED", "Employee", emp.id, { name: `${b.firstName} ${b.lastName}` });
+  audit(req.user, "CREATED", "Employee", emp.id, { name: `${String(b.lastName||"").toUpperCase()} ${b.firstName||""}` });
   // Auto-entrée dans le circuit de validation CD -> RJ dès la création (documents ajoutables ensuite).
   let workflow = null;
   try { workflow = wf.submitEmployeeFile(emp.id, req.user, { skipGate: true }); } catch (e) { /* non bloquant */ }
@@ -265,20 +265,20 @@ router.delete("/:id", allow("ADM"), (req, res) => {
   // (aucun contournement « force »).
   const inPayroll = (db.payslips || []).some(s => s.employeeId === emp.id);
   if (inPayroll)
-    return res.status(409).json({ error: `Suppression impossible : une paie a déjà été traitée pour ${emp.firstName} ${emp.lastName}. Ses données doivent être conservées. Mettez fin à son contrat (mise en sommeil) au lieu de le supprimer.`,
+    return res.status(409).json({ error: `Suppression impossible : une paie a déjà été traitée pour ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}. Ses données doivent être conservées. Mettez fin à son contrat (mise en sommeil) au lieu de le supprimer.`,
       blocked: true, reason: "PAYROLL_EXISTS" });
   // Documents générés seuls : avertissement (les pièces générées restent archivées).
   const inDocs = (db.documents || []).some(d => d.refId === emp.id && d.status === "GENERATED");
   if (inDocs && req.query.force !== "1")
     return res.status(409).json({ error: "Cet employé a des documents générés",
       requiresConfirmation: true,
-      warning: `${emp.firstName} ${emp.lastName} possède des documents générés. ` +
+      warning: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""} possède des documents générés. ` +
         `La suppression retirera son dossier (les pièces déjà générées restent archivées). Confirmez pour supprimer.` });
   removeFromAllSites(emp.id, emp.tenantId);
   db.employees = db.employees.filter(e => e.id !== emp.id);
   db.files = (db.files || []).filter(f => f.employeeId !== emp.id);
   save();
-  audit(req.user, "DELETED", "Employee", emp.id, { name: `${emp.firstName} ${emp.lastName}` });
+  audit(req.user, "DELETED", "Employee", emp.id, { name: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}` });
   res.json({ ok: true });
 });
 

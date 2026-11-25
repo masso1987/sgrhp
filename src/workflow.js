@@ -56,7 +56,7 @@ function createFromTemplate(templateId, employeeId, provided, user) {
   }
   const doc = { id: id("doc"), tenantId: user.tenantId || "t1", type: "TEMPLATE_DOC", refId: employeeId,
     templateId, data: resolved,
-    title: `${template.name} - ${emp.firstName} ${emp.lastName}`,
+    title: `${template.name} - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`,
     createdById: user.id, createdAt: new Date().toISOString(),
     status: "DRAFT", cycle: 1, steps: [], generatedFile: null };
   db.documents.push(doc);
@@ -99,7 +99,7 @@ function submitEmployeeFile(employeeId, user, opts = {}) {
   }
   if (!doc) {
     doc = { id: id("doc"), tenantId: user.tenantId || "t1", type: "EMPLOYEE_FILE", refId: employeeId,
-      title: `Employee file - ${emp.firstName} ${emp.lastName}`,
+      title: `Employee file - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`,
       createdById: user.id, createdAt: new Date().toISOString(),
       status: "DRAFT", cycle: 0, steps: [], generatedFile: null };
     db.documents.push(doc);
@@ -266,7 +266,7 @@ function generateOfficial(doc) {
   const emp = doc.type === "EMPLOYEE_FILE" ? db.employees.find(e => e.id === doc.refId) : null;
   fs.writeFileSync(path.join(dir, fname), `<html><body style="font-family:serif">
     <h2>${String(companyInfo(doc).name || "").toUpperCase()} - OFFICIAL DOCUMENT</h2><h3>${doc.title}</h3>
-    ${emp ? `<p>Employee: ${emp.firstName} ${emp.lastName}<br>CNI: ${emp.cniNumber}<br>CNPS: ${emp.cnpsNumber || ""}<br>Hired: ${emp.hireDate}</p>` : ""}
+    ${emp ? `<p>Employee: ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}<br>CNI: ${emp.cniNumber}<br>CNPS: ${emp.cnpsNumber || ""}<br>Hired: ${emp.hireDate}</p>` : ""}
     <p>Generated: ${new Date().toISOString()}</p>
     <p><i>M3 will generate this from your uploaded Word template.</i></p></body></html>`);
   return fname;

@@ -378,7 +378,7 @@ router.get("/dependents", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   res.json(mine(db.dependents, req).map(d => {
     const e = empById[d.employeeId] || {};
-    return Object.assign(depPublic(d), { employeeName: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", portfolioId: e.portfolioId || null });
+    return Object.assign(depPublic(d), { employeeName: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "", portfolioId: e.portfolioId || null });
   }));
 });
 // GPF review queue (mobile-submitted requests)
@@ -387,7 +387,7 @@ router.get("/dependents/pending", allow("GPF", "ADM", "CD", "RJ"), (req, res) =>
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   res.json(mine(db.dependents, req).filter(d => d.status === "PENDING").sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))).map(d => {
     const e = empById[d.employeeId] || {};
-    return Object.assign(depPublic(d), { employeeName: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "" });
+    return Object.assign(depPublic(d), { employeeName: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "" });
   }));
 });
 router.post("/dependents/:id/approve", allow("GPF", "ADM"), (req, res) => {

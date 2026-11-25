@@ -2067,17 +2067,17 @@ function empRender() {
     if (ct && ((e.contract && e.contract.type) || "") !== ct) return false;
     if (cat && ((e.contract && e.contract.category) || "") !== cat) return false;
     if (st && (e.status || "DRAFT") !== st) return false;
-    if (q && !`${e.firstName} ${e.lastName} ${e.matricule || ""} ${e.cniNumber || ""}`.toLowerCase().includes(q)) return false;
+    if (q && !`${String(e.lastName||"").toUpperCase()} ${e.firstName||""} ${e.matricule || ""} ${e.cniNumber || ""}`.toLowerCase().includes(q)) return false;
     return true;
   }).sort((a, b) => (pfName(a.portfolioId)||"").localeCompare(pfName(b.portfolioId)||"", "fr", { sensitivity: "base" }) ||
-      `${a.firstName||""} ${a.lastName||""}`.localeCompare(`${b.firstName||""} ${b.lastName||""}`, "fr", { sensitivity: "base" }));
+      `${String(a.lastName||"").toUpperCase()} ${a.firstName||""}`.localeCompare(`${String(b.lastName||"").toUpperCase()} ${b.firstName||""}`, "fr", { sensitivity: "base" }));
   empCount.textContent = `${list.length} employé(s)`;
   registerPager("emp", empRender);
   const rows = pageSlice("emp", list);
   empList.innerHTML = list.length ? `<div class="panel" style="padding-top:6px">
     <table style="margin-top:6px"><tr><th>Nom</th><th>Matricule</th><th>Portefeuille</th><th>Contrat</th><th>Catégorie</th><th>Embauché</th><th>Statut</th><th>Pièces</th><th></th></tr>
     ${rows.map(e => { const done = e.checklist.filter(c =>c.uploaded).length, tot = e.checklist.length;
-      return `<tr${e.dormant?' style="opacity:.72"':''}><td><b>${esc(e.firstName)} ${esc(e.lastName)}</b>${e.dormant?' <span class="tag gray" title="Contrat terminé — employé en sommeil, fiche verrouillée">🔒 Sommeil</span>':''}</td><td>${esc(e.matricule || "-")}</td>
+      return `<tr${e.dormant?' style="opacity:.72"':''}><td><b>${esc(String(e.lastName||"").toUpperCase())} ${esc(e.firstName||"")}</b>${e.dormant?' <span class="tag gray" title="Contrat terminé — employé en sommeil, fiche verrouillée">🔒 Sommeil</span>':''}</td><td>${esc(e.matricule || "-")}</td>
       <td>${esc(pfName(e.portfolioId))}</td>
       <td>${esc((e.contract && e.contract.type) || "-")}</td><td>${esc((e.contract && e.contract.category) || "-")}</td>
       <td>${e.hireDate || "-"}</td><td>${ST_TAG(e.status || "DRAFT", e.pendingStage)}</td>
@@ -2959,10 +2959,10 @@ async function empDetail(id) {
     `<div class="note" style="background:var(--red-bg);border-color:#fca5a5"><b>Rejected by ${lastReject.stage}:</b> ${esc(lastReject.rejectReason)} - correct and resubmit (new cycle).</div>` : "";
 
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
-    <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status, stageOf(doc)) : ST_TAG(e.status || "DRAFT", e.pendingStage)}${e.dormant?' <span class="tag gray" title="Contrat terminé — fiche verrouillée. Ouvrez un nouveau contrat pour réactiver.">🔒 Sommeil</span>':''}
+    <h1 style="margin-top:10px">${esc(String(e.lastName||"").toUpperCase())} ${esc(e.firstName||"")} ${doc ? ST_TAG(doc.status, stageOf(doc)) : ST_TAG(e.status || "DRAFT", e.pendingStage)}${e.dormant?' <span class="tag gray" title="Contrat terminé — fiche verrouillée. Ouvrez un nouveau contrat pour réactiver.">🔒 Sommeil</span>':''}
   <span style="float:right;display:inline-flex;gap:6px">
     ${e.dormant ? '<span class="note" style="align-self:center">Fiche verrouillée (sommeil)</span>' : ((meHas(["ADM"]) || meHas(["GPF"]) || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">Modifier</button>` : "")}
-    ${(meHas(["ADM"]) || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">Supprimer</button>` : ""}
+    ${(meHas(["ADM"]) || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(String(e.lastName||"").toUpperCase())} ${esc(e.firstName||"")}')">Supprimer</button>` : ""}
     ${meHas(["ADM","CD","RJ","GPF","RP"]) ? `<button class="btn ghost sm" onclick="go('salaryanalysis','${e.id}')">Analyser la rémunération</button>` : ""}
     <button class="btn ghost sm" onclick="empExport('${e.id}','${esc(e.lastName)}')">Dossier (PDF)</button></span></h1>
     ${rejBanner}
@@ -3819,7 +3819,7 @@ async function salaryAnalysisView(empId) {
     <div class="note" style="margin-bottom:10px">Audit de conformité de la rémunération, à partir des éléments de salaire de la fiche (simulation : rien n'est modifié). Chaque rubrique est comparée au traitement IRPP / CNPS que sa nature légale impose, et chaque écart est chiffré pour le salarié et pour l'employeur.</div>
     <div class="panel" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
       <div><label>Périmètre</label><select id="saScope" onchange="saScopeChange()"><option value="emp">Un salarié</option><option value="pf">Un portefeuille</option>${ME.role !== "GPF" ? '<option value="all">Toute l\'entreprise</option>' : ""}</select></div>
-      <div id="saEmpWrap" style="min-width:260px;flex:1"><label>Salarié</label><select id="saEmp">${list.map(e => `<option value="${e.id}" ${e.id === empId ? "selected" : ""}>${esc((e.lastName || "") + " " + (e.firstName || ""))}${e.matricule ? " · " + esc(e.matricule) : ""}</option>`).join("")}</select></div>
+      <div id="saEmpWrap" style="min-width:260px;flex:1"><label>Salarié</label><select id="saEmp">${list.map(e => `<option value="${e.id}" ${e.id === empId ? "selected" : ""}>${esc(String(e.lastName || "").toUpperCase() + " " + (e.firstName || ""))}${e.matricule ? " · " + esc(e.matricule) : ""}</option>`).join("")}</select></div>
       <div id="saPfWrap" class="hidden" style="min-width:260px;flex:1"><label>Portefeuille</label><select id="saPf">${(pfs || []).map(p => `<option value="${p.id}">${esc(p.name || p.id)}</option>`).join("")}</select></div>
       <div><label>Mode</label><select id="saMode" disabled><option>Audit de conformité</option></select></div>
       <button class="btn p" onclick="saRun()">Lancer l'analyse</button>
@@ -4038,7 +4038,7 @@ async function careerView() {
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
     <label style="margin:0">Employé</label>
     <select style="max-width:280px;margin:0" onchange="CAR_EMP=this.value;careerTab(CAR_TAB)">
-      ${emps.map(e => `<option value="${e.id}" ${e.id === CAR_EMP ? "selected" : ""}>${esc(e.firstName)} ${esc(e.lastName)}</option>`).join("")}</select>
+      ${emps.map(e => `<option value="${e.id}" ${e.id === CAR_EMP ? "selected" : ""}>${esc(String(e.lastName||"").toUpperCase())} ${esc(e.firstName||"")}</option>`).join("")}</select>
   </div>
   <div class="tabsbar" style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:14px">
     ${[["overview","Overview & Matching"],["plan","Plan de carrière"],["okr","OKR"],["e360","360°"],["meet","Check-ins & Interviews"],["succ","Succession"]].map(([k,l]) =>
@@ -4151,11 +4151,11 @@ async function careerTab(k) {
       ${succ.map(s => `<div class="panel"><b>${esc(s.keyPosition)}</b>
         <span class="tag ${s.criticité === "HIGH" ? "red" : s.criticité === "MEDIUM" ? "amber" : "green"}">criticité ${s.criticité}</span>
         ${canMgr ? `<div style="display:flex;gap:6px;margin:8px 0">
-          <select id="su-${s.id}" style="max-width:220px;margin:0">${emps.map(e => `<option value="${e.id}">${esc(e.firstName)} ${esc(e.lastName)}</option>`).join("")}</select>
+          <select id="su-${s.id}" style="max-width:220px;margin:0">${emps.map(e => `<option value="${e.id}">${esc(String(e.lastName||"").toUpperCase())} ${esc(e.firstName||"")}</option>`).join("")}</select>
           <select id="sr-${s.id}" style="max-width:170px;margin:0"><option value="READY_NOW">Prêt maintenant</option><option value="READY_1_2Y">Prêt sous 1-2 ans</option><option value="TO_DEVELOP">À développer</option></select>
           <button class="btn ghost sm" onclick="spSucc('${s.id}')">+ Successeur</button></div>` : ""}
         ${s.successors.map(x => { const e = emps.find(z =>z.id === x.employeeId);
-          return `<div class="doc-row"><div>${e ? e.firstName + " " + e.lastName : x.employeeId}</div>${RD_TAG(x.readiness)}</div>`; }).join("")
+          return `<div class="doc-row"><div>${e ? String(e.lastName||"").toUpperCase() + " " + (e.firstName||"") : x.employeeId}</div>${RD_TAG(x.readiness)}</div>`; }).join("")
         || "<small style='color:var(--muted)'>Aucun successeur identifié.</small>"}</div>`).join("") || ""}`;
   }
 }
@@ -5519,14 +5519,14 @@ function asgFillEmp(){
   const a=window._ASG||{emps:[],assignedIds:[]}; const pf=(document.getElementById("asgPf")||{}).value; const sel=document.getElementById("asgSel"); if(!sel)return;
   if(!pf){ sel.innerHTML='<option value="">Portefeuille requis</option>'; return; }
   const list=(a.emps||[]).filter(e=>e.portfolioId===pf && !a.assignedIds.includes(e.id))
-    .sort((x,y)=>String(((x.firstName||'')+' '+(x.lastName||'')).trim()).localeCompare(String(((y.firstName||'')+' '+(y.lastName||'')).trim()),'fr'));
-  sel.innerHTML=list.length?list.map(e=>`<option value="${e.id}">${esc(((e.firstName||'')+' '+(e.lastName||'')).trim())}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join(""):'<option value="">Aucun salarié disponible pour ce portefeuille</option>';
+    .sort((x,y)=>String((String(x.lastName||"").toUpperCase()+' '+(x.firstName||'')).trim()).localeCompare(String((String(y.lastName||"").toUpperCase()+' '+(y.firstName||'')).trim()),'fr'));
+  sel.innerHTML=list.length?list.map(e=>`<option value="${e.id}">${esc((String(e.lastName||"").toUpperCase()+' '+(e.firstName||'')).trim())}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join(""):'<option value="">Aucun salarié disponible pour ce portefeuille</option>';
 }
 async function siteAssignAdd(sid){ const sel=document.getElementById("asgSel"); const eid=sel&&sel.value; if(!eid)return; try{ await api("/sites/"+sid+"/assign",{method:"POST",body:JSON.stringify({employeeId:eid})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
 async function siteAssignRemove(sid,eid){ try{ await api("/sites/"+sid+"/assign/"+eid,{method:"DELETE"}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); }catch(e){ alert(e.message); } }
 async function siteAssignPortfolio(sid){ const pf=(document.getElementById("asgPf")||{}).value; if(!pf){ alert("Choisissez d'abord un portefeuille."); return; } if(!confirm("Affecter TOUS les employés de ce portefeuille à ce site ?"))return; try{ const r=await api("/sites/"+sid+"/assign-portfolio",{method:"POST",body:JSON.stringify({portfolioId:pf})}); const bg=document.querySelector(".modal-bg"); if(bg) bg.remove(); await sitesView(); siteAssignOpen(sid); alert(`${r.added} employé(s) affecté(s) (sur ${r.total}).`); }catch(e){ alert(e.message); } }
 /* ---------------- Superviseurs (pointage mobile pour l'équipe) ---------------- */
-function _empName(e){ return ((e.firstName||'')+' '+(e.lastName||'')).trim(); }
+function _empName(e){ return (String(e.lastName||"").toUpperCase()+' '+(e.firstName||'')).trim(); }
 async function supervView(){
   let emps=[],pfs=[],sups={gpf:[],leaders:[]};
   try{ const r=await Promise.all([api("/employees"),api("/portfolios").catch(()=>[]),api("/supervisors")]); emps=r[0]; pfs=r[1]||[]; sups=r[2]||sups; }
@@ -5595,7 +5595,7 @@ async function supPerimLoad(){
   const empOpts=emps.filter(e=>e.id!==sid).map(e=>`<option value="${e.id}">${esc(_empName(e))}</option>`).join("");
   const TYPE={PORTFOLIO:'Portefeuille (ajouté)',EMPLOYEE:'Employé (ajouté)',EXCLUDE:'Employé (exclu)'};
   const rows=links.map(l=>`<tr><td>${TYPE[l.scope]||l.scope}</td><td>${esc(l.targetLabel)}</td><td style="text-align:right"><button class="btn ghost sm" onclick="supLinkDel('${l.id}')">Retirer</button></td></tr>`).join("");
-  const teamList=(Array.isArray(team)?team:(team.members||[])).map(m=>esc(m.name||((m.firstName||'')+' '+(m.lastName||'')).trim())).filter(Boolean);
+  const teamList=(Array.isArray(team)?team:(team.members||[])).map(m=>esc(m.name||(String(m.lastName||"").toUpperCase()+' '+(m.firstName||'')).trim())).filter(Boolean);
   box.innerHTML=head+`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
       <div><label>Ajouter un portefeuille</label><select id="supPfAdd" onchange="if(this.value)supLinkAdd('${sid}','PORTFOLIO')"><option value="">—</option>${pfOpts}</select></div>
       <button class="btn p sm" onclick="supLinkAdd('${sid}','PORTFOLIO')">+ Portefeuille</button>
@@ -6034,7 +6034,7 @@ async function ayantsDroitView(){
   window._AD_COV=covByPf; window._AD_EMP={}; emps.forEach(e=>{window._AD_EMP[e.id]=e;});
   window._AD_ROWS=emps.map(e=>{
     const cov=covByPf[e.portfolioId]; const list=depByEmp[e.id]||[];
-    return { id:e.id, name:((e.firstName||'')+' '+(e.lastName||'')).trim(), mat:e.matricule||'',
+    return { id:e.id, name:(String(e.lastName||"").toUpperCase()+' '+(e.firstName||'')).trim(), mat:e.matricule||'',
       portfolioId:e.portfolioId, pf:pfName(e.portfolioId),
       company:(cov&&cov.companyName)||'', quota:cov?cov.freeChildren:0, hasCov:!!(cov&&cov.enabled),
       spouse: list.some(d=>d.relation==='SPOUSE'&&d.status==='ACTIVE'),
@@ -6086,7 +6086,7 @@ async function adManage(eid){
   const canSpouse=cov&&cov.eligSpouse; const canChild=cov&&cov.eligChildren;
   const relOpts=(canChild?'<option value="CHILD">Enfant</option>':'')+(canSpouse?'<option value="SPOUSE">Conjoint</option>':'')+((!canChild&&!canSpouse)?'<option value="CHILD">Enfant</option><option value="SPOUSE">Conjoint</option>':'');
   const bg=document.createElement("div");bg.className="modal-bg";
-  bg.innerHTML=`<div class="modal" style="max-width:760px"><b>Ayants droit — ${esc(((e.firstName||'')+' '+(e.lastName||'')).trim())}</b>
+  bg.innerHTML=`<div class="modal" style="max-width:760px"><b>Ayants droit — ${esc((String(e.lastName||"").toUpperCase()+' '+(e.firstName||'')).trim())}</b>
     <div class="note" style="margin:4px 0 10px">${cov&&cov.enabled?('Compagnie : '+esc(cov.companyName||'—')+' · Enfants pris en charge : <b>'+kids+' / '+quota+'</b>'+(kids>quota?' (dépassé — supplémentaires payants)':'')):'Aucune couverture configurée sur le portefeuille de ce salarié.'}</div>
     <table style="width:100%"><tr><th>Nom</th><th>Lien</th><th>Naissance</th><th>Statut</th><th>Pièces</th><th></th></tr>${list.length?list.map(depRow).join(""):'<tr><td colspan="6" class="note">Aucun ayant droit.</td></tr>'}</table>
     <hr style="margin:14px 0;border:none;border-top:1px solid #eee">
@@ -6692,7 +6692,7 @@ async function aviForm(){
   const emps=window._AVI_EMPS||await api("/employees").catch(()=>[]);
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:600px"><b>Nouvelle demande d'AVI</b>
-    <label>Salarié</label><select id="avEmp">${(emps||[]).map(e=>`<option value="${e.id}" data-b="${esc((e.bank&&e.bank.name)||e.bankName||'')}" data-c="${esc((e.bank&&e.bank.account)||e.bankAccount||'')}" data-f="${esc(e.position||(e.contract&&e.contract.category)||'')}">${esc((e.firstName||'')+' '+(e.lastName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("")}</select>
+    <label>Salarié</label><select id="avEmp">${(emps||[]).map(e=>`<option value="${e.id}" data-b="${esc((e.bank&&e.bank.name)||e.bankName||'')}" data-c="${esc((e.bank&&e.bank.account)||e.bankAccount||'')}" data-f="${esc(e.position||(e.contract&&e.contract.category)||'')}">${esc(String(e.lastName||"").toUpperCase()+' '+(e.firstName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("")}</select>
     <div class="grid2"><div><label>Type</label><select id="avVariant" onchange="document.getElementById('avMissWrap').style.display=this.value==='mission'?'':'none'"><option value="permanent">Employé permanent</option><option value="mission">Employé en mission</option></select></div>
       <div><label>Fonction</label><input id="avFonction"></div></div>
     <div id="avMissWrap" style="display:none"><label>Entreprise d'accueil (mission)</label><input id="avMission"></div>
@@ -6961,7 +6961,7 @@ async function acoLoadEmps(){
   if(!pf){ sel.innerHTML='<option value="">- choisir un client -</option>'; return; }
   let emps=window._acoEmpsCache[pf];
   if(!emps){ try{ const r=await api("/employees?portfolioId="+pf); emps=(r.rows||r).filter(e=>e.portfolioId===pf); }catch(e){ emps=[]; } window._acoEmpsCache[pf]=emps; }
-  sel.innerHTML=emps.map(e=>`<option value="${e.id}">${esc((e.firstName||"")+" "+(e.lastName||""))} ${e.matricule?"("+esc(e.matricule)+")":""}</option>`).join("")||'<option value="">- aucun employé -</option>';
+  sel.innerHTML=emps.map(e=>`<option value="${e.id}">${esc(String(e.lastName||"").toUpperCase()+' '+(e.firstName||''))} ${e.matricule?"("+esc(e.matricule)+")":""}</option>`).join("")||'<option value="">- aucun employé -</option>';
 }
 async function acoCreate(){
   const pf=document.getElementById("acPf").value, emp=document.getElementById("acEmp").value, channel=document.getElementById("acChannel").value,
@@ -7356,7 +7356,7 @@ async function payFicheView(){
   view.innerHTML=`<h1>Fiche individuelle</h1>
    <div class="note" style="margin-bottom:8px">Récapitulatif annuel d'un salarié : toutes les rubriques mois par mois + totaux.</div>
    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-     <div><label>Salarié</label><select id="fiEmp" style="max-width:320px" onchange="window._FIEID=this.value;payFicheLoad()"><option value="">- choisir -</option>${emps.map(e=>`<option value="${e.id}" ${eid===e.id?'selected':''}>${esc((e.firstName||'')+' '+(e.lastName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("")}</select></div>
+     <div><label>Salarié</label><select id="fiEmp" style="max-width:320px" onchange="window._FIEID=this.value;payFicheLoad()"><option value="">- choisir -</option>${emps.map(e=>`<option value="${e.id}" ${eid===e.id?'selected':''}>${esc(String(e.lastName||"").toUpperCase()+' '+(e.firstName||''))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("")}</select></div>
      <div><label>Année (vue mois par mois)</label><input id="fiYear" type="number" value="${yr}" style="width:130px" onchange="window._FIYEAR=this.value;payFicheLoad()"></div>
      <button class="btn ghost sm" id="fiPdf" style="display:none" onclick="fiExport('pdf')">PDF (année)</button>
      <button class="btn ghost sm" id="fiXls" style="display:none" onclick="fiExport('xlsx')">Excel (année)</button>
@@ -7759,7 +7759,7 @@ async function bulletinView(runId, empId) {
   BULLETIN_CTX = { runId, empId, run, emp, slip, els, open };
   const tab = (k, lbl) => `<button class="btn ${BULLETIN_TAB === k ? "p" : "ghost"} sm" onclick="BULLETIN_TAB='${k}';bulletinRenderTab()">${lbl}</button>`;
   view.innerHTML = `<button class="btn ghost sm" onclick="payRunView('${runId}')">Liste des salariés</button>
-  <h1 style="margin-top:10px">Bulletin - ${esc(emp.firstName)} ${esc(emp.lastName)}
+  <h1 style="margin-top:10px">Bulletin - ${esc(String(emp.lastName||"").toUpperCase())} ${esc(emp.firstName||"")}
     <small style="color:var(--muted)">${esc(rmeta.matricule || "")} - ${esc(run.period)}</small> ${rosterStatusTag(rmeta)}</h1>
   ${(emp.contract&&emp.contract.endDate)?(() => { const end=emp.contract.endDate; const inPeriod=String(end).slice(0,7)===run.period; const past=new Date(end)<new Date(run.period+"-01"); return `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:8px;margin-bottom:8px;color:#b45309"><b>Fin de contrat le ${esc(end)}</b>${inPeriod?" - dernier mois de paie (le contrat se termine dans cette période)":past?" - contrat déjà terminé avant cette période":""}${emp.contract.departureReason?" - motif : "+esc(emp.contract.departureReason):""}</div>`; })():""}
   <div class="panel" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -8058,7 +8058,7 @@ function payElementsForm(run) {
   return `<div class="panel"><b style="font-size:12px;color:var(--muted)">ÉLÉMENTS VARIABLES - ${esc(run.period)}</b>
   <form onsubmit="return payAddElement(event,'${run.period}')" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
     <div><label>Salarié</label><select id="peEmp" style="min-width:200px">
-      ${(PAY_EMPS || []).map(e => `<option value="${e.id}">${esc(e.firstName + " " + e.lastName)}</option>`).join("")}</select></div>
+      ${(PAY_EMPS || []).map(e => `<option value="${e.id}">${esc(String(e.lastName||"").toUpperCase() + " " + (e.firstName||""))}</option>`).join("")}</select></div>
     <div><label>Type</label><select id="peType" onchange="peToggle()">
       <option value="PRIME">Prime (imposable)</option>
       <option value="INDEMNITE">Indemnité (non imposable)</option>
@@ -8450,7 +8450,7 @@ async function regAssignModal(rid){
     <input id="raQ" placeholder="Rechercher un salarié…" style="margin:4px 0 6px" oninput="regAssignFilter(this.value)">
     <div style="max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table id="raTbl" style="width:100%;font-size:12.5px"><tr><th style="width:30px"><input type="checkbox" onchange="document.querySelectorAll('#raTbl input[data-e]').forEach(c=>{ if(c.closest('tr').style.display!=='none') c.checked=this.checked; })"></th><th>Salarié</th><th>Régime actuel</th><th class="r">Net actuel</th><th class="r">Net « ${esc(target.name)} »</th><th class="r">Écart</th></tr>
       ${emps.map(e=>`<tr data-q="${esc(((e.lastName||"")+" "+(e.firstName||"")+" "+(e.matricule||"")).toLowerCase())}"><td><input type="checkbox" data-e="${e.id}" ${(e.payRegimeId||"principal")===rid?"disabled":""}></td>
-        <td>${esc((e.lastName||"")+" "+(e.firstName||""))}${e.matricule?'<div class="note-inline">'+esc(e.matricule)+'</div>':""}</td><td>${esc(nameOf(e.payRegimeId))}</td>
+        <td>${esc(String(e.lastName||"").toUpperCase()+" "+(e.firstName||""))}${e.matricule?'<div class="note-inline">'+esc(e.matricule)+'</div>':""}</td><td>${esc(nameOf(e.payRegimeId))}</td>
         <td class="r" data-nb="${e.id}"></td><td class="r" data-na="${e.id}"></td><td class="r" data-nd="${e.id}"></td></tr>`).join("")}</table></div>
     <div class="err hidden" id="raErr" style="margin-top:6px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
@@ -14490,7 +14490,7 @@ async function smqCompetencesView(){
 async function smqCompForm(idv){
   const [rows,emps]=await Promise.all([idv?api("/smq/competences").catch(()=>[]):Promise.resolve([]),api("/employees").catch(()=>[])]);
   const r=idv?rows.find(x=>x.id===idv):{};
-  const empOpts='<option value="">- saisir librement -</option>'+(emps||[]).map(e=>`<option value="${e.id}" data-n="${esc((e.firstName||"")+' '+(e.lastName||''))}" data-p="${esc(e.jobTitle||e.poste||'')}" ${r.employeeId===e.id?"selected":""}>${esc((e.firstName||"")+" "+(e.lastName||""))}</option>`).join("");
+  const empOpts='<option value="">- saisir librement -</option>'+(emps||[]).map(e=>`<option value="${e.id}" data-n="${esc(String(e.lastName||"").toUpperCase()+' '+(e.firstName||''))}" data-p="${esc(e.jobTitle||e.poste||'')}" ${r.employeeId===e.id?"selected":""}>${esc(String(e.lastName||"").toUpperCase()+' '+(e.firstName||''))}</option>`).join("");
   const bg=document.createElement("div");bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="max-width:560px"><b>${idv?"Modifier":"Nouvelle"} compétence</b>
     <label>Employé (RH)</label><select id="cpEmp" onchange="const o=this.selectedOptions[0];if(o.value){document.getElementById('cpName').value=o.dataset.n;document.getElementById('cpPoste').value=o.dataset.p||''}">${empOpts}</select>

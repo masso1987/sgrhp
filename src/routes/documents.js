@@ -36,7 +36,7 @@ router.get("/generated", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) => {
         generatedAt: d.generatedAt,
         type: d.type,
         employeeId: d.refId,
-        employeeName: emp ? `${emp.firstName} ${emp.lastName}` : null,
+        employeeName: emp ? `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}` : null,
         portfolioId: emp ? emp.portfolioId : null,
       };
     })
@@ -85,7 +85,7 @@ router.get("/:id/download", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) =>
   const emp = db.employees.find(e => e.id === d.refId);
   audit(req.user, req.query.print === "1" ? "PRINTED" : "DOWNLOADED", "Document", d.id, {
     title: d.title, employeeId: d.refId,
-    employeeName: emp ? `${emp.firstName} ${emp.lastName}` : null });
+    employeeName: emp ? `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}` : null });
   res.download(path.join(__dirname, "..", "..", "uploads", "generated", d.generatedFile),
     d.title.replace(/[^\w \-]/g, "") + (d.generatedFile.endsWith(".docx") ? ".docx" : ".html"));
 });

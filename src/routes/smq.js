@@ -1177,7 +1177,7 @@ router.get("/habilitations-all", allow(...RO), (req, res) => {
   const rows = mine(db.smqHabilitations, req).map(h => {
     const e = eById[h.employeeId] || {}; const pf = pById[e.portfolioId] || {};
     const dl = h.expiryDate ? Math.ceil((new Date(h.expiryDate).getTime() - today) / DAY) : null;
-    return { id: h.id, employeeId: h.employeeId, employeeName: `${e.firstName || ""} ${e.lastName || ""}`.trim(),
+    return { id: h.id, employeeId: h.employeeId, employeeName: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(),
       portfolioId: e.portfolioId || "", portfolioName: pf.name || "", intitule: h.intitule || "", type: h.type || "",
       organisme: h.organisme || "", reference: h.reference || "", obtainedDate: h.obtainedDate || "", expiryDate: h.expiryDate || "",
       daysLeft: dl, status: dl == null ? "na" : (dl < 0 ? "expiree" : (dl <= 90 ? "bientot" : "ajour")) };
@@ -1837,7 +1837,7 @@ router.get("/conformite", allow(...RO), (req, res) => {
     const totalDocs = my.length + (e.cniExpiry ? 1 : 0);
     const docsValidPctE = totalDocs ? Math.round((totalDocs - expired.length - (cniExpired ? 1 : 0)) / totalDocs * 100) : 100;
     const habsPctE = myHabs.length ? Math.round(myHabs.filter(h => !(h.expiryDate && new Date(h.expiryDate).getTime() < now)).length / myHabs.length * 100) : 100;
-    return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId,
+    return { employeeId: e.id, name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), portfolioId: e.portfolioId,
       adminOk, medicalOk, epiPct, epiDetail, epiNever, docsValid, habsOk, conform,
       adminPct, medicalPct, docsValidPctE, habsPctE, issues: issuesList };
   });

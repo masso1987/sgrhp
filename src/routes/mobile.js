@@ -77,7 +77,7 @@ function empAuth(req, res, next) {
   } catch (e) {}
   next();
 }
-function empName(e) { return `${(e && e.firstName) || ""} ${(e && e.lastName) || ""}`.trim(); }
+function empName(e) { return `${String((e && e.lastName)||"").toUpperCase()} ${(e && e.firstName) || ""}`.trim(); }
 function empPortfolio(e) { return (db.portfolios || []).find(p => p.id === (e && e.portfolioId)); }
 
 /* ============================ MAINTENANCE (public, no auth) ============================ */
@@ -433,11 +433,11 @@ function teamStatus(req, e) {
     .sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
   const cin = at.find(a => a.type === "IN"), cout = [...at].reverse().find(a => a.type === "OUT");
   const checkedIn = cin && (!cout || cin.serverTs > cout.serverTs);
-  return { id: e.id, matricule: e.matricule || "", name: `${e.firstName || ""} ${e.lastName || ""}`.trim(),
+  return { id: e.id, matricule: e.matricule || "", name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(),
     status: checkedIn ? "CHECKED_IN" : (cout ? "CHECKED_OUT" : "NONE"), last_in: cin ? cin.serverTs : null, last_out: cout ? cout.serverTs : null };
 }
 router.get("/me/team", empAuth, (req, res) => {
-  const list = myTeam(req).sort((a, b) => `${a.firstName || ""} ${a.lastName || ""}`.localeCompare(`${b.firstName || ""} ${b.lastName || ""}`));
+  const list = myTeam(req).sort((a, b) => `${String(a.lastName||"").toUpperCase()} ${a.firstName||""}`.localeCompare(`${String(b.lastName||"").toUpperCase()} ${b.firstName||""}`));
   res.json({ is_supervisor: list.length > 0, members: list.map(e => teamStatus(req, e)) });
 });
 function teamPunch(req, res, type) {
@@ -455,7 +455,7 @@ function teamPunch(req, res, type) {
   if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
   if (req.file && out.rec) out.rec.photo = req.file.filename;
   save();
-  res.status(out.dedup ? 200 : 201).json(Object.assign({ success: true, deduplicated: !!out.dedup, employee: { id: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim() } }, attOut(out.rec, req)));
+  res.status(out.dedup ? 200 : 201).json(Object.assign({ success: true, deduplicated: !!out.dedup, employee: { id: e.id, name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() } }, attOut(out.rec, req)));
 }
 router.post("/me/team/:eid/attendance/check-in", empAuth, attUpload.single("photo"), (req, res) => teamPunch(req, res, "IN"));
 router.post("/me/team/:eid/attendance/check-out", empAuth, attUpload.single("photo"), (req, res) => teamPunch(req, res, "OUT"));
@@ -482,12 +482,12 @@ router.get("/terminal/employees", terminalAuth, (req, res) => {
   const t = req.terminal; const today = todayStr();
   const aids = new Set((db.siteAssignments || []).filter(a => (a.tenantId || "t1") === t.tenantId && a.siteId === t.siteId).map(a => a.employeeId));
   const list = (db.employees || []).filter(e => (e.tenantId || "t1") === t.tenantId && aids.has(e.id) && String(e.status || "").toUpperCase() !== "ARCHIVED")
-    .sort((a, b) => `${a.firstName || ""} ${a.lastName || ""}`.localeCompare(`${b.firstName || ""} ${b.lastName || ""}`));
+    .sort((a, b) => `${String(a.lastName||"").toUpperCase()} ${a.firstName||""}`.localeCompare(`${String(b.lastName||"").toUpperCase()} ${b.firstName||""}`));
   res.json(list.map(e => {
     const at = (db.attendance || []).filter(a => (a.tenantId || "t1") === t.tenantId && a.employeeId === e.id && (a.serverTs || "").slice(0, 10) === today).sort((x, y) => (x.serverTs || "").localeCompare(y.serverTs || ""));
     const cin = at.find(a => a.type === "IN"), cout = [...at].reverse().find(a => a.type === "OUT");
     const checkedIn = cin && (!cout || cin.serverTs > cout.serverTs);
-    return { id: e.id, matricule: e.matricule || "", name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), status: checkedIn ? "CHECKED_IN" : (cout ? "CHECKED_OUT" : "NONE") };
+    return { id: e.id, matricule: e.matricule || "", name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), status: checkedIn ? "CHECKED_IN" : (cout ? "CHECKED_OUT" : "NONE") };
   }));
 });
 router.post("/terminal/attendance", terminalAuth, attUpload.single("photo"), (req, res) => {
@@ -503,7 +503,7 @@ router.post("/terminal/attendance", terminalAuth, attUpload.single("photo"), (re
   if (out.reject) return res.status(200).json({ success: false, reason: out.reason, message: out.message });
   if (req.file && out.rec) out.rec.photo = req.file.filename;
   save();
-  res.status(out.dedup ? 200 : 201).json({ success: true, deduplicated: !!out.dedup, type, employee: { id: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim() }, server_timestamp: out.rec.serverTs, status: out.rec.status });
+  res.status(out.dedup ? 200 : 201).json({ success: true, deduplicated: !!out.dedup, type, employee: { id: e.id, name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() }, server_timestamp: out.rec.serverTs, status: out.rec.status });
 });
 
 /* ============================ DEMANDE DE PERMISSION (circuit congé) ============================ */
@@ -527,7 +527,7 @@ router.post("/me/permission", empAuth, (req, res) => {
   const doc = { id: id("doc"), tenantId: req.emp.tenantId, type: "LEAVE", refId: e.id,
     data: { leaveType: "Permission : " + pt.label, permissionTypeId: pt.id, startDate: b.start, endDate: b.end, days,
       reason: String(b.reason || "").slice(0, 500), deductible: !!pt.deductible, fields: b.values || {} },
-    title: `Permission : ${pt.label} (${days}j) - ${e.firstName} ${e.lastName}`,
+    title: `Permission : ${pt.label} (${days}j) - ${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`,
     createdById: "mobile", createdAt: nowISO, cycle: 1, steps: [], generatedFile: null, source: "MOBILE" };
   db.documents.push(doc);
   try { require("../workflow").startWorkflow(doc, { id: null, fullName: "application mobile", tenantId: req.emp.tenantId }); }
@@ -593,7 +593,7 @@ router.post("/me/insurance/dependent-request", empAuth, insurance.depUpload.any(
   const d = stamp({ id: id("dep"), employeeId: e.id, relation, firstName: String(b.firstName).trim(), lastName: String(b.lastName).trim(), birthDate: b.birthDate || "", birthPlace: b.birthPlace || "", status: "PENDING", extra, source: "MOBILE", documents: docs, createdAt: now() }, { user: { tenantId: req.emp.tenantId } });
   db.dependents.push(d); save();
   try {
-    const nm = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.matricule || "Un employé";
+    const nm = `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() || e.matricule || "Un employé";
     notify.toRolesTenant(["GPF", "ADM", "CD"], req.emp.tenantId, "Nouvelle demande d'ayant droit (mobile)",
       `${nm} — ${relation === "SPOUSE" ? "conjoint" : "enfant"} : ${d.firstName} ${d.lastName}`, d.id);
   } catch (_) {}
@@ -611,7 +611,7 @@ router.post("/me/requests/avi", empAuth, reqUpload.single("letter"), (req, res) 
   db.empRequests.push(r); save();
   try {
     const e = empOf(req.emp.account) || {};
-    const nm = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.matricule || "Un employé";
+    const nm = `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() || e.matricule || "Un employé";
     notify.toRolesTenant(["GPF", "ADM", "CD"], req.emp.tenantId, "Nouvelle demande AVI (mobile)",
       `${nm}${r.bankName ? " — " + r.bankName : ""}`, r.id);
   } catch (_) {}
@@ -634,7 +634,7 @@ router.post("/me/requests/acompte", empAuth, (req, res) => {
   db.empRequests.push(r); save();
   try {
     const e = empOf(req.emp.account) || {};
-    const nm = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.matricule || "Un employé";
+    const nm = `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() || e.matricule || "Un employé";
     notify.toRolesTenant(["GPF", "ADM", "CD"], req.emp.tenantId, "Nouvelle demande d'acompte (mobile)",
       `${nm} — ${amount.toLocaleString("fr-FR")} XAF`, r.id);
   } catch (_) {}

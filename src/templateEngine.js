@@ -78,7 +78,7 @@ function autoContext(employeeId) {
   const _coName = String(require("./routes/settings").companyName(_tid)).toUpperCase();
   const _coBp = _ten.bp ? ("BP " + _ten.bp + " " + (_ten.hqCity || "")).trim() : (_ten.name ? "" : "BP 3462 Douala");
   const base = {
-    employee_fullName: [e.firstName, e.lastName].filter(Boolean).join(" "),
+    employee_fullName: [e.lastName ? String(e.lastName).toUpperCase() : "", e.firstName].filter(Boolean).join(" "),
     employee_firstName: e.firstName, employee_lastName: e.lastName,
     employee_birthDate: e.birthDate, employee_birthPlace: e.birthPlace,
     employee_maritalStatus: e.maritalStatus, employee_residence: e.address,

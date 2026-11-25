@@ -1283,7 +1283,7 @@ function esign(sheet, req, kind, payloadHash){
   sheet.signatures=sheet.signatures||[]; sheet.signatures.push(sig); return sig;
 }
 const B_STD_DAYS = (req)=> (configOf(req).standardMonthlyDays || 30);
-function empName(e){ return `${e.firstName||""} ${e.lastName||""}`.trim(); }
+function empName(e){ return `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(); }
 /** Ligne vierge pour un employé. */
 /* Congé : à partir de la date d'embauche + convention/ancienneté, déterminer si le congé
    de l'employé est DÛ ce mois (anniversaire d'embauche, ≥ 12 mois d'ancienneté) et son droit. */
@@ -1355,7 +1355,7 @@ function loanEcheance(empId, period, req){
 function sheetOut(sheet, req){
   const out=Object.assign({}, sheet);
   const _empById={}; mine(db.employees, req).forEach(e=>{ _empById[e.id]=e; });
-  const _dispNom=(e)=>(((e&&e.firstName)||"")+" "+((e&&e.lastName)||"")).trim().toLowerCase();
+  const _dispNom=(e)=>(String((e&&e.lastName)||"").toUpperCase()+" "+((e&&e.firstName)||"")).trim().toLowerCase();
   out.lines=(sheet.lines||[]).slice().sort((a,b)=>_dispNom(_empById[a.employeeId]).localeCompare(_dispNom(_empById[b.employeeId]), "fr", {sensitivity:"base"})).map(l => { const emp=_empById[l.employeeId]||{}; const ci=congeInfo(emp, sheet.period, req);
     return Object.assign({}, l, { loan:loanEcheance(l.employeeId, sheet.period, req), acompte:acompteTotalAll(l.employeeId, sheet.period, req), acompteValide:acompteTotal(l.employeeId, sheet.period, req),
       hireDate:l.hireDate||empHireDate(emp), anciennete:seniorityLabel(emp, sheet.period), conge:ci }); });
@@ -1443,7 +1443,7 @@ router.get("/conge-alerts", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
     if((e.status||"").toUpperCase()==="ARCHIVED") continue;
     const ci=congeInfo(e, period, req);
     if(!ci.due) continue;
-    rows.push({ employeeId:e.id, name:`${e.firstName||""} ${e.lastName||""}`.trim(), matricule:e.matricule||"",
+    rows.push({ employeeId:e.id, name:`${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule:e.matricule||"",
       portfolio: pfById[e.portfolioId]||"", hireDate:ci.hireDate, seniority:ci.seniorityLabel,
       entitlementDays:ci.entitlementDays, accruedDays:ci.accruedDays, handled: !!handled[e.id] });
   }
@@ -1458,7 +1458,7 @@ router.get("/conge-calc", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const per=(period||"").trim()||new Date().toISOString().slice(0,7);
   const calc=congeCompute(e, per, req); const info=congeInfo(e, per, req);
   const conv=(e.contract&&e.contract.conventionId)?mine(db.conventions, req).find(c=>c.id===e.contract.conventionId):null;
-  res.json(Object.assign({ employeeId:e.id, name:`${e.firstName||""} ${e.lastName||""}`.trim(), period:per,
+  res.json(Object.assign({ employeeId:e.id, name:`${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), period:per,
     convention: conv?conv.name:"(config paie)", due:info.due, hireDate:info.hireDate, seniority:info.seniorityLabel,
     entitlementDays:info.entitlementDays, accruedDays:info.accruedDays }, calc));
 });
@@ -1847,7 +1847,7 @@ function acompteChannelKey(a){ const c=(a&&a.channel)||acompteChannel(a); return
 function acompteOut(a, req){
   const pf=mine(db.portfolios, req).find(p=>p.id===a.portfolioId);
   const e=mine(db.employees, req).find(x=>x.id===a.employeeId);
-  return Object.assign({}, a, { portfolioName:pf?pf.name:"", employeeName:a.employeeName||(e?`${e.firstName||""} ${e.lastName||""}`.trim():""), matricule:a.matricule||(e?(e.matricule||""):"") });
+  return Object.assign({}, a, { portfolioName:pf?pf.name:"", employeeName:a.employeeName||(e?`${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim():""), matricule:a.matricule||(e?(e.matricule||""):"") });
 }
 router.get("/acomptes", allow("RP","ADM","GPF","CD","RJ"), (req,res)=>{
   const { period, portfolioId, employeeId } = req.query;
@@ -1900,7 +1900,7 @@ router.post("/acomptes", allow("RP","ADM","GPF","CD"), (req,res)=>{
       message:`Cet acompte (${amount.toLocaleString("fr-FR")} FCFA) dépasse le tiers du salaire net (max ${maxThird.toLocaleString("fr-FR")} FCFA sur un net estimé de ${net.toLocaleString("fr-FR")} FCFA). Créez un prêt (échéancier), ou faites approuver le dépassement par un CD/Administrateur.` });
   }
   const a=stamp({ id:id("aco"), period, portfolioId:b.portfolioId||(e&&e.portfolioId)||"", employeeId:b.employeeId,
-    employeeName:`${e.firstName||""} ${e.lastName||""}`.trim(), matricule:e.matricule||"",
+    employeeName:`${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule:e.matricule||"",
     channel:mv.channel, momo:mv.num, amount, note:String(b.note||"").slice(0,120),
     netRef:net, maxThird, overThird, overThirdApprovedBy: overThird?req.user.id:null, overThirdApprovedByName: overThird?(req.user.fullName||""):null,
     status:"BROUILLON", createdBy:req.user.id, createdByName:req.user.fullName||"", createdAt:new Date().toISOString() }, req);
@@ -2171,7 +2171,7 @@ router.post("/runs/:id/compute", allow("RP", "ADM", "GPF", "CD", "RJ", "UI"), (r
     const { input, result } = computeFor(emp, run.period, req);
     db.payslips.push(stamp({
       id: id("slip"), runId: run.id, period: run.period, employeeId: emp.id,
-      employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || emp.id.slice(-6),
+      employeeName: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`, matricule: emp.matricule || emp.id.slice(-6),
       department: (emp.contract && emp.contract.category) || "", input, result,
       status: "CALCULATED", generatedFile: null, createdAt: new Date().toISOString(),
     }, req));
@@ -2197,7 +2197,7 @@ router.get("/runs/:id/timesheet-template", allow("RP", "ADM", "GPF", "CD", "RJ")
   const head = _hrs ? ["Matricule", "Nom", "Heures travaillees", "HS 20%", "HS 30%", "HS 40%", "HS 50%", "Heures nuit"]
     : ["Matricule", "Nom", "Jours travailles", "Absence (jours)", "HS 20%", "HS 30%", "HS 40%", "Heures nuit"];
   const aoa = [head];
-  emps.forEach(e => aoa.push([e.matricule || "", `${e.firstName || ""} ${e.lastName || ""}`.trim(), "", "", "", "", "", ""]));
+  emps.forEach(e => aoa.push([e.matricule || "", `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), "", "", "", "", "", ""]));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "Pointage");
   res.setHeader("Content-Disposition", `attachment; filename="pointage_${run.period}.xlsx"`);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -2256,7 +2256,7 @@ router.post("/runs/:id/timesheet", allow("RP", "ADM", "GPF", "CD", "RJ"), tsUplo
     const ids = new Set(rows.map(r => String(pick(r, [nk => nk === "matricule" || nk === "mat"]) || "").trim()));
     db.payslips = db.payslips.filter(x => !(x.runId === run.id && (x.tenantId || "t1") === (run.tenantId || "t1")));
     for (const emp of emps) { if (!baseSalaryOf(emp, req)) continue; const { input, result } = computeFor(emp, run.period, req);
-      db.payslips.push(stamp({ id: id("slip"), runId: run.id, period: run.period, employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || emp.id.slice(-6), department: (emp.contract && emp.contract.category) || "", input, result, status: "CALCULATED", generatedFile: null, createdAt: new Date().toISOString() }, req)); computed++; }
+      db.payslips.push(stamp({ id: id("slip"), runId: run.id, period: run.period, employeeId: emp.id, employeeName: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`, matricule: emp.matricule || emp.id.slice(-6), department: (emp.contract && emp.contract.category) || "", input, result, status: "CALCULATED", generatedFile: null, createdAt: new Date().toISOString() }, req)); computed++; }
     run.status = "CALCULATED"; run.computedAt = new Date().toISOString(); run.count = computed; save();
   }
   res.json({ ok: true, matched, notFound, computed });
@@ -2272,9 +2272,9 @@ router.get("/runs/:id/roster", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req
   const roster = mine(db.employees, req)
     .filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
     .sort((a, b) => (_pfName[a.portfolioId] || "~").localeCompare(_pfName[b.portfolioId] || "~", "fr", { sensitivity: "base" }) ||
-      `${a.firstName||""} ${a.lastName||""}`.localeCompare(`${b.firstName||""} ${b.lastName||""}`, "fr", { sensitivity: "base" }))
+      `${String(a.lastName||"").toUpperCase()} ${a.firstName||""}`.localeCompare(`${String(b.lastName||"").toUpperCase()} ${b.firstName||""}`, "fr", { sensitivity: "base" }))
     .map(e => { const s = byEmp[e.id]; const dormant = isDormant(e); return {
-      employeeId: e.id, name: `${e.firstName} ${e.lastName}`, matricule: e.matricule || e.id.slice(-6),
+      employeeId: e.id, name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`, matricule: e.matricule || e.id.slice(-6),
       portfolioId: e.portfolioId, category: (e.contract && e.contract.category) || "",
       hasBase: baseSalaryOf(e, req) > 0, status: dormant ? "LOCKED" : (s ? s.status : "PENDING"),
       dormant,
@@ -2299,7 +2299,7 @@ router.post("/runs/:id/employees/:eid/compute", allow("RP", "ADM", "GPF", "CD", 
   let s = mine(db.payslips, req).find(x => x.runId === run.id && x.employeeId === emp.id);
   if (s) { s.input = input; s.result = result; s.status = "CALCULATED"; s.edited = false; s.recomputedAt = new Date().toISOString(); }
   else { s = stamp({ id: id("slip"), runId: run.id, period: run.period, employeeId: emp.id,
-      employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || emp.id.slice(-6),
+      employeeName: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`, matricule: emp.matricule || emp.id.slice(-6),
       department: (emp.contract && emp.contract.category) || "", input, result,
       status: "CALCULATED", generatedFile: null, createdAt: new Date().toISOString() }, req);
     db.payslips.push(s); }
@@ -2317,7 +2317,7 @@ router.post("/simulate/:eid", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req,
   if (!baseSalaryOf(emp, req)) return res.status(422).json({ error: "Salaire de base introuvable" });
   const period = (req.body && req.body.period) || new Date().toISOString().slice(0, 7);
   const { input, result } = computeFor(emp, period, req);
-  res.json({ employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`, matricule: emp.matricule || "", period, input, result, simulation: true });
+  res.json({ employeeId: emp.id, employeeName: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`, matricule: emp.matricule || "", period, input, result, simulation: true });
 });
 
 /* Calcul à l'envers : à partir d'un net à payer cible, trouver le montant de la rubrique d'ajustement. */
@@ -2335,7 +2335,7 @@ router.post("/reverse/:eid", allow("RP", "ADM", "CD", "RJ", "GPF", "UI"), (req, 
   const sol = reverseSolve(emp, period, req, targetNet, code, label, cnps, impo);
   // Détail du bulletin obtenu avec le montant trouvé.
   const { input, result } = computeFor(emp, period, req, { extraGain: { code, label, amount: sol.amount, cnps, impo } });
-  const out = { employeeId: emp.id, employeeName: `${emp.firstName} ${emp.lastName}`.trim(), matricule: emp.matricule || "", period, targetNet, code, label, amount: sol.amount, net: sol.net, iterations: sol.iterations, alreadyReached: !!sol.alreadyReached, input, result, simulation: true };
+  const out = { employeeId: emp.id, employeeName: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), matricule: emp.matricule || "", period, targetNet, code, label, amount: sol.amount, net: sol.net, iterations: sol.iterations, alreadyReached: !!sol.alreadyReached, input, result, simulation: true };
   // Appliquer : enregistre le montant comme élément variable (PRIME) pour cette période.
   if (b.apply) {
     if (!canRunPayroll(req)) return res.status(403).json({ error: "Action paie non autorisée" });
@@ -2669,7 +2669,7 @@ function drawPayslip(doc, s, emp, tenant) {
     // cadre salarié
     BX(301, 124, 262, 124);
     T(320, 132, "Matricule", { b: 1, s: 10, hs: 83.2 }); T(363, 132, s.matricule || "", { s: 10, hs: 82 });
-    T(320, 154, emp.civility || "", { s: 10, hs: 82 }); T(341, 154, `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), { s: 10, hs: 82, w: 215 });
+    T(320, 154, emp.civility || "", { s: 10, hs: 82 }); T(341, 154, `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), { s: 10, hs: 82, w: 215 });
     // renseignements salarié (deux groupes, trois colonnes comme Sage)
     T(25, 135, "Conv. coll.", { b: 1 }); T(70, 135, convName, { w: 225 });
     T(25, 153, "N° CNPS", { b: 1 }); T(70, 153, cnpsFull(emp), { w: 105 });
@@ -2817,7 +2817,7 @@ function drawPayslipModern(doc, s, emp, tenant) {
   /* EMPLOYÉ card - full detail grid */
   const empH = 92;
   card(L, y, W, empH, CARD);
-  txt(L + 12, y + 8, `${emp.civility || ""} ${(emp.firstName||"")} ${(emp.lastName||"")}`.trim(), { b: 1, s: 11, c: TXT, w: 300 });
+  txt(L + 12, y + 8, `${emp.civility || ""} ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), { b: 1, s: 11, c: TXT, w: 300 });
   txt(RgT - 160, y + 9, `Matricule ${s.matricule || "-"}`, { b: 1, s: 8, c: TXT, w: 148, a: "right" });
   doc.save(); doc.moveTo(L + 12, y + 26).lineTo(RgT - 12, y + 26).strokeColor(LINE).stroke(); doc.restore();
   const colL = L + 12, colM = L + 190, colR = L + 372;
@@ -3048,7 +3048,7 @@ function ficheIndividuelle(eid, year, req) {
     sumRow("Net à payer", t => t.netAPayer), sumRow("Coût total employeur", t => t.coutTotalEmployeur),
     sumRow("Jours de présence", (t, meta) => meta.workedDays || 0),
   ];
-  return { employee: { id: emp.id, name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), matricule: emp.matricule || "", category: (emp.contract && emp.contract.category) || "" }, year: Number(year), months: FI_MOIS, rubriques, summary };
+  return { employee: { id: emp.id, name: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), matricule: emp.matricule || "", category: (emp.contract && emp.contract.category) || "" }, year: Number(year), months: FI_MOIS, rubriques, summary };
 }
 router.get("/employees/:eid/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   const year = req.query.year || new Date().getFullYear();
@@ -3642,7 +3642,7 @@ router.post("/solde/:eid", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) => 
     monthlyRef: Number(b.monthlyRef) || 0, leaveDays: leaveDays || 0, dailyRate,
     preavisRespecte: b.preavisRespecte !== false,
   }, cfg);
-  out.employee = { id: emp.id, name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), matricule: emp.matricule || "", category: c.category || "" };
+  out.employee = { id: emp.id, name: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), matricule: emp.matricule || "", category: c.category || "" };
   out.endDate = endDate; out.period = period;
   audit(req.user, "SOLDE_TOUT_COMPTE", "Employee", emp.id, { motif: out.motif, total: out.total });
   res.json(out);
@@ -3747,7 +3747,7 @@ router.get("/reports/fiche", allow("RP", "ADM", "CD", "RJ", "GPF"), (req, res) =
     .sort((a,b)=>a.periode.localeCompare(b.periode));
   const columns = [ {key:"periode",label:"Période",w:60},{key:"brut",label:"Brut",money:1,w:80},{key:"netImposable",label:"Net imposable",money:1,w:90},
     {key:"retenues",label:"Retenues",money:1,w:80},{key:"net",label:"Net à payer",money:1,w:90},{key:"patronal",label:"Ch. patronales",money:1,w:90},{key:"cout",label:"Coût employeur",money:1,w:90} ];
-  const nm = `${e.firstName||""} ${e.lastName||""}`.trim();
+  const nm = `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim();
   _sendReport(req, res, { format: req.query.format, name: `Fiche_${(e.matricule||nm||eid)}_${lo}_${hi}`, title: `Fiche individuelle - ${nm} (${e.matricule||""})`, meta: `${pfn[e.portfolioId]||""} - ${lo} à ${hi}`, columns, rows });
 });
 

@@ -125,7 +125,7 @@ router.get("/sites/:id/assignments", allow("ADM"), (req, res) => {
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   const list = mine(db.siteAssignments, req).filter(a => a.siteId === req.params.id).map(a => {
     const e = empById[a.employeeId] || {};
-    return { employeeId: a.employeeId, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "" };
+    return { employeeId: a.employeeId, name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "" };
   });
   res.json(list);
 });
@@ -167,14 +167,14 @@ router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
       || (b.serverTs || "").localeCompare(a.serverTs || "");
   }).slice(0, 1000);
   res.json(list.map(a => { const e = empById[a.employeeId] || {}; const s = siteById[a.siteId] || {};
-    return { id: a.id, employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", type: a.type,
+    return { id: a.id, employee: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "", type: a.type,
       portfolio: (pfById[e.portfolioId] || {}).name || "", portfolioId: e.portfolioId || "",
       server_ts: a.serverTs, received_ts: a.receivedTs || a.serverTs, client_ts: a.clientTs,
       time_source: a.timeSource || "SERVER", time_flag: a.timeFlag || null,
       site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
       status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved, has_photo: !!a.photo,
       // pointage fait par un superviseur (GPF ou chef d'équipe) pour ce salarié : « pointé par … »
-      by_supervisor: a.source === "SUPERVISOR" ? (`${(empById[a.onBehalfOf] || {}).firstName || ""} ${(empById[a.onBehalfOf] || {}).lastName || ""}`.trim() || "superviseur") : null }; }));
+      by_supervisor: a.source === "SUPERVISOR" ? (`${String((empById[a.onBehalfOf] || {}).lastName || "").toUpperCase()} ${(empById[a.onBehalfOf] || {}).firstName || ""}`.trim() || "superviseur") : null }; }));
 });
 router.post("/attendance/:id/resolve", allow("GPF", "ADM", "CD"), (req, res) => {
   const a = mine(db.attendance, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
@@ -214,7 +214,7 @@ router.get("/emp-requests", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   res.json(list.map(r => { const e = empById[r.employeeId] || {};
     return { id: r.id, type: r.type, status: r.status, amount: r.amount || null, reason: r.reason || "", bankName: r.bankName || "",
       decisionNote: r.decisionNote || "", createdAt: r.createdAt, hasAttachment: !!r.attachment,
-      employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "" }; }));
+      employee: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "" }; }));
 });
 router.get("/emp-requests/:id/attachment", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const r = (db.empRequests || []).find(x => (x.tenantId || "t1") === (req.user.tenantId || "t1") && x.id === req.params.id);
@@ -250,7 +250,7 @@ router.get("/hr-tips/:id/reads", allow("GPF", "ADM", "RQ"), (req, res) => {
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   const list = (db.hrTipReads || []).filter(r => (r.tenantId || "t1") === (req.user.tenantId || "t1") && r.tipId === req.params.id)
     .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
-  res.json(list.map(r => { const e = empById[r.employeeId] || {}; return { employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "", at: r.at }; }));
+  res.json(list.map(r => { const e = empById[r.employeeId] || {}; return { employee: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "", at: r.at }; }));
 });
 /* Acompte window (deadline day of month) — per tenant, admin-configurable. */
 router.get("/acompte-config", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
@@ -344,7 +344,7 @@ router.get("/attendance/treatment", allow("GPF", "ADM", "CD", "RJ"), (req, res) 
         }
       } else { incompleteDays++; }
     }
-    out.push({ employeeId: eid, employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "",
+    out.push({ employeeId: eid, employee: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "",
       portfolio: (pfById[e.portfolioId] || {}).name || "", paysOvertime: sch.paysOvertime,
       presentDays, incompleteDays, exceptionDays,
       workedHours: Math.round(workedMin / 6) / 10, otHours: Math.round(otMin / 6) / 10 });
@@ -383,7 +383,7 @@ router.put("/employees/:eid/supervisor", allow("GPF", "ADM"), (req, res) => {
 // Membres de l'équipe d'un superviseur (direct + portefeuilles + employés rattachés).
 router.get("/employees/:eid/team", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const list = require("../empState").supervisedEmployees(db, req.user.tenantId || "t1", req.params.eid);
-  res.json(list.map(x => ({ id: x.id, matricule: x.matricule || "", name: `${x.firstName || ""} ${x.lastName || ""}`.trim() })));
+  res.json(list.map(x => ({ id: x.id, matricule: x.matricule || "", name: `${String(x.lastName||"").toUpperCase()} ${x.firstName||""}`.trim() })));
 });
 // Marquer / démarquer un employé comme « superviseur terrain » (voit l'écran équipe sur mobile).
 router.put("/employees/:eid/field-supervisor", allow("GPF", "ADM"), (req, res) => {
@@ -397,7 +397,7 @@ router.put("/employees/:eid/field-supervisor", allow("GPF", "ADM"), (req, res) =
 router.get("/supervisions", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
-  const nm = e => e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : "";
+  const nm = e => e ? `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() : "";
   const filt = req.query.supervisorEmpId;
   let list = mine(db.supervisions, req);
   if (filt) list = list.filter(s => s.supervisorEmpId === filt);
@@ -409,7 +409,7 @@ router.get("/supervisions", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
 router.get("/supervisors", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
   const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
-  const nm = e => e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : "";
+  const nm = e => e ? `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() : "";
   const st = require("../empState"); const tid = req.user.tenantId || "t1";
   const gpfs = mine(db.users, req).filter(u => (u.role === "GPF" || (u.extraRoles || []).includes("GPF")) && u.active !== false).map(u => ({ kind: "GPF", userId: u.id, name: u.fullName || u.email, email: u.email,
     employeeId: u.employeeId && empById[u.employeeId] ? u.employeeId : null, employeeName: u.employeeId ? nm(empById[u.employeeId]) : "",

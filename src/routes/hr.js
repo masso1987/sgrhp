@@ -54,7 +54,7 @@ router.post("/:id/amendments", allow("GPF", "ADM"), (req, res) => {
   const version = (db.documents.filter(d => d.type === "AMENDMENT" && d.refId === emp.id).length) + 1;
   const doc = { id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AMENDMENT", refId: emp.id,
     data: { changes, avenantType, effectiveDate: effectiveDate || null, reason: reason || "" }, version,
-    title: `${avenantType} n°${version} - ${emp.firstName} ${emp.lastName}`,
+    title: `${avenantType} n°${version} - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`,
     createdById: req.user.id, createdAt: new Date().toISOString(),
     status: "DRAFT", cycle: 1, steps: [], generatedFile: null };
   db.documents.push(doc);
@@ -105,7 +105,7 @@ router.post("/:id/decisions", allow("GPF", "ADM"), decUpload.single("file"), (re
     const version = (db.documents.filter(d => d.type === "AMENDMENT" && d.refId === emp.id).length) + 1;
     const doc = { id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AMENDMENT", refId: emp.id,
       data: { changes, avenantType: "Avenant salarial", effectiveDate: dec.date, reason: `${type} - ${detail || ""}` },
-      version, title: `Avenant salarial n°${version} (${type}) - ${emp.firstName} ${emp.lastName}`,
+      version, title: `Avenant salarial n°${version} (${type}) - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`,
       createdById: req.user.id, createdAt: new Date().toISOString(),
       status: "DRAFT", cycle: 1, steps: [], generatedFile: null, wfType: "DECISION" };
     db.documents.push(doc);
@@ -116,7 +116,7 @@ router.post("/:id/decisions", allow("GPF", "ADM"), decUpload.single("file"), (re
   }
 
   db.decisions.push(dec); save();
-  audit(req.user, "CREATED", "Decision", dec.id, { employee: `${emp.firstName} ${emp.lastName}`, type, hasFile: !!req.file, autoAvenant: !!dec.amendmentId });
+  audit(req.user, "CREATED", "Decision", dec.id, { employee: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`, type, hasFile: !!req.file, autoAvenant: !!dec.amendmentId });
   res.status(201).json(dec);
 });
 
@@ -190,7 +190,7 @@ function submitLeaveDoc(emp, body, user) {
   const nowISO = new Date().toISOString();
   const doc = { id: id("doc"), tenantId, type: "LEAVE", refId: emp.id,
     data: { leaveType: lt, startDate, endDate, days, reason: reason || "", permissionKey: permissionKey || null, permissionLabel },
-    title: `${lt} (${days ? days + "j" : "-"}) - ${emp.firstName} ${emp.lastName}`,
+    title: `${lt} (${days ? days + "j" : "-"}) - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`,
     createdById: (user && user.id) || "mobile", createdAt: nowISO, cycle: 1,
     steps: [], generatedFile: null, source: (user && user.id) ? "WEB" : "MOBILE" };
   db.documents.push(doc);
@@ -281,11 +281,11 @@ router.post("/avi", allow("GPF", "ADM", "CD", "RJ"), aviUpload.single("letter"),
   const autoRef = b.ref && String(b.ref).trim() ? b.ref : `${_pref}/${String(_nAvi).padStart(3, "0")}/${_mm}/${_yy}`;
   const doc = {
     id: id("doc"), tenantId: req.user.tenantId || "t1", type: "AVI", refId: emp.id,
-    title: `AVI - ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+    title: `AVI - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(),
     createdById: req.user.id, createdAt: new Date().toISOString(), status: "DRAFT", cycle: 1, steps: [], generatedFile: null,
     attachment: { fileName: req.file.originalname, storedAs: req.file.filename, at: new Date().toISOString() },
     data: {
-      employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), civility: civ,
+      employeeName: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), civility: civ,
       matricule: emp.matricule || "", variant: b.variant === "mission" ? "mission" : "permanent",
       fonction: b.fonction || emp.position || (emp.contract && emp.contract.category) || "",
       missionCompany: b.missionCompany || "", hireDate: emp.hireDate || "",
@@ -313,10 +313,10 @@ router.post("/:id/contract-letter", allow("GPF", "ADM", "CD", "RJ"), (req, res) 
     id: id("doc"), tenantId: req.user.tenantId || "t1", type: "CONTRACT_END", refId: emp.id,
     // Avec un solde de tout compte : circuit « Solde de tout compte » ; sinon « Lettre de fin de contrat »
     wfType: (Array.isArray(b.soldeLines) && b.soldeLines.length) ? "SOLDE_TOUT_COMPTE" : undefined,
-    title: `Lettre fin de contrat - ${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
+    title: `Lettre fin de contrat - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(),
     createdById: req.user.id, createdAt: new Date().toISOString(), status: "DRAFT", cycle: 1, steps: [], generatedFile: null,
     data: {
-      employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(), civility: civ, matricule: emp.matricule || "",
+      employeeName: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), civility: civ, matricule: emp.matricule || "",
       endDate: c.endDate, motif: c.departureReason || b.motif || "",
       bankName: b.bankName || (emp.bank && emp.bank.name) || emp.bankName || "",
       accountNumber: b.accountNumber || (emp.bank && emp.bank.account) || emp.bankAccount || "",
@@ -348,7 +348,7 @@ router.get("/:id/leave/:docId/attestation.pdf", allow("GPF", "CD", "RJ", "ADM", 
   const d = doc.data || {}; const co = wf.companyInfo(emp);
   let PDFDocument; try { PDFDocument = require("pdfkit"); } catch (e) { return res.status(500).json({ error: "Génération PDF indisponible" }); }
   const civ = emp.civility && /mme|mlle|f/i.test(emp.civility) ? "Madame" : "Monsieur";
-  const nom = `${emp.firstName || ""} ${emp.lastName || ""}`.trim();
+  const nom = `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim();
   const fr = (x) => x ? new Date(x).toLocaleDateString("fr-FR") : "…………";
   const pdf = new PDFDocument({ margin: 56, size: "A4" });
   res.setHeader("Content-Type", "application/pdf");

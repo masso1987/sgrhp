@@ -8,7 +8,7 @@ const mailer = require("./mailer");
 const DAY = 86400000, WINDOW = 90, CADENCE = 28, STOP_AFTER = 365;
 
 const daysLeft = (s) => { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : Math.ceil((d.getTime() - Date.now()) / DAY); };
-const empName = (e) => `${e.firstName || ""} ${e.lastName || ""}`.trim();
+const empName = (e) => `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim();
 const docLabel = (code) => { const d = (db.docTypes || []).find(x => x.code === code); return d ? (d.labelFr || d.label) : code; };
 const pfName = (pid) => { const p = (db.portfolios || []).find(x => x.id === pid); return p ? p.name : ""; };
 

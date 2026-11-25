@@ -103,7 +103,7 @@ function evaluation(req) {
 function compliance(req) {
   const issues = [];
   for (const e of mine(db.employees, req)) {
-    const name = `${e.firstName} ${e.lastName}`;
+    const name = `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`;
     if (!e.cnpsNumber) issues.push({ employee: name, severity: "HIGH", issue: "Numéro CNPS manquant - affiliation à régulariser" });
     if (!e.cniExpiry || days(e.cniExpiry) < 0) issues.push({ employee: name, severity: "HIGH", issue: `CNI expirée (${fr(e.cniExpiry)})` });
     else if (days(e.cniExpiry) <= 60) issues.push({ employee: name, severity: "MEDIUM", issue: `CNI expire dans ${days(e.cniExpiry)} jours` });
@@ -150,7 +150,7 @@ const REPORTS = {
     return mine(db.employees, req).map(e => {
       const pf = mine(db.portfolios, req).find(p => p.id === e.portfolioId);
       const cnv = mine(db.conventions, req).find(c => c.id === pf?.conventionId);
-      return { nom: `${e.firstName} ${e.lastName}`, portefeuille: pf?.name || "-",
+      return { nom: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`, portefeuille: pf?.name || "-",
         convention: cnv?.name || "-", contrat: e.contract?.type || "-",
         categorie: e.contract?.category || "-", embauche: fr(e.hireDate),
         cnps: e.cnpsNumber || "-", cni: e.cniNumber };

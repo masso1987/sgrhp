@@ -17,7 +17,7 @@ router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const decisions = mine(db.decisions, req).filter(d => d.employeeId === emp.id);
   const fr = d => d ? new Date(d).toLocaleDateString("fr-FR") : "-";
 
-  audit(req.user, "EXPORTED", "Employee", emp.id, { name: `${emp.firstName} ${emp.lastName}` });
+  audit(req.user, "EXPORTED", "Employee", emp.id, { name: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}` });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="Dossier_${emp.lastName}_${emp.firstName}.pdf"`);
 
@@ -44,14 +44,14 @@ router.get("/:id/export", allow("GPF", "CD", "RJ", "ADM"), (req, res) => {
   const tx = photoDrawn ? PX + PW + 14 : PX;
   const tw = 549 - tx;
   doc.fontSize(16).fillColor("#1e3a5f").font("Helvetica-Bold").text(require("./settings").companyName(req).toUpperCase(), tx, PY + 6, { width: tw, align: "center" });
-  doc.fontSize(13).text(`DOSSIER EMPLOYÉ - ${emp.firstName} ${emp.lastName}`, tx, doc.y, { width: tw, align: "center" });
+  doc.fontSize(13).text(`DOSSIER EMPLOYÉ - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`, tx, doc.y, { width: tw, align: "center" });
   doc.fontSize(8).fillColor("#777").font("Helvetica")
     .text(`Généré le ${new Date().toLocaleString("fr-FR")} par ${req.user.fullName || req.user.id} - Confidentiel`, tx, doc.y, { width: tw, align: "center" });
   // Reprendre sous la photo/titre, pleine largeur.
   doc.x = 46; doc.y = Math.max(doc.y, PY + PH + 8);
 
   H("1. Informations personnelles");
-  KV("Nom & Prénoms", `${emp.firstName} ${emp.lastName}`);
+  KV("Nom & Prénoms", `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`);
   KV("Né(e) le", `${fr(emp.birthDate)} à ${emp.birthPlace || "-"}`);
   KV("Situation matrimoniale", emp.maritalStatus);
   KV("Adresse", emp.address); KV("Téléphone", emp.phone); KV("Email", emp.email);

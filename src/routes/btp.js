@@ -1013,11 +1013,11 @@ router.get("/epi", allow(...READ), (req, res) => {
   const rev = reversedRefs(req);
   res.json(mine(col("btpMovements"), req).filter(m => m.type === "dotation").sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt)).map(m => {
     const e = mine(db.employees || [], req).find(x => x.id === m.employeeId) || {};
-    return Object.assign({}, m, { employee: `${e.firstName || ""} ${e.lastName || ""}`.trim(), material: matName(req, m.materialId), warehouse: whName(req, m.warehouseId), project: projName(req, m.projectId), reversed: rev.has(m.ref) });
+    return Object.assign({}, m, { employee: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), material: matName(req, m.materialId), warehouse: whName(req, m.warehouseId), project: projName(req, m.projectId), reversed: rev.has(m.ref) });
   }));
 });
 router.get("/employees", allow(...READ), (req, res) => res.json(mine(db.employees || [], req).filter(e => (e.status || "").toUpperCase() !== "ARCHIVED")
-  .map(e => ({ id: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), matricule: e.matricule || "" })).sort((a, b) => a.name.localeCompare(b.name, "fr"))));
+  .map(e => ({ id: e.id, name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), matricule: e.matricule || "" })).sort((a, b) => a.name.localeCompare(b.name, "fr"))));
 router.post("/epi", allow(...WRITE), (req, res) => {
   const b = req.body || {};
   const emp = mine(db.employees || [], req).find(e => e.id === b.employeeId); if (!emp) return bad(res, "Salarié obligatoire");
@@ -1025,7 +1025,7 @@ router.post("/epi", allow(...WRITE), (req, res) => {
   if (b.projectId && !findMine("btpProjects", req, b.projectId)) return bad(res, "Chantier introuvable");
   const date = b.date ? String(b.date).slice(0, 10) : today(); if (!isDate(date) || date > today()) return bad(res, "Date invalide");
   const lines = (Array.isArray(b.lines) ? b.lines : []).filter(l => l.materialId && Q(l.qty) > 0).map(l => ({ materialId: l.materialId, warehouseId: b.warehouseId, qty: -Math.abs(Q(l.qty)) }));
-  const r = post(req, { type: "dotation", date, projectId: b.projectId || "", employeeId: emp.id, reason: str(b.note, 300) || `Dotation EPI - ${emp.firstName || ""} ${emp.lastName || ""}`.trim(), clientKey: str(b.clientKey, 80), lines });
+  const r = post(req, { type: "dotation", date, projectId: b.projectId || "", employeeId: emp.id, reason: str(b.note, 300) || `Dotation EPI - ${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim(), clientKey: str(b.clientKey, 80), lines });
   if (r.error) return bad(res, r.error);
   res.status(r.duplicate ? 200 : 201).json({ ok: true, ref: r.ref, duplicate: !!r.duplicate });
 });

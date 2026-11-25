@@ -10,7 +10,7 @@
 const { db } = require("./store");
 const mailer = require("./mailer");
 
-function empName(e) { return `${(e && e.firstName) || ""} ${(e && e.lastName) || ""}`.trim() || "(employé)"; }
+function empName(e) { return `${String((e && e.lastName)||"").toUpperCase()} ${(e && e.firstName) || ""}`.trim() || "(employé)"; }
 
 /** Demandes en attente pour un tenant, indexées par employeeId. */
 function pendingItems(tenantId) {

@@ -820,7 +820,7 @@ function epiRows(req, pfId) {
       return { productId: l.productId || "", designation: l.designation || (l.productId ? pName(req, l.productId) : ""), planned: Q(l.quantity), year: l.year || "", issued, remaining: Math.max(0, Q(l.quantity) - issued) };
     });
     const planned = lines.reduce((s, l) => s + l.planned, 0), issued = lines.reduce((s, l) => s + l.issued, 0);
-    return { employeeId: e.id, name: `${e.firstName || ""} ${e.lastName || ""}`.trim(), portfolioId: e.portfolioId, lines, planned, issued, pct: planned ? Math.round(issued / planned * 100) : 0 };
+    return { employeeId: e.id, name: `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim(), portfolioId: e.portfolioId, lines, planned, issued, pct: planned ? Math.round(issued / planned * 100) : 0 };
   });
 }
 router.get("/epi/portfolios", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => res.json(mine(db.portfolios, req).filter(p => p.epiEnabled).map(p => ({ id: p.id, name: p.name }))));
@@ -845,7 +845,7 @@ router.post("/epi/issue", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
     if (!prod) return res.status(404).json({ error: "Produit introuvable" });
     if (qty > Q(prod.qty || 0)) return res.status(400).json({ error: `Stock insuffisant pour « ${prod.name} » (disponible ${Q(prod.qty || 0)})` });
     prod.qty = Q((prod.qty || 0) - qty);
-    logMove(req, { date: _today(), type: "dotation", productId: prod.id, qty: -qty, ref: "Dotation EPI", note: `${emp.firstName || ""} ${emp.lastName || ""}`.trim() });
+    logMove(req, { date: _today(), type: "dotation", productId: prod.id, qty: -qty, ref: "Dotation EPI", note: `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim() });
   }
   const rec = stamp({ id: id("epi"), employeeId: emp.id, portfolioId: emp.portfolioId, productId: b.productId || "", designation: b.designation || (prod && prod.name) || "", quantity: qty, date: _today(), by: req.user.id, createdAt: new Date().toISOString() }, req);
   db.epiIssues.push(rec); save();
@@ -857,7 +857,7 @@ router.post("/epi/issue", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
 router.get("/epi/issues", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   let list = mine(db.epiIssues, req);
   if (req.query.employeeId) list = list.filter(i => i.employeeId === req.query.employeeId);
-  const eName = (eid) => { const e = mine(db.employees, req).find(x => x.id === eid); return e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : ""; };
+  const eName = (eid) => { const e = mine(db.employees, req).find(x => x.id === eid); return e ? `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() : ""; };
   res.json(list.map(i => ({ ...i, employeeName: eName(i.employeeId), productName: i.productId ? pName(req, i.productId) : (i.designation || "") }))
     .sort((a, b) => String(b.date || b.createdAt || "").localeCompare(String(a.date || a.createdAt || ""))));
 });
@@ -937,7 +937,7 @@ router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), 
   doc.moveTo(M, 116).lineTo(R, 116).strokeColor("#e8833a").lineWidth(1.5).stroke();
   doc.moveDown(1.2);
   const KV = (k, v) => doc.fontSize(10).font("Helvetica-Bold").fillColor("#444").text(k + " : ", M, doc.y, { continued: true }).font("Helvetica").fillColor("#000").text(String(v || "-"));
-  KV("Salarié", `${emp.firstName || ""} ${emp.lastName || ""}`.trim());
+  KV("Salarié", `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}`.trim());
   KV("Matricule", emp.matricule || "-");
   KV("Client / portefeuille", pf ? pf.name : "-");
   KV("Poste", emp.position || emp.qualification || "-");
@@ -998,7 +998,7 @@ router.get("/epi/fiche/:employeeId.pdf", allow("RS", "ADM", "CD", "RJ", "GPF"), 
  * ces remises ne la modifient pas. Un article « à restituer » (ordinateur, téléphone, outillage…)
  * reste en possession du salarié jusqu'à son retour, qui le remet en stock. */
 const dots = (req) => mine(db.stockDotations || (db.stockDotations = []), req);
-const empFullName = (e) => e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : "";
+const empFullName = (e) => e ? `${String(e.lastName||"").toUpperCase()} ${e.firstName||""}`.trim() : "";
 function dotOut(req, d) {
   const emp = mine(db.employees, req).find(e => e.id === d.employeeId);
   const prod = _prod(req, d.productId);
