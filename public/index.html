@@ -45,6 +45,12 @@ h1{font-size:19px;margin-bottom:14px}
 .panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
 table{width:100%;border-collapse:collapse}
 th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted);padding:7px 9px;border-bottom:2px solid var(--border)}
+/* En-têtes de tableau sur bandeau coloré (BC, achats, ventes...) : le texte reste blanc et lisible. */
+tr[style*="color:#fff"]>th,tr[style*="color: #fff"]>th{color:#fff;font-weight:700}
+tr[style*="color:#fff"]~tr>td.r{white-space:nowrap}
+/* « note » sur un texte en ligne (span) : simple libellé gris, pas l'encadré d'information pleine largeur. */
+span.note{display:inline;position:static;background:none;border:0;border-radius:0;padding:0;margin:0;color:var(--muted);font-size:inherit}
+span.note::before{display:none}
 td{padding:8px 9px;border-bottom:1px solid var(--border)}
 .tag{display:inline!important;padding:0!important;border-radius:0!important;background:transparent!important;color:inherit!important;font-size:12px;font-weight:600}
 .tag.green{color:var(--green)!important}.tag.red{color:var(--red)!important}
@@ -16634,7 +16640,7 @@ async function stockTransferStatus(id,st){ try{ await api("/stock/transfers/"+id
 async function stockTransferDelete(id){ if(!await mmConfirm({message:"Supprimer ce transfert ?",danger:true})) return; try{ await api("/stock/transfers/"+id,{method:"DELETE"}); stockTransfersView(); }catch(e){ alert(e.message); } }
 /* ================= Bon de commande : Voir / Imprimer / Expédition ================= */
 async function stockCompany(){ if(window._STKCOMPANY) return window._STKCOMPANY;
-  try{ const st=await api("/settings"); const lh=(st.branding&&st.branding.letterhead)||{}; const c=Object.assign({},(st.branding&&st.branding.company)||{},lh.company||{}); window._STKCOMPANY=c; return c; }catch(e){ return {}; } }
+  try{ const st=await api("/settings"); const lh=(st.branding&&st.branding.letterhead)||{}; const c=Object.assign({},(st.branding&&st.branding.company)||{},lh.company||{}); if(!c.name&&typeof ME!=="undefined"&&ME&&ME.tenantName) c.name=ME.tenantName; /* nom de la société par défaut */ window._STKCOMPANY=c; return c; }catch(e){ return {}; } }
 const PO_ACT_LABELS={CREATED:"Ajouté",UPDATED:"Édité",RECEIVED:"Reçu",STATUS:"Statut modifié",SHIPPING:"Expédition modifiée",POSTED:"Comptabilisé",DELETED:"Supprimé"};
 function poAchatStatus(st){ return {ordered:"Ordered (Commandé)",partial:"Partiel",completed:"Reçu"}[st]||st; }
 function stockPODocHtml(po,company,opts){
