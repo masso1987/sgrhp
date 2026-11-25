@@ -16005,7 +16005,7 @@ async function stockPurchaseForm(poId, editId){
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockpurchases')">← Achats</button>
     <h1 style="margin-top:10px">${editId?"Modifier l'achat":"Ajouter un achat"}</h1>
     <div class="panel"><div class="grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
-      <div><label>Fournisseur *</label><div style="display:flex;gap:4px"><select id="puSup" onchange="puFillAddress()" style="flex:1"><option value="">Veuillez sélectionner</option>${supOpt}</select><button class="btn p sm" onclick="puQuickSupplier()" title="Nouveau fournisseur">+</button></div></div>
+      <div><label>Fournisseur *</label><div style="display:flex;gap:4px"><select id="puSup" onchange="puFillAddress();puPOOptions()" style="flex:1"><option value="">Veuillez sélectionner</option>${supOpt}</select><button class="btn p sm" onclick="puQuickSupplier()" title="Nouveau fournisseur">+</button></div></div>
       <div><label>Numéro de référence</label><input id="puRef" placeholder="auto"></div>
       <div><label>Date d'achat *</label><input id="puDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
       <div><label>Statut d'achat *</label><select id="puStatus"><option value="received">Reçu</option><option value="ordered">Commandé</option><option value="pending">En attente</option></select></div>
@@ -16013,7 +16013,7 @@ async function stockPurchaseForm(poId, editId){
       <div><label>Lieu d'affaires</label><select id="puLoc"><option value="">Veuillez sélectionner</option>${locOpt}</select></div>
       <div><label>Conditions de paiement</label><input id="puTerms"></div>
       <div><label>Joindre un document (≤5 Mo)</label><input type="file" id="puFile" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" onchange="stkAttach(this,'_puAttach')"></div>
-      <div style="grid-column:1/3"><label>Bon de commande (charger les produits)</label><select id="puPO" onchange="stockPurchaseLoadPO(this.value)"><option value="">- aucun -</option>${pos.map(po=>`<option value="${po.id}">${esc(po.ref)} - ${esc(stSupName(po.supplierId))} - reste ${po.remaining}</option>`).join("")}</select></div>
+      <div style="grid-column:1/3"><label>Bon de commande (charger les produits)</label><select id="puPO" onchange="stockPurchaseLoadPO(this.value)"></select><div id="puPOHint" class="note-inline" style="margin-top:3px"></div></div>
     </div></div>
     <div class="panel"><div id="puLines"></div>
       <div style="text-align:right;margin-top:6px"><span class="note">Articles au total :</span> <b id="puArtQty">0</b> &nbsp; <span class="note">Montant total net :</span> <b id="puSubV">0</b></div></div>
@@ -16030,7 +16030,7 @@ async function stockPurchaseForm(poId, editId){
     </div>
     <div class="err hidden" id="puErr" style="margin-top:6px"></div>
     <div style="margin-top:10px"><button class="btn p" onclick="stockPurchaseSubmit()">Enregistrer l'achat</button></div></div>`;
-  puRender();
+  puRender(); puPOOptions();
   if(poId){ const sel=document.getElementById("puPO"); if(sel) sel.value=poId; stockPurchaseLoadPO(poId); }
   if(window._prefillSup){ const el=document.getElementById("puSup"); if(el){ el.value=window._prefillSup; puFillAddress(); } window._prefillSup=""; }
   if(editId){ const d=await api("/stock/purchases/"+editId).catch(()=>null); if(d){
@@ -16108,14 +16108,24 @@ function puImpDo(){ const rows=window._puImpRows||[]; const g=(x)=>{const e=docu
     const qty=cq!==""?Number(bankNum(r[cq]))||1:1; const cost=cc!==""?Number(bankNum(r[cc]))||p.purchasePrice:p.purchasePrice;
     const ex=window._PUL.find(l=>l.productId===p.id); if(ex){ex.qty=(Number(ex.qty)||0)+qty;} else window._PUL.push({productId:p.id,qty,unitCost:cost,discountPct:0,salePrice:p.salePrice||0,mfgDate:"",expDate:""}); added++; }
   document.querySelector(".modal-bg").remove(); puRender(); if(!added) alert("Aucun produit correspondant trouvé."); }
+/* Liste des BC encore à recevoir : ceux du fournisseur choisi (tous si aucun fournisseur). */
+function puPOOptions(){
+  const sel=document.getElementById("puPO"); if(!sel) return; const sup=(document.getElementById("puSup")||{}).value||"";
+  // BC chargé d'un autre fournisseur : on le retire (et ses lignes) avant de reconstruire la liste.
+  const curPO=(window._puPOs||[]).find(p=>p.id===window._puPOId);
+  if(sup&&curPO&&curPO.supplierId!==sup){ window._PUL=[]; window._puPOId=""; window._puPORef=""; puRender(); }
+  const cur=window._puPOId||""; const pos=(window._puPOs||[]).filter(p=>!sup||p.supplierId===sup);
+  sel.innerHTML='<option value="">- aucun -</option>'+pos.map(po=>`<option value="${po.id}" ${po.id===cur?"selected":""}>${esc(po.ref)} - ${esc(po.date?po.date.split("-").reverse().join("/"):"")}${sup?"":" - "+esc(stSupName(po.supplierId))} - reste ${po.remaining} - ${fCFA(po.total)} FCFA</option>`).join("");
+  const h=document.getElementById("puPOHint"); if(h) h.textContent=sup?(pos.length?pos.length+" bon(s) de commande à recevoir pour ce fournisseur : choisissez-en un pour charger ses produits.":"Aucun bon de commande en attente pour ce fournisseur."):"";
+}
 async function stockPurchaseLoadPO(id){
-  if(!id){ window._puPOId=""; window._puPORef=""; return; }
+  if(!id){ if(window._puPOId){ window._PUL=[]; puRender(); } window._puPOId=""; window._puPORef=""; return; }
   const po=await api("/stock/po/"+id).catch(e=>{alert("Impossible de charger le BC : "+e.message);return null;}); if(!po) return;
   window._puPOId=po.id; window._puPORef=po.ref;
   const prods=window._STK.prods||[];
   window._PUL=(po.lines||[]).map(l=>{const p=prods.find(x=>x.id===l.productId)||{};return {productId:l.productId,qty:Q_(l.qty)-Q_(l.receivedQty||0),unitCost:l.unitCost,discountPct:l.discountPct,salePrice:p.salePrice||0,mfgDate:"",expDate:""};}).filter(l=>l.qty>0);
   window._puQ="";
-  const g=(x)=>document.getElementById(x); if(g("puSup")){ g("puSup").value=po.supplierId||""; puFillAddress(); } if(g("puTerms")) g("puTerms").value=po.paymentTerms||""; if(g("puTaxPct")) g("puTaxPct").value=String(po.taxPct||0);
+  const g=(x)=>document.getElementById(x); if(g("puSup")){ g("puSup").value=po.supplierId||""; puFillAddress(); puPOOptions(); } if(g("puTerms")) g("puTerms").value=po.paymentTerms||""; if(g("puTaxPct")) g("puTaxPct").value=String(po.taxPct||0);
   puRender();
 }
 function Q_(n){ return Math.round((Number(n)||0)*1000)/1000; }
@@ -16519,8 +16529,8 @@ function stockReportCSV(){
   const esc2=(v)=>{v=v==null?"":String(v); return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
   let csv=d.columns.map(c=>esc2(c.l)).join(";")+"\n";
   for(const r of d.rows) csv+=d.columns.map(c=>esc2(r[c.k])).join(";")+"\n";
-  const blob=new Blob([""+csv],{type:"text/csv;charset=utf-8"}); const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob); a.download=(d.title||"rapport").replace(/[^\w]+/g,"_")+".csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const blob=new Blob(["﻿"+csv.replace(/\n/g,"\r\n")],{type:"text/csv;charset=utf-8"}); /* BOM : Excel lit les accents (É, é, ô) correctement */ const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=(d.title||"rapport").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\w]+/g,"_").replace(/^_+|_+$/g,"")+".csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
 }
 /* Impression des rapports de stock : page propre (en-tête société + titre + période), sans l'en-tête/pied
  * que le navigateur ajoute (date, « about:blank »), titres de colonnes répétés sur chaque page, paysage pour

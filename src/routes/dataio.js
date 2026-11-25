@@ -98,8 +98,9 @@ router.get("/export", allow("CD", "RJ", "ADM"), (req, res) => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
       (mine(db.referentials, req).find(r => r.key === "categories")?.values || []).map(v => ({ Catégorie: v }))), "Catégories");
     const type = fmt === "csv" ? "csv" : "xlsx";
-    const buf = XLSX.write(wb, { type: "buffer", bookType: type });
-    res.setHeader("Content-Type", fmt === "csv" ? "text/csv"
+    let buf = XLSX.write(wb, { type: "buffer", bookType: type });
+    if (type === "csv") buf = Buffer.concat([Buffer.from("﻿", "utf8"), Buffer.from(buf)]); // BOM : accents lisibles dans Excel
+    res.setHeader("Content-Type", fmt === "csv" ? "text/csv; charset=utf-8"
       : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="employes_${Date.now()}.${type}"`);
     return res.send(buf);
