@@ -1234,6 +1234,8 @@ function armIdle(mins) {
 
 function togglePw(el){ const inp=el.parentNode.querySelector("input"); if(!inp) return; const show=inp.type==="password"; inp.type=show?"text":"password"; el.style.color=show?"var(--accent)":""; }
 /* ---- Reusable UI: icons, row action menu (⋮), styled confirm dialog ---- */
+/* Rôle principal + rôles supplémentaires (ex. GPF + RC) */
+function meHas(list){ const r=[ME&&ME.role].concat((ME&&ME.extraRoles)||[]); return (list||[]).some(x=>r.includes(x)); }
 function ICO(n){ const P={edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',trash:'<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',dots:'<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',download:'<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>',lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',file:'<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>',logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'}; return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">${P[n]||''}</svg>`; }
 function rowActions(items){
   return `<details class="rowmenu"><summary class="rowmenu-btn" title="Actions">${ICO('dots')}</summary><div class="rowmenu-pop">`+
@@ -1668,12 +1670,12 @@ function renderLoginFooter(){
   if(el) el.innerHTML=`© ${y} ${esc(co)}. Tous droits réservés.`+(build?`<br><span style="color:#9ca3af">build ${esc(build)}</span>`:"");
 }
 function buildNav() {
-  const _adm = ME.role === "ADM" || ME.role === "SADM";
-  const _smqFull = _adm || ME.role === "RQ" || !!ME.smqManager;   // accès complet Qualité
+  const _adm = meHas(["ADM"]) || ME.role === "SADM";
+  const _smqFull = _adm || meHas(["RQ"]) || !!ME.smqManager;   // accès complet Qualité
   const _MODROLE = { RC: "accounting", RS: "stock", RP: "payroll" }; const _mr = _MODROLE[ME.role];
   NAV_VISIBLE = NAV.filter(n => !n.hidden && (_mr
     ? (n.module === _mr && (ME.modules || []).includes(n.module) && !((ME.disabledFeatures || []).includes(n.k)))
-    : (n.roles.includes(ME.role) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.tmodule || ((ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]))).includes(n.tmodule)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k)))));
+    : (meHas(n.roles) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.tmodule || ((ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]))).includes(n.tmodule)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k)))));
   NAV_PRESENT = NAV_GROUPS.filter(G =>NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
   const mb = document.getElementById("modbar");
   if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
@@ -2036,7 +2038,7 @@ function pagerHTML(key, total) {
 let EMP_LIST = [];
 async function employees() {
   EMP_LIST = await api("/employees");
-  const canCreate = ["GPF","ADM"].includes(ME.role);
+  const canCreate = meHas(["GPF","ADM"]);
   const pfs = [...new Set(EMP_LIST.map(e =>e.portfolioId))];
   const ctypes = [...new Set(EMP_LIST.map(e =>e.contract && e.contract.type).filter(Boolean))];
   const cats = [...new Set(EMP_LIST.map(e =>e.contract && e.contract.category).filter(Boolean))].sort();
@@ -2467,12 +2469,12 @@ async function users() {
     <tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Modules (accès)</th><th>Portefeuilles (GPF)</th><th>Statut</th><th>Actions</th></tr>
     ${list.map(u => `<tr>
       <td><b>${esc(u.fullName)}</b></td><td>${esc(u.email)}</td>
-      <td>${roleSel(u)}</td>
+      <td>${roleSel(u)}${(u.extraRoles||[]).map(r=>` <span class="tag blue" title="Rôle supplémentaire">+${esc(r)}</span>`).join("")}${u.id===ME.id?"":` <button class="btn ghost sm" onclick="xrModal('${u.id}')" title="Rôles supplémentaires">Rôles</button>`}</td>
       <td>${u.role === "ADM"
         ? '<span class="tag gray">tous (admin)</span>'
         : `<span class="tag ${u.modules && u.modules.length ? "blue" : "gray"}">${(u.modules || []).length}</span>
            <button class="btn ghost sm" onclick="modModal('${u.id}')">Modules</button>`}</td>
-      <td>${u.role === "GPF"
+      <td>${(u.role === "GPF" || (u.extraRoles||[]).includes("GPF"))
         ? `<span class="tag gray">${(u.portfolioIds || []).length}</span>
            <button class="btn ghost sm" onclick="pfModal('${u.id}')">Gérer</button>` : "-"}</td>
       <td><span class="tag ${u.active ? "green" : "red"}">${u.active ? "Actif" : "Désactivé"}</span></td>
@@ -2491,6 +2493,20 @@ async function users() {
     <div class="err hidden" id="uErr"></div>
     <button class="btn p" onclick="userSave()">Créer</button></div>`;
 }
+const ROLE_NAMES={GPF:"GPF - Gestionnaire de portefeuille",CD:"CD - Chef de département",RJ:"RJ - Responsable juridique",RP:"RP - Paie",RC:"RC - Comptabilité",RS:"RS - Stock",RQ:"RQ - Qualité",UI:"UI - Consultation",ADM:"ADM - Administrateur"};
+async function xrModal(uid){
+  const list=await api("/users"); const u=list.find(x=>x.id===uid); if(!u) return;
+  const bg=document.createElement("div"); bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal" style="max-width:460px"><b>Rôles supplémentaires - ${esc(u.fullName)}</b>
+    <div class="note" style="margin-top:6px">Rôle principal : <b>${esc(ROLE_NAMES[u.role]||u.role)}</b>. Cochez les rôles en plus (par ex. un GPF qui tient aussi la comptabilité : cochez RC). Le module correspondant est ouvert automatiquement ; les autres modules se cochent dans « Modules ».</div>
+    <div class="scroll">${Object.keys(ROLE_NAMES).filter(r=>r!==u.role).map(r=>`<label class="chk"><input type="checkbox" data-xr="${r}" ${(u.extraRoles||[]).includes(r)?"checked":""}><span>${esc(ROLE_NAMES[r])}</span></label>`).join("")}</div>
+    <div class="err hidden" id="xrErr"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost sm" onclick="this.closest('.modal-bg').remove()">Annuler</button><button class="btn p sm" onclick="xrSave('${uid}',this)">Enregistrer</button></div></div>`;
+  bg.addEventListener("click",e=>{ if(e.target===bg) bg.remove(); }); document.body.appendChild(bg);
+}
+async function xrSave(uid,btn){ const ids=[...btn.closest(".modal").querySelectorAll("input[data-xr]")].filter(c=>c.checked).map(c=>c.dataset.xr);
+  try{ await api("/users/"+uid+"/extra-roles",{method:"PUT",body:JSON.stringify({extraRoles:ids})}); btn.closest(".modal-bg").remove(); users(); }
+  catch(e){ const el=document.getElementById("xrErr"); el.textContent=e.message; el.classList.remove("hidden"); } }
 async function setRole(uid, role) {
   try { await api(`/users/${uid}/role`, { method: "PUT", body: JSON.stringify({ role }) }); users(); }
   catch (e) { alert(e.message); users(); }
@@ -2739,7 +2755,7 @@ const ST_TAG = (s, stage) => ({DRAFT:'<span class="tag gray">Brouillon</span>',
 
 async function queueView() {
   const q = await api("/documents/queue");
-  view.innerHTML = `<h1>Validation Queue - ${ME.role === "CD" ? "1ère validation (Chef de département)" : "Validation juridique finale"}</h1>
+  view.innerHTML = `<h1>Validation Queue - ${meHas(["CD"]) ? "1ère validation (Chef de département)" : "Validation juridique finale"}</h1>
   <div class="note">Rejection reason is <b>mandatory</b>; it is logged, notified to the initiator and feeds quality statistics.</div>
   <div class="panel">` + (q.length ? `<table><tr><th>Document</th><th>Cycle</th><th>Chronomètre</th><th>Actions</th></tr>` +
   q.map(d => `<tr><td><b>${esc(d.title)}</b></td><td>${d.cycle > 1 ? `<span class="tag amber">resoumission n°${d.cycle}</span>` : d.cycle}</td>
@@ -2751,7 +2767,7 @@ async function queueView() {
 }
 async function wfApprove(id) {
   try { const d = await api(`/documents/${id}/approve`, { method: "POST" });
-    alert(ME.role === "RJ" ? "Validation finale enregistrée - document officiel généré automatiquement."
+    alert(meHas(["RJ"]) ? "Validation finale enregistrée - document officiel généré automatiquement."
       : "Validé - transmis au responsable juridique (RJ), chronomètre de 48h démarré."); queueView(); }
   catch (e) { alert(e.message); }
 }
@@ -2925,8 +2941,8 @@ async function empDetail(id) {
   const docs = await api("/documents");
   const habs = await api("/hr/habilitations?employeeId=" + id).catch(() => []);
   const doc = docs.find(d =>d.type === "EMPLOYEE_FILE" && d.refId === id);
-  const canEdit = ["GPF","ADM"].includes(ME.role);
-  const canEditHab = ["GPF","CD","RJ","ADM"].includes(ME.role);
+  const canEdit = meHas(["GPF","ADM"]);
+  const canEditHab = meHas(["GPF","CD","RJ","ADM"]);
   const complete = e.checklist.filter(c => c.atCreation).every(c => c.uploaded);
   const lastReject = doc?.steps?.slice().reverse().find(s =>s.decision === "REJECTED");
 
@@ -2945,12 +2961,12 @@ async function empDetail(id) {
   view.innerHTML = `<button class="btn ghost sm" onclick="employees()">← Retour</button>
     <h1 style="margin-top:10px">${esc(e.firstName)} ${esc(e.lastName)} ${doc ? ST_TAG(doc.status, stageOf(doc)) : ST_TAG(e.status || "DRAFT", e.pendingStage)}${e.dormant?' <span class="tag gray" title="Contrat terminé — fiche verrouillée. Ouvrez un nouveau contrat pour réactiver.">🔒 Sommeil</span>':''}
   <span style="float:right;display:inline-flex;gap:6px">
-    ${e.dormant ? '<span class="note" style="align-self:center">Fiche verrouillée (sommeil)</span>' : ((ME.role === "ADM" || ME.role === "GPF" || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">Modifier</button>` : "")}
-    ${(ME.role === "ADM" || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">Supprimer</button>` : ""}
-    ${["ADM","CD","RJ","GPF","RP"].includes(ME.role) ? `<button class="btn ghost sm" onclick="go('salaryanalysis','${e.id}')">Analyser la rémunération</button>` : ""}
+    ${e.dormant ? '<span class="note" style="align-self:center">Fiche verrouillée (sommeil)</span>' : ((meHas(["ADM"]) || meHas(["GPF"]) || (ME.permissions || []).includes("employee.edit")) ? `<button class="btn ghost sm" onclick="empEdit('${e.id}')">Modifier</button>` : "")}
+    ${(meHas(["ADM"]) || (ME.permissions || []).includes("employee.delete")) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="empDelete('${e.id}','${esc(e.firstName)} ${esc(e.lastName)}')">Supprimer</button>` : ""}
+    ${meHas(["ADM","CD","RJ","GPF","RP"]) ? `<button class="btn ghost sm" onclick="go('salaryanalysis','${e.id}')">Analyser la rémunération</button>` : ""}
     <button class="btn ghost sm" onclick="empExport('${e.id}','${esc(e.lastName)}')">Dossier (PDF)</button></span></h1>
     ${rejBanner}
-    ${["GPF","ADM","CD","RJ"].includes(ME.role) ? `<div id="appAcctBox" class="panel"><b style="font-size:12px;color:var(--muted)">COMPTE APPLICATION MOBILE</b><div class="note" style="margin-top:4px">Chargement…</div></div>` : ""}
+    ${meHas(["GPF","ADM","CD","RJ"]) ? `<div id="appAcctBox" class="panel"><b style="font-size:12px;color:var(--muted)">COMPTE APPLICATION MOBILE</b><div class="note" style="margin-top:4px">Chargement…</div></div>` : ""}
     ${canEdit && (!doc || doc.status === "DRAFT") ? `
       <button class="btn p" style="margin-bottom:12px" ${complete ? "" : "disabled title='Upload all required documents first'"}
         onclick="empSubmit('${e.id}')">Soumettre pour validation ${complete ? "" : "(pièces incomplètes)"}</button>`
@@ -3007,7 +3023,7 @@ async function empDetail(id) {
 }
 async function empAppAccountLoad(eid){
   const box=document.getElementById("appAcctBox"); if(!box) return;
-  const canEdit=["GPF","ADM"].includes(ME.role);
+  const canEdit=meHas(["GPF","ADM"]);
   let a; try{ a=await api("/employees/"+eid+"/app-account"); }catch(err){ box.innerHTML='<b style="font-size:12px;color:var(--muted)">COMPTE APPLICATION MOBILE</b><div class="note" style="margin-top:4px;color:var(--red)">'+esc(err.message)+'</div>'; return; }
   let body;
   if(a && a.provisioned){
@@ -3242,7 +3258,7 @@ const _empDetailM2 = empDetail;
 empDetail = async function(id) {
   await _empDetailM2(id);
   const docs = (await api("/documents")).filter(d =>d.type === "TEMPLATE_DOC" && d.refId === id);
-  const canEdit = ["GPF","ADM"].includes(ME.role);
+  const canEdit = meHas(["GPF","ADM"]);
   const div = document.createElement("div");
   div.innerHTML = `<div class="panel"><b style="font-size:12px;color:var(--muted)">DOCUMENTS GÉNÉRÉS DEPUIS UN MODÈLE</b>
     ${canEdit ? `<div style="margin:8px 0"><button class="btn p sm" onclick="genForm('${id}')">+ Générer un document depuis un modèle</button></div>` : ""}
@@ -3348,7 +3364,7 @@ async function hrSection(id) {
   const [am, dec, lv, refs, sels] = await Promise.all([
     api(`/hr/${id}/amendments`), api(`/hr/${id}/decisions`), api(`/hr/${id}/leave`), api("/referentials"), api("/config/salary-elements")]);
   window._SELS = sels;
-  const canEdit = ["GPF","ADM"].includes(ME.role);
+  const canEdit = meHas(["GPF","ADM"]);
   const decTypes = refs.find(r =>r.key === "decisionTypes")?.values || [];
   const lvTypes = refs.find(r =>r.key === "leaveTypes")?.values || [];
   const div = document.createElement("div");
@@ -3459,7 +3475,7 @@ async function decDl(empId, decId, name) {
 }
 async function fichesView() {
   const list = await api("/fiches");
-  const canUp = ["GPF","CD","ADM"].includes(ME.role);
+  const canUp = meHas(["GPF","CD","ADM"]);
   view.innerHTML = `<h1>Fiches de poste</h1>
   <div class="note">Upload a fiche de poste (<b>PDF or Excel</b>) - the app extracts profil, missions,
   activités, avantages, risques & pénibilités automatically. Review and correct below.</div>
@@ -3511,7 +3527,7 @@ async function gridView() {
   <div class="panel" style="max-width:560px">
   <select style="max-width:420px" onchange="window._cnvSel=this.value;gridView()">
     ${cnvs.map(c => `<option value="${c.id}" ${c.id === cnv?.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
-  ${ME.role === "ADM" ? `<div style="display:flex;gap:6px;margin-top:8px">
+  ${meHas(["ADM"]) ? `<div style="display:flex;gap:6px;margin-top:8px">
     <input id="newCnv" placeholder="Nom de la nouvelle convention" style="margin:0">
     <button class="btn ghost sm" onclick="cnvAdd()">+ Ajouter une convention</button></div>` : ""}
   <table style="margin-top:10px"><tr><th>Catégorie</th><th>Salaire de base (F CFA)</th></tr>
@@ -4035,8 +4051,8 @@ function carHead(k){document.querySelectorAll('[class^=tab-]').forEach(e=>e.styl
 async function careerTab(k) {
   carHead(k);
   const P = document.getElementById("carPane");
-  const canEdit = ["GPF","CD","ADM"].includes(ME.role);
-  const canMgr = ["CD","ADM"].includes(ME.role);
+  const canEdit = meHas(["GPF","CD","ADM"]);
+  const canMgr = meHas(["CD","ADM"]);
 
   if (k === "overview") {
     const [match, succ] = await Promise.all([api("/career/matching"), api("/career/succession")]);
@@ -4505,7 +4521,7 @@ async function paramsView() {
       <button class="btn ghost" onclick="previewBranding()">Aperçu</button>
       <button class="btn ghost" onclick="resetBranding()">Réinitialiser</button></div>
   </div>`;
-  if (ME && (ME.role === "ADM" || ME.role === "SADM")) view.insertAdjacentHTML("beforeend", `
+  if (ME && (meHas(["ADM"]) || ME.role === "SADM")) view.insertAdjacentHTML("beforeend", `
     <div class="panel"><b>Sauvegarde des données</b>
       <div class="note" style="margin:6px 0">Télécharge une sauvegarde complète (format JSON) de ${ME.role==="SADM"?"la plateforme (tous les tenants)":"votre organisation"} : comptabilité, paie, facturation, RH, référentiels et paramètres. Conservez ce fichier en lieu sûr.</div>
       <button class="btn p sm" onclick="backupDownload()">Télécharger une sauvegarde</button></div>`);
@@ -4645,8 +4661,8 @@ async function changePw() {
 /* ================= Import / Export ================= */
 let IMP = null; // { token, columns, fields, mapping }
 async function dataioView() {
-  const canImport = ["GPF","ADM"].includes(ME.role);
-  const canExport = ["CD","RJ","ADM"].includes(ME.role);
+  const canImport = meHas(["GPF","ADM"]);
+  const canExport = meHas(["CD","RJ","ADM"]);
   view.innerHTML = `<h1>Import / Export des données</h1>
   <div class="grid2">
     <div class="panel"><b>Exporter le personnel</b>
@@ -5377,8 +5393,8 @@ function _expBar(sel,name){ return '<div style="display:flex;gap:6px"><button cl
 function siteParseLink(){ const el=document.getElementById("stLink"); if(!el)return; const v=el.value||""; const m=v.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||v.match(/[?&](?:q|query|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)||v.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/); if(m){ document.getElementById("stLat").value=parseFloat(m[1]).toFixed(6); document.getElementById("stLng").value=parseFloat(m[2]).toFixed(6);} }
 /* Tabbed hubs (consolidated menus, mobile-friendly: tabs wrap on small screens) */
 function _tabs(items,active){ return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px">'+items.map(x=>'<button onclick="'+x[2]+'()" style="padding:8px 14px;border:1px solid #d1d5db;border-radius:9px;cursor:pointer;font-weight:600;font-size:13.5px;'+(x[0]===active?'background:#065f46;color:#fff;border-color:#065f46':'background:#fff;color:#374151')+'">'+x[1]+'</button>').join('')+'</div>'; }
-function presenceView(){ return (ME.role==="ADM") ? sitesView() : pointageReviewView(); }
-function _presTabs(a){ const t=[]; if(ME.role==="ADM"){ t.push(['sites','Sites','sitesView']); t.push(['horaires','Horaires','horairesView']); } t.push(['pointage','Pointages','pointageReviewView']); t.push(['trait','Traitement','traitementView']); if(ME.role==="ADM"){ t.push(['superv','Superviseurs','supervView']); t.push(['bornes','Bornes','terminalsView']); t.push(['perm','Permissions','permTypesView']); } return _tabs(t,a); }
+function presenceView(){ return (meHas(["ADM"])) ? sitesView() : pointageReviewView(); }
+function _presTabs(a){ const t=[]; if(meHas(["ADM"])){ t.push(['sites','Sites','sitesView']); t.push(['horaires','Horaires','horairesView']); } t.push(['pointage','Pointages','pointageReviewView']); t.push(['trait','Traitement','traitementView']); if(meHas(["ADM"])){ t.push(['superv','Superviseurs','supervView']); t.push(['bornes','Bornes','terminalsView']); t.push(['perm','Permissions','permTypesView']); } return _tabs(t,a); }
 async function horairesView(){
   let list=[]; try{ list=await api("/work-schedules"); }catch(e){ view.innerHTML=`${_presTabs('horaires')}<div class="panel">`+esc(e.message)+'</div>'; return; }
   const rows=list.map(p=>`<tr>
@@ -5523,7 +5539,7 @@ async function supervView(){
   const opt=cur=>'<option value="">— aucun —</option>'+supEmpIds.map(x=>`<option value="${x.id}"${cur===x.id?' selected':''}>${esc(x.label)}</option>`).join("");
   const rows=emps.map(e=>`<tr data-emp="${e.id}" data-name="${esc(_empName(e)).toLowerCase()} ${esc((e.matricule||'').toLowerCase())}">
       <td><b>${esc(_empName(e))}</b><div class="note-inline">${esc(e.matricule||'')}</div></td>
-      <td><select id="supSel_${e.id}" style="min-width:220px">${opt(e.supervisorEmpId||'')}</select></td>
+      <td><select id="supSel_${e.id}" style="min-width:220px" onchange="supSave('${e.id}')">${opt(e.supervisorEmpId||'')}</select></td>
       <td><button class="btn p sm" onclick="supSave('${e.id}')">Enreg.</button></td>
     </tr>`).join("");
   const supOpts='<option value="">— choisir un superviseur —</option>'
@@ -5542,17 +5558,24 @@ async function supervView(){
       </div>
       <div id="supPerimBox"><span class="note-inline">Choisissez un superviseur pour voir et ajuster son équipe.</span></div>
     </div>
+    <div class="panel" style="margin-bottom:12px"><b style="font-size:12px;color:var(--muted)">SUPERVISEURS ET TAILLE DE LEUR ÉQUIPE</b>
+      <table style="width:100%;margin-top:6px"><tr><th>Superviseur</th><th>Type</th><th>Fiche employé / accès mobile</th><th style="text-align:right">Équipe</th></tr>
+      ${[...sups.gpf.map(g=>`<tr style="cursor:pointer" onclick="supPick('gpf:${g.userId}')"><td><b>${esc(g.name)}</b></td><td>GPF</td><td>${g.employeeId?esc(g.employeeName)+' <span class="tag green">mobile</span>':'<span class="tag amber">à lier</span>'}</td><td style="text-align:right">${g.teamSize}</td></tr>`),...sups.leaders.map(l=>`<tr style="cursor:pointer" onclick="supPick('emp:${l.employeeId}')"><td><b>${esc(l.name)}</b></td><td>Chef d'équipe</td><td>${esc(l.matricule||"")}</td><td style="text-align:right">${l.teamSize}</td></tr>`)].join("")||'<tr><td colspan="4" class="note-inline">Aucun superviseur.</td></tr>'}</table></div>
     <div class="panel" style="margin-bottom:10px"><b style="font-size:12px;color:var(--muted)">AFFECTATION DIRECTE (un superviseur par employé)</b><br><input id="supSearch" placeholder="Rechercher un employé…" oninput="supFilter()" style="width:100%;max-width:340px;margin-top:6px"></div>
     <div class="panel" style="overflow-x:auto"><table id="supTbl" style="width:100%;min-width:560px"><tr><th>Employé</th><th>Superviseur</th><th></th></tr>
       ${emps.length?rows:'<tr><td colspan="3" class="note-inline">Aucun employé.</td></tr>'}</table></div>`;
+  let last=""; try{ last=localStorage.getItem("mboka_sup_sel")||""; }catch(e){}
+  const ps=document.getElementById("supPerimSel"); if(last&&ps&&[...ps.options].some(o=>o.value===last)){ ps.value=last; supPerimLoad(); }
 }
 function supCurEmp(){ const v=(document.getElementById("supPerimSel")||{}).value||""; if(v.startsWith("emp:")) return v.slice(4); if(v.startsWith("gpf:")){ const g=((window._SUPS||{}).gpf||[]).find(x=>x.userId===v.slice(4)); return g&&g.employeeId||""; } return ""; }
 async function supLeaderAdd(){ const eid=(document.getElementById("supLeaderAdd")||{}).value; if(!eid){ alert("Choisissez un employé."); return; } try{ await api("/employees/"+eid+"/field-supervisor",{method:"PUT",body:JSON.stringify({enabled:true})}); await supervView(); const sel=document.getElementById("supPerimSel"); if(sel){ sel.value="emp:"+eid; supPerimLoad(); } }catch(e){ alert(e.message); } }
 async function supGpfLink(uid){ const eid=(document.getElementById("supGpfEmp")||{}).value||null; try{ await api("/supervisors/gpf/"+uid+"/employee",{method:"PUT",body:JSON.stringify({employeeId:eid})}); await supervView(); const sel=document.getElementById("supPerimSel"); if(sel){ sel.value="gpf:"+uid; supPerimLoad(); } }catch(e){ alert(e.message); } }
+function supPick(v){ const sel=document.getElementById("supPerimSel"); if(!sel) return; sel.value=v; supPerimLoad(); sel.scrollIntoView({block:"center"}); }
 async function supPerimLoad(){
   const v=(document.getElementById("supPerimSel")||{}).value||""; const box=document.getElementById("supPerimBox");
+  try{ localStorage.setItem("mboka_sup_sel",v); }catch(e){}
   if(!v){ box.innerHTML='<span class="note-inline">Choisissez un superviseur pour voir et ajuster son équipe.</span>'; return; }
-  const sups=window._SUPS||{gpf:[],leaders:[]}; const emps=window._SUPEMPS||[]; const adm=ME&&ME.role==="ADM";
+  const sups=window._SUPS||{gpf:[],leaders:[]}; const emps=window._SUPEMPS||[]; const adm=ME&&meHas(["ADM"]);
   const g=v.startsWith("gpf:")?sups.gpf.find(x=>x.userId===v.slice(4)):null; const sid=supCurEmp();
   let head="";
   if(g){
@@ -5574,13 +5597,13 @@ async function supPerimLoad(){
   const rows=links.map(l=>`<tr><td>${TYPE[l.scope]||l.scope}</td><td>${esc(l.targetLabel)}</td><td style="text-align:right"><button class="btn ghost sm" onclick="supLinkDel('${l.id}')">Retirer</button></td></tr>`).join("");
   const teamList=(Array.isArray(team)?team:(team.members||[])).map(m=>esc(m.name||((m.firstName||'')+' '+(m.lastName||'')).trim())).filter(Boolean);
   box.innerHTML=head+`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
-      <div><label>Ajouter un portefeuille</label><select id="supPfAdd"><option value="">—</option>${pfOpts}</select></div>
+      <div><label>Ajouter un portefeuille</label><select id="supPfAdd" onchange="if(this.value)supLinkAdd('${sid}','PORTFOLIO')"><option value="">—</option>${pfOpts}</select></div>
       <button class="btn p sm" onclick="supLinkAdd('${sid}','PORTFOLIO')">+ Portefeuille</button>
       <span style="width:1px;background:var(--border);align-self:stretch"></span>
-      <div><label>Ajouter un employé</label><select id="supEmpAdd"><option value="">—</option>${empOpts}</select></div>
+      <div><label>Ajouter un employé</label><select id="supEmpAdd" onchange="if(this.value)supLinkAdd('${sid}','EMPLOYEE')"><option value="">—</option>${empOpts}</select></div>
       <button class="btn p sm" onclick="supLinkAdd('${sid}','EMPLOYEE')">+ Employé</button>
       <span style="width:1px;background:var(--border);align-self:stretch"></span>
-      <div><label>Exclure un employé</label><select id="supExcAdd"><option value="">—</option>${empOpts}</select></div>
+      <div><label>Exclure un employé</label><select id="supExcAdd" onchange="if(this.value)supLinkAdd('${sid}','EXCLUDE')"><option value="">—</option>${empOpts}</select></div>
       <button class="btn ghost sm" onclick="supLinkAdd('${sid}','EXCLUDE')">− Exclure</button>
     </div>
     <table style="width:100%"><tr><th>Ajustement</th><th>Cible</th><th></th></tr>${links.length?rows:'<tr><td colspan="3" class="note-inline">Aucun ajustement.</td></tr>'}</table>
@@ -5926,17 +5949,17 @@ async function insConsoImport(){
 async function empRequestsView(){
   view.innerHTML=`<h1>Demandes employés (mobile)</h1>
     <div class="note" style="margin-bottom:8px">Demandes d'AVI et d'acompte envoyées depuis l'application mobile. Pour une AVI, téléchargez la lettre jointe puis traitez-la dans l'écran <b>AVI</b> ; pour un acompte, saisissez-le dans <b>Acomptes sur salaire</b>. Marquez ensuite la demande « Traitée ».</div>
-    ${ME.role==="ADM"?`<div class="panel" style="margin-bottom:10px;display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div><label>Acompte — jour limite du mois (1–28)</label><input type="number" id="acDd" min="1" max="28" style="width:110px"></div><button class="btn p" onclick="acompteCfgSave()">Enregistrer</button><span class="note" id="acMsg">Les employés ne peuvent demander un acompte que du 1er à ce jour (remise à zéro chaque mois).</span></div>`:''}
+    ${meHas(["ADM"])?`<div class="panel" style="margin-bottom:10px;display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div><label>Acompte — jour limite du mois (1–28)</label><input type="number" id="acDd" min="1" max="28" style="width:110px"></div><button class="btn p" onclick="acompteCfgSave()">Enregistrer</button><span class="note" id="acMsg">Les employés ne peuvent demander un acompte que du 1er à ce jour (remise à zéro chaque mois).</span></div>`:''}
     <div class="panel" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
       <div><label>Statut</label><select id="erStatus"><option value="PENDING">En attente</option><option value="HANDLED">Traitées</option><option value="REJECTED">Rejetées</option><option value="">Toutes</option></select></div>
       <div><label>Type</label><select id="erType"><option value="">Tous</option><option value="AVI">AVI</option><option value="ACOMPTE">Acompte</option></select></div>
       <button class="btn p" onclick="empReqLoad()">Filtrer</button>
       ${_expBar('#erBody table','demandes_employes')}
-      ${ME.role==="ADM"?`<button class="btn ghost" onclick="digestSend()" title="Envoie à chaque GPF un e-mail récapitulant toutes les demandes mobiles en attente dans ses portefeuilles">✉ Envoyer le récapitulatif aux GPF</button>`:''}
+      ${meHas(["ADM"])?`<button class="btn ghost" onclick="digestSend()" title="Envoie à chaque GPF un e-mail récapitulant toutes les demandes mobiles en attente dans ses portefeuilles">✉ Envoyer le récapitulatif aux GPF</button>`:''}
     </div>
     <div id="erBody" class="panel" style="overflow-x:auto"><div class="note">Chargement…</div></div>`;
   empReqLoad();
-  if(ME.role==="ADM") acompteCfgLoad();
+  if(meHas(["ADM"])) acompteCfgLoad();
 }
 async function digestSend(){ if(!confirm("Envoyer à chaque GPF un e-mail listant ses demandes mobiles en attente ?"))return; try{ const r=await api("/digest/send",{method:"POST"}); alert(r.disabled?"L'envoi d'e-mails n'est pas configuré (Administration › E-mail).":`Récapitulatif envoyé à ${r.sent} destinataire(s). ${r.skipped} sans demande en attente.`); }catch(e){ alert(e.message); } }
 async function acompteCfgLoad(){ try{ const c=await api("/acompte-config"); const el=document.getElementById("acDd"); if(el)el.value=c.deadlineDay; }catch(e){} }
@@ -6766,7 +6789,7 @@ async function saveTemplates() {
 /* ================================================================= */
 const fCFA = n => (Math.round(n || 0)).toLocaleString("fr-FR");
 const fCFA2 = n => (Math.round((n || 0) * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-function canRunPay() { return ME.role === "ADM" || (ME.permissions || []).includes("payroll.run"); }
+function canRunPay() { return meHas(["ADM"]) || (ME.permissions || []).includes("payroll.run"); }
 const MONTHS_FR_UI=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 function annexeFileName(client, period, ext){ const [y,m]=String(period).split("-"); return `Annexe Mensuelle - ${client} ${MONTHS_FR_UI[(+m||1)-1]||""} ${y}.${ext}`; }
 function dlAnnexe(id, client, period, kind){ const grp=(document.getElementById("annexeGrp")||{}).checked; const q=grp?"?group=poste":"";
@@ -6776,7 +6799,7 @@ function payDownload(url, filename) {
     const u = URL.createObjectURL(b), a = document.createElement("a"); a.href = u; a.download = filename; a.click();
   }).catch(e =>alert("Téléchargement échoué"));
 }
-function hasRight(perm) { return ME.role === "ADM" || (ME.permissions || []).includes(perm); }
+function hasRight(perm) { return meHas(["ADM"]) || (ME.permissions || []).includes(perm); }
 function payStatusTag(s) {
   return ({ OPEN: '<span class="tag amber">Ouverte</span>',
     CALCULATED: '<span class="tag blue">Calculée</span>',
@@ -6790,7 +6813,7 @@ function payStatusTag(s) {
 
 /* ===================== ADMIN : COLONNES PERSONNALISÉES DU BORDEREAU ===================== */
 async function bordFieldsView(){
-  if(ME.role!=="ADM"){ view.innerHTML='<div class="panel">Réservé à l\'administrateur.</div>'; return; }
+  if(!meHas(["ADM"])){ view.innerHTML='<div class="panel">Réservé à l\'administrateur.</div>'; return; }
   if(!PFS||!PFS.length){ try{ PFS=await api("/portfolios"); }catch(e){ PFS=[]; } }
   const [fields, rubs] = await Promise.all([ api("/payroll/bordereau-fields").catch(()=>[]), api("/payroll/rubriques").catch(()=>[]) ]);
   window._RUBS=rubs;
@@ -6899,8 +6922,8 @@ async function payAcomptesView(){
   const pfFilter = window._acoPf || "";
   let url="/payroll/acomptes?period="+period; if(pfFilter) url+="&portfolioId="+pfFilter;
   const list = await api(url).catch(()=>[]);
-  const canEdit = ["ADM","GPF","CD"].includes(ME.role) || canRunPay();
-  const canValidate = ["CD","ADM","RJ"].includes(ME.role);
+  const canEdit = meHas(["ADM","GPF","CD"]) || canRunPay();
+  const canValidate = meHas(["CD","ADM","RJ"]);
   const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
   const total=list.reduce((a,x)=>a+(x.amount||0),0);
   const clientOpts=(PFS||[]).map(p=>`<option value="${p.id}" ${pfFilter===p.id?'selected':''}>${esc(p.name)}</option>`).join("");
@@ -7029,11 +7052,11 @@ async function payBordereauxView(){
   const period = window._bordPeriod || new Date().toISOString().slice(0,7);
   const list = await api("/payroll/bordereaux"+(period?("?period="+period):"")).catch(()=>[]);
   const congeAlerts = await api("/payroll/conge-alerts?period="+period).catch(()=>null);
-  const canCreate = ["ADM","GPF"].includes(ME.role) || canRunPay();
+  const canCreate = meHas(["ADM","GPF"]) || canRunPay();
   const clientOpts = (PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
   view.innerHTML = `<div class="adm-wrap">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h1 style="margin:0">Bordereaux d'éléments &amp; contrôle</h1>
-      <span style="display:flex;gap:8px;align-items:center">${ME.role==="ADM"?`<button class="btn ghost sm" onclick="go('bordfields')">Colonnes du bordereau</button>`:""}<span class="note-inline">Saisie GPF &rarr; contrôle &rarr; Bon à payer</span></span></div>
+      <span style="display:flex;gap:8px;align-items:center">${meHas(["ADM"])?`<button class="btn ghost sm" onclick="go('bordfields')">Colonnes du bordereau</button>`:""}<span class="note-inline">Saisie GPF &rarr; contrôle &rarr; Bon à payer</span></span></div>
     <div class="note">Le GPF saisit les éléments variables par client, l'app génère le bordereau à signer, la paie calcule, puis le système rapproche automatiquement la paie avec le bordereau signé. L'ordre de virement n'est édité qu'après « Bon à payer » (CD / Audit).</div>
     ${congeBanner(congeAlerts)}
     ${canCreate?`<div class="panel"><b>Nouveau bordereau</b>
@@ -7081,8 +7104,8 @@ async function payBordereauView(id){
   if(!s){ view.innerHTML='<div class="panel">Bordereau introuvable.</div>'; return; }
   window._BORD = s;
   const editable = s.status==="BROUILLON";
-  const isGpf = ["ADM","GPF"].includes(ME.role) || canRunPay();
-  const canBAP = ["CD","ADM","RJ"].includes(ME.role);
+  const isGpf = meHas(["ADM","GPF"]) || canRunPay();
+  const canBAP = meHas(["CD","ADM","RJ"]);
   const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
   const numInput=(l,f,step)=>`<input type="number" ${editable?'':'disabled'} value="${l[f]||0}" step="${step||1}" min="0" style="width:58px;margin:0;padding:3px 5px;text-align:right" oninput="bordSet('${l.employeeId}','${f}',this.value)">`;
   const cflds=(s.fields||[]);
@@ -7126,8 +7149,8 @@ async function payBordereauView(id){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         ${editable&&isGpf?`<button class="btn p sm" onclick="bordSave('${s.id}')">Enregistrer</button>
           <button class="btn sm" onclick="bordSubmit('${s.id}')">Soumettre &amp; signer (GPF)</button>`:""}
-        ${(!editable&&(isGpf||["CD"].includes(ME.role))&&s.status!=="BON_A_PAYER")?`<button class="btn ghost sm" onclick="bordReopen('${s.id}')">Rouvrir (brouillon)</button>`:""}
-        ${(!editable&&(isGpf||["ADM","CD"].includes(ME.role)))?`<button class="btn ghost sm" style="border-color:#7c3aed;color:#7c3aed" onclick="bordCreateComplementaire('${s.portfolioId}','${s.period}')">+ Bordereau complémentaire</button>`:""}
+        ${(!editable&&(isGpf||meHas(["CD"]))&&s.status!=="BON_A_PAYER")?`<button class="btn ghost sm" onclick="bordReopen('${s.id}')">Rouvrir (brouillon)</button>`:""}
+        ${(!editable&&(isGpf||meHas(["ADM","CD"])))?`<button class="btn ghost sm" style="border-color:#7c3aed;color:#7c3aed" onclick="bordCreateComplementaire('${s.portfolioId}','${s.period}')">+ Bordereau complémentaire</button>`:""}
         <button class="btn ghost sm" onclick="bordPdf('${s.id}')">PDF</button>
         <button class="btn ghost sm" onclick="bordExport('${s.id}','xlsx')">Excel</button>
         <button class="btn ghost sm" onclick="bordExport('${s.id}','csv')">CSV</button>
@@ -7248,7 +7271,7 @@ function bordEcartDetail(empId,field){
   const ctrl=window._CTRL; if(!ctrl) return;
   const ln=(ctrl.lines||[]).find(l=>l.employeeId===empId); if(!ln) return;
   const c=(ln.checks||[]).find(x=>x.field===field); if(!c) return;
-  const s=window._BORD; const canBAP=["CD","ADM","RJ"].includes(ME.role);
+  const s=window._BORD; const canBAP=meHas(["CD","ADM","RJ"]);
   const money=(n)=>Number(Math.round(n||0)).toLocaleString("fr-FR");
   const statutTxt=c.status==="OK"?'<span class="tag green">Conforme</span>':(c.status==="ACK"?'<span class="tag" style="background:#b45309;color:#fff">Écart justifié</span>':'<span class="tag" style="background:var(--red);color:#fff">Écart</span>');
   const d=c.detail||{};
@@ -7530,9 +7553,9 @@ async function payRunView(id) {
   <div class="panel" style="display:flex;gap:8px;flex-wrap:wrap">
     ${open && canRunPay() ? `<button class="btn p" onclick="payCompute('${run.id}')">Calculer toute la paie</button>` : ""}
     ${run.status === "CALCULATED" && canRunPay() ? `<button class="btn" style="background:var(--green);color:#fff" onclick="payClose('${run.id}')">Clôturer la période</button>` : ""}
-    ${run.status === "CALCULATED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#b45309;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.provisional ? "Passation provisoire faite ✓" : "Passation provisoire (avant clôture)"}</button>` : ""}
-    ${run.status === "CLOSED" && ["ADM","CD","GPF"].includes(ME.role) ? `<button class="btn" style="background:#1b2a4a;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.finalized ? "Comptabilité bouclée ✓" : (run.provisional ? "Régulariser & comptabiliser (définitif)" : "Transférer en comptabilité")}</button>` : ""}
-    ${(run.status === "CLOSED" || run.status === "CALCULATED") && ["ADM","CD","GPF","RP"].includes(ME.role) ? `<button class="btn ghost" onclick="acctPDF('/payroll/runs/${run.id}/cloture-report.pdf','Rapport_cloture_paie_${run.period}.pdf')">Rapport de clôture (PDF)</button>` : ""}
+    ${run.status === "CALCULATED" && meHas(["ADM","CD","GPF"]) ? `<button class="btn" style="background:#b45309;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.provisional ? "Passation provisoire faite ✓" : "Passation provisoire (avant clôture)"}</button>` : ""}
+    ${run.status === "CLOSED" && meHas(["ADM","CD","GPF"]) ? `<button class="btn" style="background:#1b2a4a;color:#fff" onclick="payTransferAccounting('${run.id}')">${run.finalized ? "Comptabilité bouclée ✓" : (run.provisional ? "Régulariser & comptabiliser (définitif)" : "Transférer en comptabilité")}</button>` : ""}
+    ${(run.status === "CLOSED" || run.status === "CALCULATED") && meHas(["ADM","CD","GPF","RP"]) ? `<button class="btn ghost" onclick="acctPDF('/payroll/runs/${run.id}/cloture-report.pdf','Rapport_cloture_paie_${run.period}.pdf')">Rapport de clôture (PDF)</button>` : ""}
     ${canRunPay() ? `<button class="btn ghost" onclick="payDownload('/payroll/runs/${run.id}/virement','Ordre_virement_${run.period}.csv')">Ordre de virement</button>` : ""}
     ${open && canRunPay() ? `<button class="btn ghost" onclick="tsImportOpen('${run.id}','${run.period}')">Importer pointage</button>` : ""}
     ${run.status !== "OPEN" && canRunPay() ? `<span style="width:1px;background:var(--border);align-self:stretch"></span>
@@ -7744,7 +7767,7 @@ async function bulletinView(runId, empId) {
     ${open && canRunPay() ? `<button class="btn ghost" onclick="revCalcOpen('${runId}','${empId}','${run.period}')">Calcul à l'envers</button>` : ""}
     ${slip ? `<button class="btn ghost" onclick="payPreview('${slip.id}')">Aperçu</button><button class="btn ghost" onclick="payPdf('${slip.id}',0)">PDF</button><button class="btn ghost" onclick="payPdf('${slip.id}',1)">Imprimer</button><button class="btn ghost" onclick="bulletinEmail('${slip.id}')">Email</button>` : ""}
     <button class="btn ghost" onclick="dupOpen('${empId}')">Duplicatas</button>
-    ${slip && (ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit")) ? `<button class="btn ghost" onclick="payslipView('${slip.id}', true)">Corriger</button>` : ""}
+    ${slip && (meHas(["ADM"]) || (ME.permissions || []).includes("payroll.edit")) ? `<button class="btn ghost" onclick="payslipView('${slip.id}', true)">Corriger</button>` : ""}
     <span style="flex:1"></span>
     ${prev ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${prev}')">◀ Précédent</button>` : ""}
     ${next ? `<button class="btn ghost sm" onclick="bulletinView('${runId}','${next}')">Suivant ▶</button>` : ""}
@@ -8124,7 +8147,7 @@ async function payslipView(id, edit) {
   const s = await api("/payroll/payslips/" + id);
   window._payEmp = s.employeeId;
   await rubLabelsMap();
-  const canEdit = ME.role === "ADM" || (ME.permissions || []).includes("payroll.edit");
+  const canEdit = meHas(["ADM"]) || (ME.permissions || []).includes("payroll.edit");
   if (edit) {
     if (PAYSLIP_EDIT_ID !== id || !PAYSLIP_EDIT) {
       PAYSLIP_EDIT = JSON.parse(JSON.stringify(s.result.lines)); PAYSLIP_EDIT_ID = id;
@@ -9302,7 +9325,7 @@ async function billingView() {
   view.innerHTML = `<h1>Facturation
     <span style="float:right;display:flex;gap:6px">
       <button class="btn ghost sm" onclick="billingRecap()">Récap mensuel</button>
-      ${ME.role === "ADM" ? `<button class="btn ghost sm" onclick="go('billingcfg')">Clients &amp; composants</button>` : ""}
+      ${meHas(["ADM"]) ? `<button class="btn ghost sm" onclick="go('billingcfg')">Clients &amp; composants</button>` : ""}
     </span></h1>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
     ${kpi("Total HT", fCFA(sum("HT")), "FCFA")}
@@ -9372,7 +9395,7 @@ async function billingSheetOpen(id) {
       <button class="btn ghost sm" onclick="billingCarry()">Reprendre mois préc.</button>` : ""}
     <span style="flex:1"></span>
     <b>HT ${fCFA(t.HT)} - TVA ${fCFA(t.TVA)}${t.IS?` - IS -${fCFA(t.IS)}`:""} - <span style="color:var(--green)">${t.IS?"À payer "+fCFA(t.totalDu):"TTC "+fCFA(t.TTC)}</span></b>
-    ${["ADM","CD"].includes(ME.role) ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (s.status === "validated" ? "" : `<span class="tag amber" style="align-self:center">En attente de validation CD</span>`)}
+    ${meHas(["ADM","CD"]) ? `<button class="btn ${s.status === "validated" ? "ghost" : "p"} sm" onclick="billingValidate()">${s.status === "validated" ? "Rouvrir" : "Valider (CD)"}</button>` : (s.status === "validated" ? "" : `<span class="tag amber" style="align-self:center">En attente de validation CD</span>`)}
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/pdf','Annexe_${s.period}.pdf')">Annexe PDF</button>
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/annexe/excel','Annexe_${s.period}.xlsx')">Annexe Excel</button>
     <button class="btn ghost sm" onclick="payDownload('/billing/sheets/${s.id}/invoice/pdf','Facture_${s.period}.pdf')">Facture PDF</button>
@@ -10270,14 +10293,14 @@ async function invoicesView() {
   const [invs, contracts, models] = await Promise.all([api("/billing/invoices"), api("/billing/contracts"), api("/billing/invoice-models")]);
   BILL_CTR = contracts;
   view.innerHTML = `<h1>Factures
-    <span style="float:right;display:flex;gap:6px">${ME.role === "ADM" ? `<button class="btn ghost sm" onclick="invoiceModelsView()">Modèles de facture</button>` : ""}</span></h1>
+    <span style="float:right;display:flex;gap:6px">${meHas(["ADM"]) ? `<button class="btn ghost sm" onclick="invoiceModelsView()">Modèles de facture</button>` : ""}</span></h1>
   <div class="panel" style="max-width:760px"><b>Nouvelle facture</b>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
       <div><label>Client</label><select id="niClient" onchange="invLoadAnnexes()" style="margin:0;min-width:180px">${contracts.map(c => `<option value="${c.id}">${esc(c.clientName)}</option>`).join("")}</select></div>
       <div><label>Modèle</label><select id="niModel" style="margin:0;min-width:150px"><option value="">- vierge -</option>${models.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select></div>
       <div><label>Annexe à comparer</label><select id="niAnnexe" style="margin:0;min-width:170px"><option value="">-</option></select></div>
       <div><label>Type</label><select id="niType" style="margin:0"><option value="facture">Facture</option><option value="proforma">Proforma</option></select></div>
-      ${["ADM","CD"].includes(ME.role) ? `<div><label title="Laisser vide pour la numérotation automatique. Sert à reprendre des factures existantes.">N° (optionnel)</label><input id="niNumber" placeholder="automatique" style="margin:0;width:170px"></div>` : ""}
+      ${meHas(["ADM","CD"]) ? `<div><label title="Laisser vide pour la numérotation automatique. Sert à reprendre des factures existantes.">N° (optionnel)</label><input id="niNumber" placeholder="automatique" style="margin:0;width:170px"></div>` : ""}
       <div><label>Période</label><input id="niPeriod" type="month" value="${new Date().toISOString().slice(0, 7)}" style="margin:0"></div>
       <button class="btn p sm" onclick="invoiceCreate()">+ Créer</button></div>
     <div class="err hidden" id="niErr" style="margin-top:6px"></div></div>
@@ -10317,7 +10340,7 @@ function invoiceRows(list) {
     <div style="min-width:74px;text-align:center">${v.docType === "proforma" ? '<span class="tag blue">Proforma</span>' : (v.status === "validated" ? '<span class="tag green">Validée </span>' : '<span class="tag amber">Brouillon</span>')}</div>
     <button class="btn ghost sm" onclick="invoiceOpen('${v.id}')">Ouvrir</button>
     <button class="btn ghost sm" onclick="invoiceDuplicate('${v.id}')">Dupliquer</button>
-    ${["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="invoiceDelete('${v.id}','${esc(v.number||"")}',${v.accounting==="posted"?"true":"false"})">Suppr.</button>` : ""}</div>`).join("");
+    ${meHas(["ADM","CD","RJ"]) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="invoiceDelete('${v.id}','${esc(v.number||"")}',${v.accounting==="posted"?"true":"false"})">Suppr.</button>` : ""}</div>`).join("");
 }
 async function invoiceDuplicate(id){ try { const c = await api("/billing/invoices/"+id+"/duplicate",{method:"POST"}); invoiceOpen(c.id); } catch(e){ alert(e.message); } }
 async function invoiceDelete(id, number, posted){
@@ -10354,16 +10377,16 @@ async function invoiceOpen(id) {
       <button class="btn ghost sm" onclick="invoiceCompareRun()">Comparer à l'annexe</button>
       <button class="btn ghost sm" onclick="payDownload('/billing/invoices/${id}/pdf','Facture_${esc(INV_EDIT.number || id)}.pdf')">PDF</button>
       <button class="btn ghost sm" onclick="invoiceDuplicate('${id}')">Dupliquer</button>
-      ${["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="invoiceDelete('${id}','${esc(INV_EDIT.number||"")}',${INV_EDIT.accounting==="posted"?"true":"false"})">Supprimer</button>` : ""}
+      ${meHas(["ADM","CD","RJ"]) ? `<button class="btn ghost sm" style="color:var(--red)" onclick="invoiceDelete('${id}','${esc(INV_EDIT.number||"")}',${INV_EDIT.accounting==="posted"?"true":"false"})">Supprimer</button>` : ""}
       ${INV_EDIT.status !== "validated" ? `<button class="btn p sm" onclick="invoiceSave()">Enregistrer</button>` : ""}
       ${INV_EDIT.docType === "proforma" && !INV_EDIT.convertedTo ? `<button class="btn p sm" onclick="invoiceConvert()">Convertir en facture</button>` : ""}
-      ${INV_EDIT.docType === "proforma" ? "" : ["ADM","CD","RJ","GPF","RC"].includes(ME.role) && (INV_EDIT.status !== "validated" || ["ADM","CD"].includes(ME.role)) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : ((INV_EDIT.approvals||[]).length ? "Approuver (étape suivante)" : "Valider")}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
-      ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" && ["ADM","CD","RJ"].includes(ME.role) ? `<button class="btn p sm" onclick="invoiceConfirmReceipt()">Confirmer réception client</button>` : ""}</span></h1>
+      ${INV_EDIT.docType === "proforma" ? "" : meHas(["ADM","CD","RJ","GPF","RC"]) && (INV_EDIT.status !== "validated" || meHas(["ADM","CD"])) ? `<button class="btn ${INV_EDIT.status === "validated" ? "ghost" : "p"} sm" onclick="invoiceValidate()">${INV_EDIT.status === "validated" ? "Rouvrir" : ((INV_EDIT.approvals||[]).length ? "Approuver (étape suivante)" : "Valider")}</button>` : (INV_EDIT.status !== "validated" ? `<span class="tag amber" style="align-self:center">En attente CD</span>` : "")}
+      ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" && meHas(["ADM","CD","RJ"]) ? `<button class="btn p sm" onclick="invoiceConfirmReceipt()">Confirmer réception client</button>` : ""}</span></h1>
     ${INV_EDIT.status === "validated" && INV_EDIT.accounting !== "posted" ? `<div class="note" style="background:#fff7ed;border:1px solid #fdba74;color:#b45309;margin-bottom:8px">Facture validée mais <b>non comptabilisée</b>. Elle n'entrera en comptabilité qu'après confirmation que le client a reçu la copie (physique ou numérique). Échéance : <b>${esc(INV_EDIT.dueDate||"-")}</b>.</div>` : ""}
     ${INV_EDIT.receiptConfirmed ? `<div class="note" style="color:var(--muted);margin-bottom:8px">Réception confirmée (${esc(INV_EDIT.receiptMode||"")}) le ${esc((INV_EDIT.receiptConfirmedAt||"").slice(0,10))} par ${esc(INV_EDIT.receiptConfirmedBy||"")}.</div>` : ""}
   <div class="panel"><b style="font-size:12px;color:var(--muted)">EN-TÊTE</b>
     <div class="grid3" style="margin-top:6px">
-      ${["ADM","CD"].includes(ME.role) && INV_EDIT.status !== "validated" ? `<div><label>N° ${INV_EDIT.docType === "proforma" ? "de la proforma" : "de facture"}</label><input id="ivNumber" value="${esc(INV_EDIT.number || "")}"></div>` : ""}
+      ${meHas(["ADM","CD"]) && INV_EDIT.status !== "validated" ? `<div><label>N° ${INV_EDIT.docType === "proforma" ? "de la proforma" : "de facture"}</label><input id="ivNumber" value="${esc(INV_EDIT.number || "")}"></div>` : ""}
       <div><label>Objet</label><input id="ivObjet" value="${esc(INV_EDIT.objet || "")}"></div>
       <div><label>Bon de commande</label><input id="ivPO" value="${esc(INV_EDIT.bonCommande || "")}"></div>
       <div><label>Date</label><input id="ivDate" type="date" value="${esc(INV_EDIT.date || "")}"></div>
@@ -10518,7 +10541,7 @@ function acctKpi(l, v) { return `<div style="flex:1;min-width:150px;background:v
 const btpApi = (p, o) => api("/btp" + p, o);
 let BTP_META = null;
 async function btpMeta() { if (!BTP_META) BTP_META = await btpApi("/meta"); return BTP_META; }
-const btpCan = { config: () => ["ADM", "CD", "RS"].includes(ME.role), write: () => ["ADM", "CD", "GPF", "RS"].includes(ME.role), approve: () => ["ADM", "CD"].includes(ME.role) };
+const btpCan = { config: () => meHas(["ADM", "CD", "RS"]), write: () => meHas(["ADM", "CD", "GPF", "RS"]), approve: () => meHas(["ADM", "CD"]) };
 const btpQ = n => (Math.round((Number(n) || 0) * 1000) / 1000).toLocaleString("fr-FR");
 const btpM = n => fCFA(n) + " F";
 const btpKey = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2);
@@ -13147,7 +13170,7 @@ async function smqLoadRefs(force){
   window._SMQ={procs,axes,doctypes,clauses,_at:Date.now()};
   try{ window._SMQCTX=await api("/smq/my-context"); }catch(_){ window._SMQCTX={manager:false,piloteProcessIds:[]}; }
 }
-function smqIsManager(){ return (window._SMQCTX&&window._SMQCTX.manager)||ME.role==="ADM"; }
+function smqIsManager(){ return (window._SMQCTX&&window._SMQCTX.manager)||meHas(["ADM"]); }
 function smqCanProc(pid){ return smqIsManager() || ((window._SMQCTX&&window._SMQCTX.piloteProcessIds)||[]).includes(pid); }
 const SMQ_TYPE={M:"Management",R:"Réalisation",S:"Support"};
 const SMQ_TYPE_TAG={M:'<span class="tag blue">Management</span>',R:'<span class="tag green">Réalisation</span>',S:'<span class="tag" style="background:#7c3aed;color:#fff">Support</span>'};
@@ -13162,12 +13185,12 @@ async function gaView(){
   const list=await api("/ga").catch(()=>[]);
   view.innerHTML=`<h1>Gestion Avancée - Liste des modèles</h1>
     <div class="note" style="margin-bottom:8px">Modèles d'extraction (listes) alimentés par la paie et le personnel. Type « fixed » = fichier à colonnes de largeur fixe (ex. DIPE magnétique) ; « table » = tableau/Excel.</div>
-    <div style="margin-bottom:8px">${["ADM","CD","RJ"].includes(ME.role)?`<button class="btn p" onclick="gaOpenEdit('')">+ Nouveau modèle</button>`:''}</div>
+    <div style="margin-bottom:8px">${meHas(["ADM","CD","RJ"])?`<button class="btn p" onclick="gaOpenEdit('')">+ Nouveau modèle</button>`:''}</div>
     <div class="panel"><table style="width:100%"><tr><th>Code</th><th>Intitulé</th><th>Type</th><th class="r">Éléments</th><th></th></tr>
       ${list.length?list.map(m=>`<tr><td><b>GA\\${esc(m.code)}</b></td><td>${esc(m.intitule)}</td><td>${m.type==="table"?'<span class="tag blue">Table</span>':'<span class="tag">Largeur fixe</span>'}</td><td class="r">${m.nbElements}</td>
         <td style="white-space:nowrap"><button class="btn ghost sm" onclick="gaOpenRun('${m.id}')">Exécuter</button>
-          ${["ADM","CD","RJ"].includes(ME.role)?`<button class="btn ghost sm" onclick="gaOpenEdit('${m.id}')">Définir</button>`:''}
-          ${["ADM","CD"].includes(ME.role)?`<button class="btn ghost sm" style="color:var(--red)" onclick="gaDel('${m.id}')">Suppr.</button>`:''}</td></tr>`).join(""):'<tr><td colspan="5" class="note">Aucun modèle.</td></tr>'}
+          ${meHas(["ADM","CD","RJ"])?`<button class="btn ghost sm" onclick="gaOpenEdit('${m.id}')">Définir</button>`:''}
+          ${meHas(["ADM","CD"])?`<button class="btn ghost sm" style="color:var(--red)" onclick="gaDel('${m.id}')">Suppr.</button>`:''}</td></tr>`).join(""):'<tr><td colspan="5" class="note">Aucun modèle.</td></tr>'}
     </table></div>`;
 }
 async function gaDel(id){ if(!await mmConfirm({message:"Supprimer ce modèle de liste ?",danger:true}))return; try{ await api("/ga/"+id,{method:"DELETE"}); gaView(); }catch(e){ alert(e.message); } }
@@ -13268,7 +13291,7 @@ async function smqVeilleView(){
   const S=d.summary||{};
   const pfName=id=>{const p=(pfs||[]).find(x=>x.id===id);return p?p.name:(id||"-");};
   const confCol=c=>c==="Totalement Conforme"?'#16a34a':c==="Partiellement Conforme"?'#f97316':c==="Non Conforme"?'#dc2626':'#6b7280';
-  const canEdit=["ADM","RQ","CD","RJ"].includes(ME.role);
+  const canEdit=meHas(["ADM","RQ","CD","RJ"]);
   view.innerHTML=`<h1>Veille réglementaire</h1>
    <div class="note" style="margin-bottom:8px">Registre des exigences légales et réglementaires applicables et de leur niveau de conformité.</div>
    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
@@ -14262,7 +14285,7 @@ async function smqClaimsView(){
     ${sum?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
       ${[["Total",sum.total],["Ouvertes",sum.ouvertes],["En cours",sum.byStatut.en_cours],["Résolues",sum.byStatut.resolue],["Clôturées",sum.byStatut.cloturee],["Taux résolution",sum.tauxResolution+"%"]].map(([l,v])=>`<div style="flex:1;min-width:110px;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:12px;padding:10px 14px"><div style="font-size:12px;color:var(--muted)">${l}</div><div style="font-size:20px;font-weight:600">${v}</div></div>`).join("")}</div>`:''}
     <div class="panel"><table style="width:100%"><tr><th>Réf</th><th>Date</th><th>Client</th><th>Objet</th><th>Gravité</th><th>Pilote</th><th>Statut</th><th></th></tr>
-      ${rows.map(c=>{ const rw=["ADM","CD","RJ","RQ"].includes(ME.role); const closed=["resolue","cloturee"].includes(c.statut);
+      ${rows.map(c=>{ const rw=meHas(["ADM","CD","RJ","RQ"]); const closed=["resolue","cloturee"].includes(c.statut);
         return `<tr><td><b>${esc(c.ref)}</b></td><td>${esc(c.date||"")}</td><td>${esc(c.clientName||"")}</td><td>${esc(c.objet||"")}</td><td>${IMP_GRAV_TAG[c.gravite]||esc(c.gravite||"")}</td><td>${c.piloteName?esc(c.piloteName):'<span class="note">non assignée</span>'}</td><td>${CLAIM_STAT_TAG[c.statut]||esc(c.statut)}</td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap">
           ${rw?`<button class="btn ghost sm" style="padding:2px 6px;font-size:12px" onclick="smqClaimAssign('${c.id}')">${c.piloteUserId?"Réassigner":"Assigner"}</button>`:""}

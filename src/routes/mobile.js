@@ -68,7 +68,7 @@ function empAuth(req, res, next) {
   if (!account) return res.status(401).json({ error: "Compte introuvable" });
   // Compte d'un GPF : coupé dès que le compte web est désactivé ou n'est plus lié à cette fiche employé.
   if (account.viaUserId) { const u = (db.users || []).find(x => x.id === account.viaUserId);
-    if (!u || u.active === false || u.role !== "GPF" || u.employeeId !== account.employeeId) return res.status(401).json({ error: "Accès mobile retiré : reconnectez-vous" }); }
+    if (!u || u.active === false || !(u.role === "GPF" || (u.extraRoles || []).includes("GPF")) || u.employeeId !== account.employeeId) return res.status(401).json({ error: "Accès mobile retiré : reconnectez-vous" }); }
   req.emp = { accountId: account.id, employeeId: account.employeeId, tenantId: account.tenantId || "t1", account };
   // Platform maintenance: block the employee API while active (the public /maintenance status stays open).
   try {
@@ -92,7 +92,7 @@ router.get("/maintenance", (req, res) => {
  * son pointage) + l'écran équipe pour pointer les salariés de ses portefeuilles et périmètres. */
 function gpfMobileAccount(login, password) {
   const l = String(login || "").trim().toLowerCase(); if (!l.includes("@")) return null;
-  const u = (db.users || []).find(x => String(x.email || "").toLowerCase() === l && x.active !== false && x.role === "GPF" && x.employeeId);
+  const u = (db.users || []).find(x => String(x.email || "").toLowerCase() === l && x.active !== false && (x.role === "GPF" || (x.extraRoles || []).includes("GPF")) && x.employeeId);
   if (!u || !u.password || !verifyPw(password || "", u.password)) return null;
   const emp = (db.employees || []).find(e => e.id === u.employeeId && (e.tenantId || "t1") === (u.tenantId || "t1"));
   if (!emp) return null;

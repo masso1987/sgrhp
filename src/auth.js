@@ -248,6 +248,7 @@ function authenticate(req, res, next) {
     if (_u) {
       if (_u.active === false) { try { closeLoginSession(req.user.id, "suspended"); } catch (e) {} return res.status(401).json({ error: "Compte suspendu par un administrateur." }); }
       if ((req.user.tv || 0) !== (_u.tokenVersion || 0)) { try { closeLoginSession(req.user.id, "disconnected"); } catch (e) {} return res.status(401).json({ error: "Session fermée par un administrateur - reconnectez-vous." }); }
+      req.user.extraRoles = Array.isArray(_u.extraRoles) ? _u.extraRoles : []; // rôles supplémentaires, relus à chaque requête
     }
     lastSeen.set(req.user.id, Date.now());
     next();
@@ -260,10 +261,11 @@ function me(req, res) {
   const { password, totpSecret, ...safe } = u;
   const _t = (db.tenants || []).find(t => t.id === (u.tenantId || "t1"));
   const _tm = (_t && _t.modules) || [];
-  const _isAdmin = u.role === "ADM" || u.role === "SADM";
+  const _xr = Array.isArray(u.extraRoles) ? u.extraRoles : [];
+  const _isAdmin = u.role === "ADM" || u.role === "SADM" || _xr.includes("ADM");
   const _eff = _isAdmin ? _tm : _tm.filter(k => ["hr", "careers"].includes(k) || (u.modules || []).includes(k));
   const _perms = _isAdmin ? ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"]
-    : [...new Set([...(u.role === "GPF" ? ["employee.edit"] : []), ...(u.permissions || [])])];
+    : [...new Set([...(u.role === "GPF" || _xr.includes("GPF") ? ["employee.edit"] : []), ...(u.permissions || [])])];
   res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, disabledFeatures: (_t && _t.disabledFeatures) || [], twoFactor: !!u.totpSecret, idleMinutes: policy(u).idleMinutes, tenantName: _t ? _t.name : (u.tenantId === "platform" ? "Plateforme (SGRHP)" : "") });
 }
 

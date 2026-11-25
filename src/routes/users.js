@@ -56,7 +56,7 @@ router.post("/", allow("ADM"), (req, res) => {
 router.put("/:id/portfolios", allow("ADM", "SADM"), (req, res) => {
   const user = targetUser(req, req.params.id);
   if (!user) return res.status(404).json({ error: "Not found" });
-  if (user.role !== "GPF") return res.status(400).json({ error: "Portfolio assignment applies to GPF users only" });
+  if (user.role !== "GPF" && !(user.extraRoles || []).includes("GPF")) return res.status(400).json({ error: "Portfolio assignment applies to GPF users only" });
   const ids = req.body?.portfolioIds || [];
   const invalid = ids.filter(i => !db.portfolios.find(p => p.id === i));
   if (invalid.length) return res.status(400).json({ error: "Unknown portfolios: " + invalid.join(",") });
@@ -103,7 +103,8 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
       !_tenantUsers(u).some(x => x.role === "ADM" && x.active && x.id !== u.id))
     return res.status(400).json({ error: "Impossible : c'est le dernier administrateur du tenant" });
   const before = u.role; u.role = role;
-  if (role !== "GPF") u.portfolioIds = [];
+  u.extraRoles = (u.extraRoles || []).filter(r => r !== role); // le rôle principal ne reste pas en double
+  if (role !== "GPF" && !u.extraRoles.includes("GPF")) u.portfolioIds = [];
   if (role === "RQ") _grantModuleIfTenant(u, "quality");
   if (role === "RC") _grantModuleIfTenant(u, "accounting");
   if (role === "RS") _grantModuleIfTenant(u, "stock");
@@ -111,6 +112,24 @@ router.put("/:id/role", allow("ADM", "SADM"), (req, res) => {
   save();
   audit(req.user, "ROLE_CHANGED", "User", u.id, { email: u.email, before, after: role });
   res.json({ id: u.id, role: u.role });
+});
+/* Rôles supplémentaires : un utilisateur garde son rôle principal et reçoit d'autres rôles (ex. un GPF qui a aussi
+ * accès à la comptabilité = GPF + RC). Le module correspondant est ouvert automatiquement. ADM seulement. */
+router.put("/:id/extra-roles", allow("ADM", "SADM"), (req, res) => {
+  const u = targetUser(req, req.params.id);
+  if (!u) return res.status(404).json({ error: "Utilisateur introuvable" });
+  const ALL = ["GPF", "CD", "RJ", "UI", "ADM", "RQ", "RC", "RS", "RP"];
+  const asked = Array.isArray(req.body && req.body.extraRoles) ? req.body.extraRoles : [];
+  const bad = asked.filter(r => !ALL.includes(r)); if (bad.length) return res.status(400).json({ error: "Rôle invalide : " + bad.join(", ") });
+  const before = u.extraRoles || [];
+  u.extraRoles = [...new Set(asked.filter(r => r !== u.role))];
+  const MOD = { RQ: "quality", RC: "accounting", RS: "stock", RP: "payroll" };
+  for (const r of u.extraRoles) if (MOD[r]) _grantModuleIfTenant(u, MOD[r]);
+  if (u.role !== "GPF" && !u.extraRoles.includes("GPF")) u.portfolioIds = [];
+  u.tokenVersion = u.tokenVersion || 0; // la session en cours reste valide : les rôles sont relus à chaque requête
+  save();
+  audit(req.user, "ROLE_CHANGED", "User", u.id, { email: u.email, extraRoles: { before, after: u.extraRoles } });
+  res.json({ id: u.id, role: u.role, extraRoles: u.extraRoles });
 });
 
 // ADM grants employee edit/delete capabilities to a user.

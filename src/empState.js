@@ -36,7 +36,7 @@ function isDormant(emp) {
 /** Compte web GPF lié à cette fiche employé (le GPF est aussi salarié : il pointe son équipe sur mobile). */
 function linkedGpf(db, tenantId, empId) {
   const t = tenantId || "t1";
-  return (db.users || []).find(u => (u.tenantId || "t1") === t && u.employeeId === empId && u.role === "GPF" && u.active !== false) || null;
+  return (db.users || []).find(u => (u.tenantId || "t1") === t && u.employeeId === empId && (u.role === "GPF" || (u.extraRoles || []).includes("GPF")) && u.active !== false) || null;
 }
 // Équipe = affectation directe + périmètres (portefeuilles, employés) + portefeuilles gérés par le compte GPF lié,
 // moins les exclusions (périmètre « EXCLUDE »).

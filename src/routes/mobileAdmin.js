@@ -411,7 +411,7 @@ router.get("/supervisors", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
   const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
   const nm = e => e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : "";
   const st = require("../empState"); const tid = req.user.tenantId || "t1";
-  const gpfs = mine(db.users, req).filter(u => u.role === "GPF" && u.active !== false).map(u => ({ kind: "GPF", userId: u.id, name: u.fullName || u.email, email: u.email,
+  const gpfs = mine(db.users, req).filter(u => (u.role === "GPF" || (u.extraRoles || []).includes("GPF")) && u.active !== false).map(u => ({ kind: "GPF", userId: u.id, name: u.fullName || u.email, email: u.email,
     employeeId: u.employeeId && empById[u.employeeId] ? u.employeeId : null, employeeName: u.employeeId ? nm(empById[u.employeeId]) : "",
     portfolios: (u.portfolioIds || []).map(id => (pfById[id] || {}).name).filter(Boolean),
     teamSize: u.employeeId ? st.supervisedEmployees(db, tid, u.employeeId).length : 0 }));
@@ -424,7 +424,7 @@ router.get("/supervisors", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
 /* Lier un compte web GPF à sa fiche employé : il se connecte alors à l'application mobile avec son email et
  * son mot de passe web, pointe pour lui-même et pour son équipe (portefeuilles gérés + périmètres). ADM seulement. */
 router.put("/supervisors/gpf/:uid/employee", allow("ADM"), (req, res) => {
-  const u = mine(db.users, req).find(x => x.id === req.params.uid && x.role === "GPF");
+  const u = mine(db.users, req).find(x => x.id === req.params.uid && (x.role === "GPF" || (x.extraRoles || []).includes("GPF")));
   if (!u) return res.status(404).json({ error: "Compte GPF introuvable" });
   const eid = (req.body || {}).employeeId || null;
   if (eid) {
