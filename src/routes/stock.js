@@ -1279,7 +1279,7 @@ router.get("/reports", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
     out.title = "Rapport d'articles / de stock";
     out.columns = [C("name", "Produit"), C("sku", "SKU"), C("categoryName", "Catégorie"), C("brandName", "Marque"), C("qty", "Stock", "qty"), C("purchasePrice", "PU achat", "money"), C("salePrice", "PU vente", "money"), C("value", "Valeur stock", "money")];
     const cats = _nameMap(mine(db.stockCategories, req)), brands = _nameMap(mine(db.stockBrands, req));
-    out.rows = mine(db.stockProducts, req).filter(p => (!f.categoryId || p.categoryId === f.categoryId) && (!f.brandId || p.brandId === f.brandId) && (!f.q || ((p.name || "") + " " + (p.sku || "")).toLowerCase().includes(f.q)))
+    out.rows = mine(db.stockProducts, req).filter(p => !p.isVariantParent && (!f.categoryId || p.categoryId === f.categoryId) && (!f.brandId || p.brandId === f.brandId) && (!f.q || ((p.name || "") + " " + (p.sku || "")).toLowerCase().includes(f.q)))
       .map(p => ({ name: p.name, sku: p.sku, categoryName: cats[p.categoryId] || "", brandName: brands[p.brandId] || "", qty: Q(p.qty), purchasePrice: R2(p.purchasePrice), salePrice: R2(p.salePrice), value: Math.round(Q(p.qty) * R2(p.purchasePrice)) }))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     out.totals = { qty: sum(out.rows, "qty"), value: sum(out.rows, "value") };

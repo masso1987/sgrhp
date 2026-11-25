@@ -1209,6 +1209,8 @@ function watchI18n() {
 }
 
 let TOKEN = sessionStorage.getItem("t") || localStorage.getItem("t"), ME = JSON.parse(sessionStorage.getItem("me") || localStorage.getItem("me") || "null");
+/* ME est une variable « let » : on l expose aussi sur window pour les contrôles window.ME (logo, nom de la société dans les impressions...). */
+try{ Object.defineProperty(window,"ME",{get:function(){ return ME; },configurable:true}); }catch(e){}
 
 /* ================= Auto-déconnexion pour inactivité ================= */
 let IDLE_MIN = 120, _idleTimer = null;
@@ -15801,10 +15803,10 @@ function stockLabelsPrint(){
 function _labelWindow(cards){
   const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Étiquettes</title>
-    <style>body{font-family:Arial,sans-serif;margin:8mm}.grid{display:flex;flex-wrap:wrap;gap:4mm}
+    <style>@page{margin:0}body{font-family:Arial,sans-serif;margin:0;padding:8mm}.grid{display:flex;flex-wrap:wrap;gap:4mm}
     .lbl{width:48mm;height:28mm;border:1px solid #bbb;border-radius:3px;padding:3mm;box-sizing:border-box;text-align:center;display:flex;flex-direction:column;justify-content:center;page-break-inside:avoid}
     .nm{font-size:10px;font-weight:700;line-height:1.1;max-height:24px;overflow:hidden}.bc{width:100%;height:34px}.cd{font-size:9px;font-family:monospace}.pr{font-size:12px;font-weight:700;margin-top:2px}
-    @media print{body{margin:5mm}}</style>
+    @media print{body{margin:0;padding:5mm}}</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head>
     <body><div class="grid">${cards}</div>
     <script>window.onload=function(){try{document.querySelectorAll('svg.bc').forEach(function(el){try{JsBarcode(el,el.getAttribute('data-code'),{format:'CODE128',displayValue:false,height:34,margin:0});}catch(e){}});}catch(e){}setTimeout(function(){window.print();},400);}<\/script>
@@ -16500,7 +16502,8 @@ async function stockReportRun(){
   const d=await api("/stock/reports?"+qs.join("&")).catch(()=>null);
   if(!d){ if(box)box.innerHTML='<small style="color:var(--red)">Erreur de chargement.</small>'; return; }
   window._repData=d;
-  const fmt=(v,f)=>f==="money"?fCFA(v):f==="qty"?stkQty(v):f==="pct"?(Number(v||0)+" %"):esc(v==null?"":String(v));
+  const isoFr=(x)=>/^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(8,10)+"/"+x.slice(5,7)+"/"+x.slice(0,4):x;
+  const fmt=(v,f)=>f==="money"?fCFA(v):f==="qty"?stkQty(v):f==="pct"?(Number(v||0)+" %"):esc(v==null?"":isoFr(String(v)));
   const hasTot=d.totals&&Object.keys(d.totals).length;
   box.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>${esc(d.title)}</b>
       <span><button class="btn ghost sm" onclick="stockReportCSV()">CSV</button> <button class="btn ghost sm" onclick="stockReportPrint()">Imprimer</button></span></div>
@@ -16518,17 +16521,58 @@ function stockReportCSV(){
   const blob=new Blob([""+csv],{type:"text/csv;charset=utf-8"}); const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download=(d.title||"rapport").replace(/[^\w]+/g,"_")+".csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
 }
-function stockReportPrint(){
+/* Impression des rapports de stock : page propre (en-tête société + titre + période), sans l'en-tête/pied
+ * que le navigateur ajoute (date, « about:blank »), titres de colonnes répétés sur chaque page, paysage pour
+ * les rapports larges, nombres avec des espaces normales (les espaces fines s'affichent mal à l'impression). */
+async function stockReportPrint(){
   const d=window._repData; if(!d) return;
-  const fmt=(v,f)=>f==="money"?fCFA(v):f==="qty"?stkQty(v):f==="pct"?(Number(v||0)+" %"):(v==null?"":String(v));
-  const company=(window.ME&&ME.tenantName)||document.title||"";
-  const body=`<h2>${esc(d.title)}</h2><table><tr>${d.columns.map(c=>`<th style="text-align:${c.align==='r'?'right':'left'}">${esc(c.l)}</th>`).join("")}</tr>
-    ${d.rows.map(r=>`<tr>${d.columns.map(c=>`<td style="text-align:${c.align==='r'?'right':'left'}">${esc(fmt(r[c.k],c.fmt))}</td>`).join("")}</tr>`).join("")}
-    ${d.totals&&Object.keys(d.totals).length?`<tr class="tot">${d.columns.map((c,i)=>`<td style="text-align:${c.align==='r'?'right':'left'}">${i===0?'TOTAL':(d.totals[c.k]!=null?esc(fmt(d.totals[c.k],c.fmt)):'')}</td>`).join("")}</tr>`:''}</table>`;
-  const w=window.open("","_blank"); if(!w){alert("Autorisez les pop-ups pour imprimer.");return;}
-  const dt=new Date().toLocaleDateString("fr-FR");
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.title)}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px}h1{font-size:16px;margin:0}h2{font-size:13px;margin:12px 0 6px}.sub{color:#555;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{border:1px solid #bbb;padding:3px 6px}th{background:#eee}.tot{font-weight:700;background:#f3f3f3}@media print{body{margin:10mm}}</style></head><body><h1>${esc(company)}</h1><div class="sub">édité le ${dt}</div>${body}<script>window.onload=function(){window.print();}<\/script></body></html>`);
-  w.document.close();
+  const sp=(x)=>String(x).replace(/[\u202f\u00a0]/g," ");
+  const isoFr=(x)=>/^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(8,10)+"/"+x.slice(5,7)+"/"+x.slice(0,4):x;
+  const fmt=(v,f)=>sp(f==="money"?fCFA(v):f==="qty"?stkQty(v):f==="pct"?(Number(v||0)+" %"):(v==null?"":isoFr(String(v))));
+  const co=await stockCompany().catch(()=>({}));
+  const _me=(typeof ME!=="undefined"&&ME)||{};
+  const company=(co&&co.name)||_me.tenantName||"";
+  const coLine=[co&&co.address,co&&co.phone,co&&co.email].filter(Boolean).join(" · ");
+  const F=(window._rep&&window._rep.f)||{}; const def=(typeof repDef==="function")?repDef():{f:[]};
+  const fd=(x)=>{ if(!x) return ""; const p=String(x).slice(0,10).split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:x; };
+  const period=((def.f||[]).includes("date")&&(F.from||F.to))?("Période du "+fd(F.from)+" au "+fd(F.to)):"";
+  const wide=d.columns.length>7;
+  const al=(c)=>c.align==="r"?"right":"left";
+  const head=`<tr>${d.columns.map(c=>`<th style="text-align:${al(c)}">${esc(c.l)}</th>`).join("")}</tr>`;
+  const rows=d.rows.length?d.rows.map(r=>`<tr>${d.columns.map(c=>`<td style="text-align:${al(c)}">${esc(fmt(r[c.k],c.fmt))}</td>`).join("")}</tr>`).join("")
+    :`<tr><td colspan="${d.columns.length}" style="color:#777">Aucune donnée disponible.</td></tr>`;
+  const tot=d.totals&&Object.keys(d.totals).length?`<tr class="tot">${d.columns.map((c,i)=>`<td style="text-align:${al(c)}">${i===0?"TOTAL":(d.totals[c.k]!=null?esc(fmt(d.totals[c.k],c.fmt)):"")}</td>`).join("")}</tr>`:"";
+  const now=new Date(); const dt=now.toLocaleDateString("fr-FR")+" "+String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.title)}</title><style>
+    @page{size:A4 ${wide?"landscape":"portrait"};margin:0}
+    *{box-sizing:border-box}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:${wide?10:11}px;color:#111;margin:0;padding:12mm 11mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f5f4a;padding-bottom:6px;margin-bottom:10px;gap:16px}
+    .co{font-size:15px;font-weight:700;line-height:1.25}.co small{display:block;font-size:10px;font-weight:400;color:#555;margin-top:2px}
+    .meta{text-align:right;font-size:10px;color:#555;line-height:1.5;white-space:nowrap}
+    h2{font-size:14px;margin:0 0 2px}.per{font-size:11px;color:#444;margin-bottom:8px}
+    table{width:100%;border-collapse:collapse}thead{display:table-header-group}tr{page-break-inside:avoid}
+    th,td{border:1px solid #c9c9c9;padding:4px 6px;vertical-align:top;line-height:1.3}
+    th{background:#e8f0ec;font-weight:700;font-size:${wide?9.5:10.5}px;word-break:normal;overflow-wrap:normal;hyphens:none}
+    td{word-break:normal;overflow-wrap:anywhere}
+    .tot td{font-weight:700;background:#f3f3f3}.foot{margin-top:8px;font-size:10px;color:#666}
+  </style></head><body>
+    <div class="hd"><div class="co">${esc(company)}${coLine?`<small>${esc(coLine)}</small>`:""}</div>
+      <div class="meta">Imprimé le ${esc(dt)}<br>${esc(_me.fullName||"")}</div></div>
+    <h2>${esc(d.title)}</h2>${period?`<div class="per">${esc(period)}</div>`:""}
+    <table><thead>${head}</thead><tbody>${rows}${tot}</tbody></table>
+    <div class="foot">${d.rows.length} ligne(s)</div>
+  </body></html>`;
+  stkPrintFrame(html);
+}
+/* Imprime une page HTML dans un cadre invisible (pas de fenêtre pop-up à autoriser). */
+function stkPrintFrame(html){
+  const old=document.getElementById("stkPrintFrame"); if(old) old.remove();
+  const fr=document.createElement("iframe"); fr.id="stkPrintFrame";
+  fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(fr);
+  const doc=fr.contentWindow.document; doc.open(); doc.write(html); doc.close();
+  setTimeout(()=>{ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ alert("Impression impossible : "+e.message); } },400);
 }
 /* ================= Stock : Transferts de stock ================= */
 const TRF_ST_LABELS={en_cours:"En cours",termine:"Terminé",annule:"Annulé"};
@@ -16630,7 +16674,7 @@ async function stockPOPrint(id){
   const doc=stockPODocHtml(po,company,{barcode:true});
   const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(po.ref)}</title>
-    <style>body{font-family:Arial,sans-serif;margin:28mm 16mm 16mm 16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:22mm 12mm 12mm}}</style>
+    <style>@page{margin:0}body{font-family:Arial,sans-serif;margin:0;padding:22mm 14mm 14mm 14mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{padding:16mm 12mm 12mm}}</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${doc}
     <script>window.onload=function(){try{JsBarcode("#poBarcode",${JSON.stringify(po.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
   w.document.close();
@@ -16717,7 +16761,7 @@ async function stockDocPrint(kind,id){
   const doc=stockDocHtml(kind,d,company,{barcode:true});
   const w=window.open("","_blank"); if(!w){ alert("Autorisez les pop-ups pour imprimer."); return; }
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(d.ref)}</title>
-    <style>body{font-family:Arial,sans-serif;margin:28mm 16mm 16mm 16mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{margin:22mm 12mm 12mm}}</style>
+    <style>@page{margin:0}body{font-family:Arial,sans-serif;margin:0;padding:22mm 14mm 14mm 14mm;color:#111}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.r{text-align:right}@media print{body{padding:16mm 12mm 12mm}}</style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script></head><body>${doc}
     <script>window.onload=function(){try{JsBarcode("#docBarcode",${JSON.stringify(d.ref)},{format:'CODE128',displayValue:false,height:44,margin:0});}catch(e){}setTimeout(function(){window.print();},350);}<\/script></body></html>`);
   w.document.close();
