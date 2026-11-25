@@ -115,6 +115,38 @@ router.get("/suppliers", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   res.json(mine(db.stockContacts, req).filter(c => (c.type || "fournisseur") === "fournisseur").sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
 });
 
+/* Variantes : chaque valeur de la variation (ex. Format papier : A4, A3) devient un article de stock à part
+ * entière (stock, prix, mouvements propres), rattaché au produit parent (parentId + variantValue). Le parent
+ * sert de modèle et n est pas proposé dans les bons de commande, achats, ventes ou transferts. Idempotent. */
+function _varValues(v) { return v ? (Array.isArray(v.values) ? v.values : String(v.values || "").split(",")).map(x => String(x).trim()).filter(Boolean) : []; }
+function syncVariants(req, parent) {
+  if (!parent || parent.parentId) return false;
+  let changed = false; const set = (o, k, v) => { if (o[k] !== v) { o[k] = v; changed = true; } };
+  const v = parent.variationId ? mine(db.stockVariations, req).find(x => x.id === parent.variationId) : null;
+  const values = _varValues(v);
+  const kids = mine(db.stockProducts, req).filter(p => p.parentId === parent.id);
+  const priceOf = (val) => (Array.isArray(parent.variantPrices) ? parent.variantPrices : []).find(x => x.value === val) || {};
+  for (const val of values) {
+    const pr = priceOf(val);
+    const pp = pr.purchasePrice ? R2(pr.purchasePrice) : R2(parent.purchasePrice), sp = pr.salePrice ? R2(pr.salePrice) : R2(parent.salePrice);
+    let k = kids.find(x => x.variantValue === val);
+    if (!k) {
+      k = stamp({ id: id("prd"), sku: parent.sku ? (parent.sku + "-" + val.replace(/s+/g, "").toUpperCase()) : "", barcode: "", name: parent.name + " - " + val,
+        categoryId: parent.categoryId || "", unitId: parent.unitId || "", supplierId: parent.supplierId || "", brandId: parent.brandId || "",
+        warrantyId: parent.warrantyId || "", priceGroupId: parent.priceGroupId || "", purchasePrice: pp, salePrice: sp, qty: 0,
+        alertQty: parent.alertQty != null ? parent.alertQty : "", active: parent.active !== false, note: "", expDate: "", mfgDate: "",
+        variationId: "", variantPrices: [], parentId: parent.id, variantValue: val, variantPriceSig: pp + "|" + sp, createdAt: new Date().toISOString() }, req);
+      db.stockProducts.push(k); kids.push(k); changed = true; continue;
+    }
+    set(k, "name", parent.name + " - " + val);
+    // Les prix ne suivent le parent que si ses prix par variante ont changé (un achat peut mettre à jour le coût de la variante).
+    if (k.variantPriceSig !== pp + "|" + sp) { set(k, "purchasePrice", pp); set(k, "salePrice", sp); set(k, "variantPriceSig", pp + "|" + sp); } set(k, "active", parent.active !== false);
+    for (const fld of ["categoryId", "unitId", "supplierId", "brandId", "warrantyId", "priceGroupId"]) set(k, fld, parent[fld] || "");
+  }
+  for (const k of kids) if (!values.includes(k.variantValue)) set(k, "active", false);   // valeur retirée : article désactivé (historique conservé)
+  set(parent, "isVariantParent", values.length > 0);
+  return changed;
+}
 function prodOut(p, req) {
   const cat = mine(db.stockCategories, req).find(c => c.id === p.categoryId);
   const unit = mine(db.stockUnits, req).find(u => u.id === p.unitId);
@@ -124,11 +156,13 @@ function prodOut(p, req) {
     categoryName: cat ? cat.name : "", unitName: unit ? (unit.shortName || unit.name) : "", brandName: brand ? brand.name : "",
     qty, stockValue: R2(qty * (Number(p.purchasePrice) || 0)),
     low: (p.alertQty != null && p.alertQty !== "") ? (qty <= Number(p.alertQty)) : false,
-    out: qty <= 0
+    out: qty <= 0,
+    variantCount: p.isVariantParent ? mine(db.stockProducts, req).filter(k => k.parentId === p.id && k.active !== false).length : 0
   });
 }
 router.get("/products", allow("RS", "ADM", "CD", "RJ", "GPF"), (req, res) => {
   seedStock(req.user.tenantId || "t1");
+  { let ch = false; for (const p of mine(db.stockProducts, req).filter(x => !x.parentId && (x.variationId || x.isVariantParent))) ch = syncVariants(req, p) || ch; if (ch) save(); }
   let list = mine(db.stockProducts, req);
   const q = (req.query.q || "").toLowerCase();
   if (q) list = list.filter(p => ((p.name || "") + " " + (p.sku || "")).toLowerCase().includes(q));
@@ -151,7 +185,7 @@ router.post("/products", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
     active: b.active !== false, note: b.note || "", expDate: b.expDate || "", mfgDate: b.mfgDate || "",
     variationId: b.variationId || "", variantPrices: Array.isArray(b.variantPrices) ? b.variantPrices : [], createdAt: new Date().toISOString()
   }, req);
-  db.stockProducts.push(p);
+  db.stockProducts.push(p); syncVariants(req, p);
   if (initial) db.stockMovements.push(stamp({ id: id("mov"), date: new Date().toISOString().slice(0, 10), type: "initial", productId: p.id, qty: initial, unitCost: p.purchasePrice, ref: "Stock initial", note: "", createdBy: req.user.id, createdAt: new Date().toISOString() }, req));
   save(); audit(req.user, "CREATED", "StockProduct", p.id, { name: p.name }); res.status(201).json(prodOut(p, req));
 });
@@ -162,10 +196,16 @@ router.put("/products/:id", allow("RS", "ADM", "CD", "GPF"), (req, res) => {
   for (const f of ["purchasePrice", "salePrice"]) if (b[f] !== undefined) p[f] = R2(b[f]);
   if (b.alertQty !== undefined) p.alertQty = b.alertQty === "" ? "" : Q(b.alertQty);
   if (b.active !== undefined) p.active = !!b.active;
+  syncVariants(req, p);
   save(); res.json(prodOut(p, req));
 });
 router.delete("/products/:id", allow("RS", "ADM", "CD"), (req, res) => {
   const p = mine(db.stockProducts, req).find(x => x.id === req.params.id); if (!p) return res.status(404).json({ error: "Produit introuvable" });
+  // Produit à variantes : les articles-variantes sans mouvement partent avec lui, les autres sont désactivés.
+  for (const k of mine(db.stockProducts, req).filter(x => x.parentId === p.id)) {
+    const used = Q(k.qty || 0) !== 0 || (db.stockMovements || []).some(m => m.productId === k.id);
+    if (used) { k.active = false; k.parentId = ""; } else db.stockProducts.splice(db.stockProducts.indexOf(k), 1);
+  }
   db.stockProducts.splice(db.stockProducts.indexOf(p), 1); save(); res.json({ ok: true });
 });
 

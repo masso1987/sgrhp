@@ -15041,7 +15041,10 @@ async function stockLoadRefs(force){
     api("/stock/contacts?type=fournisseur").catch(()=>[]), api("/stock/contacts?type=client").catch(()=>[]),
     api("/stock/products").catch(()=>[]), api("/stock/brands").catch(()=>[]), api("/stock/warranties").catch(()=>[]), api("/stock/pricegroups").catch(()=>[]), api("/stock/locations").catch(()=>[])]);
   const [expensecats,accounts]=await Promise.all([api("/stock/expensecats").catch(()=>[]),api("/stock/accounts").catch(()=>[])]);
-  window._STK={cats,units,sups,clients,prods,brands,warranties,pricegroups,locations,expensecats,accounts}; window._STKREFS_AT=Date.now();
+  /* allProds = catalogue complet ; prods = articles utilisables dans les documents (le produit « parent » à variantes
+   * est remplacé par ses variantes, ex. « Papier - A4 », « Papier - A3 »). */
+  const allProds=prods||[]; const pickProds=allProds.filter(p=>!p.isVariantParent);
+  window._STK={cats,units,sups,clients,prods:pickProds,allProds,brands,warranties,pricegroups,locations,expensecats,accounts}; window._STKREFS_AT=Date.now();
 }
 const stkQty=(n)=>Number(n||0).toLocaleString("fr-FR");
 function stkCatName(id){ const c=(window._STK.cats||[]).find(x=>x.id===id); return c?c.name:""; }
@@ -15253,7 +15256,7 @@ async function stockHome(){
 async function stockProductsView(){
   await stockLoadRefs();
   const q=(window._stkQ||"").toLowerCase();
-  let list=window._STK.prods; if(q) list=list.filter(p=>((p.name||"")+" "+(p.sku||"")).toLowerCase().includes(q));
+  let list=window._STK.allProds||window._STK.prods; if(q) list=list.filter(p=>((p.name||"")+" "+(p.sku||"")).toLowerCase().includes(q));
   const totVal=list.reduce((s,p)=>s+(p.stockValue||0),0);
   view.innerHTML=`<button class="btn ghost sm" onclick="go('stockhome')">← Stock</button>
     <h1 style="margin-top:10px">Produits</h1>
@@ -15261,7 +15264,7 @@ async function stockProductsView(){
         <input placeholder="Rechercher nom / SKU…" value="${esc(window._stkQ||'')}" oninput="window._stkQ=this.value" onkeydown="if(event.key==='Enter')stockProductsView()" style="margin:0;min-width:220px">
         <span style="flex:1"></span><button class="btn p sm" onclick="stockProductModal()">+ Produit</button></div>
       <table style="margin-top:8px"><tr><th>SKU</th><th>Produit</th><th>Catégorie</th><th class="r">Prix achat</th><th class="r">Prix vente</th><th class="r">Stock</th><th class="r">Valeur</th><th></th></tr>
-      ${list.length?list.map(p=>`<tr${p.active===false?' style="opacity:.5"':''}><td><code>${esc(p.sku||'')}</code></td><td>${esc(p.name)}${p.low?' <span class="tag" style="background:var(--red);color:#fff">bas</span>':''}${p.out?' <span class="tag gray">rupture</span>':''}</td>
+      ${list.length?list.map(p=>`<tr${p.active===false?' style="opacity:.5"':''}><td><code>${esc(p.sku||'')}</code></td><td>${p.parentId?'<span style="color:var(--muted)">&#8627; </span>':''}${esc(p.name)}${p.isVariantParent?' <span class="tag blue">'+p.variantCount+' variante'+(p.variantCount>1?'s':'')+'</span>':''}${p.parentId?' <span class="tag gray">variante</span>':''}${(!p.isVariantParent&&p.low)?' <span class="tag" style="background:var(--red);color:#fff">bas</span>':''}${(!p.isVariantParent&&p.out)?' <span class="tag gray">rupture</span>':''}</td>
         <td>${esc(p.categoryName||'')}</td><td class="r">${fCFA(p.purchasePrice)}</td><td class="r">${fCFA(p.salePrice)}</td>
         <td class="r"><b>${stkQty(p.qty)}</b> ${esc(p.unitName||'')}</td><td class="r">${fCFA(p.stockValue)}</td>
         <td><div style="display:inline-flex;gap:2px;flex-wrap:wrap;max-width:360px">
@@ -15278,7 +15281,7 @@ async function stockProductsView(){
       </table></div>`;
 }
 async function stockProductModal(id){
-  const p=id?(window._STK.prods.find(x=>x.id===id)||{}):{active:true};
+  const p=id?((window._STK.allProds||window._STK.prods).find(x=>x.id===id)||{}):{active:true};
   window._STKVARS=await api("/stock/variations").catch(()=>[]);
   window._PVARPRICES=Array.isArray(p.variantPrices)?p.variantPrices:[];
   const cats=window._STK.cats||[], units=window._STK.units||[], sups=window._STK.sups||[], brands=window._STK.brands||[], warranties=window._STK.warranties||[], pricegroups=window._STK.pricegroups||[];
@@ -15302,7 +15305,7 @@ async function stockProductModal(id){
           :`<div><label>Stock initial</label><input id="pQty" type="number" value="0"></div>`}
     </div>
     <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
-      <label>Variation (prix par valeur)</label>
+      <label>Variation (prix par valeur)</label><div class="note-inline" style="margin:-2px 0 4px">Chaque valeur devient un article distinct avec son propre stock (ex. « Papier - A4 ») : c'est lui que vous choisissez dans les bons de commande, achats et ventes.</div>
       <select id="pVar" onchange="stockProdVarGrid(this.value)"><option value="">- aucune -</option>${(window._STKVARS||[]).map(v=>`<option value="${v.id}" ${p.variationId===v.id?'selected':''}>${esc(v.name)}</option>`).join("")}</select>
       <div id="pVarBox" style="margin-top:8px"></div>
     </div>
@@ -15340,7 +15343,7 @@ async function stockProductSave(id){
 }
 async function stockProductDelete(id){ if(!await mmConfirm({message:"Supprimer ce produit ? (l'historique de mouvements est conservé)",danger:true})) return;
   try{ await api("/stock/products/"+id,{method:"DELETE"}); document.querySelector(".modal-bg").remove(); stockProductsView(); }catch(e){ alert(e.message); } }
-function _prod(id){ return (window._STK.prods||[]).find(x=>x.id===id); }
+function _prod(id){ return (window._STK.allProds||window._STK.prods||[]).find(x=>x.id===id); }
 function stockProductLabel(id){ const p=_prod(id); if(!p) return; const code=p.barcode||p.sku||"";
   const card=`<div class="lbl"><div class="nm">${esc(p.name)}</div>${code?`<svg class="bc" data-code="${esc(code)}"></svg><div class="cd">${esc(code)}</div>`:''}<div class="pr">${Number(p.salePrice||0).toLocaleString("fr-FR")} FCFA</div></div>`;
   _labelWindow(card); }
@@ -15488,7 +15491,7 @@ async function stkRefDelete(ep,id){ if(!await mmConfirm({message:"Supprimer cet 
   try{ await api("/stock/"+ep+"/"+id,{method:"DELETE"}); go(({categories:'stockcats',units:'stockunits',brands:'stockbrands',warranties:'stockwarranties',pricegroups:'stockpricegroups',variations:'stockvariations',locations:'stocklocations',expensecats:'stockexpensecats'})[ep]); }catch(e){ alert(e.message); } }
 
 /* ---- Mouvements : entrées / sorties (éditeur de lignes) ---- */
-function stkProdOpts(cur){ return `<option value="">- produit -</option>`+(window._STK.prods||[]).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)} (stock ${stkQty(p.qty)})</option>`).join(""); }
+function stkProdOpts(cur){ return `<option value="">- produit -</option>`+(window._STK.prods||[]).filter(p=>p.active!==false||p.id===cur).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)} (stock ${stkQty(p.qty)})</option>`).join(""); }
 function stkLineAdd(){ window._STKLINES.push({productId:"",qty:"",price:""}); stkRenderLines(); }
 function stkLineDel(i){ window._STKLINES.splice(i,1); if(!window._STKLINES.length) window._STKLINES.push({productId:"",qty:"",price:""}); stkRenderLines(); }
 function stkLineSet(i,f,v){ window._STKLINES[i][f]=v; }
@@ -15809,7 +15812,7 @@ function _labelWindow(cards){
   w.document.close();
 }
 /* ================= Stock : Achats (BC, réceptions, retours) ================= */
-function plProdOpts(cur){ return `<option value="">- produit -</option>`+(window._STK.prods||[]).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)}${p.sku?' ['+esc(p.sku)+']':''}</option>`).join(""); }
+function plProdOpts(cur){ return `<option value="">- produit -</option>`+(window._STK.prods||[]).filter(p=>p.active!==false||p.id===cur).map(p=>`<option value="${p.id}" ${cur===p.id?'selected':''}>${esc(p.name)}${p.sku?' ['+esc(p.sku)+']':''}</option>`).join(""); }
 function plNet(l){ const q=Number(l.qty)||0,pu=Number(l.unitCost)||0,d=Number(l.discountPct)||0; return Math.round(q*pu*(1-d/100)); }
 function plSub(){ return (window._PL||[]).reduce((s,l)=>s+plNet(l),0); }
 function plAdd(){ window._PL.push({productId:"",qty:"",unitCost:"",discountPct:""}); plRender(); }
@@ -15836,7 +15839,7 @@ function plRender(){ window._plAddFn=null;
 function plSearchRender(){
   const box=document.getElementById("plSearchRes"); if(!box) return; const q=(window._plQ||"").toLowerCase().trim();
   if(!q){ box.innerHTML=""; return; }
-  const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
+  const res=(window._STK.prods||[]).filter(p=>p.active!==false&&((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
   const sk=['so','sale','quote','salesreturn'].includes(window._PLKIND);
   box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="plAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">${fCFA(sk?(p.salePrice||0):(p.purchasePrice||0))} - stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit trouvé. <a onclick="plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._plQ)} »</a></div>`}</div>`;
 }
@@ -15845,7 +15848,7 @@ function plAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); i
   const ex=(window._PL||[]).find(l=>l.productId===id); if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._PL.push({productId:id,qty:1,unitCost:price,discountPct:""});
   window._plQ=""; plRender();
 }
-function plSearchAddFirst(){ const q=(window._plQ||"").toLowerCase().trim(); if(!q) return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) plAddProduct(r.id); }
+function plSearchAddFirst(){ const q=(window._plQ||"").toLowerCase().trim(); if(!q) return; const r=(window._STK.prods||[]).find(p=>p.active!==false&&((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) plAddProduct(r.id); }
 function plNewProduct(){
   const cats=window._STK.cats||[],units=window._STK.units||[];
   const bg=document.createElement("div"); bg.className="modal-bg";
@@ -15869,7 +15872,7 @@ async function plNewProductSave(){
   const body={name:g("npName"),sku:g("npSku"),categoryId:g("npCat"),unitId:g("npUnit"),purchasePrice:g("npPP"),salePrice:g("npSP"),qty:0};
   if(!body.name){ const e=document.getElementById("npErr"); e.textContent="Nom obligatoire"; e.classList.remove("hidden"); return; }
   try{ const p=await api("/stock/products",{method:"POST",body:JSON.stringify(body)});
-    window._STK.prods=await api("/stock/products").catch(()=>window._STK.prods);
+    { const all=await api("/stock/products").catch(()=>null); if(all){ window._STK.allProds=all; window._STK.prods=all.filter(x=>!x.isVariantParent); } }
     document.querySelector(".modal-bg").remove(); window._plQ=""; const add=window._plAddFn||plAddProduct; add(p.id); window._plAddFn=null; }
   catch(e){ const el=document.getElementById("npErr"); el.textContent=e.message; el.classList.remove("hidden"); }
 }
@@ -16069,9 +16072,9 @@ function puAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); i
   if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._PUL.push({productId:id,qty:1,unitCost:p.purchasePrice||0,discountPct:0,salePrice:p.salePrice||0,mfgDate:p.mfgDate||"",expDate:p.expDate||""});
   window._puQ=""; puRender(); }
 function puSearchRender(){ const box=document.getElementById("puSearchRes"); if(!box) return; const q=(window._puQ||"").toLowerCase().trim(); if(!q){box.innerHTML="";return;}
-  const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
+  const res=(window._STK.prods||[]).filter(p=>p.active!==false&&((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
   box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="puAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">achat ${fCFA(p.purchasePrice)} - stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=puAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._puQ)} »</a></div>`}</div>`; }
-function puSearchAddFirst(){ const q=(window._puQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) puAddProduct(r.id); }
+function puSearchAddFirst(){ const q=(window._puQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>p.active!==false&&((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) puAddProduct(r.id); }
 function puQuickSupplier(){ const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="width:400px"><h3 style="margin:0 0 8px">Nouveau fournisseur</h3>
     <div><label>Nom *</label><input id="qsName"></div><div style="margin-top:6px"><label>Mobile</label><input id="qsMob"></div>
@@ -16306,9 +16309,9 @@ function suAddProduct(id){ const p=(window._STK.prods||[]).find(x=>x.id===id); i
   if(ex){ ex.qty=(Number(ex.qty)||0)+1; } else window._SUL.push({productId:id,qty:1,unitCost:p.salePrice||0,discountMode:"fixed",discountValue:0,unitId:p.unitId||"",warrantyId:"",note:""});
   window._suQ=""; suRender(); }
 function suSearchRender(){ const box=document.getElementById("suSearchRes"); if(!box) return; const q=(window._suQ||"").toLowerCase().trim(); if(!q){box.innerHTML="";return;}
-  const res=(window._STK.prods||[]).filter(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
+  const res=(window._STK.prods||[]).filter(p=>p.active!==false&&((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)).slice(0,8);
   box.innerHTML=`<div class="panel" style="margin:0 0 6px;padding:4px">${res.length?res.map(p=>`<div style="display:flex;justify-content:space-between;padding:4px 6px;cursor:pointer;border-radius:4px" onmouseover="this.style.background='var(--nav-active-bg)'" onmouseout="this.style.background=''" onclick="suAddProduct('${p.id}')"><span>${esc(p.name)} ${p.sku?'<span class="note">['+esc(p.sku)+']</span>':''}</span><span class="note">vente ${fCFA(p.salePrice)} - stock ${stkQty(p.qty)}</span></div>`).join(""):`<div class="note" style="padding:4px 6px">Aucun produit. <a onclick="window._plAddFn=suAddProduct;plNewProduct()" style="cursor:pointer;text-decoration:underline">Créer « ${esc(window._suQ)} »</a></div>`}</div>`; }
-function suSearchAddFirst(){ const q=(window._suQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) suAddProduct(r.id); }
+function suSearchAddFirst(){ const q=(window._suQ||"").toLowerCase().trim(); if(!q)return; const r=(window._STK.prods||[]).find(p=>p.active!==false&&((p.name||"")+" "+(p.sku||"")+" "+(p.barcode||"")).toLowerCase().includes(q)); if(r) suAddProduct(r.id); }
 function suQuickClient(){ const bg=document.createElement("div"); bg.className="modal-bg";
   bg.innerHTML=`<div class="modal" style="width:400px"><h3 style="margin:0 0 8px">Nouveau client</h3>
     <div><label>Nom *</label><input id="qcName"></div><div style="margin-top:6px"><label>Mobile</label><input id="qcMob"></div>
