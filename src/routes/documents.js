@@ -86,8 +86,23 @@ router.get("/:id/download", allow("GPF", "CD", "RJ", "UI", "ADM"), (req, res) =>
   audit(req.user, req.query.print === "1" ? "PRINTED" : "DOWNLOADED", "Document", d.id, {
     title: d.title, employeeId: d.refId,
     employeeName: emp ? `${String(emp.lastName||"").toUpperCase()} ${emp.firstName||""}` : null });
-  res.download(path.join(__dirname, "..", "..", "uploads", "generated", d.generatedFile),
-    d.title.replace(/[^\w \-]/g, "") + (d.generatedFile.endsWith(".docx") ? ".docx" : ".html"));
+  const _file = path.join(__dirname, "..", "..", "uploads", "generated", d.generatedFile);
+  const _name = d.title.replace(/[^\w \-]/g, "") + (d.generatedFile.endsWith(".docx") ? ".docx" : ".html");
+  // Modèles rédigés pour la société fondatrice : nom, BP, capital, représentant et références
+  // sont remplacés par ceux de la société du document (y compris pour les documents déjà générés).
+  const _tid = d.tenantId || (emp && emp.tenantId) || req.user.tenantId || "t1";
+  const _rb = require("../companyRebrand");
+  if (!_rb.isFounding(_tid)) {
+    try {
+      const raw = require("fs").readFileSync(_file);
+      const isDocx = d.generatedFile.endsWith(".docx");
+      const out = isDocx ? _rb.rebrandDocx(raw, _tid) : Buffer.from(_rb.rebrandText(raw.toString("utf8"), _tid), "utf8");
+      res.setHeader("Content-Type", isDocx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "text/html; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${_name.replace(/"/g, "")}"`);
+      return res.send(out);
+    } catch (e) { /* en cas d'erreur, on sert le fichier d'origine */ }
+  }
+  res.download(_file, _name);
 });
 
 module.exports = router;
