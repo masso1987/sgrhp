@@ -172,7 +172,9 @@ router.get("/attendance/review", allow("GPF", "ADM", "CD", "RJ"), (req, res) => 
       server_ts: a.serverTs, received_ts: a.receivedTs || a.serverTs, client_ts: a.clientTs,
       time_source: a.timeSource || "SERVER", time_flag: a.timeFlag || null,
       site: s.name || "", lat: a.lat, lng: a.lng, accuracy: a.accuracy, distance_m: a.distanceM,
-      status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved, has_photo: !!a.photo }; }));
+      status: a.status, exception_reason: a.exceptionReason || null, resolved: !!a.resolved, has_photo: !!a.photo,
+      // pointage fait par un superviseur (GPF ou chef d'équipe) pour ce salarié : « pointé par … »
+      by_supervisor: a.source === "SUPERVISOR" ? (`${(empById[a.onBehalfOf] || {}).firstName || ""} ${(empById[a.onBehalfOf] || {}).lastName || ""}`.trim() || "superviseur") : null }; }));
 });
 router.post("/attendance/:id/resolve", allow("GPF", "ADM", "CD"), (req, res) => {
   const a = mine(db.attendance, req).find(x => x.id === req.params.id); if (!a) return res.status(404).json({ error: "Introuvable" });
@@ -403,14 +405,47 @@ router.get("/supervisions", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
     scope: s.scope, targetId: s.targetId,
     targetLabel: s.scope === "PORTFOLIO" ? ((pfById[s.targetId] || {}).name || s.targetId) : nm(empById[s.targetId]) })));
 });
+/* Liste des superviseurs : comptes web GPF (liés ou non à leur fiche employé) + chefs d'équipe (employés). */
+router.get("/supervisors", allow("GPF", "ADM", "CD", "RJ"), (req, res) => {
+  const empById = {}; mine(db.employees, req).forEach(e => { empById[e.id] = e; });
+  const pfById = {}; mine(db.portfolios, req).forEach(p => { pfById[p.id] = p; });
+  const nm = e => e ? `${e.firstName || ""} ${e.lastName || ""}`.trim() : "";
+  const st = require("../empState"); const tid = req.user.tenantId || "t1";
+  const gpfs = mine(db.users, req).filter(u => u.role === "GPF" && u.active !== false).map(u => ({ kind: "GPF", userId: u.id, name: u.fullName || u.email, email: u.email,
+    employeeId: u.employeeId && empById[u.employeeId] ? u.employeeId : null, employeeName: u.employeeId ? nm(empById[u.employeeId]) : "",
+    portfolios: (u.portfolioIds || []).map(id => (pfById[id] || {}).name).filter(Boolean),
+    teamSize: u.employeeId ? st.supervisedEmployees(db, tid, u.employeeId).length : 0 }));
+  const linked = new Set(gpfs.map(g => g.employeeId).filter(Boolean));
+  const leaders = mine(db.employees, req).filter(e => !linked.has(e.id) && String(e.status || "").toUpperCase() !== "ARCHIVED"
+    && (e.fieldSupervisor === true || mine(db.supervisions, req).some(s => s.supervisorEmpId === e.id) || mine(db.employees, req).some(x => x.supervisorEmpId === e.id)))
+    .map(e => ({ kind: "LEADER", employeeId: e.id, name: nm(e), matricule: e.matricule || "", teamSize: st.supervisedEmployees(db, tid, e.id).length }));
+  res.json({ gpf: gpfs.sort((a, b) => a.name.localeCompare(b.name, "fr")), leaders: leaders.sort((a, b) => a.name.localeCompare(b.name, "fr")) });
+});
+/* Lier un compte web GPF à sa fiche employé : il se connecte alors à l'application mobile avec son email et
+ * son mot de passe web, pointe pour lui-même et pour son équipe (portefeuilles gérés + périmètres). ADM seulement. */
+router.put("/supervisors/gpf/:uid/employee", allow("ADM"), (req, res) => {
+  const u = mine(db.users, req).find(x => x.id === req.params.uid && x.role === "GPF");
+  if (!u) return res.status(404).json({ error: "Compte GPF introuvable" });
+  const eid = (req.body || {}).employeeId || null;
+  if (eid) {
+    const e = mine(db.employees, req).find(x => x.id === eid);
+    if (!e) return res.status(400).json({ error: "Fiche employé introuvable" });
+    const other = mine(db.users, req).find(x => x.id !== u.id && x.employeeId === eid);
+    if (other) return res.status(409).json({ error: "Cette fiche employé est déjà liée au compte de " + (other.fullName || other.email) });
+  }
+  const before = u.employeeId || null; u.employeeId = eid; save();
+  audit(req.user, "UPDATED", "User", u.id, { employeeLink: { before, after: eid } });
+  res.json({ ok: true, userId: u.id, employeeId: eid });
+});
 router.post("/supervisions", allow("GPF", "ADM"), (req, res) => {
   const b = req.body || {};
   const sup = mine(db.employees, req).find(x => x.id === b.supervisorEmpId);
   if (!sup) return res.status(400).json({ error: "Superviseur (employé) introuvable" });
-  const scope = b.scope === "PORTFOLIO" ? "PORTFOLIO" : "EMPLOYEE";
+  // EXCLUDE : retirer un employé de l'équipe (par ex. d'un portefeuille géré par le GPF).
+  const scope = b.scope === "PORTFOLIO" ? "PORTFOLIO" : b.scope === "EXCLUDE" ? "EXCLUDE" : "EMPLOYEE";
   if (!b.targetId) return res.status(400).json({ error: "Cible requise" });
   if (scope === "PORTFOLIO" && !mine(db.portfolios, req).some(p => p.id === b.targetId)) return res.status(400).json({ error: "Portefeuille introuvable" });
-  if (scope === "EMPLOYEE") {
+  if (scope === "EMPLOYEE" || scope === "EXCLUDE") {
     if (b.targetId === sup.id) return res.status(400).json({ error: "Un superviseur ne se supervise pas lui-même." });
     if (!mine(db.employees, req).some(e => e.id === b.targetId)) return res.status(400).json({ error: "Employé cible introuvable" });
   }

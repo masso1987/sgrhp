@@ -33,6 +33,13 @@ function isDormant(emp) {
  * Exclut les archivés et les employés en sommeil. L'employé peut toujours
  * pointer pour lui-même ; la supervision s'ajoute, elle ne remplace pas.
  */
+/** Compte web GPF lié à cette fiche employé (le GPF est aussi salarié : il pointe son équipe sur mobile). */
+function linkedGpf(db, tenantId, empId) {
+  const t = tenantId || "t1";
+  return (db.users || []).find(u => (u.tenantId || "t1") === t && u.employeeId === empId && u.role === "GPF" && u.active !== false) || null;
+}
+// Équipe = affectation directe + périmètres (portefeuilles, employés) + portefeuilles gérés par le compte GPF lié,
+// moins les exclusions (périmètre « EXCLUDE »).
 function supervisedEmployees(db, tenantId, supervisorEmpId) {
   const t = tenantId || "t1";
   const emps = (db.employees || []).filter(e => (e.tenantId || "t1") === t
@@ -40,19 +47,23 @@ function supervisedEmployees(db, tenantId, supervisorEmpId) {
   const links = (db.supervisions || []).filter(s => (s.tenantId || "t1") === t && s.supervisorEmpId === supervisorEmpId);
   const pfs = new Set(links.filter(l => l.scope === "PORTFOLIO").map(l => l.targetId));
   const direct = new Set(links.filter(l => l.scope === "EMPLOYEE").map(l => l.targetId));
+  const excluded = new Set(links.filter(l => l.scope === "EXCLUDE").map(l => l.targetId));
+  const gpf = linkedGpf(db, t, supervisorEmpId);
+  const gpfPfs = new Set(gpf ? (gpf.portfolioIds || []) : []);
   const out = new Map();
   for (const e of emps) {
-    if (e.id === supervisorEmpId) continue; // pas soi-même
-    if (e.supervisorEmpId === supervisorEmpId || pfs.has(e.portfolioId) || direct.has(e.id)) out.set(e.id, e);
+    if (e.id === supervisorEmpId || excluded.has(e.id)) continue; // pas soi-même, ni les exclus
+    if (e.supervisorEmpId === supervisorEmpId || pfs.has(e.portfolioId) || gpfPfs.has(e.portfolioId) || direct.has(e.id)) out.set(e.id, e);
   }
   return [...out.values()];
 }
 
-/** Vrai si l'employé supervise au moins un collègue (ou est marqué superviseur terrain). */
+/** Vrai si l'employé supervise au moins un collègue, est marqué chef d'équipe, ou est un GPF lié. */
 function isFieldSupervisor(db, tenantId, empId) {
   const e = (db.employees || []).find(x => x.id === empId);
   if (e && e.fieldSupervisor === true) return true;
+  if (linkedGpf(db, tenantId, empId)) return true;
   return supervisedEmployees(db, tenantId, empId).length > 0;
 }
 
-module.exports = { isDormant, todayStr, supervisedEmployees, isFieldSupervisor };
+module.exports = { isDormant, todayStr, supervisedEmployees, isFieldSupervisor, linkedGpf };

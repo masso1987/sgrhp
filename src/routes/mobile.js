@@ -66,6 +66,9 @@ function empAuth(req, res, next) {
   if (p.kind !== "employee") return res.status(403).json({ error: "Jeton non valide pour l'application employé" });
   const account = (db.empAccounts || []).find(a => a.id === p.accountId && a.active !== false);
   if (!account) return res.status(401).json({ error: "Compte introuvable" });
+  // Compte d'un GPF : coupé dès que le compte web est désactivé ou n'est plus lié à cette fiche employé.
+  if (account.viaUserId) { const u = (db.users || []).find(x => x.id === account.viaUserId);
+    if (!u || u.active === false || u.role !== "GPF" || u.employeeId !== account.employeeId) return res.status(401).json({ error: "Accès mobile retiré : reconnectez-vous" }); }
   req.emp = { accountId: account.id, employeeId: account.employeeId, tenantId: account.tenantId || "t1", account };
   // Platform maintenance: block the employee API while active (the public /maintenance status stays open).
   try {
@@ -84,10 +87,26 @@ router.get("/maintenance", (req, res) => {
 });
 
 /* ============================ AUTH ============================ */
+/* Un GPF (compte web) lié à sa fiche employé se connecte à l'application mobile avec son email et son mot de
+ * passe web. On lui associe un compte mobile technique (viaUserId) : même espace qu'un salarié (ses bulletins,
+ * son pointage) + l'écran équipe pour pointer les salariés de ses portefeuilles et périmètres. */
+function gpfMobileAccount(login, password) {
+  const l = String(login || "").trim().toLowerCase(); if (!l.includes("@")) return null;
+  const u = (db.users || []).find(x => String(x.email || "").toLowerCase() === l && x.active !== false && x.role === "GPF" && x.employeeId);
+  if (!u || !u.password || !verifyPw(password || "", u.password)) return null;
+  const emp = (db.employees || []).find(e => e.id === u.employeeId && (e.tenantId || "t1") === (u.tenantId || "t1"));
+  if (!emp) return null;
+  db.empAccounts = db.empAccounts || [];
+  let acc = db.empAccounts.find(a => a.viaUserId === u.id);
+  if (!acc) { acc = { id: id("acc"), tenantId: u.tenantId || "t1", employeeId: emp.id, login: "gpf:" + u.email, viaUserId: u.id, password: "", active: true, createdAt: new Date().toISOString() }; db.empAccounts.push(acc); }
+  else { acc.employeeId = emp.id; acc.active = true; }
+  return acc;
+}
 router.post("/auth/login", (req, res) => {
   const { login, password, deviceId } = req.body || {};
-  const account = accountByLogin(login);
-  if (!account || !verifyPw(password || "", account.password || "")) return res.status(401).json({ error: "Identifiants incorrects" });
+  let account = accountByLogin(login);
+  if (!account || !verifyPw(password || "", account.password || "")) account = gpfMobileAccount(login, password);
+  if (!account) return res.status(401).json({ error: "Identifiants incorrects" });
   const emp = empOf(account);
   const access = signAccess(account);
   const refresh = newRefresh(account, deviceId);
@@ -116,6 +135,12 @@ router.post("/auth/logout", empAuth, (req, res) => {
 router.post("/auth/password", empAuth, (req, res) => {
   const { current_password, new_password } = req.body || {};
   const a = req.emp.account;
+  if (a.viaUserId) { // GPF : c'est le mot de passe du compte web qui change (règles du web)
+    const u = (db.users || []).find(x => x.id === a.viaUserId); const { passwordPolicy } = require("../auth");
+    if (!u || !verifyPw(current_password || "", u.password || "")) return res.status(400).json({ error: "Mot de passe actuel incorrect" });
+    const pol = passwordPolicy(String(new_password || "")); if (pol) return res.status(400).json({ error: pol });
+    u.password = hash(new_password); save(); return res.json({ ok: true });
+  }
   if (!a.mustChangePwd && !verifyPw(current_password || "", a.password || "")) return res.status(400).json({ error: "Mot de passe actuel incorrect" });
   if (String(new_password || "").length < 6) return res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères" });
   a.password = hash(new_password); a.mustChangePwd = false; save();

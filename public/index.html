@@ -5512,53 +5512,82 @@ async function siteAssignPortfolio(sid){ const pf=(document.getElementById("asgP
 /* ---------------- Superviseurs (pointage mobile pour l'équipe) ---------------- */
 function _empName(e){ return ((e.firstName||'')+' '+(e.lastName||'')).trim(); }
 async function supervView(){
-  let emps=[]; try{ emps=await api("/employees"); }catch(e){ view.innerHTML=`${_presTabs('superv')}<div class="panel">`+esc(e.message)+'</div>'; return; }
-  emps=emps.filter(e=>String(e.status||'').toUpperCase()!=='ARCHIVED').sort((a,b)=>_empName(a).localeCompare(_empName(b),'fr'));
-  window._SUPEMPS=emps;
-  const byId={}; emps.forEach(e=>byId[e.id]=e);
-  const opt=cur=>'<option value="">— aucun —</option>'+emps.map(e=>`<option value="${e.id}"${cur===e.id?' selected':''}>${esc(_empName(e))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
+  let emps=[],pfs=[],sups={gpf:[],leaders:[]};
+  try{ const r=await Promise.all([api("/employees"),api("/portfolios").catch(()=>[]),api("/supervisors")]); emps=r[0]; pfs=r[1]||[]; sups=r[2]||sups; }
+  catch(e){ view.innerHTML=`${_presTabs('superv')}<div class="panel">`+esc(e.message)+'</div>'; return; }
+  emps=(Array.isArray(emps)?emps:(emps.items||[])).filter(e=>String(e.status||'').toUpperCase()!=='ARCHIVED').sort((a,b)=>_empName(a).localeCompare(_empName(b),'fr'));
+  window._SUPEMPS=emps; window._SUP_PFS=pfs; window._SUPS=sups;
+  // superviseurs utilisables comme « fiche employé » : GPF liés + chefs d'équipe
+  const supEmpIds=[...sups.gpf.filter(g=>g.employeeId).map(g=>({id:g.employeeId,label:g.name+' (GPF)'})),...sups.leaders.map(l=>({id:l.employeeId,label:l.name+(l.matricule?' ('+l.matricule+')':'')}))];
+  const isSup=new Set(supEmpIds.map(x=>x.id));
+  const opt=cur=>'<option value="">— aucun —</option>'+supEmpIds.map(x=>`<option value="${x.id}"${cur===x.id?' selected':''}>${esc(x.label)}</option>`).join("");
   const rows=emps.map(e=>`<tr data-emp="${e.id}" data-name="${esc(_empName(e)).toLowerCase()} ${esc((e.matricule||'').toLowerCase())}">
-      <td><b>${esc(_empName(e))}</b><div class="note">${esc(e.matricule||'')}</div></td>
+      <td><b>${esc(_empName(e))}</b><div class="note-inline">${esc(e.matricule||'')}</div></td>
       <td><select id="supSel_${e.id}" style="min-width:220px">${opt(e.supervisorEmpId||'')}</select></td>
       <td><button class="btn p sm" onclick="supSave('${e.id}')">Enreg.</button></td>
     </tr>`).join("");
-  let pfs=[]; try{ pfs=await api("/portfolios"); }catch(e){}
-  window._SUP_PFS=pfs;
-  const supOpts='<option value="">— choisir un superviseur —</option>'+emps.map(e=>`<option value="${e.id}">${esc(_empName(e))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
+  const supOpts='<option value="">— choisir un superviseur —</option>'
+    +(sups.gpf.length?'<optgroup label="GPF (comptes web)">'+sups.gpf.map(g=>`<option value="gpf:${g.userId}">${esc(g.name)}${g.employeeId?'':' — fiche employé à lier'}</option>`).join("")+'</optgroup>':'')
+    +(sups.leaders.length?'<optgroup label="Chefs d\'équipe (employés)">'+sups.leaders.map(l=>`<option value="emp:${l.employeeId}">${esc(l.name)}${l.matricule?' ('+esc(l.matricule)+')':''}</option>`).join("")+'</optgroup>':'');
+  const leaderOpts='<option value="">— employé —</option>'+emps.filter(e=>!isSup.has(e.id)).map(e=>`<option value="${e.id}">${esc(_empName(e))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
   view.innerHTML=`${_presTabs('superv')}<h1 style="margin-top:0">Superviseurs</h1>
-    <div class="note" style="margin-bottom:8px">Un <b>superviseur terrain</b> pointe l'arrivée et la sortie des membres de son équipe depuis l'application mobile (photo de preuve). Deux façons de constituer une équipe : affecter un superviseur à chaque employé (tableau ci-dessous), ou donner à un superviseur un <b>périmètre</b> = un ou plusieurs portefeuilles / employés (panneau « Périmètres »). Les employés peuvent toujours pointer eux-mêmes ; un double pointage dans le même sens est détecté.</div>
+    <div class="note" style="margin-bottom:8px">Un superviseur pointe l'arrivée et la sortie des membres de son équipe depuis l'application mobile (photo de preuve) ; ces pointages apparaissent dans <b>Pointages</b> avec « pointé par … ». Les salariés gardent la possibilité de pointer eux-mêmes. Superviseurs possibles : les <b>GPF</b> (leur équipe = les salariés des portefeuilles qu'ils gèrent, plus ou moins les ajustements ci-dessous ; un GPF lié à sa fiche employé se connecte à l'application mobile avec son email et son mot de passe web) et les <b>chefs d'équipe</b> (employés).</div>
     <div class="panel" style="margin-bottom:12px">
       <b style="font-size:12px;color:var(--muted)">PÉRIMÈTRES DE SUPERVISION (portefeuille ou employé → superviseur)</b>
       <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:8px 0">
-        <div><label>Superviseur</label><select id="supPerimSel" onchange="supPerimLoad()" style="min-width:240px">${supOpts}</select></div>
-        <label class="chk" style="display:flex;gap:6px;align-items:center;margin:0"><input type="checkbox" id="supFieldChk" onchange="supFieldToggle()" style="width:auto"> Superviseur terrain (voit l'écran équipe sur mobile)</label>
+        <div><label>Superviseur</label><select id="supPerimSel" onchange="supPerimLoad()" style="min-width:280px">${supOpts}</select></div>
+        <span style="width:1px;background:var(--border);align-self:stretch"></span>
+        <div><label>Nommer un chef d'équipe</label><select id="supLeaderAdd" style="min-width:220px">${leaderOpts}</select></div>
+        <button class="btn ghost sm" onclick="supLeaderAdd()">+ Chef d'équipe</button>
       </div>
-      <div id="supPerimBox" class="note">Choisissez un superviseur pour gérer son périmètre.</div>
+      <div id="supPerimBox"><span class="note-inline">Choisissez un superviseur pour voir et ajuster son équipe.</span></div>
     </div>
     <div class="panel" style="margin-bottom:10px"><b style="font-size:12px;color:var(--muted)">AFFECTATION DIRECTE (un superviseur par employé)</b><br><input id="supSearch" placeholder="Rechercher un employé…" oninput="supFilter()" style="width:100%;max-width:340px;margin-top:6px"></div>
     <div class="panel" style="overflow-x:auto"><table id="supTbl" style="width:100%;min-width:560px"><tr><th>Employé</th><th>Superviseur</th><th></th></tr>
-      ${emps.length?rows:'<tr><td colspan="3" class="note">Aucun employé.</td></tr>'}</table></div>`;
+      ${emps.length?rows:'<tr><td colspan="3" class="note-inline">Aucun employé.</td></tr>'}</table></div>`;
 }
+function supCurEmp(){ const v=(document.getElementById("supPerimSel")||{}).value||""; if(v.startsWith("emp:")) return v.slice(4); if(v.startsWith("gpf:")){ const g=((window._SUPS||{}).gpf||[]).find(x=>x.userId===v.slice(4)); return g&&g.employeeId||""; } return ""; }
+async function supLeaderAdd(){ const eid=(document.getElementById("supLeaderAdd")||{}).value; if(!eid){ alert("Choisissez un employé."); return; } try{ await api("/employees/"+eid+"/field-supervisor",{method:"PUT",body:JSON.stringify({enabled:true})}); await supervView(); const sel=document.getElementById("supPerimSel"); if(sel){ sel.value="emp:"+eid; supPerimLoad(); } }catch(e){ alert(e.message); } }
+async function supGpfLink(uid){ const eid=(document.getElementById("supGpfEmp")||{}).value||null; try{ await api("/supervisors/gpf/"+uid+"/employee",{method:"PUT",body:JSON.stringify({employeeId:eid})}); await supervView(); const sel=document.getElementById("supPerimSel"); if(sel){ sel.value="gpf:"+uid; supPerimLoad(); } }catch(e){ alert(e.message); } }
 async function supPerimLoad(){
-  const sid=(document.getElementById("supPerimSel")||{}).value; const box=document.getElementById("supPerimBox");
-  if(!sid){ box.innerHTML="Choisissez un superviseur pour gérer son périmètre."; return; }
-  const sup=(window._SUPEMPS||[]).find(e=>e.id===sid)||{};
-  document.getElementById("supFieldChk").checked=!!sup.fieldSupervisor;
-  let links=[]; try{ links=await api("/supervisions?supervisorEmpId="+sid); }catch(e){ box.innerHTML='<span class="err">'+esc(e.message)+'</span>'; return; }
+  const v=(document.getElementById("supPerimSel")||{}).value||""; const box=document.getElementById("supPerimBox");
+  if(!v){ box.innerHTML='<span class="note-inline">Choisissez un superviseur pour voir et ajuster son équipe.</span>'; return; }
+  const sups=window._SUPS||{gpf:[],leaders:[]}; const emps=window._SUPEMPS||[]; const adm=ME&&ME.role==="ADM";
+  const g=v.startsWith("gpf:")?sups.gpf.find(x=>x.userId===v.slice(4)):null; const sid=supCurEmp();
+  let head="";
+  if(g){
+    const linkOpts='<option value="">— aucune fiche —</option>'+emps.map(e=>`<option value="${e.id}"${g.employeeId===e.id?' selected':''}>${esc(_empName(e))}${e.matricule?' ('+esc(e.matricule)+')':''}</option>`).join("");
+    head=`<div style="margin-bottom:8px">${g.employeeId
+      ?`<span class="tag green">Fiche employé liée : ${esc(g.employeeName)}</span> <span class="note-inline">— se connecte à l'application mobile avec ${esc(g.email)} et son mot de passe web ; pointe pour lui-même et pour son équipe.</span>`
+      :`<span class="tag amber">Pas de fiche employé liée</span> <span class="note-inline">— liez ce GPF à sa fiche employé pour qu'il utilise l'application mobile et pointe son équipe.</span>`}</div>
+      ${adm?`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px"><div><label>Fiche employé du GPF</label><select id="supGpfEmp" style="min-width:240px">${linkOpts}</select></div><button class="btn p sm" onclick="supGpfLink('${g.userId}')">${g.employeeId?'Modifier le lien':'Lier'}</button></div>`:(g.employeeId?'':'<div class="note-inline">Seul l\'administrateur peut lier un GPF à sa fiche employé.</div>')}
+      <div class="note-inline" style="margin-bottom:8px">Portefeuilles gérés (inclus automatiquement) : <b>${g.portfolios.length?g.portfolios.map(esc).join(", "):"aucun"}</b></div>`;
+    if(!g.employeeId){ box.innerHTML=head; return; }
+  } else {
+    const e=emps.find(x=>x.id===sid)||{};
+    head=`<label class="chk" style="display:flex;gap:6px;align-items:center;margin:0 0 8px"><input type="checkbox" id="supFieldChk" onchange="supFieldToggle()" style="width:auto" ${e.fieldSupervisor?'checked':''}> Chef d'équipe (voit l'écran équipe sur mobile)</label>`;
+  }
+  let links=[],team=[]; try{ links=await api("/supervisions?supervisorEmpId="+sid); team=await api("/employees/"+sid+"/team").catch(()=>[]); }catch(e){ box.innerHTML=head+'<span class="err">'+esc(e.message)+'</span>'; return; }
   const pfOpts=(window._SUP_PFS||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
-  const empOpts=(window._SUPEMPS||[]).filter(e=>e.id!==sid).map(e=>`<option value="${e.id}">${esc(_empName(e))}</option>`).join("");
-  const rows=links.map(l=>`<tr><td>${l.scope==='PORTFOLIO'?'Portefeuille':'Employé'}</td><td>${esc(l.targetLabel)}</td><td style="text-align:right"><button class="btn ghost sm" onclick="supLinkDel('${l.id}')">Retirer</button></td></tr>`).join("");
-  box.innerHTML=`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
+  const empOpts=emps.filter(e=>e.id!==sid).map(e=>`<option value="${e.id}">${esc(_empName(e))}</option>`).join("");
+  const TYPE={PORTFOLIO:'Portefeuille (ajouté)',EMPLOYEE:'Employé (ajouté)',EXCLUDE:'Employé (exclu)'};
+  const rows=links.map(l=>`<tr><td>${TYPE[l.scope]||l.scope}</td><td>${esc(l.targetLabel)}</td><td style="text-align:right"><button class="btn ghost sm" onclick="supLinkDel('${l.id}')">Retirer</button></td></tr>`).join("");
+  const teamList=(Array.isArray(team)?team:(team.members||[])).map(m=>esc(m.name||((m.firstName||'')+' '+(m.lastName||'')).trim())).filter(Boolean);
+  box.innerHTML=head+`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
       <div><label>Ajouter un portefeuille</label><select id="supPfAdd"><option value="">—</option>${pfOpts}</select></div>
       <button class="btn p sm" onclick="supLinkAdd('${sid}','PORTFOLIO')">+ Portefeuille</button>
       <span style="width:1px;background:var(--border);align-self:stretch"></span>
       <div><label>Ajouter un employé</label><select id="supEmpAdd"><option value="">—</option>${empOpts}</select></div>
       <button class="btn p sm" onclick="supLinkAdd('${sid}','EMPLOYEE')">+ Employé</button>
+      <span style="width:1px;background:var(--border);align-self:stretch"></span>
+      <div><label>Exclure un employé</label><select id="supExcAdd"><option value="">—</option>${empOpts}</select></div>
+      <button class="btn ghost sm" onclick="supLinkAdd('${sid}','EXCLUDE')">− Exclure</button>
     </div>
-    <table style="width:100%"><tr><th>Type</th><th>Cible</th><th></th></tr>${links.length?rows:'<tr><td colspan="3" class="note">Aucun périmètre. Ajoutez un portefeuille ou un employé.</td></tr>'}</table>`;
+    <table style="width:100%"><tr><th>Ajustement</th><th>Cible</th><th></th></tr>${links.length?rows:'<tr><td colspan="3" class="note-inline">Aucun ajustement.</td></tr>'}</table>
+    <div class="note-inline" style="margin-top:8px"><b>Équipe actuelle (${teamList.length})</b> : ${teamList.length?teamList.join(", "):"personne pour l'instant"}</div>`;
 }
-async function supFieldToggle(){ const sid=(document.getElementById("supPerimSel")||{}).value; if(!sid)return; const en=document.getElementById("supFieldChk").checked; try{ await api("/employees/"+sid+"/field-supervisor",{method:"PUT",body:JSON.stringify({enabled:en})}); const e=(window._SUPEMPS||[]).find(x=>x.id===sid); if(e)e.fieldSupervisor=en; }catch(err){ alert(err.message); } }
-async function supLinkAdd(sid,scope){ const sel=document.getElementById(scope==='PORTFOLIO'?"supPfAdd":"supEmpAdd"); const tid=sel&&sel.value; if(!tid){ alert("Choisissez une cible."); return; } try{ await api("/supervisions",{method:"POST",body:JSON.stringify({supervisorEmpId:sid,scope,targetId:tid})}); supPerimLoad(); }catch(e){ alert(e.message); } }
+async function supFieldToggle(){ const sid=supCurEmp(); if(!sid)return; const en=document.getElementById("supFieldChk").checked; try{ await api("/employees/"+sid+"/field-supervisor",{method:"PUT",body:JSON.stringify({enabled:en})}); const e=(window._SUPEMPS||[]).find(x=>x.id===sid); if(e) e.fieldSupervisor=en; }catch(e){ alert(e.message); } }
+async function supLinkAdd(sid,scope){ const sel=document.getElementById({PORTFOLIO:"supPfAdd",EMPLOYEE:"supEmpAdd",EXCLUDE:"supExcAdd"}[scope]); const tid=sel&&sel.value; if(!tid){ alert("Choisissez une cible."); return; } try{ await api("/supervisions",{method:"POST",body:JSON.stringify({supervisorEmpId:sid,scope,targetId:tid})}); supPerimLoad(); }catch(e){ alert(e.message); } }
 async function supLinkDel(id){ try{ await api("/supervisions/"+id,{method:"DELETE"}); supPerimLoad(); }catch(e){ alert(e.message); } }
 function supFilter(){ const q=(document.getElementById("supSearch").value||'').toLowerCase().trim(); document.querySelectorAll('#supTbl tr[data-emp]').forEach(tr=>{ tr.style.display=(!q||tr.getAttribute('data-name').includes(q))?'':'none'; }); }
 async function supSave(eid){ const sel=document.getElementById("supSel_"+eid); try{ await api("/employees/"+eid+"/supervisor",{method:"PUT",body:JSON.stringify({supervisorEmpId:sel.value||null})}); sel.style.outline="2px solid var(--green)"; setTimeout(()=>sel.style.outline="",900); const e=(window._SUPEMPS||[]).find(x=>x.id===eid); if(e)e.supervisorEmpId=sel.value||null; }catch(err){ alert(err.message); } }
@@ -5700,7 +5729,7 @@ async function pointageReload(){
     const ts=TSRC[a.time_source]||['Serveur','green',''];
     rows+=`<tr${exc&&!a.resolved?' style="background:#fef2f2"':''}>
       <td><b>${esc(a.employee)}</b><div class="note">${esc(a.matricule||'')}</div></td>
-      <td>${a.type==='IN'?'Entrée':'Sortie'}</td>
+      <td>${a.type==='IN'?'Entrée':'Sortie'}${a.by_supervisor?'<div class="note" title="Pointage fait par le superviseur depuis l\'application mobile">pointé par '+esc(a.by_supervisor)+'</div>':''}</td>
       <td>${fmt(a.server_ts)}${a.time_flag==='REVIEW'&&a.received_ts&&a.received_ts!==a.server_ts?('<div class="note" title="Reçu par le serveur">reçu '+fmt(a.received_ts)+'</div>'):''}</td>
       <td><span class="tag ${ts[1]}" title="${esc(ts[2])}">${esc(ts[0])}</span></td>
       <td>${esc(a.site||'—')}</td>
