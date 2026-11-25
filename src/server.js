@@ -219,9 +219,9 @@ const requireModule = (key) => (req, res, next) => {
   const mods = (t && t.modules) || [];
   if (!mods.includes(key))
     return res.status(403).json({ error: `Module « ${key} » non activé pour votre organisation - contactez le super-administrateur.` });
-  if (u.role !== "ADM" && u.role !== "SADM") {
-    const dbu = (db.users || []).find(x => x.id === u.id);
-    if (!(((dbu && dbu.modules) || []).includes(key)))
+  const dbu = (db.users || []).find(x => x.id === u.id) || u;
+  if (!require("./rbac").isAdminUser(dbu)) {
+    if (!require("./rbac").hasModule(dbu, key))
       return res.status(403).json({ error: `Accès au module « ${key} » non accordé - contactez votre administrateur.` });
   }
   next();
@@ -237,9 +237,9 @@ const payrollGate = (req, res, next) => {
     return res.status(403).json({ error: "Module « payroll » non activé pour votre organisation - contactez le super-administrateur." });
   const p = req.path || "";
   const isControlPath = p.startsWith("/bordereaux") || p.startsWith("/acomptes") || p.startsWith("/bordereau-fields") || p.startsWith("/conge-alerts") || p.startsWith("/conge-calc") || (req.method === "GET" && p.startsWith("/rubriques"));
-  if (u.role === "ADM" || u.role === "SADM" || isControlPath) return next();
-  const dbu = (db.users || []).find(x => x.id === u.id);
-  if (!(((dbu && dbu.modules) || []).includes("payroll")))
+  const dbu = (db.users || []).find(x => x.id === u.id) || u;
+  if (require("./rbac").isAdminUser(dbu) || isControlPath) return next();
+  if (!require("./rbac").hasModule(dbu, "payroll"))
     return res.status(403).json({ error: "Accès au module « payroll » non accordé - contactez votre administrateur." });
   next();
 };

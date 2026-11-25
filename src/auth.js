@@ -227,7 +227,7 @@ function login(req, res) {
   try { require("./analytics").capture(user.id, "user_logged_in", { role: user.role, tenantId: user.tenantId || "t1", twoFactor: !!user.totpSecret }); } catch (e) {}
   touchActivity(user.id);
   res.json({ token, idleMinutes: policy(user).idleMinutes,
-    user: { id: user.id, fullName: user.fullName, role: user.role, portfolioIds: user.portfolioIds } });
+    user: { id: user.id, fullName: user.fullName, role: user.role, extraRoles: user.extraRoles || [], portfolioIds: user.portfolioIds } });
 }
 
 function verifyToken(token) { try { return jwt.verify(token, SECRET); } catch { return null; } }
@@ -263,7 +263,7 @@ function me(req, res) {
   const _tm = (_t && _t.modules) || [];
   const _xr = Array.isArray(u.extraRoles) ? u.extraRoles : [];
   const _isAdmin = u.role === "ADM" || u.role === "SADM" || _xr.includes("ADM");
-  const _eff = _isAdmin ? _tm : _tm.filter(k => ["hr", "careers"].includes(k) || (u.modules || []).includes(k));
+  const _eff = _isAdmin ? _tm : _tm.filter(k => ["hr", "careers"].includes(k) || require("./rbac").hasModule(u, k));
   const _perms = _isAdmin ? ["employee.edit", "employee.delete", "payroll.edit", "payroll.run", "payroll.livre", "payroll.cotisations", "payroll.compta"]
     : [...new Set([...(u.role === "GPF" || _xr.includes("GPF") ? ["employee.edit"] : []), ...(u.permissions || [])])];
   res.json({ ...safe, modules: _eff, tenantModules: _tm, permissions: _perms, disabledFeatures: (_t && _t.disabledFeatures) || [], twoFactor: !!u.totpSecret, idleMinutes: policy(u).idleMinutes, tenantName: _t ? _t.name : (u.tenantId === "platform" ? "Plateforme (SGRHP)" : "") });

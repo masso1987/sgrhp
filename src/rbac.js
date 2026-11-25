@@ -8,4 +8,10 @@ function allow(...roles) {
     next();
   };
 }
-module.exports = { allow };
+/* Rôles (principal + supplémentaires) d un utilisateur, et modules qu ils ouvrent d office :
+ * RC = comptabilité, RP = paie, RS = stock, RQ = qualité (si l organisation a le module). */
+const ROLE_MODULE = { RC: "accounting", RP: "payroll", RS: "stock", RQ: "quality" };
+function rolesOf(u) { return [u && u.role].concat((u && Array.isArray(u.extraRoles)) ? u.extraRoles : []).filter(Boolean); }
+function isAdminUser(u) { const r = rolesOf(u); return r.includes("ADM") || r.includes("SADM"); }
+function hasModule(u, key) { return ((u && u.modules) || []).includes(key) || rolesOf(u).some(r => ROLE_MODULE[r] === key); }
+module.exports = { allow, ROLE_MODULE, rolesOf, isAdminUser, hasModule };

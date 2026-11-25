@@ -1633,6 +1633,8 @@ async function boot() {
   try {
     const meFull = await api("/me");
     ME.modules = meFull.modules || [];
+    if (meFull.role) ME.role = meFull.role;
+    ME.extraRoles = meFull.extraRoles || [];   /* rôles supplémentaires (ex. RC = comptabilité) */
     ME.tenantModules = meFull.tenantModules || [];
     ME.permissions = meFull.permissions || [];
     ME.smqManager = !!meFull.smqManager;
@@ -1672,10 +1674,15 @@ function renderLoginFooter(){
 function buildNav() {
   const _adm = meHas(["ADM"]) || ME.role === "SADM";
   const _smqFull = _adm || meHas(["RQ"]) || !!ME.smqManager;   // accès complet Qualité
-  const _MODROLE = { RC: "accounting", RS: "stock", RP: "payroll" }; const _mr = _MODROLE[ME.role];
-  NAV_VISIBLE = NAV.filter(n => !n.hidden && (_mr
-    ? (n.module === _mr && (ME.modules || []).includes(n.module) && !((ME.disabledFeatures || []).includes(n.k)))
-    : (meHas(n.roles) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.tmodule || ((ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]))).includes(n.tmodule)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k)))));
+  /* Rôles « module » (RC compta, RS stock, RP paie) : ouvrent tout leur module, qu ils soient rôle principal ou supplémentaire.
+   * Les autres rôles (GPF, ADM, CD...) gardent leurs menus habituels ; un compte RC seul ne voit que la comptabilité. */
+  const _MODROLE = { RC: "accounting", RS: "stock", RP: "payroll" };
+  const _allRoles = [ME.role].concat(ME.extraRoles || []);
+  const _roleMods = _allRoles.map(r => _MODROLE[r]).filter(Boolean);
+  const _baseRoles = _allRoles.filter(r => !_MODROLE[r]);
+  NAV_VISIBLE = NAV.filter(n => !n.hidden && (
+    (_roleMods.includes(n.module) && (ME.modules || []).includes(n.module) && !((ME.disabledFeatures || []).includes(n.k)))
+    || (_baseRoles.length && (n.roles || []).some(r => _baseRoles.includes(r)) && (!n.module || (ME.modules || []).includes(n.module)) && (!n.tmodule || ((ME.tenantModules&&ME.tenantModules.length?ME.tenantModules:(ME.modules||[]))).includes(n.tmodule)) && (!n.cap || _adm || (n.grp === "qualite" && _smqFull) || (ME.permissions || []).includes(n.cap)) && !((ME.disabledFeatures || []).includes(n.k)))));
   NAV_PRESENT = NAV_GROUPS.filter(G =>NAV_VISIBLE.some(n => (n.grp || "admin") === G.g));
   const mb = document.getElementById("modbar");
   if (mb) mb.innerHTML = NAV_PRESENT.map(G => `<div class="modtab" id="mod-${G.g}" onclick="goGroup('${G.g}')">${esc(G.label)}</div>`).join("");
